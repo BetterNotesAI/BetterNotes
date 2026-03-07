@@ -1,0 +1,13 @@
+{
+  "name": "betternotes-v2",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.2",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:worker": "pnpm --filter latex-worker dev",
+    "build:web": "pnpm --filter web build",
+    "build:worker": "pnpm --filter latex-worker build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
