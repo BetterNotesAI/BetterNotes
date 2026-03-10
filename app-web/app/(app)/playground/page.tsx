@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import {
     listOutputFiles, saveOutputFile, promotePlayground,
     type Project
 } from "@/lib/api";
-import { savePlaygroundDraft, loadPlaygroundDraft, clearPlaygroundDraft } from "@/lib/playgroundDraft";
+import { savePlaygroundDraft, loadPlaygroundDraft, clearPlaygroundDraft } from "@/lib/draft";
 import ImportProjectModal from "@/app/components/ImportProjectModal";
 import ExportProjectModal from "@/app/components/ExportProjectModal";
 import { useToast } from "@/app/components/Toast";

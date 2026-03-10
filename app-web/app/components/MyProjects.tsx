@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { loadChats, deleteChat, renameChat } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
 

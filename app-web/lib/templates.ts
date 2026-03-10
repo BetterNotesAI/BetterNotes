@@ -1,12 +1,13 @@
-// lib/templates/index.ts
+// Template definitions for the frontend
+// Source .tex files live in app-api/templates/ (used by the backend for generation)
+// Preview images and downloadable .tex files live in public/templates/
 
 export const templates = [
-  // ==================== FREE TEMPLATES ====================
+  // ==================== FREE ====================
   {
     id: "landscape_3col_maths",
     name: "Landscape 3 columns (Maths)",
     format: "latex",
-    sourcePath: "lib/templates/latex/landscape_3col_maths.tex",
     publicPath: "/templates/landscape_3col_maths.tex",
     previewPath: "/templates/previews/3cols_landscape_Template_Calculus.pdf",
     thumbnailPath: "/templates/previews/3cols_landscape.png",
@@ -17,7 +18,6 @@ export const templates = [
     id: "2cols_portrait",
     name: "Portrait 2 columns (QFT/QED cheat-sheet)",
     format: "latex",
-    sourcePath: "lib/templates/latex/2cols_portrait.tex",
     publicPath: "/templates/2cols_portrait.tex",
     previewPath: "/templates/previews/2cols_portrait_QED_For_Hadrons.pdf",
     thumbnailPath: "/templates/previews/2cols_portrait.png",
@@ -28,7 +28,6 @@ export const templates = [
     id: "cornell",
     name: "Cornell Notes System",
     format: "latex",
-    sourcePath: "lib/templates/latex/cornell.tex",
     publicPath: "/templates/cornell.tex",
     previewPath: "/templates/previews/cornell.pdf",
     thumbnailPath: "/templates/previews/cornell.png",
@@ -39,7 +38,6 @@ export const templates = [
     id: "problem_solving",
     name: "Problem Solving Sheet (STEM)",
     format: "latex",
-    sourcePath: "lib/templates/latex/problem_solving.tex",
     publicPath: "/templates/problem_solving.tex",
     previewPath: "/templates/previews/problem_solving.pdf",
     thumbnailPath: "/templates/previews/problem_solving.png",
@@ -50,19 +48,17 @@ export const templates = [
     id: "zettelkasten",
     name: "Zettelkasten Cards",
     format: "latex",
-    sourcePath: "lib/templates/latex/zettelkasten.tex",
     publicPath: "/templates/zettelkasten.tex",
     previewPath: "/templates/previews/zettelkasten.pdf",
     thumbnailPath: "/templates/previews/zettelkasten.png",
     description: "Knowledge cards grid layout for modular thinking.",
     isPro: false,
   },
-  // ==================== PRO TEMPLATES ====================
+  // ==================== PRO ====================
   {
     id: "academic_paper",
     name: "Academic Research Paper",
     format: "latex",
-    sourcePath: "lib/templates/latex/academic_paper.tex",
     publicPath: "/templates/academic_paper.tex",
     previewPath: "/templates/previews/academic_paper.pdf",
     thumbnailPath: "/templates/previews/academic_paper.png",
@@ -73,7 +69,6 @@ export const templates = [
     id: "lab_report",
     name: "Technical Lab Report",
     format: "latex",
-    sourcePath: "lib/templates/latex/lab_report.tex",
     publicPath: "/templates/lab_report.tex",
     previewPath: "/templates/previews/lab_report.pdf",
     thumbnailPath: "/templates/previews/lab_report.png",
@@ -84,7 +79,6 @@ export const templates = [
     id: "data_analysis",
     name: "Data Analysis Report",
     format: "latex",
-    sourcePath: "lib/templates/latex/data_analysis.tex",
     publicPath: "/templates/data_analysis.tex",
     previewPath: "/templates/previews/data_analysis.pdf",
     thumbnailPath: "/templates/previews/data_analysis.png",

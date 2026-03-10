@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import {
     getUsageStatus, incrementMessageCount,
     listProjectFiles, createProjectFolder, deleteProjectFile,

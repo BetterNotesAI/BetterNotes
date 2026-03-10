@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { listProjects, createProject, loadChats, type Project } from "@/lib/api";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import ProjectCard from "@/app/components/ProjectCard";
 import { templates } from "@/lib/templates";
 import type { User } from "@supabase/supabase-js";

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Background from "../components/Background";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 
 export default function ResetPasswordPage() {
     const router = useRouter();

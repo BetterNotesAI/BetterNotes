@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { getUsageStatus, type UsageStatus } from "@/lib/api";
 import TemplateCard from "@/app/components/TemplateCard";
 import PdfPreviewModal from "@/app/components/PdfPreviewModal";

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Background from "./components/Background";
 import PdfPreviewModal from "./components/PdfPreviewModal";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { templates } from "@/lib/templates";
 import type { User } from "@supabase/supabase-js";
 

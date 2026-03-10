@@ -293,16 +293,12 @@ app.get("/templates", (_req, res) => {
 // Routers
 // -------------------------
 
-// LaTeX router (we mount twice: old endpoints + new /latex/* endpoints)
-// - Old:  POST /generate-latex, /compile, /fix-latex
-// - New:  POST /latex/generate-latex, /latex/compile, /latex/fix-latex
 const latexRouter = createLatexRouter({
   openai,
   openaiModel: OPENAI_MODEL,
   templateDirAbs: TEMPLATE_DIR,
   latexTimeoutMs: LATEX_TIMEOUT_MS,
 });
-app.use("/", latexRouter);
 app.use("/latex", latexRouter);
 
 // Stripe router (expects /stripe/create-checkout-session, /stripe/create-portal-session, /stripe/webhook)

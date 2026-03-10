@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/lib/supabase";
 
 export default function UpgradeCard() {
     const [hidden, setHidden] = useState(true); // hidden by default until we know

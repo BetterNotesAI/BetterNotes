@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/app/components/Toast";
-import * as supabaseMod from "@/supabaseClient";
+import * as supabaseMod from "@/lib/supabase";
 
 const supabase: any = (supabaseMod as any).supabase ?? (supabaseMod as any).default;
 const BILLING_API_BASE = "/api/stripe";
@@ -112,7 +112,7 @@ export default function PricingClient({
 
     async function startCheckout(priceId: string) {
         try {
-            if (!supabase) throw new Error("Supabase client not found. Check app-web/supabaseClient.ts exports.");
+            if (!supabase) throw new Error("Supabase client not found. Check app-web/lib/supabase.ts exports.");
             if (!priceId)
                 throw new Error("Missing Stripe priceId. Set NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY in app-web/.env.local");
 
