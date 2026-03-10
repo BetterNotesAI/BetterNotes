@@ -10,7 +10,7 @@ const protectedRoutes: string[] = [];
 // Routes that should redirect to workspace if already authenticated
 const authRoutes = ["/login", "/signup"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
     let res = NextResponse.next({
         request: {
             headers: req.headers,
@@ -42,7 +42,7 @@ export async function middleware(req: NextRequest) {
         }
     );
 
-    // Use getUser() in middleware so Supabase can refresh expired access tokens
+    // Use getUser() in proxy so Supabase can refresh expired access tokens
     // and write updated cookies on navigation.
     const {
         data: { user },

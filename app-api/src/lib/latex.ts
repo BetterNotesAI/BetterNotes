@@ -181,33 +181,10 @@ export async function compileLatexToPdf(
 
   let log = "";
   try {
+    const hasPdflatex = await commandExists("pdflatex");
     const hasLatexmk = await commandExists("latexmk");
 
-    if (hasLatexmk) {
-      try {
-        const { stdout, stderr } = await execFileAsync(
-          "latexmk",
-          ["-pdf", "-bibtex-", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "main.tex"],
-          { cwd: workDir, timeout: opts.timeoutMs, maxBuffer: 20 * 1024 * 1024 }
-        );
-        log += stdout ?? "";
-        log += stderr ?? "";
-      } catch (e: any) {
-        const extra = extractExecOutput(e);
-        log += extra.stdout ?? "";
-        log += extra.stderr ?? "";
-      }
-    } else {
-      const hasPdflatex = await commandExists("pdflatex");
-      if (!hasPdflatex) {
-        throw makeHttpError(
-          "[LATEX_TOOLING_MISSING] Neither latexmk nor pdflatex found in PATH. Install TeX Live or use the Docker image.",
-          500,
-          undefined,
-          "LATEX_TOOLING_MISSING"
-        );
-      }
-
+    if (hasPdflatex) {
       for (let i = 0; i < 2; i++) {
         try {
           const { stdout, stderr } = await execFileAsync(
@@ -224,6 +201,27 @@ export async function compileLatexToPdf(
           break;
         }
       }
+    } else if (hasLatexmk) {
+      try {
+        const { stdout, stderr } = await execFileAsync(
+          "latexmk",
+          ["-pdf", "-bibtex-", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "main.tex"],
+          { cwd: workDir, timeout: opts.timeoutMs, maxBuffer: 20 * 1024 * 1024 }
+        );
+        log += stdout ?? "";
+        log += stderr ?? "";
+      } catch (e: any) {
+        const extra = extractExecOutput(e);
+        log += extra.stdout ?? "";
+        log += extra.stderr ?? "";
+      }
+    } else {
+      throw makeHttpError(
+        "[LATEX_TOOLING_MISSING] Neither latexmk nor pdflatex found in PATH. Install TeX Live or use the Docker image.",
+        500,
+        undefined,
+        "LATEX_TOOLING_MISSING"
+      );
     }
 
     if (!fs.existsSync(pdfPath)) {
@@ -326,35 +324,12 @@ export async function compileMultiFileProject(
 
     // Compile
     let log = "";
+    const hasPdflatex = await commandExists("pdflatex");
     const hasLatexmk = await commandExists("latexmk");
     const mainDir = path.dirname(path.join(workDir, mainFile));
     const mainBasename = path.basename(mainFile);
 
-    if (hasLatexmk) {
-      try {
-        const { stdout, stderr } = await execFileAsync(
-          "latexmk",
-          ["-pdf", "-bibtex-", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", mainBasename],
-          { cwd: mainDir, timeout: opts.timeoutMs, maxBuffer: 20 * 1024 * 1024 }
-        );
-        log += stdout ?? "";
-        log += stderr ?? "";
-      } catch (e: any) {
-        const extra = extractExecOutput(e);
-        log += extra.stdout ?? "";
-        log += extra.stderr ?? "";
-      }
-    } else {
-      const hasPdflatex = await commandExists("pdflatex");
-      if (!hasPdflatex) {
-        throw makeHttpError(
-          "[LATEX_TOOLING_MISSING] Neither latexmk nor pdflatex found.",
-          500,
-          undefined,
-          "LATEX_TOOLING_MISSING"
-        );
-      }
-
+    if (hasPdflatex) {
       for (let i = 0; i < 2; i++) {
         try {
           const { stdout, stderr } = await execFileAsync(
@@ -371,6 +346,27 @@ export async function compileMultiFileProject(
           break;
         }
       }
+    } else if (hasLatexmk) {
+      try {
+        const { stdout, stderr } = await execFileAsync(
+          "latexmk",
+          ["-pdf", "-bibtex-", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", mainBasename],
+          { cwd: mainDir, timeout: opts.timeoutMs, maxBuffer: 20 * 1024 * 1024 }
+        );
+        log += stdout ?? "";
+        log += stderr ?? "";
+      } catch (e: any) {
+        const extra = extractExecOutput(e);
+        log += extra.stdout ?? "";
+        log += extra.stderr ?? "";
+      }
+    } else {
+      throw makeHttpError(
+        "[LATEX_TOOLING_MISSING] Neither latexmk nor pdflatex found.",
+        500,
+        undefined,
+        "LATEX_TOOLING_MISSING"
+      );
     }
 
     const pdfPath = path.join(mainDir, path.basename(pdfName));

@@ -225,7 +225,7 @@ export function createLatexRouter(deps: LatexDeps) {
       textPrompt = [
         `We will insert your output into a LaTeX template (templateId="${templateId}").`,
         "Return ONLY the body/content to be inserted at the placeholder.",
-        "IMPORTANT: The user wants a document about: '${prompt}'. GENERATE IT NOW.",
+        `IMPORTANT: The user wants a document about: '${prompt}'. GENERATE IT NOW.`,
         "Generate REALISTIC, HIGH-QUALITY CONTENT for this topic.",
         "",
         "=== TEMPLATE (style ref) ===",
@@ -238,7 +238,7 @@ export function createLatexRouter(deps: LatexDeps) {
       textPrompt = [
         `Create a complete LaTeX document based on templateId="${templateId}".`,
         "Ensure the final output is a complete compilable .tex file.",
-        "The user wants a document about: '${prompt}'. GENERATE IT NOW.",
+        `The user wants a document about: '${prompt}'. GENERATE IT NOW.`,
         "",
         "=== TEMPLATE ===",
         templateSource,
