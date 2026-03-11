@@ -1,6 +1,6 @@
 FROM node:20-bookworm
 
-# Instalar LaTeX y dependencias
+# Install LaTeX and required packages for PDF compilation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-base \
     texlive-latex-recommended \
@@ -15,20 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copiar archivos de dependencias
-# Nota: Si usas package-lock.json asegúrate de que esté en el repo
+# Copy dependency manifests first so Docker can cache the npm install layer
 COPY package*.json tsconfig.json ./
 RUN npm install
 
-# Copiar el resto del código
+# Copy the rest of the source code
 COPY . .
 
-# Compilar TypeScript (esto genera la carpeta /dist)
+# Compile TypeScript — output goes to /dist
 RUN npm run build
 
 ENV PORT=4000
 EXPOSE 4000
 
-# IMPORTANTE: Asegúrate de que en package.json "start" sea "node dist/server.js"
-# O usa directamente el comando aquí:
 CMD ["node", "dist/server.js"]
