@@ -92,8 +92,8 @@ Set these environment variables in the Vercel dashboard:
 
 | Variable | Value |
 |---|---|
-| `NEXT_PUBLIC_SITE_URL` | `https://better-notes-five.vercel.app` |
-| `SITE_URL` | `https://better-notes-five.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.better-notes.ai` |
+| `SITE_URL` | `https://www.better-notes.ai` |
 | `API_BASE_URL` | `https://betternotes-production.up.railway.app` |
 | `NEXT_PUBLIC_SUPABASE_URL` | from Supabase dashboard |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | from Supabase dashboard |
@@ -111,8 +111,8 @@ Set these environment variables in the Railway dashboard:
 | `PORT` | `4000` |
 | `OPENAI_API_KEY` | from OpenAI dashboard |
 | `OPENAI_MODEL` | `gpt-4o-mini` |
-| `ALLOWED_ORIGINS` | `https://better-notes-five.vercel.app` |
-| `SITE_URL` | `https://better-notes-five.vercel.app` |
+| `ALLOWED_ORIGINS` | `https://www.better-notes.ai` |
+| `SITE_URL` | `https://www.better-notes.ai` |
 | `SUPABASE_URL` | from Supabase dashboard |
 | `SUPABASE_ANON_KEY` | from Supabase dashboard |
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard |
@@ -147,8 +147,8 @@ All files are idempotent — safe to run on an existing database.
 ### Google OAuth
 
 1. Supabase dashboard → Authentication → URL Configuration:
-   - Site URL: `https://better-notes-five.vercel.app`
-   - Redirect URLs: `https://better-notes-five.vercel.app/**` and `http://localhost:3000/**`
+   - Site URL: `https://www.better-notes.ai`
+   - Redirect URLs: `https://www.better-notes.ai/**` and `http://localhost:3000/**`
 2. Supabase dashboard → Authentication → Providers → Google → Enable Supabase OAuth Server
 
 ---
