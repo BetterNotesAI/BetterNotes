@@ -10,7 +10,7 @@ const protectedRoutes: string[] = [];
 // Auth pages: redirect to /workspace if the user is already signed in.
 const authRoutes = ["/login", "/signup"];
 
-export default async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
     let res = NextResponse.next({
         request: { headers: req.headers },
     });
