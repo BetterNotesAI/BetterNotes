@@ -1,36 +1,161 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BetterNotes
 
-## Getting Started
+AI-powered note-taking app that turns raw notes into clean LaTeX documents and PDFs.
+Students write a prompt, pick a template, and get a formatted formula sheet, summary, or cheat-sheet in seconds.
 
-First, run the development server:
+**Live app:** https://better-notes-five.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Architecture
+
+```
+BetterNotes/
+├── app-web/      Next.js 16 frontend — deployed on Vercel
+├── app-api/      Express + LaTeX backend — deployed on Railway (Docker)
+└── supabase/     Database schema (SQL files, run in order 01→11)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **app-web** handles the UI, auth (Supabase), and Stripe billing. API calls go through Next.js proxy routes (`app/api/`) to avoid exposing the backend URL to the browser.
+- **app-api** runs the OpenAI calls (LaTeX generation) and LaTeX compilation via `pdflatex`. It requires Docker because it installs a full TeX Live distribution.
+- **Supabase** provides Postgres (RLS), Auth (Google OAuth + email), and Storage (file uploads).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local development
 
-## Learn More
+### Prerequisites
+- Node.js 20+
+- Docker Desktop (for app-api)
 
-To learn more about Next.js, take a look at the following resources:
+### 1. Frontend (app-web)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cd app-web
+npm install
+npm run dev        # http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Create `app-web/.env.local` with:
+```
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+SITE_URL=http://localhost:3000
+API_BASE_URL=http://localhost:4000
 
-## Deploy on Vercel
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+STRIPE_SECRET_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+STRIPE_PRICE_PRO_MONTHLY=...
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 2. Backend (app-api)
+
+With Docker Compose (recommended — loads env vars automatically):
+```bash
+cd app-api
+docker compose up --build    # http://localhost:4000
+```
+
+Or without Docker (requires a local TeX Live installation):
+```bash
+cd app-api
+npm install
+npm run dev
+```
+
+Create `app-api/.env` with:
+```
+PORT=4000
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4o-mini
+ALLOWED_ORIGINS=http://localhost:3000
+```
+
+> The backend automatically reads `app-web/.env.local` for Supabase and Stripe keys when running locally, so you don't need to duplicate them.
+
+### 3. Health check
+
+Once both are running:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:4000/health
+
+---
+
+## Production deployment
+
+### Vercel (app-web)
+
+Set these environment variables in the Vercel dashboard:
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SITE_URL` | `https://better-notes-five.vercel.app` |
+| `SITE_URL` | `https://better-notes-five.vercel.app` |
+| `API_BASE_URL` | `https://betternotes-production.up.railway.app` |
+| `NEXT_PUBLIC_SUPABASE_URL` | from Supabase dashboard |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | from Supabase dashboard |
+| `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard |
+| `STRIPE_SECRET_KEY` | from Stripe dashboard |
+| `STRIPE_WEBHOOK_SECRET` | from Stripe dashboard |
+| `STRIPE_PRICE_PRO_MONTHLY` | from Stripe dashboard |
+
+### Railway (app-api)
+
+Set these environment variables in the Railway dashboard:
+
+| Variable | Value |
+|---|---|
+| `PORT` | `4000` |
+| `OPENAI_API_KEY` | from OpenAI dashboard |
+| `OPENAI_MODEL` | `gpt-4o-mini` |
+| `ALLOWED_ORIGINS` | `https://better-notes-five.vercel.app` |
+| `SITE_URL` | `https://better-notes-five.vercel.app` |
+| `SUPABASE_URL` | from Supabase dashboard |
+| `SUPABASE_ANON_KEY` | from Supabase dashboard |
+| `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard |
+| `STRIPE_SECRET_KEY` | from Stripe dashboard |
+| `STRIPE_WEBHOOK_SECRET` | from Stripe dashboard |
+| `STRIPE_PRICE_PRO_MONTHLY` | from Stripe dashboard |
+
+Railway deploys automatically from the `app-api/Dockerfile` on every push to `main`.
+
+---
+
+## Database (Supabase)
+
+SQL files in `supabase/` define the full schema. Run them in order in the Supabase SQL Editor to set up a fresh project:
+
+| File | Contents |
+|---|---|
+| `01_extensions.sql` | pg_trgm, unaccent |
+| `02_functions.sql` | set_updated_at trigger, handle_new_user trigger |
+| `03_users.sql` | profiles, message_usage, usage RPCs |
+| `04_chats.sql` | chats table |
+| `05_projects.sql` | projects, output files, uploaded files, shares |
+| `06_universities.sql` | universities, degree programs, subjects |
+| `07_publishing.sql` | published documents, ratings, search RPC |
+| `08_support.sql` | support tickets |
+| `09_rls.sql` | Row Level Security policies for all project tables |
+| `10_storage.sql` | Storage buckets + RLS (user-files, project-files, user-avatars) |
+| `11_seed.sql` | Initial Spanish universities data |
+
+All files are idempotent — safe to run on an existing database.
+
+### Google OAuth
+
+1. Supabase dashboard → Authentication → URL Configuration:
+   - Site URL: `https://better-notes-five.vercel.app`
+   - Redirect URLs: `https://better-notes-five.vercel.app/**` and `http://localhost:3000/**`
+2. Supabase dashboard → Authentication → Providers → Google → Enable Supabase OAuth Server
+
+---
+
+## Key conventions
+
+- All API routes in `app-web/app/api/` are thin proxies to `app-api` — they forward requests and stream responses. Never put business logic there.
+- `app-web/lib/api/` contains all Supabase client calls, split by domain (chats, projects, files, etc.). Import from `@/lib/api` (barrel file).
+- LaTeX templates live in two places: `app-api/templates/` (used for generation) and `app-web/public/templates/` (served for download). Keep them in sync.
+- Never commit `.env` or `.env.local` files — they are gitignored.
