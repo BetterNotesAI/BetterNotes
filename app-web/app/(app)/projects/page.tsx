@@ -33,17 +33,27 @@ function ProjectsContent() {
     const [creating, setCreating] = useState(false);
     const [chats, setChats] = useState<Array<{ id: string; title: string; created_at: string; updated_at: string }>>([]);
 
-    // Auth
+    // Auth + initial data fetch run in parallel to avoid sequential roundtrips
     const [authLoading, setAuthLoading] = useState(true);
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        let mounted = true;
+
+        Promise.all([
+            supabase.auth.getSession(),
+            listProjects({ search: search.trim() || undefined }),
+        ]).then(([{ data: { session } }, initialProjects]) => {
+            if (!mounted) return;
             setUser(session?.user ?? null);
             setAuthLoading(false);
+            setProjects(initialProjects);
+            setLoading(false);
         });
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => setUser(session?.user ?? null)
+            (_event, session) => { if (mounted) setUser(session?.user ?? null); }
         );
-        return () => subscription.unsubscribe();
+        return () => { mounted = false; subscription.unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Auto-open new modal from URL
@@ -71,9 +81,12 @@ function ProjectsContent() {
         setLoading(false);
     }, [user, filter, search]);
 
+    // Re-fetch when filter or search changes (initial load handled above)
     useEffect(() => {
+        if (authLoading) return;
         fetchProjects();
-    }, [fetchProjects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filter, search]);
 
     async function handleCreateProject() {
         if (creating) return;

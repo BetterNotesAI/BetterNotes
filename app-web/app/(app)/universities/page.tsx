@@ -42,17 +42,20 @@ export default function UniversitiesPage() {
         let cancelled = false;
         async function init() {
             try {
-                const p = await withTimeout(getProfile(), null);
+                // Fetch profile and universities in parallel — no need to wait on one before the other
+                const [p, unis] = await Promise.all([
+                    withTimeout(getProfile(), null),
+                    withTimeout(listUniversities(), []),
+                ]);
                 if (cancelled) return;
 
                 setProfile(p);
+                setUniversities(unis);
+
                 if (!p?.university_id || !p?.degree_program_id) {
                     setSetupStep("university");
-                    const unis = await withTimeout(listUniversities(), []);
-                    if (cancelled) return;
-                    setUniversities(unis);
                 } else {
-                    // Load subjects for their program
+                    // Subjects depend on the program ID from the profile, so this must come after
                     const subs = await withTimeout(listSubjects(p.degree_program_id), []);
                     if (cancelled) return;
                     setSubjects(subs);
