@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { listProjects, type Project } from "@/lib/api";
@@ -64,12 +65,13 @@ export default function Sidebar() {
 
     const navItems = [
         { label: "Home", href: "/workspace", icon: HomeIcon },
-        { label: "Playground", href: "/playground", icon: PlaygroundIcon },
+        // Temporarily hidden (non-priority)
+        // { label: "Playground", href: "/playground", icon: PlaygroundIcon },
         { label: "Projects", href: "/projects", icon: ProjectsIcon },
         { label: "Starred", href: "/projects?filter=starred", icon: StarredIcon, indent: true },
-        { label: "Shared with me", href: "/projects?filter=shared", icon: SharedIcon, indent: true },
+        // { label: "Shared with me", href: "/projects?filter=shared", icon: SharedIcon, indent: true },
         { label: "Templates", href: "/templates", icon: TemplatesIcon },
-        { label: "Universities", href: "/universities", icon: UniversitiesIcon },
+        // { label: "Universities", href: "/universities", icon: UniversitiesIcon },
         { label: "Pricing", href: "/pricing", icon: PricingIcon },
     ];
 
@@ -78,10 +80,13 @@ export default function Sidebar() {
             {/* Logo + Collapse */}
             <div className="px-4 py-4 flex items-center justify-between">
                 <Link href="/" className="flex items-center gap-2">
-                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-white/15 text-white flex items-center justify-center font-bold text-sm backdrop-blur">
-                        B
-                    </div>
-                    {!collapsed && (
+                    <Image
+                        src="/brand/logo.png"
+                        alt="BetterNotes logo"
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 object-contain"
+                    />                    {!collapsed && (
                         <div>
                             <div className="text-sm font-semibold">BetterNotes</div>
                             <div className="text-[10px] text-white/50">AI Workspace</div>
