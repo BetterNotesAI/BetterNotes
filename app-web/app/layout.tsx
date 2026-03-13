@@ -13,28 +13,52 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl =
+  process.env.SITE_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://betternotes.ai";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "BetterNotes — Turn messy notes into clean LaTeX + PDF",
+    default: "BetterNotes AI — Turn Notes Into LaTeX + PDF",
     template: "%s | BetterNotes",
   },
   description:
-    "Upload lecture slides or notes and generate formula sheets, summaries, or cheatsheets as beautiful LaTeX documents in seconds.",
-  metadataBase: new URL(
-    process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://betternotes.ai"
-  ),
+    "BetterNotes AI converts messy notes into clean LaTeX documents, formula sheets, summaries, and PDF exports in seconds.",
+  keywords: [
+    "BetterNotes",
+    "BetterNotes AI",
+    "AI notes generator",
+    "LaTeX notes",
+    "LaTeX cheatsheet generator",
+    "formula sheet generator",
+    "study notes AI",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   openGraph: {
-    title: "BetterNotes — Turn messy notes into clean LaTeX + PDF",
+    title: "BetterNotes AI — Turn Notes Into LaTeX + PDF",
     description:
-      "Upload lecture slides or notes and generate formula sheets, summaries, or cheatsheets as beautiful LaTeX documents in seconds.",
+      "Convert lecture notes into polished LaTeX summaries, cheatsheets, and PDFs with AI.",
     siteName: "BetterNotes",
     type: "website",
+    url: siteUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "BetterNotes — Turn messy notes into clean LaTeX + PDF",
+    title: "BetterNotes AI — Turn Notes Into LaTeX + PDF",
     description:
-      "Upload lecture slides or notes and generate formula sheets, summaries, or cheatsheets as beautiful LaTeX documents in seconds.",
+      "Convert lecture notes into polished LaTeX summaries, cheatsheets, and PDFs with AI.",
   },
 };
 
@@ -49,9 +73,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AppProviders>
-          {children}
-        </AppProviders>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );
