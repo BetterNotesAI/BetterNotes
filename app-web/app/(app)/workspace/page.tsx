@@ -388,6 +388,8 @@ function WorkspaceContent() {
         const status = await getUsageStatus();
         setUsageStatus(status);
       }
+    }).catch(() => {
+      setUser(null);
     });
 
     return () => subscription.unsubscribe();

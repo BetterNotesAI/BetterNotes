@@ -137,6 +137,9 @@ export default function ProjectWorkspace() {
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             setUser(session?.user ?? null);
             if (session?.user) setUsageStatus(await getUsageStatus());
+        }).catch(() => {
+            setUser(null);
+            setLoading(false);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             setUser(session?.user ?? null);

@@ -47,6 +47,10 @@ function ProjectsContent() {
             setAuthLoading(false);
             setProjects(initialProjects);
             setLoading(false);
+        }).catch(() => {
+            if (!mounted) return;
+            setAuthLoading(false);
+            setLoading(false);
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
