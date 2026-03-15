@@ -5,20 +5,61 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { listProjects, type Project } from "@/lib/api";
+import { listProjects, listFolders, type Project, type Folder } from "@/lib/api";
 import ThemeToggle from "./ThemeToggle";
 import type { User } from "@supabase/supabase-js";
+
+// Routes where the sidebar auto-collapses to icon-only (editor pages need max space)
+const WORKSPACE_ROUTES = ["/workspace/"];
+
+function isWorkspaceRoute(pathname: string) {
+    return WORKSPACE_ROUTES.some((prefix) => pathname.startsWith(prefix));
+}
+
+const COLLAPSED_STORAGE_KEY = "sidebar_collapsed";
+
+function readCollapsedFromStorage(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+}
 
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedFromStorage());
     const [mobileOpen, setMobileOpen] = useState(false);
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
+    const [folders, setFolders] = useState<Folder[]>([]);
     const [projectsExpanded, setProjectsExpanded] = useState(true);
+    const [navProjectsExpanded, setNavProjectsExpanded] = useState(true);
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement | null>(null);
+    const userSetCollapsedRef = useRef(false);
+    const [sidebarWidth, setSidebarWidth] = useState(200);
+    const resizingRef = useRef(false);
+
+    function onResizeMouseDown(e: React.MouseEvent) {
+        e.preventDefault();
+        resizingRef.current = true;
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+        function onMove(ev: MouseEvent) {
+            if (!resizingRef.current) return;
+            setSidebarWidth(Math.min(320, Math.max(160, startWidth + (ev.clientX - startX))));
+        }
+        function onUp() {
+            resizingRef.current = false;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        }
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }
 
     // Auth
     useEffect(() => {
@@ -31,10 +72,28 @@ export default function Sidebar() {
         return () => subscription.unsubscribe();
     }, []);
 
-    // Load recent projects
+    // Persist collapsed state to localStorage whenever it changes
     useEffect(() => {
-        if (!user) { setRecentProjects([]); return; }
+        localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
+    }, [collapsed]);
+
+    // Auto-collapse when entering workspace editor routes (if user hasn't manually expanded)
+    useEffect(() => {
+        if (isWorkspaceRoute(pathname)) {
+            if (!userSetCollapsedRef.current) {
+                setCollapsed(true);
+            }
+        } else {
+            // Reset the override flag when leaving workspace routes
+            userSetCollapsedRef.current = false;
+        }
+    }, [pathname]);
+
+    // Load recent projects + folders
+    useEffect(() => {
+        if (!user) { setRecentProjects([]); setFolders([]); return; }
         listProjects({ limit: 5 }).then(setRecentProjects);
+        listFolders().then(setFolders);
     }, [user]);
 
     // Close profile menu on outside click
@@ -63,16 +122,13 @@ export default function Sidebar() {
     const isActive = (href: string) =>
         pathname === href || pathname.startsWith(href + "/");
 
-    const navItems = [
+    const topNavItems = [
         { label: "Home", href: "/workspace", icon: HomeIcon },
-        // Temporarily hidden (non-priority)
-        // { label: "Playground", href: "/playground", icon: PlaygroundIcon },
-        { label: "Projects", href: "/projects", icon: ProjectsIcon },
-        { label: "Starred", href: "/projects?filter=starred", icon: StarredIcon, indent: true },
-        // { label: "Shared with me", href: "/projects?filter=shared", icon: SharedIcon, indent: true },
         { label: "Templates", href: "/templates", icon: TemplatesIcon },
-        // { label: "Universities", href: "/universities", icon: UniversitiesIcon },
-        { label: "Pricing", href: "/pricing", icon: PricingIcon },
+    ];
+
+    const projectsSubItems = [
+        { label: "Starred", href: "/projects?filter=starred", icon: StarredIcon },
     ];
 
     const sidebarContent = (
@@ -87,14 +143,14 @@ export default function Sidebar() {
                         height={36}
                         className="h-9 w-9 object-contain"
                     />                    {!collapsed && (
-                        <div>
-                            <div className="text-sm font-semibold">BetterNotes</div>
-                            <div className="text-[10px] text-white/50">AI Workspace</div>
-                        </div>
+                        <div className="text-sm font-semibold">BetterNotes</div>
                     )}
                 </Link>
                 <button
-                    onClick={() => setCollapsed(!collapsed)}
+                    onClick={() => {
+                        userSetCollapsedRef.current = true;
+                        setCollapsed(!collapsed);
+                    }}
                     className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
                     aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
@@ -122,19 +178,83 @@ export default function Sidebar() {
 
             {/* Navigation */}
             <nav className="px-2 space-y-0.5">
-                {navItems.map(({ label, href, icon: Icon, indent }) => (
+                {/* Home */}
+                {topNavItems.slice(0, 1).map(({ label, href, icon: Icon }) => (
                     <Link
                         key={href}
                         href={href}
-                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : indent ? "pl-9 pr-3 py-2" : "px-3 py-2.5"
-                            } ${isActive(href)
-                                ? "bg-white/12 text-white font-medium"
-                                : "text-white/60 hover:bg-white/8 hover:text-white/90"
-                            } ${indent && collapsed ? "hidden" : ""}`}
+                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"} ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}
                         title={collapsed ? label : undefined}
                     >
-                        <Icon className={`flex-shrink-0 ${indent ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
-                        {!collapsed && <span className={indent ? "text-[13px]" : ""}>{label}</span>}
+                        <Icon className="flex-shrink-0 h-4 w-4" />
+                        {!collapsed && <span>{label}</span>}
+                    </Link>
+                ))}
+
+                {/* Projects (expandable) */}
+                <div>
+                    <div className={`flex items-center rounded-xl text-sm transition-colors ${isActive("/projects") ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}>
+                        <Link
+                            href="/projects"
+                            className={`flex items-center gap-3 flex-1 ${collapsed ? "justify-center px-2 py-2.5" : "pl-3 py-2.5"}`}
+                            title={collapsed ? "Projects" : undefined}
+                        >
+                            <ProjectsIcon className="flex-shrink-0 h-4 w-4" />
+                            {!collapsed && <span>Projects</span>}
+                        </Link>
+                        {!collapsed && (
+                            <button
+                                onClick={() => setNavProjectsExpanded((v) => !v)}
+                                className="pr-2 py-2.5 text-white/30 hover:text-white/60"
+                                title={navProjectsExpanded ? "Collapse" : "Expand"}
+                            >
+                                <svg className={`h-3 w-3 transition-transform ${navProjectsExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    {!collapsed && navProjectsExpanded && (
+                        <div className="mt-0.5 space-y-0.5">
+                            {/* Starred */}
+                            {projectsSubItems.map(({ label, href, icon: Icon }) => (
+                                <Link
+                                    key={href}
+                                    href={href}
+                                    className={`flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-xl text-[13px] transition-colors ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+                                >
+                                    <Icon className="flex-shrink-0 h-3.5 w-3.5" />
+                                    <span>{label}</span>
+                                </Link>
+                            ))}
+                            {/* User folders */}
+                            {folders.map((folder) => (
+                                <Link
+                                    key={folder.id}
+                                    href={`/projects?folder=${folder.id}`}
+                                    className={`flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-xl text-[13px] transition-colors ${pathname.includes(folder.id) ? "bg-white/12 text-white font-medium" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+                                >
+                                    <svg className="flex-shrink-0 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                                    </svg>
+                                    <span className="truncate">{folder.name}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Templates + rest */}
+                {topNavItems.slice(1).map(({ label, href, icon: Icon }) => (
+                    <Link
+                        key={href}
+                        href={href}
+                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"} ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}
+                        title={collapsed ? label : undefined}
+                    >
+                        <Icon className="flex-shrink-0 h-4 w-4" />
+                        {!collapsed && <span>{label}</span>}
                     </Link>
                 ))}
             </nav>
@@ -289,14 +409,25 @@ export default function Sidebar() {
             )}
 
             {/* Sidebar panel */}
-            <aside className={`
-                fixed md:relative z-40 top-0 left-0 h-screen
-                border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl
-                transition-all duration-200 ease-out
-                ${collapsed ? "md:w-[72px]" : "md:w-[260px]"}
-                ${mobileOpen ? "w-[280px] translate-x-0" : "w-[280px] -translate-x-full md:translate-x-0"}
-            `}>
+            <aside
+                className={`
+                    fixed md:relative z-40 top-0 left-0 h-screen
+                    border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl
+                    transition-[width] duration-200 ease-out
+                    ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+                `}
+                style={{
+                    width: collapsed ? 72 : sidebarWidth,
+                }}
+            >
                 {sidebarContent}
+                {/* Resize handle */}
+                {!collapsed && (
+                    <div
+                        onMouseDown={onResizeMouseDown}
+                        className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors"
+                    />
+                )}
             </aside>
         </>
     );

@@ -9,7 +9,7 @@ import OpenAI from "openai";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-import { buildTemplateIndex } from "./lib/templates";
+import { listTemplateIds } from "./lib/templates";
 import { createLatexRouter } from "./routes/latex";
 import { createStripeRouter } from "./routes/stripe";
 
@@ -285,8 +285,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/templates", (_req, res) => {
-  const idx = buildTemplateIndex(TEMPLATE_DIR);
-  res.json({ ok: true, templateDir: TEMPLATE_DIR, templates: Object.keys(idx).sort() });
+  res.json({ ok: true, templates: listTemplateIds() });
 });
 
 // -------------------------

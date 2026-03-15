@@ -5,22 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { getUsageStatus, type UsageStatus } from "@/lib/api";
 import TemplateCard from "@/app/components/TemplateCard";
 import PdfPreviewModal from "@/app/components/PdfPreviewModal";
-import { templates } from "@/lib/templates";
-
-type Template = {
-    id: string;
-    name: string;
-    format: string;
-    publicPath: string;
-    previewPath?: string;
-    thumbnailPath?: string;
-    isPro?: boolean;
-};
+import { templates, type Template } from "@/lib/templates";
 
 export default function TemplatesPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
     const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
-    const pdfUrl = selectedTemplate?.previewPath ?? selectedTemplate?.publicPath ?? "";
+    const pdfUrl = selectedTemplate?.previewPath ?? "";
 
     useEffect(() => {
         async function fetchUsageStatus() {
@@ -46,7 +36,7 @@ export default function TemplatesPage() {
                     {templates.map((t) => (
                         <TemplateCard
                             key={t.id}
-                            t={t as Template}
+                            t={t}
                             onClick={setSelectedTemplate}
                         />
                     ))}

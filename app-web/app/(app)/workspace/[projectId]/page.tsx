@@ -10,10 +10,14 @@ import {
     type Project, type ProjectFileRecord, type UsageStatus
 } from "@/lib/api";
 import { uploadProjectFile, getProjectFileUrl } from "@/lib/storage";
+import dynamic from "next/dynamic";
 import FileTree from "@/app/components/FileTree";
+const PdfViewer = dynamic(() => import("@/app/components/PdfViewer"), { ssr: false });
+import LatexEditor from "@/app/components/LatexEditor";
 import InlineEditMenu from "@/app/components/InlineEditMenu";
 import PaywallModal from "@/app/components/PaywallModal";
 import ChatThinkingBubble from "@/app/components/ChatThinkingBubble";
+import ChatMessage from "@/app/components/ChatMessage";
 import SlashCommandPicker, { type SlashCommandPickerRef } from "@/app/components/SlashCommandPicker";
 import { templates } from "@/lib/templates";
 import { useToast } from "@/app/components/Toast";
@@ -95,6 +99,67 @@ export default function ProjectWorkspace() {
         document.addEventListener("mouseup", onUp);
     }, [splitRatio]);
 
+    // Panels state (must be declared before callbacks that reference them)
+    const [chatCollapsed, setChatCollapsed] = useState(false);
+    const [chatWidth, setChatWidth] = useState(300);
+    const chatResizingRef = useRef(false);
+    const [filesCollapsed, setFilesCollapsed] = useState(false);
+    const [outputFilesCollapsed, setOutputFilesCollapsed] = useState(false);
+    const [filesHeight, setFilesHeight] = useState(192);
+    const filesResizingRef = useRef(false);
+    const filesPanelRef = useRef<HTMLDivElement | null>(null);
+
+    const onFilesResizeMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        filesResizingRef.current = true;
+        const startY = e.clientY;
+        const startHeight = filesHeight;
+        function onMove(ev: MouseEvent) {
+            if (!filesResizingRef.current) return;
+            const delta = startY - ev.clientY; // dragging up = bigger
+            const newHeight = Math.min(480, Math.max(80, startHeight + delta));
+            setFilesHeight(newHeight);
+        }
+        function onUp() {
+            filesResizingRef.current = false;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        }
+        document.body.style.cursor = "row-resize";
+        document.body.style.userSelect = "none";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }, [filesHeight]);
+
+    const onChatStripMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        let dragged = false;
+        const startWidth = chatWidth;
+
+        function onMove(ev: MouseEvent) {
+            if (Math.abs(ev.clientX - startX) > 3) {
+                dragged = true;
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+            }
+            if (!dragged) return;
+            const delta = startX - ev.clientX; // drag left = wider
+            setChatWidth(Math.min(520, Math.max(220, startWidth + delta)));
+        }
+        function onUp() {
+            if (!dragged) setChatCollapsed((c) => !c);
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        }
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }, [chatWidth]);
+
     // Status flags
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCompiling, setIsCompiling] = useState(false);
@@ -114,9 +179,6 @@ export default function ProjectWorkspace() {
     const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
     const [showPaywallModal, setShowPaywallModal] = useState(false);
 
-    // Panels
-    const [leftCollapsed, setLeftCollapsed] = useState(false);
-
     // Slash-command template override (one-shot)
     const slashPickerRef = useRef<SlashCommandPickerRef>(null);
     const [templateOverride, setTemplateOverride] = useState<string | null>(null);
@@ -124,6 +186,13 @@ export default function ProjectWorkspace() {
 
     // Console panel state
     const [consoleOpen, setConsoleOpen] = useState(false);
+    const [downloadOpen, setDownloadOpen] = useState(false);
+    const downloadRef = useRef<HTMLDivElement | null>(null);
+    const [pdfZoom, setPdfZoom] = useState(100);
+    const [pdfNumPages, setPdfNumPages] = useState(0);
+    const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+    const [pdfTargetPage, setPdfTargetPage] = useState<number | undefined>(undefined);
+    const [pageInput, setPageInput] = useState("");
 
     // ── Derived state ──
     const activeEntry = outputFiles.find((f) => f.filePath === activeOutputPath);
@@ -132,11 +201,26 @@ export default function ProjectWorkspace() {
     const anyDirty = outputFiles.some((f) => f.dirty);
     const busy = () => isSending || isGenerating || isCompiling || isFixing;
 
+    // Close download dropdown on outside click
+    useEffect(() => {
+        if (!downloadOpen) return;
+        function handleClick(e: MouseEvent) {
+            if (downloadRef.current && !downloadRef.current.contains(e.target as Node)) {
+                setDownloadOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, [downloadOpen]);
+
     // ── Auth ──
     useEffect(() => {
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             setUser(session?.user ?? null);
             if (session?.user) setUsageStatus(await getUsageStatus());
+        }).catch(() => {
+            setUser(null);
+            setLoading(false);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             setUser(session?.user ?? null);
@@ -267,11 +351,6 @@ export default function ProjectWorkspace() {
     }
 
     // ═══ Helpers ═══
-    const thinkingProgressSteps = [
-        "Generating document...",
-        "Compiling PDF preview...",
-    ];
-
     function isTransientAssistantMessageText(text: string): boolean {
         const normalized = (text || "").trim();
         return (
@@ -279,12 +358,6 @@ export default function ProjectWorkspace() {
             normalized.startsWith("Working...") ||
             normalized.startsWith("Generated. Compiling PDF...")
         );
-    }
-
-    function getThinkingStepIndex(text: string): number {
-        const normalized = (text || "").trim();
-        if (normalized.startsWith("Generated. Compiling PDF...")) return 1;
-        return 0;
     }
 
     function replaceLastWorking(m: Msg[], newText: string): Msg[] {
@@ -319,6 +392,7 @@ export default function ProjectWorkspace() {
     // ── Freemium gate ──
     const canSendMessage = useCallback(async (): Promise<boolean> => {
         if (!user) { router.push("/login"); return false; }
+        if (process.env.NEXT_PUBLIC_DEV_UNLIMITED === "true") return true;
         try {
             const status = await Promise.race<UsageStatus | null>([
                 getUsageStatus(),
@@ -678,17 +752,291 @@ export default function ProjectWorkspace() {
 
     return (
         <div className="flex h-screen text-white overflow-hidden">
-            {/* ── LEFT COLUMN: Chat + Files ── */}
-            <div className={`flex flex-col border-r border-white/8 bg-white/[0.02] transition-all ${leftCollapsed ? "w-0 overflow-hidden" : "w-[420px] min-w-[320px]"}`}>
-                {/* Header */}
-                <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
-                    <div>
-                        <div className="text-sm font-semibold truncate max-w-[200px]">{project?.title || "Project"}</div>
-                        <div className="text-[11px] text-white/40">Chat → LaTeX → PDF</div>
-                    </div>
-                    <button onClick={() => router.push("/projects")} className="text-xs rounded-lg border border-white/10 bg-white/5 px-2 py-1 hover:bg-white/10 text-white/60">
-                        ← Back
+            {/* ── LEFT/CENTER: Output panel ── */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Toolbar */}
+                <div className="px-4 py-2.5 border-b border-white/8 flex items-center justify-between gap-3">
+                    {/* Left: Compile */}
+                    <button
+                        onClick={saveAndCompile}
+                        disabled={!canCompile}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 ${canCompile ? "bg-white text-neutral-950 hover:bg-white/90" : "bg-white/10 text-white/35 cursor-not-allowed"}`}
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                        </svg>
+                        {isCompiling ? "Compiling…" : "Compile"}
                     </button>
+
+                    {/* Center: Zoom + Page controls (preview only) */}
+                    {activeTab === "preview" && pdfUrl && (
+                        <div className="flex items-center gap-2">
+                            {/* Zoom */}
+                            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-1 py-0.5">
+                                <button
+                                    onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
+                                    className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
+                                    title="Zoom out"
+                                >−</button>
+                                <span className="text-xs text-white/40 w-10 text-center tabular-nums">{pdfZoom}%</span>
+                                <button
+                                    onClick={() => setPdfZoom((z) => Math.min(200, z + 10))}
+                                    className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
+                                    title="Zoom in"
+                                >+</button>
+                            </div>
+                            {/* Page navigation */}
+                            {pdfNumPages > 0 && (
+                                <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-1 py-0.5">
+                                    <button
+                                        onClick={() => { const p = Math.max(1, pdfCurrentPage - 1); setPdfTargetPage(p); }}
+                                        className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors"
+                                        title="Previous page"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                                    </button>
+                                    <input
+                                        type="text"
+                                        value={pageInput || String(pdfCurrentPage)}
+                                        onChange={(e) => setPageInput(e.target.value)}
+                                        onFocus={(e) => { setPageInput(String(pdfCurrentPage)); e.target.select(); }}
+                                        onBlur={() => setPageInput("")}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                const n = parseInt(pageInput, 10);
+                                                if (!isNaN(n) && n >= 1 && n <= pdfNumPages) setPdfTargetPage(n);
+                                                (e.target as HTMLInputElement).blur();
+                                            }
+                                            if (e.key === "Escape") { setPageInput(""); (e.target as HTMLInputElement).blur(); }
+                                        }}
+                                        className="w-7 text-center text-xs text-white/60 bg-transparent outline-none focus:text-white tabular-nums"
+                                        title="Go to page"
+                                    />
+                                    <span className="text-xs text-white/30 tabular-nums">/ {pdfNumPages}</span>
+                                    <button
+                                        onClick={() => { const p = Math.min(pdfNumPages, pdfCurrentPage + 1); setPdfTargetPage(p); }}
+                                        className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors"
+                                        title="Next page"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Right: View tabs + Download */}
+                    <div className="flex items-center gap-2">
+                        {/* Segmented view control */}
+                        <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.04] p-0.5">
+                            <button
+                                onClick={() => setActiveTab("preview")}
+                                className={`rounded-md px-2.5 py-1 text-xs transition-colors ${activeTab === "preview" ? "bg-white text-neutral-950 font-medium" : "text-white/50 hover:text-white/80"}`}
+                            >Preview</button>
+                            <button
+                                onClick={() => setActiveTab("latex")}
+                                className={`rounded-md px-2.5 py-1 text-xs transition-colors ${activeTab === "latex" ? "bg-white text-neutral-950 font-medium" : "text-white/50 hover:text-white/80"}`}
+                            >LaTeX</button>
+                            <button
+                                onClick={() => setActiveTab("split")}
+                                title="Split view"
+                                className={`rounded-md px-2 py-1 transition-colors ${activeTab === "split" ? "bg-white text-neutral-950" : "text-white/50 hover:text-white/80"}`}
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 4.5h15a1.5 1.5 0 011.5 1.5v12a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V6a1.5 1.5 0 011.5-1.5z" /></svg>
+                            </button>
+                        </div>
+
+                        {/* Download dropdown */}
+                        <div ref={downloadRef} className="relative">
+                            <button
+                                onClick={() => setDownloadOpen(!downloadOpen)}
+                                disabled={!pdfUrl && !activeContent.trim()}
+                                className="rounded-lg px-2.5 py-1.5 text-xs border border-white/10 bg-white/[0.04] hover:bg-white/10 disabled:opacity-30 flex items-center gap-1.5 text-white/70 hover:text-white transition-colors"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                                Download
+                                <svg className={`w-3 h-3 transition-transform ${downloadOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {downloadOpen && (
+                                <div className="absolute right-0 mt-1 w-36 rounded-xl border border-white/15 bg-neutral-900/95 backdrop-blur shadow-xl py-1 z-50">
+                                    <button
+                                        onClick={() => { downloadPdf(); setDownloadOpen(false); }}
+                                        disabled={!pdfUrl}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                        PDF
+                                    </button>
+                                    <button
+                                        onClick={() => { downloadCurrentTex(); setDownloadOpen(false); }}
+                                        disabled={!activeContent.trim()}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                                        .tex
+                                    </button>
+                                    {outputFiles.length > 1 && (
+                                        <button
+                                            onClick={() => { downloadZip(); setDownloadOpen(false); }}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                                        >
+                                            <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
+                                            .zip
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content area */}
+                <div className="flex-1 flex min-h-0">
+                    {/* Output file tree (visible in LaTeX and Split tabs with multiple files) */}
+                    {(activeTab === "latex" || activeTab === "split") && (
+                        <div className={`border-r border-white/8 flex flex-col transition-[width] duration-200 overflow-hidden flex-shrink-0 ${outputFilesCollapsed ? "w-8" : "w-48"}`}>
+                            {/* Header */}
+                            <div
+                                className="h-8 flex items-center justify-between px-2 border-b border-white/8 cursor-pointer select-none flex-shrink-0"
+                                onClick={() => setOutputFilesCollapsed((c) => !c)}
+                            >
+                                {!outputFilesCollapsed && (
+                                    <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Output Files</span>
+                                )}
+                                <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
+                                    {!outputFilesCollapsed && (
+                                        <button onClick={addNewOutputFile} className="h-5 w-5 rounded text-white/25 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="New file">
+                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setOutputFilesCollapsed((c) => !c)}
+                                        className="h-5 w-5 rounded text-white/25 hover:text-white/60 hover:bg-white/10 flex items-center justify-center"
+                                        title={outputFilesCollapsed ? "Expand" : "Collapse"}
+                                    >
+                                        <svg className={`h-3 w-3 transition-transform ${outputFilesCollapsed ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            {!outputFilesCollapsed && (
+                                <div className="flex-1 overflow-y-auto py-1">
+                                    {outputFiles.length === 0 ? (
+                                        <div className="px-3 py-3 text-[10px] text-white/20 text-center">No output files yet</div>
+                                    ) : (
+                                        outputFiles.map((f) => (
+                                            <div
+                                                key={f.filePath}
+                                                className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer ${f.filePath === activeOutputPath ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/70"}`}
+                                            >
+                                                <button onClick={() => setActiveOutputPath(f.filePath)} className="flex-1 text-left truncate flex items-center gap-1.5">
+                                                    <svg className="h-3 w-3 flex-shrink-0 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                                    </svg>
+                                                    <span className="truncate">{f.filePath}</span>
+                                                    {f.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved" />}
+                                                </button>
+                                                {f.filePath !== "main.tex" && (
+                                                    <button onClick={() => deleteOutputEntry(f.filePath)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity">
+                                                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Main content */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                        {activeTab === "split" ? (
+                            /* ── Split view ── */
+                            <div ref={splitContainerRef} className="flex-1 flex overflow-hidden">
+                                {/* Code panel */}
+                                <div style={{ width: `${splitRatio}%` }} className="flex flex-col min-w-0">
+                                    <div className="h-8 flex items-center px-3 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider flex-shrink-0">LaTeX — {activeOutputPath}</div>
+                                    <div className="relative flex-1 h-full">
+                                        <LatexEditor
+                                            value={activeContent}
+                                            onChange={(v) => updateOutputFile(activeOutputPath, v)}
+                                            placeholder={`${activeOutputPath} — start typing LaTeX…`}
+                                        />
+                                    </div>
+                                </div>
+                                {/* Draggable divider */}
+                                <div onMouseDown={onSplitMouseDown} className="w-1.5 bg-white/8 hover:bg-white/20 cursor-col-resize transition-colors flex-shrink-0 relative group">
+                                    <div className="absolute inset-y-0 -left-1 -right-1" />
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full bg-white/20 group-hover:bg-white/40 transition-colors" />
+                                </div>
+                                {/* Preview panel */}
+                                <div style={{ width: `${100 - splitRatio}%` }} className="flex flex-col min-w-0">
+                                    <div className="h-8 flex items-center px-3 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider flex-shrink-0">Preview</div>
+                                    <div className="flex-1 min-h-0">
+                                        {pdfUrl ? (
+                                            <PdfViewer url={pdfUrl} zoom={pdfZoom} targetPage={pdfTargetPage} onNumPages={setPdfNumPages} onPageChange={setPdfCurrentPage} />
+                                        ) : <div className="h-full flex items-center justify-center text-white/30 text-sm">No PDF yet</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* ── Single panel ── */
+                            <div className="flex-1 overflow-hidden relative">
+                                {activeTab === "preview" ? (
+                                    pdfUrl ? (
+                                        <PdfViewer url={pdfUrl} zoom={pdfZoom} targetPage={pdfTargetPage} onNumPages={setPdfNumPages} onPageChange={setPdfCurrentPage} />
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-white/30 text-sm">
+                                            No PDF yet. Send a prompt or compile.
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="relative h-full">
+                                        <LatexEditor
+                                            value={activeContent}
+                                            onChange={(v) => updateOutputFile(activeOutputPath, v)}
+                                            placeholder={`${activeOutputPath} — start typing LaTeX…`}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Resize + collapse strip ── */}
+            <div
+                onMouseDown={onChatStripMouseDown}
+                className="hidden lg:flex w-3 flex-col items-center justify-center border-x border-white/8 bg-white/[0.02] hover:bg-white/[0.06] cursor-col-resize transition-colors select-none group"
+            >
+                {/* Collapse indicator pill */}
+                <div className="flex flex-col items-center gap-0.5 px-0.5">
+                    <div className="w-0.5 h-3 rounded-full bg-white/20 group-hover:bg-white/50 transition-colors" />
+                    <svg className={`h-2.5 w-2.5 text-white/30 group-hover:text-white/70 transition-colors transition-transform ${chatCollapsed ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                    <div className="w-0.5 h-3 rounded-full bg-white/20 group-hover:bg-white/50 transition-colors" />
+                </div>
+            </div>
+
+            {/* ── RIGHT COLUMN: Chat + Files ── */}
+            <div
+                className="flex flex-col bg-white/[0.02] border-l border-white/8 transition-[width] duration-200 overflow-hidden"
+                style={{ width: chatCollapsed ? 0 : chatWidth, minWidth: chatCollapsed ? 0 : 220 }}
+            >
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-white/8">
+                    <div className="text-sm font-semibold truncate">{project?.title || "Project"}</div>
                 </div>
 
                 {/* Chat messages */}
@@ -702,58 +1050,65 @@ export default function ProjectWorkspace() {
                         if (showThinkingBubble) {
                             return (
                                 <div key={idx} className="mr-auto max-w-[92%]">
-                                    <ChatThinkingBubble
-                                        text={m.content}
-                                        steps={thinkingProgressSteps}
-                                        activeStepIndex={getThinkingStepIndex(m.content)}
-                                    />
+                                    <ChatThinkingBubble text={m.content} />
                                 </div>
                             );
                         }
 
-                        return (
-                            <div
-                                key={idx}
-                                className={`max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed border ${m.role === "user"
-                                    ? "ml-auto bg-white/10 border-white/15"
-                                    : "mr-auto bg-black/20 border-white/8"
-                                    }`}
-                            >
-                                {m.content}
-                            </div>
-                        );
+                        return <ChatMessage key={idx} role={m.role} content={m.content} />;
                     })}
                     <div ref={bottomRef} />
                 </div>
 
-                {/* File browser (bottom of left column) */}
-                <div className="h-48 border-t border-white/8 overflow-hidden">
-                    <FileTree
-                        files={projectFiles}
-                        selectedId={selectedFileId}
-                        onSelect={(f) => setSelectedFileId(f.id)}
-                        onDelete={handleDeleteFile}
-                        onNewFolder={handleNewFolder}
-                        onUpload={handleUpload}
-                        title="Project Files"
-                        emptyText="No files uploaded yet"
-                    />
+                {/* File browser — resizable + collapsible */}
+                <div ref={filesPanelRef} className="border-t border-white/8 flex flex-col flex-shrink-0" style={{ height: filesCollapsed ? "auto" : filesHeight }}>
+                    {/* Drag handle */}
+                    {!filesCollapsed && (
+                        <div
+                            onMouseDown={onFilesResizeMouseDown}
+                            className="h-1 cursor-row-resize hover:bg-white/20 transition-colors flex-shrink-0"
+                        />
+                    )}
+                    {/* Header with collapse toggle + action buttons */}
+                    <div
+                        className="flex items-center justify-between px-3 py-2 cursor-pointer select-none border-b border-white/8"
+                        onClick={() => setFilesCollapsed(!filesCollapsed)}
+                    >
+                        <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Project Files</span>
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => handleNewFolder(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="New folder">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                                </svg>
+                            </button>
+                            <button onClick={() => handleUpload(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="Upload file">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                            </button>
+                            <svg className={`h-3 w-3 text-white/25 transition-transform ml-1 ${filesCollapsed ? "" : "rotate-180"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                    {!filesCollapsed && (
+                        <div className="flex-1 overflow-hidden">
+                            <FileTree
+                                files={projectFiles}
+                                selectedId={selectedFileId}
+                                onSelect={(f) => setSelectedFileId(f.id)}
+                                onDelete={handleDeleteFile}
+                                onNewFolder={handleNewFolder}
+                                onUpload={handleUpload}
+                                emptyText="No files uploaded yet"
+                                showHeader={false}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Chat input */}
                 <div className="p-3 border-t border-white/8">
-                    {user && usageStatus && (
-                        <div className="mb-2 flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                                <div className={`w-1.5 h-1.5 rounded-full ${usageStatus.remaining > 2 ? "bg-emerald-400" : usageStatus.remaining > 0 ? "bg-amber-400" : "bg-red-400"}`} />
-                                <span className="text-white/50">{usageStatus.is_paid ? "Pro" : "Free"}: <span className="text-white/70 font-medium">{usageStatus.remaining}</span>/{usageStatus.free_limit}</span>
-                            </div>
-                            {!usageStatus.is_paid && usageStatus.remaining <= 2 && (
-                                <a href="/pricing" className="text-emerald-400 hover:underline text-[11px]">Upgrade</a>
-                            )}
-                        </div>
-                    )}
-                    {/* Template override chip */}
                     {selectedTemplate && (
                         <div className="mb-2 flex items-center gap-2">
                             <div className="flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-400/10 pl-1.5 pr-2 py-1">
@@ -795,182 +1150,6 @@ export default function ProjectWorkspace() {
                         >
                             {isSending ? "Sending…" : isGenerating ? "…" : "Send"}
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Collapse toggle ── */}
-            <button
-                onClick={() => setLeftCollapsed(!leftCollapsed)}
-                className="hidden lg:flex w-4 items-center justify-center border-r border-white/8 bg-white/[0.02] hover:bg-white/[0.05] text-white/20 hover:text-white/50 transition-colors"
-            >
-                <svg className={`h-3 w-3 transition-transform ${leftCollapsed ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-            </button>
-
-            {/* ── RIGHT COLUMN: Output panel ── */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Toolbar */}
-                <div className="px-4 py-3 border-b border-white/8 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                        <div className="text-sm font-semibold">Output</div>
-                        <div className="text-[11px] text-white/40">
-                            {outputFiles.length === 0 ? "Send a prompt to generate." :
-                                !pdfUrl ? "No PDF yet — compile to preview." :
-                                    anyDirty ? "Files modified — recompile." :
-                                        "Preview up to date."}
-                        </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <button onClick={() => setActiveTab("preview")} className={`rounded-lg px-2.5 py-1.5 text-xs border ${activeTab === "preview" ? "bg-white text-neutral-950 border-white" : "bg-white/8 text-white/70 border-white/10 hover:bg-white/12"}`}>Preview</button>
-                        <button onClick={() => setActiveTab("latex")} className={`rounded-lg px-2.5 py-1.5 text-xs border ${activeTab === "latex" ? "bg-white text-neutral-950 border-white" : "bg-white/8 text-white/70 border-white/10 hover:bg-white/12"}`}>LaTeX</button>
-                        <button onClick={() => setActiveTab("split")} className={`rounded-lg px-2.5 py-1.5 text-xs border ${activeTab === "split" ? "bg-white text-neutral-950 border-white" : "bg-white/8 text-white/70 border-white/10 hover:bg-white/12"}`} title="Side-by-side: Code + Preview">
-                            <svg className="w-3.5 h-3.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 4.5h15a1.5 1.5 0 011.5 1.5v12a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V6a1.5 1.5 0 011.5-1.5z" /></svg>
-                        </button>
-                        <div className="w-px h-5 bg-white/10 mx-0.5" />
-                        <button onClick={saveAndCompile} disabled={!canCompile} className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${canCompile ? "bg-white text-neutral-950 hover:bg-white/90" : "bg-white/15 text-white/40 cursor-not-allowed"}`}>
-                            {isCompiling ? "Compiling…" : "Compile"}
-                        </button>
-                        <div className="w-px h-5 bg-white/10 mx-0.5" />
-                        <button onClick={downloadCurrentTex} disabled={!activeContent.trim()} className="rounded-lg px-2.5 py-1.5 text-xs border border-white/10 bg-white/8 hover:bg-white/12 disabled:opacity-30">.tex</button>
-                        {outputFiles.length > 1 && (
-                            <button onClick={downloadZip} className="rounded-lg px-2.5 py-1.5 text-xs border border-white/10 bg-white/8 hover:bg-white/12">.zip</button>
-                        )}
-                        <button onClick={downloadPdf} disabled={!pdfUrl} className="rounded-lg px-2.5 py-1.5 text-xs border border-white/10 bg-white/8 hover:bg-white/12 disabled:opacity-30">PDF</button>
-                    </div>
-                </div>
-
-                {/* Content area */}
-                <div className="flex-1 flex min-h-0">
-                    {/* Output file tree (visible in LaTeX and Split tabs with multiple files) */}
-                    {(activeTab === "latex" || activeTab === "split") && (
-                        <div className="w-48 border-r border-white/8 flex flex-col">
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
-                                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Output Files</span>
-                                <button onClick={addNewOutputFile} className="h-5 w-5 rounded text-white/25 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="New file">
-                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto py-1">
-                                {outputFiles.length === 0 ? (
-                                    <div className="px-3 py-3 text-[10px] text-white/20 text-center">No output files yet</div>
-                                ) : (
-                                    outputFiles.map((f) => (
-                                        <div
-                                            key={f.filePath}
-                                            className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer ${f.filePath === activeOutputPath ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/70"}`}
-                                        >
-                                            <button onClick={() => setActiveOutputPath(f.filePath)} className="flex-1 text-left truncate flex items-center gap-1.5">
-                                                <svg className="h-3 w-3 flex-shrink-0 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                                </svg>
-                                                <span className="truncate">{f.filePath}</span>
-                                                {f.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved" />}
-                                            </button>
-                                            {f.filePath !== "main.tex" && (
-                                                <button onClick={() => deleteOutputEntry(f.filePath)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity">
-                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Main content */}
-                    <div className="flex-1 flex flex-col min-h-0 p-4 gap-3">
-                        {activeTab === "split" ? (
-                            /* ── Split view ── */
-                            <div ref={splitContainerRef} className="flex-1 flex rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">
-                                {/* Code panel */}
-                                <div style={{ width: `${splitRatio}%` }} className="flex flex-col min-w-0">
-                                    <div className="px-3 py-1.5 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider">LaTeX — {activeOutputPath}</div>
-                                    <div className="relative flex-1">
-                                        <textarea
-                                            ref={editorRef}
-                                            value={activeContent}
-                                            onChange={(e) => updateOutputFile(activeOutputPath, e.target.value)}
-                                            className="w-full h-full bg-transparent p-4 font-mono text-sm outline-none text-white/90 resize-none"
-                                            placeholder={`${activeOutputPath} — start typing LaTeX…`}
-                                        />
-                                        <InlineEditMenu containerRef={editorRef} onAction={handleInlineAction} />
-                                    </div>
-                                </div>
-                                {/* Draggable divider */}
-                                <div onMouseDown={onSplitMouseDown} className="w-1.5 bg-white/8 hover:bg-white/20 cursor-col-resize transition-colors flex-shrink-0 relative group">
-                                    <div className="absolute inset-y-0 -left-1 -right-1" />
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full bg-white/20 group-hover:bg-white/40 transition-colors" />
-                                </div>
-                                {/* Preview panel */}
-                                <div style={{ width: `${100 - splitRatio}%` }} className="flex flex-col min-w-0">
-                                    <div className="px-3 py-1.5 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider">Preview</div>
-                                    <div className="flex-1">
-                                        {pdfUrl ? <iframe title="PDF Preview" src={pdfUrl} className="w-full h-full" /> : <div className="h-full flex items-center justify-center text-white/30 text-sm">No PDF yet</div>}
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            /* ── Single panel ── */
-                            <div className="flex-1 rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden relative">
-                                {activeTab === "preview" ? (
-                                    pdfUrl ? (
-                                        <iframe title="PDF Preview" src={pdfUrl} className="w-full h-full" />
-                                    ) : (
-                                        <div className="h-full flex items-center justify-center text-white/30 text-sm">
-                                            No PDF yet. Send a prompt or compile.
-                                        </div>
-                                    )
-                                ) : (
-                                    <div className="relative h-full">
-                                        <textarea
-                                            ref={editorRef}
-                                            value={activeContent}
-                                            onChange={(e) => updateOutputFile(activeOutputPath, e.target.value)}
-                                            className="w-full h-full bg-transparent p-4 font-mono text-sm outline-none text-white/90 resize-none"
-                                            placeholder={`${activeOutputPath} — start typing LaTeX…`}
-                                        />
-                                        <InlineEditMenu containerRef={editorRef} onAction={handleInlineAction} />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ── Compilation Console ── */}
-                        {(compileError || isCompiling || consoleOpen) && (
-                            <div className={`rounded-xl border p-3 transition-all ${compileError ? "border-red-400/20 bg-red-500/10" : isCompiling ? "border-amber-400/20 bg-amber-500/10" : "border-emerald-400/20 bg-emerald-500/10"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                        {isCompiling ? (
-                                            <div className="w-4 h-4 border-2 border-amber-300/40 border-t-amber-300 rounded-full animate-spin" />
-                                        ) : compileError ? (
-                                            <svg className="w-4 h-4 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        ) : (
-                                            <svg className="w-4 h-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                                        )}
-                                        <span className={`text-sm font-medium ${compileError ? "text-red-200" : isCompiling ? "text-amber-200" : "text-emerald-200"}`}>
-                                            {isCompiling ? "Compiling…" : compileError ? "Compilation failed" : "Compiled successfully"}
-                                        </span>
-                                        {compileError && <span className="text-xs text-red-200/70 max-w-sm truncate">{compileError}</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {compileError && compileLog.trim() && (
-                                            <button onClick={fixWithAI} disabled={busy()} className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${!busy() ? "bg-white text-neutral-950 hover:bg-white/90" : "bg-white/15 text-white/40 cursor-not-allowed"}`}>
-                                                {isFixing ? "Fixing…" : "Fix with AI"}
-                                            </button>
-                                        )}
-                                        <button onClick={() => { setCompileError(""); setCompileLog(""); setConsoleOpen(false); }} className="rounded-lg px-2 py-1 text-xs border border-white/8 bg-white/5 hover:bg-white/10 text-white/40">Clear</button>
-                                    </div>
-                                </div>
-                                {compileLog && (
-                                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg border border-white/8 bg-black/30 p-2 text-xs text-white/60 font-mono">{compileLog}</pre>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
