@@ -12,6 +12,7 @@ import {
 import { uploadProjectFile, getProjectFileUrl } from "@/lib/storage";
 import FileTree from "@/app/components/FileTree";
 import PdfViewer from "@/app/components/PdfViewer";
+import LatexEditor from "@/app/components/LatexEditor";
 import InlineEditMenu from "@/app/components/InlineEditMenu";
 import PaywallModal from "@/app/components/PaywallModal";
 import ChatThinkingBubble from "@/app/components/ChatThinkingBubble";
@@ -927,15 +928,12 @@ export default function ProjectWorkspace() {
                                 {/* Code panel */}
                                 <div style={{ width: `${splitRatio}%` }} className="flex flex-col min-w-0">
                                     <div className="h-8 flex items-center px-3 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider flex-shrink-0">LaTeX — {activeOutputPath}</div>
-                                    <div className="relative flex-1">
-                                        <textarea
-                                            ref={editorRef}
+                                    <div className="relative flex-1 h-full">
+                                        <LatexEditor
                                             value={activeContent}
-                                            onChange={(e) => updateOutputFile(activeOutputPath, e.target.value)}
-                                            className="w-full h-full bg-transparent p-4 font-mono text-sm outline-none text-white/90 resize-none"
+                                            onChange={(v) => updateOutputFile(activeOutputPath, v)}
                                             placeholder={`${activeOutputPath} — start typing LaTeX…`}
                                         />
-                                        <InlineEditMenu containerRef={editorRef} onAction={handleInlineAction} />
                                     </div>
                                 </div>
                                 {/* Draggable divider */}
@@ -966,14 +964,11 @@ export default function ProjectWorkspace() {
                                     )
                                 ) : (
                                     <div className="relative h-full">
-                                        <textarea
-                                            ref={editorRef}
+                                        <LatexEditor
                                             value={activeContent}
-                                            onChange={(e) => updateOutputFile(activeOutputPath, e.target.value)}
-                                            className="w-full h-full bg-transparent p-4 font-mono text-sm outline-none text-white/90 resize-none"
+                                            onChange={(v) => updateOutputFile(activeOutputPath, v)}
                                             placeholder={`${activeOutputPath} — start typing LaTeX…`}
                                         />
-                                        <InlineEditMenu containerRef={editorRef} onAction={handleInlineAction} />
                                     </div>
                                 )}
                             </div>
