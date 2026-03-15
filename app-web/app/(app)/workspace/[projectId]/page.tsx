@@ -222,7 +222,10 @@ export default function ProjectWorkspace() {
             setUser(null);
             setLoading(false);
         });
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            // TOKEN_REFRESHED fires when returning to the tab — it doesn't mean the
+            // user changed, so skip it to avoid re-triggering the project load effect.
+            if (event === 'TOKEN_REFRESHED') return;
             setUser(session?.user ?? null);
             if (session?.user) setUsageStatus(await getUsageStatus());
             else setUsageStatus(null);
@@ -231,8 +234,12 @@ export default function ProjectWorkspace() {
     }, []);
 
     // ── Load project ──
+    // Depend on user.id (string) instead of the user object so that a token
+    // refresh (which creates a new session object for the same user) does not
+    // re-trigger loading and freeze the UI.
+    const userId = user?.id;
     useEffect(() => {
-        if (!user || !projectId) return;
+        if (!userId || !projectId) return;
         setLoading(true);
         async function load() {
             const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single();
@@ -241,7 +248,7 @@ export default function ProjectWorkspace() {
             setLoading(false);
         }
         load();
-    }, [user, projectId, router]);
+    }, [userId, projectId, router]);
 
     // ── Load project files (user uploads) ──
     const refreshFiles = useCallback(async () => {

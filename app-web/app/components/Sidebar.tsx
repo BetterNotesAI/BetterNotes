@@ -67,7 +67,10 @@ export default function Sidebar() {
             setUser(session?.user ?? null);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => setUser(session?.user ?? null)
+            (event, session) => {
+                if (event === 'TOKEN_REFRESHED') return;
+                setUser(session?.user ?? null);
+            }
         );
         return () => subscription.unsubscribe();
     }, []);

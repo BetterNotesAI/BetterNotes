@@ -72,7 +72,7 @@ function ProjectsContent() {
         init();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => { if (mounted) setUser(session?.user ?? null); }
+            (event, session) => { if (mounted && event !== 'TOKEN_REFRESHED') setUser(session?.user ?? null); }
         );
         return () => { mounted = false; clearTimeout(timeoutId); subscription.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
