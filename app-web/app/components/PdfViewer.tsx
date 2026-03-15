@@ -64,8 +64,8 @@ export default function PdfViewer({ url, zoom = 100, targetPage, onNumPages, onP
 
     return (
         <div className="w-full h-full overflow-auto relative flex flex-col items-center py-6">
-            {/* Background matching the app style */}
-            <div className="pointer-events-none absolute inset-0 -z-10">
+            {/* Fixed background so it doesn't scroll/repeat with long PDFs */}
+            <div className="pointer-events-none fixed inset-0 -z-10">
                 <div className="absolute inset-0 bg-neutral-950" />
                 <div className="absolute inset-0 bg-[radial-gradient(900px_600px_at_35%_10%,rgba(99,102,241,0.22),transparent_60%),radial-gradient(900px_600px_at_75%_30%,rgba(236,72,153,0.18),transparent_60%),radial-gradient(900px_600px_at_70%_85%,rgba(34,197,94,0.12),transparent_60%)]" />
             </div>

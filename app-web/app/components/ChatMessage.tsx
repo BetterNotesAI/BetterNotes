@@ -69,26 +69,62 @@ function MarkdownContent({ text }: { text: string }) {
 
                 const lines = seg.content.split("\n");
                 const nodes: React.ReactNode[] = [];
+                type ListKind = "ul" | "ol";
                 let listItems: string[] = [];
+                let listKind: ListKind = "ul";
                 let key = 0;
 
                 const flushList = () => {
                     if (listItems.length === 0) return;
-                    nodes.push(
-                        <ul key={`${si}-l${key++}`} className="list-disc list-inside space-y-0.5">
-                            {listItems.map((item, j) => (
-                                <li key={j}>{renderInline(item, `${si}-l${key}-${j}`)}</li>
-                            ))}
-                        </ul>
-                    );
+                    if (listKind === "ol") {
+                        nodes.push(
+                            <ol key={`${si}-l${key++}`} className="list-decimal list-inside space-y-0.5">
+                                {listItems.map((item, j) => (
+                                    <li key={j}>{renderInline(item, `${si}-l${key}-${j}`)}</li>
+                                ))}
+                            </ol>
+                        );
+                    } else {
+                        nodes.push(
+                            <ul key={`${si}-l${key++}`} className="list-disc list-inside space-y-0.5">
+                                {listItems.map((item, j) => (
+                                    <li key={j}>{renderInline(item, `${si}-l${key}-${j}`)}</li>
+                                ))}
+                            </ul>
+                        );
+                    }
                     listItems = [];
                 };
+
+                const orderedRe = /^\d+\.\s+(.+)/;
 
                 for (const line of lines) {
                     const trimmed = line.trim();
                     if (!trimmed) { flushList(); continue; }
-                    if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+
+                    const orderedMatch = orderedRe.exec(trimmed);
+                    if (orderedMatch) {
+                        if (listItems.length > 0 && listKind !== "ol") flushList();
+                        listKind = "ol";
+                        listItems.push(orderedMatch[1]);
+                    } else if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+                        if (listItems.length > 0 && listKind !== "ul") flushList();
+                        listKind = "ul";
                         listItems.push(trimmed.slice(2));
+                    } else if (trimmed.startsWith("## ")) {
+                        flushList();
+                        nodes.push(
+                            <p key={`${si}-h${key++}`} className="font-semibold text-white leading-relaxed mt-1">
+                                {renderInline(trimmed.slice(3), `${si}-h${key}`)}
+                            </p>
+                        );
+                    } else if (trimmed.startsWith("# ")) {
+                        flushList();
+                        nodes.push(
+                            <p key={`${si}-h${key++}`} className="font-bold text-white leading-relaxed mt-1">
+                                {renderInline(trimmed.slice(2), `${si}-h${key}`)}
+                            </p>
+                        );
                     } else {
                         flushList();
                         nodes.push(
