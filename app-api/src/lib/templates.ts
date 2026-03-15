@@ -336,6 +336,9 @@ CONTENT RULES:
 - Include realistic numerical values, units, and physical context
 - Use amsmath for all equations
 - Generate 4-8 problems of varying difficulty
+- CRITICAL: Always close \\[ ... \\] or align* BEFORE \\end{solution}, \\end{givendata}, \\end{approach}, \\end{problem}. NEVER leave display math open when ending an environment.
+- CRITICAL: NEVER nest display math environments. Use EITHER \\[ ... \\] OR \\begin{equation*}...\\end{equation*}, never one inside the other.
+- CRITICAL: Output the FULL document including the REQUIRED PREAMBLE above. Start with \\documentclass, not \\begin{document}.
 - End with: \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}`,
 
   structureExample: `\\begin{document}
@@ -410,11 +413,11 @@ LAYOUT RULES:
 - Use: \\begin{tcbitemize}[raster columns=2, raster rows=3, raster height=0.92\\textheight, raster equal height=rows, raster column skip=4mm, raster row skip=4mm]
 
 CONTENT RULES:
-- Each card: \\tcbitem[zettelstyle, title={\\texttt{ID} --- Title}]
+- Each card: \\tcbitem[zettelstyle, title={\\texttt{ID} --- Title}] — use exactly ONE closing brace } then ] to close the option. NEVER write }} at the end.
 - Card IDs use format: TOPIC-01, TOPIC-02, etc.
 - Card content: \\footnotesize text, key concept, formula, or definition
 - Use \\conn{Related Card ID} for cross-references between cards
-- Use \\tags{#tag1 #tag2 #tag3} at the bottom of each card
+- Use \\tags{\\#tag1 \\#tag2 \\#tag3} at the bottom of each card (IMPORTANT: use \\# not bare #)
 - Close each page with \\end{tcbitemize} before starting new page
 - Generate at least 6 cards (1 full page). 12 cards = 2 pages.
 - End with: \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}`,
@@ -438,14 +441,14 @@ A \\textbf{graph} $G = (V, E)$ consists of a set of vertices $V$ and edges $E \\
   \\item \\textbf{Undirected}: edges are symmetric
 \\end{itemize}
 \\conn{GT-02 Degree} \\conn{GT-03 Paths}
-\\tags{#graph #definition #combinatorics}
+\\tags{\\#graph \\#definition \\#combinatorics}
 
 \\tcbitem[zettelstyle, title={\\texttt{GT-02} --- Vertex Degree}]
 \\footnotesize
 The \\textbf{degree} $\\deg(v)$ = number of edges incident to $v$.
 \\[ \\sum_{v \\in V} \\deg(v) = 2|E| \\]
 \\conn{GT-01 Graph} \\conn{GT-04 Trees}
-\\tags{#degree #handshaking #graph}
+\\tags{\\#degree \\#handshaking \\#graph}
 
 \\end{tcbitemize}
 \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}
@@ -466,6 +469,7 @@ const academicPaper: TemplateDefinition = {
 \\usepackage{microtype}
 \\usepackage{geometry}
 \\geometry{a4paper,left=18mm,right=18mm,top=20mm,bottom=25mm,columnsep=8mm}
+\\usepackage{xcolor}
 \\usepackage{amsmath,amsthm,amssymb,amsfonts,mathtools}
 \\usepackage{bm}
 \\usepackage{graphicx}
@@ -572,9 +576,8 @@ const labReport: TemplateDefinition = {
 \\titleformat{\\subsection}{\\bfseries}{\\thesubsection.}{0.5em}{}
 \\setlength{\\parindent}{1em}
 \\setlength{\\parskip}{3pt}
-\\newcommand{\\mean}[1]{\\bar{#1}}
-\\newcommand{\\uncertainty}[2]{(#1 \\pm #2)}
-\\newcommand{\\SI}[2]{#1\\,\\mathrm{#2}}`,
+\\newcommand{\\mean}[1]{\\ensuremath{\\bar{#1}}}
+\\newcommand{\\uncertainty}[2]{\\ensuremath{(#1 \\pm #2)}}`,
 
   styleGuide: `You are generating a TECHNICAL LAB REPORT for an experimental science or engineering course.
 
@@ -594,6 +597,8 @@ CONTENT RULES:
 - Include realistic experimental data with uncertainties: \\uncertainty{x}{\\delta x}
 - Include error propagation formulas with partial derivatives
 - Be specific: use real physics/chemistry equations relevant to the experiment
+- NEVER use \\includegraphics — no image files are available. Describe apparatus in text instead.
+- CRITICAL: For siunitx, \\SI requires BOTH a number AND a unit: \\SI{9.81}{m/s^2}, \\SI{6.02e-19}{J}. To typeset a unit alone (no number), use \\si{m/s^2}. NEVER use \\SI with only one argument. NEVER use \\SI{a \\times 10^{n}}{unit} — use e-notation: \\SI{6.02e-19}{J}.
 - End with: \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}`,
 
   structureExample: `\\begin{document}

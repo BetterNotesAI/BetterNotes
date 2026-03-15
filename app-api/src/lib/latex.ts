@@ -158,8 +158,212 @@ export function injectCommonMathFallbacks(latex: string): string {
   return `${latex.slice(0, insertAt)}${injection}\n${latex.slice(insertAt)}`;
 }
 
+// Display math environments that can be opened by the AI
+const DISPLAY_MATH_ENVS = new Set([
+  "equation", "equation*", "align", "align*",
+  "gather", "gather*", "multline", "multline*", "flalign", "flalign*",
+]);
+
+// Nested environments that must be closed before the outer display math ends
+const NESTED_MATH_ENVS = new Set(["cases", "pmatrix", "bmatrix", "vmatrix", "array", "split", "aligned"]);
+
+/**
+ * Fix two common AI-generated LaTeX math errors:
+ *  1. Unclosed \[ blocks: \[ ... \end{envname} without the matching \]
+ *  2. Unclosed nested math environments: \begin{cases} ended by \end{equation} instead of \end{cases}
+ */
+export function fixUnclosedDisplayMath(latex: string): string {
+  const lines = latex.split("\n");
+  const result: string[] = [];
+  let inDisplayMath = false;         // inside \[ ... \]
+  let displayMathEnv: string | null = null; // inside \begin{equation} etc.
+  const nestedStack: string[] = [];  // nested envs like cases, pmatrix inside display math
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect \[
+    if (trimmed === "\\[") {
+      inDisplayMath = true;
+      result.push(line);
+      continue;
+    }
+
+    // Detect \]
+    if (trimmed === "\\]") {
+      inDisplayMath = false;
+      nestedStack.length = 0;
+      result.push(line);
+      continue;
+    }
+
+    // Detect \begin{envname}
+    const beginMatch = trimmed.match(/^\\begin\{([^}]+)\}/);
+    if (beginMatch) {
+      const env = beginMatch[1];
+      if (DISPLAY_MATH_ENVS.has(env)) {
+        displayMathEnv = env;
+        nestedStack.length = 0;
+      } else if ((inDisplayMath || displayMathEnv) && NESTED_MATH_ENVS.has(env)) {
+        nestedStack.push(env);
+      }
+      result.push(line);
+      continue;
+    }
+
+    // Detect \end{envname}
+    const endMatch = trimmed.match(/^\\end\{([^}]+)\}/);
+    if (endMatch) {
+      const env = endMatch[1];
+
+      // Case 1: \] was missing — \end{something} while inside \[
+      if (inDisplayMath && !NESTED_MATH_ENVS.has(env)) {
+        result.push("\\]");
+        inDisplayMath = false;
+        nestedStack.length = 0;
+      }
+
+      // Case 2: closing a display math env but nested envs are still open
+      if (displayMathEnv && DISPLAY_MATH_ENVS.has(env)) {
+        while (nestedStack.length > 0) {
+          result.push(`\\end{${nestedStack.pop()}}`);
+        }
+        displayMathEnv = null;
+      }
+
+      // Case 3: mismatched nested — e.g. \end{equation} while we expected \end{cases}
+      if (displayMathEnv && !DISPLAY_MATH_ENVS.has(env) && NESTED_MATH_ENVS.has(nestedStack[nestedStack.length - 1] ?? "")) {
+        // env doesn't match the top of stack — pop and close properly
+        while (nestedStack.length > 0 && nestedStack[nestedStack.length - 1] !== env) {
+          result.push(`\\end{${nestedStack.pop()}}`);
+        }
+        if (nestedStack.length > 0) nestedStack.pop();
+      }
+
+      result.push(line);
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join("\n");
+}
+
+// Theorem-like environments that the AI may forget to close before \end{multicols} / \end{document}
+const CLOSEABLE_ENVS = new Set([
+  "definition", "theorem", "lemma", "proposition", "corollary",
+  "example", "example*", "exercise", "exercise*", "remark", "obs",
+  "problem", "givendata", "approach", "solution", "proof",
+  "tcolorbox", "minipage",
+]);
+
+/**
+ * Ensure common theorem/box environments are closed before \end{multicols}, \end{multicols*},
+ * or \end{document}, where LaTeX would otherwise error with "ended by \end{multicols}".
+ */
+export function fixUnclosedEnvironments(latex: string): string {
+  const lines = latex.split("\n");
+  const result: string[] = [];
+  const envStack: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    const beginMatch = trimmed.match(/^\\begin\{([^}]+)\}/);
+    if (beginMatch && CLOSEABLE_ENVS.has(beginMatch[1])) {
+      envStack.push(beginMatch[1]);
+      result.push(line);
+      continue;
+    }
+
+    const endMatch = trimmed.match(/^\\end\{([^}]+)\}/);
+    if (endMatch) {
+      const closing = endMatch[1];
+      if (CLOSEABLE_ENVS.has(closing)) {
+        // Pop it from the stack (ignore mismatched pops)
+        const idx = envStack.lastIndexOf(closing);
+        if (idx !== -1) envStack.splice(idx, 1);
+        result.push(line);
+        continue;
+      }
+      // Closing a container env (multicols, document) — drain any unclosed inner envs first
+      if (closing === "multicols" || closing === "multicols*" || closing === "document") {
+        while (envStack.length > 0) {
+          result.push(`\\end{${envStack.pop()}}`);
+        }
+      }
+      result.push(line);
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join("\n");
+}
+
+// Tabular environments where & is valid as a column separator
+const TABULAR_ENVS = new Set(["tabular", "tabularx", "array", "longtable", "tabu", "matrix",
+  "pmatrix", "bmatrix", "vmatrix", "Bmatrix", "Vmatrix", "smallmatrix",
+  "align", "align*", "alignat", "alignat*", "flalign", "flalign*",
+  "cases", "rcases", "dcases", "split", "aligned", "gathered"]);
+
+/**
+ * Escape bare & characters in running text (titles, section names, prose).
+ * Only applies AFTER \begin{document} and only on lines that are not LaTeX
+ * command invocations (i.e., lines that don't start with \, %, or {\ ).
+ * Skips lines inside tabular/math alignment environments where & is a column separator.
+ */
+export function escapeAmpersandsInText(latex: string): string {
+  const lines = latex.split("\n");
+  const result: string[] = [];
+  let inDocument = false;
+  let inTabular = false;
+  let depth = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (/^\\begin\s*\{document\}/.test(trimmed)) inDocument = true;
+    if (/^\\end\s*\{document\}/.test(trimmed)) inDocument = false;
+
+    const beginMatch = trimmed.match(/^\\begin\{([^}]+)\}/);
+    if (beginMatch && TABULAR_ENVS.has(beginMatch[1])) {
+      inTabular = true;
+      depth++;
+    }
+    const endMatch = trimmed.match(/^\\end\{([^}]+)\}/);
+    if (endMatch && TABULAR_ENVS.has(endMatch[1])) {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) inTabular = false;
+    }
+
+    const isCommandLine = trimmed.startsWith("\\") || trimmed.startsWith("%");
+    const shouldEscape = inDocument && !inTabular && !isCommandLine && line.includes("&");
+
+    if (shouldEscape) {
+      result.push(line.replace(/(?<!\\)&/g, "\\&"));
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join("\n");
+}
+
 export function applyLatexFallbacks(latex: string): string {
-  return injectCommonMathFallbacks(injectTheoremFallbacks(stripDuplicateNewtheoremDefinitions(latex)));
+  return injectCommonMathFallbacks(
+    injectTheoremFallbacks(
+      stripDuplicateNewtheoremDefinitions(
+        fixUnclosedEnvironments(
+          fixUnclosedDisplayMath(
+            escapeAmpersandsInText(latex)
+          )
+        )
+      )
+    )
+  );
 }
 
 /* -------------------------

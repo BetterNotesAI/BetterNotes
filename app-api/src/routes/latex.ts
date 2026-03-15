@@ -199,6 +199,9 @@ export function createLatexRouter(deps: LatexDeps) {
       "- NEVER output triple backticks (```).",
       "- Use ONLY standard packages. Do not add \\usepackage commands — the preamble already contains all necessary packages.",
       "- Use \\verify{...} (not \\check{...}) for solution verification steps in problem sheets.",
+      "- In regular text (titles, headings, sentences), use \\& for ampersand, not bare &. Bare & is only valid inside tabular/array environments.",
+      "- NEVER nest display math environments: do not put \\begin{equation*} or \\begin{align*} inside \\[ ... \\], and do not put \\begin{equation*} inside \\begin{align*}.",
+      "- Always close every \\begin{env} with a matching \\end{env} before closing the enclosing environment.",
     ].join(" ");
 
     const messages: { role: "system" | "assistant" | "user"; content: any }[] = [
@@ -221,7 +224,11 @@ export function createLatexRouter(deps: LatexDeps) {
       const template = getTemplateOrThrow(templateId);
 
       textPrompt = [
-        `Generate a COMPLETE LaTeX document about: "${prompt}"`,
+        `User request: "${prompt}"`,
+        "",
+        "Decision: if this is casual conversation (e.g. 'hi', 'thanks', 'how are you'), reply with ONLY a short plain-text message.",
+        "Otherwise (any academic or document topic), generate a COMPLETE LaTeX document using the template below.",
+        "",
         `Template style: ${template.id}`,
         "",
         "=== REQUIRED PREAMBLE (copy this VERBATIM before \\begin{document}) ===",
@@ -232,9 +239,6 @@ export function createLatexRouter(deps: LatexDeps) {
         "",
         "=== STRUCTURE EXAMPLE (use this as a structural reference, NOT as content to copy) ===",
         template.structureExample,
-        "",
-        "=== USER REQUEST ===",
-        prompt,
         "",
         "Now generate the complete .tex document. Fill it with REAL, DETAILED, HIGH-QUALITY academic content about the requested topic.",
         "Do NOT copy the example content — create original content relevant to the user's topic.",
@@ -265,7 +269,14 @@ export function createLatexRouter(deps: LatexDeps) {
       cleanOut.includes("\\begin{");
 
     if (looksLikeLatex) {
-      return { latex: applyLatexFallbacks(cleanOut) };
+      let latex = cleanOut;
+      // If AI omitted the preamble (starts with \begin{document} but no \documentclass),
+      // auto-prepend the template preamble so the document always compiles.
+      if (!baseLatex && !latex.includes("\\documentclass")) {
+        const tmpl = getTemplateOrThrow(templateId);
+        latex = `${tmpl.preamble}\n\n${latex}`;
+      }
+      return { latex: applyLatexFallbacks(latex) };
     }
 
     // Short response with no LaTeX commands → treat as chat message
@@ -316,6 +327,23 @@ export function createLatexRouter(deps: LatexDeps) {
     return stripMarkdownFences(out);
   }
 
+  // Simple heuristic: detect casual chat before hitting the AI
+  function isCasualChat(prompt: string): string | null {
+    const p = prompt.trim().toLowerCase().replace(/[!?.]+$/, "");
+    const CHAT_PATTERNS = [
+      /^(hi|hello|hey|hola|howdy|good\s+\w+|greetings)$/i,
+      /^(thanks|thank\s+you|thx|ty|cheers|gracias)$/i,
+      /^(bye|goodbye|ciao|see\s+ya)$/i,
+      /^(how\s+are\s+you|how's\s+it\s+going|what's\s+up|wassup|sup)$/i,
+      /^(ok|okay|sure|great|awesome|cool|nice|perfect|got\s+it|understood)$/i,
+      /^(yes|no|yeah|nope|yep)$/i,
+    ];
+    if (CHAT_PATTERNS.some(rx => rx.test(p))) {
+      return "Hello! I'm BetterNotes AI. Share a topic and I'll generate a LaTeX document for you! 📝";
+    }
+    return null;
+  }
+
   // POST /latex/generate-latex
   router.post("/generate-latex", async (req, res) => {
     try {
@@ -334,6 +362,12 @@ export function createLatexRouter(deps: LatexDeps) {
             mimeType: typeof f.mimeType === "string" ? f.mimeType : undefined,
           }))
         : [];
+
+      // Short-circuit: casual chat without a document topic
+      if (prompt && files.length === 0 && !hasBaseLatex) {
+        const chatReply = isCasualChat(prompt);
+        if (chatReply) return res.json({ ok: true, message: chatReply });
+      }
 
       if (!prompt && files.length === 0) {
         return res.status(400).json({ ok: false, error: "Missing 'prompt' or 'files'." });
