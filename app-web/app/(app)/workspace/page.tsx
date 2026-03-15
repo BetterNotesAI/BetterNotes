@@ -932,8 +932,6 @@ function WorkspaceContent() {
                     <div key={idx} className="mr-auto max-w-[92%]">
                       <ChatThinkingBubble
                         text={m.content}
-                        steps={thinkingProgressSteps}
-                        activeStepIndex={getThinkingStepIndex(m.content)}
                       />
                     </div>
                   );
