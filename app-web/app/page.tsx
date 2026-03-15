@@ -291,7 +291,7 @@ export default function Home() {
       <PdfPreviewModal
         isOpen={previewTemplate !== null}
         onClose={() => setPreviewTemplate(null)}
-        pdfUrl={(previewTemplate as any)?.previewPath ?? previewTemplate?.publicPath ?? ""}
+        pdfUrl={previewTemplate?.previewPath ?? ""}
         title={previewTemplate?.name ?? ""}
         templateId={previewTemplate?.id}
         isPro={previewTemplate?.isPro ?? false}

@@ -9,16 +9,32 @@ import { listProjects, type Project } from "@/lib/api";
 import ThemeToggle from "./ThemeToggle";
 import type { User } from "@supabase/supabase-js";
 
+// Routes where the sidebar auto-collapses to icon-only (editor pages need max space)
+const WORKSPACE_ROUTES = ["/workspace/"];
+
+function isWorkspaceRoute(pathname: string) {
+    return WORKSPACE_ROUTES.some((prefix) => pathname.startsWith(prefix));
+}
+
+const COLLAPSED_STORAGE_KEY = "sidebar_collapsed";
+
+function readCollapsedFromStorage(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+}
+
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedFromStorage());
     const [mobileOpen, setMobileOpen] = useState(false);
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
     const [projectsExpanded, setProjectsExpanded] = useState(true);
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement | null>(null);
+    // Track whether user has manually set collapsed state so we don't override their preference
+    const userSetCollapsedRef = useRef(false);
 
     // Auth
     useEffect(() => {
@@ -30,6 +46,23 @@ export default function Sidebar() {
         );
         return () => subscription.unsubscribe();
     }, []);
+
+    // Persist collapsed state to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
+    }, [collapsed]);
+
+    // Auto-collapse when entering workspace editor routes (if user hasn't manually expanded)
+    useEffect(() => {
+        if (isWorkspaceRoute(pathname)) {
+            if (!userSetCollapsedRef.current) {
+                setCollapsed(true);
+            }
+        } else {
+            // Reset the override flag when leaving workspace routes
+            userSetCollapsedRef.current = false;
+        }
+    }, [pathname]);
 
     // Load recent projects
     useEffect(() => {
@@ -94,7 +127,10 @@ export default function Sidebar() {
                     )}
                 </Link>
                 <button
-                    onClick={() => setCollapsed(!collapsed)}
+                    onClick={() => {
+                        userSetCollapsedRef.current = true;
+                        setCollapsed(!collapsed);
+                    }}
                     className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
                     aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >

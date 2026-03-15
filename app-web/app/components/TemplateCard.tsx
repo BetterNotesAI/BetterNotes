@@ -1,15 +1,7 @@
 "use client";
 
 import Image from "next/image";
-
-type Template = {
-  id: string;
-  name: string;
-  format: string;
-  publicPath: string;
-  previewPath?: string;
-  thumbnailPath?: string;
-};
+import type { Template } from "@/lib/templates";
 
 interface TemplateCardProps {
   t: Template;
@@ -24,7 +16,7 @@ export default function TemplateCard({ t, onClick }: TemplateCardProps) {
     }
   }
 
-  const href = t.previewPath ?? t.publicPath;
+  const href = t.previewPath;
 
   return (
     <a
@@ -52,7 +44,7 @@ export default function TemplateCard({ t, onClick }: TemplateCardProps) {
 
       <div className="mt-3">
         <div className="font-medium text-card-foreground">{t.name}</div>
-        <div className="text-xs text-muted-foreground">{t.format.toUpperCase()}</div>
+        <div className="text-xs text-muted-foreground capitalize">{t.category}</div>
       </div>
     </a>
   );
