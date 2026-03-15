@@ -10,12 +10,14 @@ import {
     type Project, type ProjectFileRecord, type UsageStatus
 } from "@/lib/api";
 import { uploadProjectFile, getProjectFileUrl } from "@/lib/storage";
+import dynamic from "next/dynamic";
 import FileTree from "@/app/components/FileTree";
-import PdfViewer from "@/app/components/PdfViewer";
+const PdfViewer = dynamic(() => import("@/app/components/PdfViewer"), { ssr: false });
 import LatexEditor from "@/app/components/LatexEditor";
 import InlineEditMenu from "@/app/components/InlineEditMenu";
 import PaywallModal from "@/app/components/PaywallModal";
 import ChatThinkingBubble from "@/app/components/ChatThinkingBubble";
+import ChatMessage from "@/app/components/ChatMessage";
 import SlashCommandPicker, { type SlashCommandPickerRef } from "@/app/components/SlashCommandPicker";
 import { templates } from "@/lib/templates";
 import { useToast } from "@/app/components/Toast";
@@ -187,6 +189,10 @@ export default function ProjectWorkspace() {
     const [downloadOpen, setDownloadOpen] = useState(false);
     const downloadRef = useRef<HTMLDivElement | null>(null);
     const [pdfZoom, setPdfZoom] = useState(100);
+    const [pdfNumPages, setPdfNumPages] = useState(0);
+    const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+    const [pdfTargetPage, setPdfTargetPage] = useState<number | undefined>(undefined);
+    const [pageInput, setPageInput] = useState("");
 
     // ── Derived state ──
     const activeEntry = outputFiles.find((f) => f.filePath === activeOutputPath);
@@ -345,11 +351,6 @@ export default function ProjectWorkspace() {
     }
 
     // ═══ Helpers ═══
-    const thinkingProgressSteps = [
-        "Generating document...",
-        "Compiling PDF preview...",
-    ];
-
     function isTransientAssistantMessageText(text: string): boolean {
         const normalized = (text || "").trim();
         return (
@@ -357,12 +358,6 @@ export default function ProjectWorkspace() {
             normalized.startsWith("Working...") ||
             normalized.startsWith("Generated. Compiling PDF...")
         );
-    }
-
-    function getThinkingStepIndex(text: string): number {
-        const normalized = (text || "").trim();
-        if (normalized.startsWith("Generated. Compiling PDF...")) return 1;
-        return 0;
     }
 
     function replaceLastWorking(m: Msg[], newText: string): Msg[] {
@@ -397,6 +392,7 @@ export default function ProjectWorkspace() {
     // ── Freemium gate ──
     const canSendMessage = useCallback(async (): Promise<boolean> => {
         if (!user) { router.push("/login"); return false; }
+        if (process.env.NEXT_PUBLIC_DEV_UNLIMITED === "true") return true;
         try {
             const status = await Promise.race<UsageStatus | null>([
                 getUsageStatus(),
@@ -772,20 +768,60 @@ export default function ProjectWorkspace() {
                         {isCompiling ? "Compiling…" : "Compile"}
                     </button>
 
-                    {/* Center: Zoom controls (preview only) */}
+                    {/* Center: Zoom + Page controls (preview only) */}
                     {activeTab === "preview" && pdfUrl && (
-                        <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-1 py-0.5">
-                            <button
-                                onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
-                                className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
-                                title="Zoom out"
-                            >−</button>
-                            <span className="text-xs text-white/40 w-10 text-center tabular-nums">{pdfZoom}%</span>
-                            <button
-                                onClick={() => setPdfZoom((z) => Math.min(200, z + 10))}
-                                className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
-                                title="Zoom in"
-                            >+</button>
+                        <div className="flex items-center gap-2">
+                            {/* Zoom */}
+                            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-1 py-0.5">
+                                <button
+                                    onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
+                                    className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
+                                    title="Zoom out"
+                                >−</button>
+                                <span className="text-xs text-white/40 w-10 text-center tabular-nums">{pdfZoom}%</span>
+                                <button
+                                    onClick={() => setPdfZoom((z) => Math.min(200, z + 10))}
+                                    className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 text-sm font-medium transition-colors"
+                                    title="Zoom in"
+                                >+</button>
+                            </div>
+                            {/* Page navigation */}
+                            {pdfNumPages > 0 && (
+                                <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-1 py-0.5">
+                                    <button
+                                        onClick={() => { const p = Math.max(1, pdfCurrentPage - 1); setPdfTargetPage(p); }}
+                                        className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors"
+                                        title="Previous page"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                                    </button>
+                                    <input
+                                        type="text"
+                                        value={pageInput || String(pdfCurrentPage)}
+                                        onChange={(e) => setPageInput(e.target.value)}
+                                        onFocus={(e) => { setPageInput(String(pdfCurrentPage)); e.target.select(); }}
+                                        onBlur={() => setPageInput("")}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                const n = parseInt(pageInput, 10);
+                                                if (!isNaN(n) && n >= 1 && n <= pdfNumPages) setPdfTargetPage(n);
+                                                (e.target as HTMLInputElement).blur();
+                                            }
+                                            if (e.key === "Escape") { setPageInput(""); (e.target as HTMLInputElement).blur(); }
+                                        }}
+                                        className="w-7 text-center text-xs text-white/60 bg-transparent outline-none focus:text-white tabular-nums"
+                                        title="Go to page"
+                                    />
+                                    <span className="text-xs text-white/30 tabular-nums">/ {pdfNumPages}</span>
+                                    <button
+                                        onClick={() => { const p = Math.min(pdfNumPages, pdfCurrentPage + 1); setPdfTargetPage(p); }}
+                                        className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors"
+                                        title="Next page"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -946,7 +982,7 @@ export default function ProjectWorkspace() {
                                     <div className="h-8 flex items-center px-3 border-b border-white/8 text-[10px] text-white/30 font-semibold uppercase tracking-wider flex-shrink-0">Preview</div>
                                     <div className="flex-1 min-h-0">
                                         {pdfUrl ? (
-                                            <PdfViewer url={pdfUrl} zoom={pdfZoom} />
+                                            <PdfViewer url={pdfUrl} zoom={pdfZoom} targetPage={pdfTargetPage} onNumPages={setPdfNumPages} onPageChange={setPdfCurrentPage} />
                                         ) : <div className="h-full flex items-center justify-center text-white/30 text-sm">No PDF yet</div>}
                                     </div>
                                 </div>
@@ -956,7 +992,7 @@ export default function ProjectWorkspace() {
                             <div className="flex-1 overflow-hidden relative">
                                 {activeTab === "preview" ? (
                                     pdfUrl ? (
-                                        <PdfViewer url={pdfUrl} zoom={pdfZoom} />
+                                        <PdfViewer url={pdfUrl} zoom={pdfZoom} targetPage={pdfTargetPage} onNumPages={setPdfNumPages} onPageChange={setPdfCurrentPage} />
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-white/30 text-sm">
                                             No PDF yet. Send a prompt or compile.
@@ -974,37 +1010,6 @@ export default function ProjectWorkspace() {
                             </div>
                         )}
 
-                        {/* ── Compilation Console ── */}
-                        {(compileError || isCompiling || consoleOpen) && (
-                            <div className={`rounded-xl border p-3 transition-all ${compileError ? "border-red-400/20 bg-red-500/10" : isCompiling ? "border-amber-400/20 bg-amber-500/10" : "border-emerald-400/20 bg-emerald-500/10"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                        {isCompiling ? (
-                                            <div className="w-4 h-4 border-2 border-amber-300/40 border-t-amber-300 rounded-full animate-spin" />
-                                        ) : compileError ? (
-                                            <svg className="w-4 h-4 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        ) : (
-                                            <svg className="w-4 h-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                                        )}
-                                        <span className={`text-sm font-medium ${compileError ? "text-red-200" : isCompiling ? "text-amber-200" : "text-emerald-200"}`}>
-                                            {isCompiling ? "Compiling…" : compileError ? "Compilation failed" : "Compiled successfully"}
-                                        </span>
-                                        {compileError && <span className="text-xs text-red-200/70 max-w-sm truncate">{compileError}</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {compileError && compileLog.trim() && (
-                                            <button onClick={fixWithAI} disabled={busy()} className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${!busy() ? "bg-white text-neutral-950 hover:bg-white/90" : "bg-white/15 text-white/40 cursor-not-allowed"}`}>
-                                                {isFixing ? "Fixing…" : "Fix with AI"}
-                                            </button>
-                                        )}
-                                        <button onClick={() => { setCompileError(""); setCompileLog(""); setConsoleOpen(false); }} className="rounded-lg px-2 py-1 text-xs border border-white/8 bg-white/5 hover:bg-white/10 text-white/40">Clear</button>
-                                    </div>
-                                </div>
-                                {compileLog && (
-                                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg border border-white/8 bg-black/30 p-2 text-xs text-white/60 font-mono">{compileLog}</pre>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
@@ -1045,26 +1050,12 @@ export default function ProjectWorkspace() {
                         if (showThinkingBubble) {
                             return (
                                 <div key={idx} className="mr-auto max-w-[92%]">
-                                    <ChatThinkingBubble
-                                        text={m.content}
-                                        steps={thinkingProgressSteps}
-                                        activeStepIndex={getThinkingStepIndex(m.content)}
-                                    />
+                                    <ChatThinkingBubble text={m.content} />
                                 </div>
                             );
                         }
 
-                        return (
-                            <div
-                                key={idx}
-                                className={`max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed border ${m.role === "user"
-                                    ? "ml-auto bg-white/10 border-white/15"
-                                    : "mr-auto bg-black/20 border-white/8"
-                                    }`}
-                            >
-                                {m.content}
-                            </div>
-                        );
+                        return <ChatMessage key={idx} role={m.role} content={m.content} />;
                     })}
                     <div ref={bottomRef} />
                 </div>

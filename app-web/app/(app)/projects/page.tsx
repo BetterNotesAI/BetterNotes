@@ -78,11 +78,11 @@ function ProjectsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-open new modal from URL
+    // Sync URL query params → state
     useEffect(() => {
-        if (searchParams.get("new") === "true") {
-            setShowNewModal(true);
-        }
+        if (searchParams.get("new") === "true") setShowNewModal(true);
+        setActiveFolderId(searchParams.get("folder") ?? null);
+        setFilter(searchParams.get("filter") === "starred" ? "starred" : "all");
     }, [searchParams]);
 
     const fetchProjects = useCallback(async () => {
