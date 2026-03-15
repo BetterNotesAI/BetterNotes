@@ -10,7 +10,7 @@ import ChatThinkingBubble from "@/app/components/ChatThinkingBubble";
 import SlashCommandPicker, { type SlashCommandPickerRef } from "@/app/components/SlashCommandPicker";
 import { templates } from "../../../lib/templates";
 import { saveWorkspaceDraft, loadWorkspaceDraft, clearWorkspaceDraft, WorkspaceDraft } from "../../../lib/draft";
-import { getUsageStatus, incrementMessageCount, saveChat, updateChat, loadChat, createProject, listProjects, saveOutputFile, UsageStatus } from "../../../lib/api";
+import { getUsageStatus, incrementMessageCount, createProject, saveOutputFile, UsageStatus } from "../../../lib/api";
 import SaveProjectModal from "@/app/components/SaveProjectModal";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -247,7 +247,7 @@ function WorkspaceContent() {
   const [anonymousMessageSent, setAnonymousMessageSent] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<typeof templates[number] | null>(null);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -337,7 +337,7 @@ function WorkspaceContent() {
     setCompiledLatex("");
     setDirty(false);
     setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return ""; });
-    setCurrentChatId(null);
+    setCurrentProjectId(null);
     setFiles([]);
     setFileError("");
     setCompileError("");
@@ -365,13 +365,17 @@ function WorkspaceContent() {
           if (event === 'SIGNED_IN') {
             const draft = loadWorkspaceDraft();
             if (draft && (draft.draftLatex || draft.savedLatex || draft.messages.length > 1)) {
-              const chatId = await saveChat({
+              const userMsgs = draft.messages.filter(m => m.role === 'user');
+              const title = userMsgs[0]?.content.slice(0, 50) || 'Untitled';
+              const { project } = await createProject({
+                title,
                 template_id: draft.selectedTemplateId || undefined,
-                latex_content: draft.savedLatex || draft.draftLatex,
-                messages: draft.messages,
               });
-              if (chatId) {
-                setCurrentChatId(chatId);
+              if (project) {
+                const latexContent = draft.savedLatex || draft.draftLatex;
+                if (latexContent) await saveOutputFile(project.id, 'main.tex', latexContent);
+                setCurrentProjectId(project.id);
+                window.history.replaceState(null, '', '/workspace/' + project.id);
                 clearWorkspaceDraft();
               }
             }
@@ -404,25 +408,6 @@ function WorkspaceContent() {
     }
   }, []);
 
-  useEffect(() => {
-    const chatId = searchParams.get("chat");
-    if (!chatId || !user) return;
-
-    async function loadChatFromUrl() {
-      const chat = await loadChat(chatId!);
-      if (chat) {
-        setCurrentChatId(chat.id);
-        setMessages(chat.messages as Msg[] || []);
-        setDraftLatex(chat.latex_content || "");
-        setSavedLatex(chat.latex_content || "");
-        if (chat.template_id) setSelectedTemplateId(chat.template_id);
-        if (chat.latex_content || (chat.messages && chat.messages.length > 1)) {
-          setMode("project");
-        }
-      }
-    }
-    loadChatFromUrl();
-  }, [searchParams, user]);
 
   // ========== GATE LOGIC ==========
   const canSendMessage = useCallback(async (): Promise<boolean> => {
@@ -475,28 +460,27 @@ function WorkspaceContent() {
       }
 
       const messagesToSave = newMessages || messages;
-      const userMsgs = messagesToSave.filter(m => m.role === 'user');
-      const title = userMsgs[0]?.content.slice(0, 50) || 'Untitled';
+      const latex = latexContent || savedLatex || draftLatex;
 
-      if (currentChatId) {
-        await updateChat(currentChatId, {
-          title,
-          messages: messagesToSave,
-          latex_content: latexContent || savedLatex || draftLatex,
-        });
+      if (currentProjectId) {
+        if (latex) await saveOutputFile(currentProjectId, 'main.tex', latex);
       } else {
-        const newChatId = await saveChat({
+        const userMsgs = messagesToSave.filter(m => m.role === 'user');
+        const title = userMsgs[0]?.content.slice(0, 50) || 'Untitled';
+        const { project } = await createProject({
           title,
-          messages: messagesToSave,
-          latex_content: latexContent || savedLatex || draftLatex,
           template_id: selectedTemplateId || undefined,
         });
-        if (newChatId) setCurrentChatId(newChatId);
+        if (project) {
+          if (latex) await saveOutputFile(project.id, 'main.tex', latex);
+          setCurrentProjectId(project.id);
+          window.history.replaceState(null, '', '/workspace/' + project.id);
+        }
       }
     } catch (e) {
-      console.warn('Failed to auto-save chat:', e);
+      console.warn('Failed to auto-save project:', e);
     }
-  }, [user, messages, currentChatId, savedLatex, draftLatex, selectedTemplateId]);
+  }, [user, messages, currentProjectId, savedLatex, draftLatex, selectedTemplateId]);
 
   function focusInputWithPrompt(prompt: string) {
     setStartInput(prompt);
@@ -1278,11 +1262,10 @@ function WorkspaceContent() {
               ))}
             </div>
           )}
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {/* Selected template chip */}
-            {selectedTemplateId && (() => {
-              const tmpl = templates.find(t => t.id === selectedTemplateId);
-              return tmpl ? (
+          {selectedTemplateId && (() => {
+            const tmpl = templates.find(t => t.id === selectedTemplateId);
+            return tmpl ? (
+              <div className="mt-3 flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-400/10 pl-1 pr-2 py-1">
                   {tmpl.thumbnailPath && (
                     <div className="w-6 h-6 rounded-full overflow-hidden border border-emerald-400/30">
@@ -1299,11 +1282,9 @@ function WorkspaceContent() {
                     </svg>
                   </button>
                 </div>
-              ) : null;
-            })()}
-            <Chip onClick={() => setStartInput("Formula sheet for Physics")}>Formula sheet</Chip>
-            <Chip onClick={() => setStartInput("Summary of History notes")}>Summary</Chip>
-          </div>
+              </div>
+            ) : null;
+          })()}
         </div>
         <div className="mt-8 mx-auto max-w-4xl">
           <div className="flex items-center justify-between mb-4">
@@ -1347,10 +1328,6 @@ function WorkspaceContent() {
       />
     </main>
   );
-}
-
-function Chip({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return <button onClick={onClick} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/15">{children}</button>;
 }
 
 function Workspace() {

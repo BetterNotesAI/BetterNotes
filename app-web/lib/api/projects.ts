@@ -12,6 +12,7 @@ export interface Project {
   is_playground: boolean;
   cover_image_url: string | null;
   tags: string[];
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -83,11 +84,23 @@ export async function deleteProject(projectId: string): Promise<boolean> {
   }
 }
 
+export async function moveProjectToFolder(projectId: string, folderId: string | null): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('projects').update({ folder_id: folderId }).eq('id', projectId);
+    if (error) { console.warn("Failed to move project:", error.message); return false; }
+    return true;
+  } catch (e) {
+    console.warn("moveProjectToFolder error:", e);
+    return false;
+  }
+}
+
 export async function listProjects(filter?: {
   starred?: boolean;
   is_playground?: boolean;
   search?: string;
   limit?: number;
+  folderId?: string | null;
 }): Promise<Project[]> {
   try {
     let query = supabase.from('projects').select('*').order('updated_at', { ascending: false });
@@ -95,6 +108,13 @@ export async function listProjects(filter?: {
     if (filter?.starred) query = query.eq('is_starred', true);
     if (filter?.search) query = query.ilike('title', `%${filter.search}%`);
     if (filter?.limit) query = query.limit(filter.limit);
+    if (filter?.folderId !== undefined) {
+      if (filter.folderId === null) {
+        query = (query as any).is('folder_id', null);
+      } else {
+        query = query.eq('folder_id', filter.folderId);
+      }
+    }
 
     let { data, error } = await query;
 

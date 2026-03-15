@@ -196,6 +196,7 @@ const cornell: TemplateDefinition = {
 \\usepackage{fancyhdr}
 \\usepackage{tcolorbox}
 \\usepackage{titlesec}
+\\usepackage{enumitem}
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{0.3em}
 \\definecolor{cornellred}{RGB}{179,27,27}

@@ -23,10 +23,12 @@ export default function Home() {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      if (data.session?.user) { router.replace("/workspace"); return; }
       setUser(data.session?.user ?? null);
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) { router.replace("/workspace"); return; }
       setUser(session?.user ?? null);
     });
 
@@ -66,8 +68,8 @@ export default function Home() {
       </div>
 
       {/* Top nav */}
-      <header className="relative z-10 mx-auto max-w-6xl px-4 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <header className="relative z-10 mx-auto max-w-6xl px-4 py-5 flex items-center">
+        <div className="flex-1 flex items-center gap-2">
           <Image
             src="/brand/logo.png"
             alt="BetterNotes logo"
@@ -90,7 +92,7 @@ export default function Home() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-center justify-end gap-2">
           {/* Mobile hamburger button */}
           <button
             type="button"
@@ -241,27 +243,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Chips - single row with horizontal scroll */}
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <Chip onClick={() => setPrompt("Generate a formula sheet (equations + definitions only).")}>
-              Formula sheet
-            </Chip>
-            <Chip onClick={() => setPrompt("Create a clean summary with sections and key definitions.")}>
-              Summary notes
-            </Chip>
-            <Chip onClick={() => setPrompt("Extract key results, theorems, and final formulas.")}>
-              Key results
-            </Chip>
-            <Chip onClick={() => router.push("/templates")}>
-              PDF → LaTeX
-            </Chip>
-            <Chip onClick={() => setPrompt("Compile and preview my LaTeX document.")}>
-              Compile Preview
-            </Chip>
-            <Chip onClick={() => setPrompt("Download as PDF and .tex files.")}>
-              Download PDF/.tex
-            </Chip>
-          </div>
         </div>
       </section>
 
@@ -298,17 +279,6 @@ export default function Home() {
         userIsPro={false}
       />
     </main>
-  );
-}
-
-function Chip({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="shrink-0 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/15 whitespace-nowrap"
-    >
-      {children}
-    </button>
   );
 }
 
