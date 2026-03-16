@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getUsageStatus, type UsageStatus } from "@/lib/api";
 import TemplateCard from "@/app/components/TemplateCard";
 import PdfPreviewModal from "@/app/components/PdfPreviewModal";
-import { templates, type Template } from "@/lib/templates";
+import { templates, type TemplateDef as Template } from "@/lib/templates";
 
 export default function TemplatesPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);

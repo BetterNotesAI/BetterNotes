@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/app/components/Toast";
-import * as supabaseMod from "@/lib/supabase";
-
-const supabase: any = (supabaseMod as any).supabase ?? (supabaseMod as any).default;
+import { supabase } from "@/lib/supabase";
 const BILLING_API_BASE = "/api/stripe";
 
 // Set these in app-web/.env.local
