@@ -520,7 +520,7 @@ export function createLatexRouter(deps: LatexDeps) {
         "PROJECT STRUCTURE:",
         "- main.tex: The root document. Uses \\documentclass[12pt,a4paper]{report}, \\input{packages}, \\begin{document}, \\input{Chapters/first_pages}, then \\input{Chapters/...} for each chapter, \\input{Chapters/Conclusions}, \\bibliographystyle{plain}, \\bibliography{references}, \\end{document}.",
         "- packages.tex: All \\usepackage declarations. Include amsmath, amsthm, amssymb, graphicx, hyperref, booktabs, enumitem, xcolor, fancyhdr, titlesec, geometry, and any others needed.",
-        "- Chapters/first_pages.tex: Title page with \\begin{titlepage}...\\end{titlepage}, table of contents, page counter reset.",
+        "- Chapters/first_pages.tex: Title page with \\begin{titlepage}...\\end{titlepage}, table of contents, page counter reset. IMPORTANT: infer the document title from the user's topic (e.g. 'Thermodynamics', 'World War II', 'Quantum Mechanics'). Infer the department/faculty from the subject field (e.g. 'Department of Physics', 'Department of History'). Keep author as 'Your Name' and professor as 'Your Professor' as placeholders. Always end the title page with: {\\large \\textbf{Document generated with BetterNotes AI} \\par}.",
         "- Chapters/N-Name.tex: Each chapter file. Use \\chapter{Title} at the top, then \\section{}, \\subsection{} etc.",
         "- Chapters/Conclusions.tex: Final chapter with conclusions/summary.",
         "- references.bib: BibTeX entries if citations are used (use \\cite{key} in chapters).",

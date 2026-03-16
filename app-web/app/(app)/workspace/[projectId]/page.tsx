@@ -127,6 +127,9 @@ export default function ProjectWorkspace() {
     // Console panel state
     const [consoleOpen, setConsoleOpen] = useState(false);
 
+    // Output file tree — tracks which folder nodes are collapsed
+    const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+
     // ── Derived state ──
     const activeEntry = outputFiles.find((f) => f.filePath === activeOutputPath);
     const activeContent = activeEntry?.content ?? "";
@@ -1045,27 +1048,67 @@ export default function ProjectWorkspace() {
                             <div className="flex-1 overflow-y-auto py-1">
                                 {outputFiles.length === 0 ? (
                                     <div className="px-3 py-3 text-[10px] text-white/20 text-center">No output files yet</div>
-                                ) : (
-                                    outputFiles.map((f) => (
+                                ) : (() => {
+                                    const rootFiles = outputFiles.filter(f => !f.filePath.includes('/'));
+                                    const folderMap = new Map<string, typeof outputFiles>();
+                                    for (const f of outputFiles) {
+                                        if (f.filePath.includes('/')) {
+                                            const folder = f.filePath.split('/')[0];
+                                            if (!folderMap.has(folder)) folderMap.set(folder, []);
+                                            folderMap.get(folder)!.push(f);
+                                        }
+                                    }
+                                    const renderFile = (f: OutputEntry, indent: boolean) => (
                                         <div
                                             key={f.filePath}
-                                            className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer ${f.filePath === activeOutputPath ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/70"}`}
+                                            className={`group flex items-center gap-1.5 ${indent ? 'pl-6 pr-3' : 'px-3'} py-1.5 text-xs cursor-pointer ${f.filePath === activeOutputPath ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/70"}`}
                                         >
-                                            <button onClick={() => setActiveOutputPath(f.filePath)} className="flex-1 text-left truncate flex items-center gap-1.5">
+                                            <button onClick={() => setActiveOutputPath(f.filePath)} className="flex-1 text-left truncate flex items-center gap-1.5 min-w-0">
                                                 <svg className="h-3 w-3 flex-shrink-0 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                                 </svg>
-                                                <span className="truncate">{f.filePath}</span>
+                                                <span className="truncate">{indent ? f.filePath.split('/').slice(1).join('/') : f.filePath}</span>
                                                 {f.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved" />}
                                             </button>
                                             {f.filePath !== "main.tex" && (
-                                                <button onClick={() => deleteOutputEntry(f.filePath)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity">
+                                                <button onClick={() => deleteOutputEntry(f.filePath)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity flex-shrink-0">
                                                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                                 </button>
                                             )}
                                         </div>
-                                    ))
-                                )}
+                                    );
+                                    return (
+                                        <>
+                                            {rootFiles.map(f => renderFile(f, false))}
+                                            {Array.from(folderMap.entries()).map(([folder, files]) => {
+                                                const isCollapsed = collapsedFolders.has(folder);
+                                                const hasDirty = files.some(f => f.dirty);
+                                                return (
+                                                    <div key={folder}>
+                                                        <button
+                                                            onClick={() => setCollapsedFolders(prev => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(folder)) next.delete(folder); else next.add(folder);
+                                                                return next;
+                                                            })}
+                                                            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-white/50 hover:bg-white/5 hover:text-white/70"
+                                                        >
+                                                            <svg className={`h-2.5 w-2.5 flex-shrink-0 text-white/30 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                                            </svg>
+                                                            <svg className="h-3 w-3 flex-shrink-0 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                                                            </svg>
+                                                            <span className="truncate flex-1 text-left">{folder}</span>
+                                                            {hasDirty && isCollapsed && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Contains unsaved files" />}
+                                                        </button>
+                                                        {!isCollapsed && files.map(f => renderFile(f, true))}
+                                                    </div>
+                                                );
+                                            })}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )}
