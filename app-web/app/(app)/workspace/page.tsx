@@ -717,6 +717,31 @@ function WorkspaceContent() {
 
     if ((!text && !hasFiles) || busy() || sendInFlightRef.current) return;
 
+    // Multi-file templates (long_template) need the project workspace
+    // Create a project and redirect — generation happens there
+    const tpl = selectedTemplate ? templates.find((t) => t.id === selectedTemplate.id) : null;
+    if (tpl?.isMultiFile) {
+      sendInFlightRef.current = true;
+      setIsSending(true);
+      try {
+        const allowed = await canSendMessage();
+        if (!allowed) return;
+        const { project: newProject } = await createProject({
+          title: text.slice(0, 60) || "Untitled Project",
+          template_id: tpl.id,
+        });
+        if (newProject) {
+          // Store the initial prompt so the project workspace can pick it up
+          sessionStorage.setItem(`project_initial_prompt_${newProject.id}`, text);
+          router.push(`/workspace/${newProject.id}`);
+          return;
+        }
+      } catch { /* fall through */ } finally {
+        sendInFlightRef.current = false;
+        setIsSending(false);
+      }
+    }
+
     let loadingInterval: ReturnType<typeof setInterval> | null = null;
     sendInFlightRef.current = true;
     setIsSending(true);

@@ -1,0 +1,30 @@
+export const runtime = "nodejs";
+
+import { getApiBaseUrl, jsonError } from "../_proxy";
+
+export async function POST(req: Request) {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return jsonError(500, "API_BASE_URL is not set.");
+
+  const body = await req.text();
+  const contentType = req.headers.get("content-type") ?? "application/json";
+
+  try {
+    const upstream = await fetch(`${baseUrl}/latex/generate-project`, {
+      method: "POST",
+      headers: { "Content-Type": contentType },
+      body,
+    });
+
+    const responseBody = await upstream.text();
+    const responseContentType = upstream.headers.get("content-type") ?? "application/json";
+
+    return new Response(responseBody, {
+      status: upstream.status,
+      headers: { "Content-Type": responseContentType },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown upstream error.";
+    return jsonError(502, `Cannot reach app-api at ${baseUrl}. (${message})`);
+  }
+}

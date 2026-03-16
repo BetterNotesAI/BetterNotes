@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import {
     getUsageStatus, incrementMessageCount,
     listProjectFiles, createProjectFolder, deleteProjectFile,
-    listOutputFiles, saveOutputFile,
+    listOutputFiles, saveOutputFile, initializeMultiFileProject,
     type Project, type ProjectFileRecord, type UsageStatus
 } from "@/lib/api";
 import { uploadProjectFile, getProjectFileUrl } from "@/lib/storage";
@@ -30,6 +30,7 @@ interface OutputEntry {
 }
 
 const GENERATE_API_ENDPOINT = "/api/generate-latex";
+const GENERATE_PROJECT_API_ENDPOINT = "/api/generate-project";
 const FIX_API_ENDPOINT = "/api/fix-latex";
 const COMPILE_API_ENDPOINT = "/api/compile";
 const COMPILE_PROJECT_API_ENDPOINT = "/api/latex/compile-project";
@@ -42,6 +43,7 @@ export default function ProjectWorkspace() {
 
     // Auth + project
     const [user, setUser] = useState<User | null>(null);
+    const [authResolved, setAuthResolved] = useState(false);
     const [project, setProject] = useState<Project | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -131,33 +133,59 @@ export default function ProjectWorkspace() {
     const mainTex = outputFiles.find((f) => f.filePath === "main.tex");
     const anyDirty = outputFiles.some((f) => f.dirty);
     const busy = () => isSending || isGenerating || isCompiling || isFixing;
+    const isLongTemplate = project?.template_id === "long_template";
+    const figuresPrefix = isLongTemplate ? "Figures" : "figures";
 
     // ── Auth ──
     useEffect(() => {
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             setUser(session?.user ?? null);
             if (session?.user) setUsageStatus(await getUsageStatus());
+            setAuthResolved(true);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             setUser(session?.user ?? null);
             if (session?.user) setUsageStatus(await getUsageStatus());
             else setUsageStatus(null);
+            setAuthResolved(true);
         });
         return () => subscription.unsubscribe();
     }, []);
 
     // ── Load project ──
     useEffect(() => {
-        if (!user || !projectId) return;
-        setLoading(true);
-        async function load() {
-            const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single();
-            if (error || !data) { router.push("/projects"); return; }
-            setProject(data as Project);
+        if (!authResolved) return;
+        if (!user) {
             setLoading(false);
+            router.push("/login");
+            return;
+        }
+        if (!projectId) {
+            setLoading(false);
+            router.push("/projects");
+            return;
+        }
+
+        setLoading(true);
+        let cancelled = false;
+        async function load() {
+            try {
+                const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single();
+                if (cancelled) return;
+                if (error || !data) {
+                    router.push("/projects");
+                    return;
+                }
+                setProject(data as Project);
+            } catch {
+                if (!cancelled) router.push("/projects");
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
         }
         load();
-    }, [user, projectId, router]);
+        return () => { cancelled = true; };
+    }, [authResolved, user, projectId, router]);
 
     // ── Load project files (user uploads) ──
     const refreshFiles = useCallback(async () => {
@@ -170,7 +198,7 @@ export default function ProjectWorkspace() {
 
     // ── Load saved output files (multi-file) ──
     useEffect(() => {
-        if (!projectId) return;
+        if (!projectId || !project) return;
         async function loadOutputs() {
             const outputs = await listOutputFiles(projectId);
             if (outputs.length > 0) {
@@ -183,10 +211,18 @@ export default function ProjectWorkspace() {
                 const main = outputs.find((o) => o.file_path === "main.tex");
                 setActiveOutputPath(main ? "main.tex" : outputs[0].file_path);
                 if (outputs.some((o) => (o.content ?? "").trim())) pendingAutoCompile.current = true;
+            } else {
+                // If no output files exist yet, check if this is a multi-file template and seed scaffold
+                const tpl = templates.find((t) => t.id === project?.template_id);
+                if (tpl?.isMultiFile && tpl.scaffoldBasePath && tpl.scaffoldFiles) {
+                    const seeded = await initializeMultiFileProject(projectId, tpl.scaffoldBasePath, tpl.scaffoldFiles);
+                    setOutputFiles(seeded);
+                    setActiveOutputPath("main.tex");
+                }
             }
         }
         loadOutputs();
-    }, [projectId]);
+    }, [projectId, project]);
 
     // Auto-compile when files load with content
     useEffect(() => {
@@ -199,6 +235,32 @@ export default function ProjectWorkspace() {
         }, 500);
         return () => clearTimeout(timer);
     });
+
+    // Pick up initial prompt from the start workspace (long template redirect)
+    const initialPromptHandled = useRef(false);
+    const pendingAutoGenerate = useRef<string | null>(null);
+    useEffect(() => {
+        if (!projectId || !project || initialPromptHandled.current) return;
+        if (!isLongTemplate) return;
+        const key = `project_initial_prompt_${projectId}`;
+        const initialPrompt = sessionStorage.getItem(key);
+        if (!initialPrompt) return;
+        sessionStorage.removeItem(key);
+        initialPromptHandled.current = true;
+        pendingAutoGenerate.current = initialPrompt;
+        setChatInput(initialPrompt);
+    }, [projectId, project, isLongTemplate]);
+
+    // Auto-generate once scaffold files have loaded and we have a pending prompt
+    useEffect(() => {
+        if (!pendingAutoGenerate.current || outputFiles.length === 0) return;
+        const prompt = pendingAutoGenerate.current;
+        pendingAutoGenerate.current = null;
+        // handleSend reads chatInput — by this point setChatInput has been applied
+        const timer = setTimeout(() => handleSend(), 300);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [outputFiles.length]);
 
     // ── Scroll chat ──
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -306,7 +368,7 @@ export default function ProjectWorkspace() {
         });
         if (images.length === 0) return "";
 
-        const lines: string[] = ["Available project images (use \\includegraphics{figures/<name>}):"];
+        const lines: string[] = [`Available project images (use \\includegraphics{${figuresPrefix}/<name>}):`];
         for (const img of images) {
             if (img.storage_path) {
                 const url = await getProjectFileUrl(img.storage_path);
@@ -371,10 +433,62 @@ export default function ProjectWorkspace() {
         }
     }
 
+    // ═══ Generate multi-file project (long template) ═══
+    async function generateProjectFiles(prompt: string): Promise<
+        { ok: true; files: Record<string, string> } |
+        { ok: true; message: string } |
+        { ok: false; error: string }
+    > {
+        try {
+            setIsGenerating(true);
+            const payload: Record<string, unknown> = { prompt };
+
+            // Send current files as context for edits
+            const existingFiles: Record<string, string> = {};
+            for (const f of outputFiles) {
+                if (f.content.trim()) existingFiles[f.filePath] = f.content;
+            }
+            payload.existingFiles = existingFiles;
+
+            // Inject image awareness
+            const imageCtx = await getProjectImageContext();
+            if (imageCtx) payload.prompt = `${prompt}\n\n[System context]\n${imageCtx}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
+            const r = await fetch(GENERATE_PROJECT_API_ENDPOINT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            const data = await r.json().catch(() => null);
+            if (!r.ok) return { ok: false, error: data?.error ?? "Failed to generate project." };
+            if (data.message) return { ok: true, message: data.message as string };
+            if (data.files && typeof data.files === "object") return { ok: true, files: data.files as Record<string, string> };
+            return { ok: false, error: "Empty response from project generation." };
+        } catch (e: unknown) {
+            const err = e as Error;
+            return { ok: false, error: err?.name === "AbortError" ? "Timeout (180s)." : (err?.message ?? "Generate error") };
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+
     // ═══ Compile (multi-file aware) ═══
+    // Optionally accept files directly to avoid stale-state issues after generation
+    async function compileProjectWithFiles(filesOverride?: OutputEntry[]) {
+        return _compileProject(filesOverride);
+    }
     async function compileProject() {
+        return _compileProject();
+    }
+    async function _compileProject(filesOverride?: OutputEntry[]) {
         setCompileError(""); setCompileLog("");
-        const texFiles = outputFiles.filter((f) => f.content.trim());
+        const sourceFiles = filesOverride ?? outputFiles;
+        const texFiles = sourceFiles.filter((f) => f.content.trim());
         if (texFiles.length === 0) { setCompileError("No files to compile."); return { ok: false as const }; }
 
         try {
@@ -398,7 +512,7 @@ export default function ProjectWorkspace() {
                         const buf = await resp.arrayBuffer();
                         const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
                         filesPayload.push({
-                            path: `figures/${img.name}`,
+                            path: `${figuresPrefix}/${img.name}`,
                             content: base64,
                             isBinary: true,
                         } as { path: string; content: string; isBinary?: boolean });
@@ -409,9 +523,10 @@ export default function ProjectWorkspace() {
             // Use single-file or multi-file endpoint
             const isMultiFile = texFiles.length > 1;
             const endpoint = isMultiFile ? COMPILE_PROJECT_API_ENDPOINT : COMPILE_API_ENDPOINT;
+            const mainTexContent = sourceFiles.find((f) => f.filePath === "main.tex")?.content;
             const body = isMultiFile
                 ? { files: filesPayload, mainFile: "main.tex" }
-                : { latex: mainTex?.content || texFiles[0].content };
+                : { latex: mainTexContent || texFiles[0].content };
 
             const r = await fetch(endpoint, {
                 method: "POST",
@@ -508,6 +623,62 @@ export default function ProjectWorkspace() {
             setTemplateOverride(null);
             setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "Working… generating document..." }]);
 
+            // ── Long template: multi-file generation ──
+            if (isLongTemplate) {
+                const gen = await generateProjectFiles(text);
+
+                if (!gen.ok) {
+                    setMessages((m) => replaceLastWorking(m, `Error: ${gen.error}`));
+                    return;
+                }
+
+                if ("message" in gen && gen.message) {
+                    setMessages((m) => replaceLastWorking(m, gen.message));
+                    return;
+                }
+
+                if ("files" in gen && gen.files) {
+                    // Merge generated files into current output files
+                    const merged = [...outputFiles];
+                    for (const [filePath, content] of Object.entries(gen.files)) {
+                        const idx = merged.findIndex((f) => f.filePath === filePath);
+                        if (idx >= 0) {
+                            merged[idx] = { ...merged[idx], content, dirty: false };
+                        } else {
+                            merged.push({ filePath, content, dirty: false });
+                        }
+                    }
+                    // Update state with merged files (compileProject will read from state on next render,
+                    // but we also use `merged` directly for the compile payload below)
+                    setOutputFiles(merged);
+
+                    setActiveTab("preview");
+                    setMessages((m) => replaceLastWorking(m, "Generated. Compiling PDF..."));
+
+                    // Compile using the merged files directly (don't rely on stale state)
+                    const compilePromise = compileProjectWithFiles(merged);
+                    const savePromise = (async () => {
+                        try {
+                            await incrementMessageCount();
+                            for (const [filePath, content] of Object.entries(gen.files)) {
+                                await saveOutputFile(projectId, filePath, content);
+                            }
+                        } catch { /* skip */ }
+                    })();
+
+                    const comp = await compilePromise;
+                    if (comp.ok) {
+                        setOutputFiles((prev) => prev.map((f) => ({ ...f, dirty: false })));
+                        setMessages((m) => replaceLastWorking(m, "Done. Preview updated."));
+                    } else {
+                        setMessages((m) => replaceLastWorking(m, 'Generated LaTeX, but compilation failed. Use "Fix with AI".'));
+                    }
+                    await savePromise;
+                }
+                return;
+            }
+
+            // ── Single-file generation (existing flow) ──
             const base = mainTex?.content || "";
             const gen = await generateLatex(text, base.trim() || undefined);
 

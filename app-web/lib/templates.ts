@@ -2,7 +2,21 @@
 // Source .tex files live in app-api/templates/ (used by the backend for generation)
 // Preview images and downloadable .tex files live in public/templates/
 
-export const templates = [
+export interface TemplateDef {
+  id: string;
+  name: string;
+  format: string;
+  publicPath: string;
+  previewPath: string;
+  thumbnailPath: string;
+  description: string;
+  isPro: boolean;
+  isMultiFile?: boolean;
+  scaffoldBasePath?: string;
+  scaffoldFiles?: string[];
+}
+
+export const templates: TemplateDef[] = [
   // ==================== FREE ====================
   {
     id: "landscape_3col_maths",
@@ -23,6 +37,25 @@ export const templates = [
     thumbnailPath: "/templates/previews/2cols_portrait.png",
     description: "Classic 2-column portrait layout for physics summaries.",
     isPro: false,
+  },
+  {
+    id: "long_template",
+    name: "Long Template (Chapters)",
+    format: "latex",
+    publicPath: "/templates/longTemplate/main.tex",
+    previewPath: "/templates/longTemplate/ShowTemplate/Template_Long_Subject.pdf",
+    thumbnailPath: "/templates/longTemplate/ShowTemplate/Miniatura_Long_Template.png",
+    description: "Long-form chapter-based structure for extensive notes and reports.",
+    isPro: false,
+    isMultiFile: true,
+    scaffoldBasePath: "/templates/longTemplate/",
+    scaffoldFiles: [
+      "main.tex",
+      "packages.tex",
+      "references.bib",
+      "Chapters/first_pages.tex",
+      "Chapters/Conclusions.tex",
+    ],
   },
   {
     id: "cornell",
@@ -85,4 +118,4 @@ export const templates = [
     description: "Statistical analysis with tables, code blocks, and ML metrics.",
     isPro: true,
   },
-] as const;
+];

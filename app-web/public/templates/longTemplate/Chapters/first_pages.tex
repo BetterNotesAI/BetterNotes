@@ -1,0 +1,88 @@
+% =========================
+% first_pages.tex (revisado v2)
+% =========================
+
+\begin{titlepage}
+  \centering
+  \vspace*{0.5cm}
+
+  \IfFileExists{Figures/logo_fake.png}{%
+    \includegraphics[height=5.0cm]{Figures/logo_fake.png}%
+  }{}
+
+
+  \rule{\textwidth}{0.8pt}\par
+  \vspace{0.7cm}
+  {\Huge\bfseries Elementary Particles \par}
+  \vspace{0.7cm}
+  \rule{\textwidth}{0.8pt}\par
+
+  \vspace{1.8cm}
+
+  {\Large \textbf{Author:} Your Name \par}
+  \vspace{0.2cm}
+  {\large \textbf{Professor:} Your Professor \par}
+  \vspace{0.4cm}
+  {\large \today \par}
+
+  \vspace{2.2cm}
+
+  {\large \textsc{Department of Quantum Physics and Astrophysics} \par}
+  \vspace{0.9cm}
+  
+{\large \textbf{Document generated with BetterNotes AI} \par}
+  \vspace{0.9cm}
+
+  \vfill
+\end{titlepage}
+
+% ==========================================================
+% Front matter helpers (generic template)
+% ==========================================================
+
+% Keywords block
+\providecommand{\keywords}[1]{%
+  \par\noindent\textbf{\textit{Keywords---}} #1\par
+}
+
+% Classification / subject codes block (AMS, PACS, JEL, etc.)
+% Use a generic name so the template works for any field.
+\providecommand{\classification}[2]{%
+  \par\noindent\textbf{\textit{#1---}} #2\par
+}
+
+% ----------------------------------------------------------
+% Optional: abstract page template (comment/uncomment to use)
+% ----------------------------------------------------------
+% \begin{abstract}
+%   \small
+%   % Write your abstract here.
+%   % Keep it short and self-contained.
+%
+%   \vspace{0.25cm}
+%   \keywords{keyword1, keyword2, keyword3}
+%   \classification{Classification}{AMS 2020: 76E25, 85-10}
+%   % Examples:
+%   % \classification{PACS}{12.38.Aw, 14.20.Dh}
+%   % \classification{JEL}{C10, C14}
+% \end{abstract}
+% \newpage
+
+% ----------------------------------------------------------
+% Optional: acknowledgements template (comment/uncomment)
+% ----------------------------------------------------------
+% \renewcommand{\abstractname}{Acknowledgements}
+% \begin{abstract}
+%   \small
+%   % Write acknowledgements here.
+% \end{abstract}
+% \newpage
+
+% ==========================================================
+% Table of contents (keep clean style)
+% ==========================================================
+\addtocontents{toc}{\protect\thispagestyle{empty}}
+\tableofcontents
+\thispagestyle{empty}
+\newpage
+\setcounter{page}{1}
