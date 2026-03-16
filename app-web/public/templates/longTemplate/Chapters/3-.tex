@@ -1,0 +1,306 @@
+\chapter{Continuum Symmetries in Particle Physics}
+
+\section{Why symmetries matter}
+A \emph{continuum symmetry} is a symmetry transformation depending smoothly on continuous parameters. In quantum field theory (QFT), symmetries play a dual role:
+\begin{itemize}
+  \item \textbf{Dynamical constraints:} they restrict the allowed form of the Lagrangian (hence of the interactions).
+  \item \textbf{Spectral organization:} they explain degeneracies and classify states into \emph{multiplets} (irreducible representations).
+\end{itemize}
+Continuum symmetries are typically divided into:
+\begin{itemize}
+  \item \textbf{Space-time symmetries:} transformations of $x^\mu$ (Galilean or Poincar\'e symmetry), leading to conservation of energy-momentum and angular momentum.
+  \item \textbf{Internal symmetries:} transformations acting on fields without changing $x^\mu$ (e.g.\ phase rotations, isospin, flavor), leading to conserved internal charges.
+\end{itemize}
+
+\section{Noether's theorem in field theory}
+Consider a local Lagrangian density $L(\phi_r(x),\partial_\mu \phi_r(x))$ and an infinitesimal continuous transformation
+\[
+\phi_r(x)\to \phi_r'(x)=\phi_r(x)+\delta \phi_r(x),
+\qquad
+S[\phi]=\int d^4x\,L.
+\]
+If the action is invariant (up to a total derivative),
+\[
+\delta L = \partial_\mu J^\mu,
+\]
+then, for fields satisfying the Euler--Lagrange equations, there exists a conserved current
+\[
+\partial_\mu j^\mu=0,
+\qquad
+j^\mu=\frac{\partial L}{\partial(\partial_\mu\phi_r)}\,\delta \phi_r - J^\mu,
+\]
+and a conserved charge
+\[
+Q=\int d^3\vec x\; j^0(\vec x),\qquad \frac{dQ}{dt}=0.
+\]
+For \textbf{internal symmetries} one often has $\delta L=0$ (so $J^\mu=0$), and the Noether current simplifies to
+\[
+j^\mu=\frac{\partial L}{\partial(\partial_\mu\phi_r)}\,\delta\phi_r.
+\]
+
+\section{Simple internal symmetries: U(1) charges and particle number}
+\subsection{Schr\"odinger field (non-relativistic)}
+A global phase symmetry $\psi\to e^{i\theta}\psi$ implies a conserved particle-number operator
+\[
+N=\int d^3\vec x\;\psi^\dagger\psi,
+\]
+so $N$ counts the number of non-relativistic particles. Spin rotations $\psi\to e^{i\vec\theta\cdot \vec S}\psi$ are an approximate symmetry at leading order in the non-relativistic expansion, yielding approximately conserved spin.
+
+\subsection{Complex Klein--Gordon field}
+For
+\[
+L=\partial_\mu\phi^*\partial^\mu\phi - m^2\phi^*\phi,
+\qquad
+\phi\to e^{i\theta}\phi,
+\]
+the conserved current is
+\[
+j^\mu=-i\left(\partial^\mu\phi^*\;\phi-\partial^\mu\phi\;\phi^*\right).
+\]
+The associated conserved charge measures \emph{particles minus antiparticles} (after normal ordering removes an ill-defined vacuum constant).
+
+\subsection{Dirac field}
+For
+\[
+L=\bar\psi(i\gamma^\mu D_\mu - m)\psi,
+\qquad
+\psi\to e^{i\theta}\psi,
+\]
+the Noether current is the familiar vector current
+\[
+j^\mu=\bar\psi\gamma^\mu\psi,
+\]
+and the conserved charge again counts particles minus antiparticles.
+
+\subsection{Chiral symmetries at high energy}
+In the limit $m\simeq 0$, the Dirac Lagrangian approximately splits into independent right- and left-handed parts:
+\[
+L\simeq \bar\psi_R i\gamma^\mu D_\mu\psi_R + \bar\psi_L i\gamma^\mu D_\mu\psi_L.
+\]
+This yields an approximate $U(1)_R\times U(1)_L$ symmetry and two corresponding conserved chiral currents, which can be interpreted in terms of helicity-dependent number differences.
+
+\section{From symmetries to multiplets: representations and degeneracies}
+Let $G$ be a symmetry group with conserved generators $Q_a$. Conservation implies
+\[
+[H,Q_a]=0 \quad\Rightarrow\quad \hat g(\theta)H\hat g^{-1}(\theta)=H,
+\]
+so if $H|\alpha\rangle=E|\alpha\rangle$, then all states obtained by acting with the group,
+\[
+|\beta\rangle = \hat g(\theta)|\alpha\rangle,
+\]
+have the same energy $E$. Hence, \textbf{symmetries imply degeneracies}, and classifying degeneracies is the same as classifying \textbf{irreducible representations} (irreps).
+
+A standard way to build states is to apply operators $\hat O_\alpha$ to the vacuum:
+\[
+|\alpha\rangle=\hat O_\alpha|0\rangle,\qquad
+\hat g(\theta)\hat O_\alpha \hat g^{-1}(\theta)=M(\theta)^\beta{}_\alpha\,\hat O_\beta.
+\]
+Two qualitatively different situations can occur:
+\begin{itemize}
+  \item \textbf{Unbroken symmetry:} $\hat g(\theta)|0\rangle=|0\rangle$ (equivalently $Q_a|0\rangle=0$), so the states form multiplets of $G$.
+  \item \textbf{Spontaneously broken symmetry:} $\hat g(\theta)|0\rangle\neq |0\rangle$, so multiplet structure is not realized in the spectrum in the same way.
+\end{itemize}
+
+\section{Lie groups and Lie algebras: the local structure of symmetries}
+A Lie group is both a group and a smooth manifold: elements near the identity can be parameterized as $g(\theta)$ with real coordinates $\theta_i$. For matrix Lie groups, one expands near $\theta=0$:
+\[
+g(\theta)=\mathbf{1} + i\,T_i\,\theta_i + \cdots,
+\]
+and the set of generators $\{T_i\}$ spans the associated \textbf{Lie algebra} $\mathfrak{g}$.
+
+The commutator defines the algebra structure:
+\[
+[T_i,T_j]=i f_{kij}T_k,
+\]
+where $f_{kij}$ are the \textbf{structure constants}. Finite-dimensional representations of $G$ are smooth homomorphisms into $GL(m,\mathbb{C})$, and representations of $\mathfrak{g}$ are linear maps preserving commutators:
+\[
+M([T,T'])=[M(T),M(T')].
+\]
+
+\section{Isospin: approximate SU(2) symmetry}
+\subsection{Nucleon doublet and SU(2)}
+Proton and neutron have very similar masses. Writing the nucleon doublet
+\[
+N=\begin{pmatrix}\psi_p\\ \psi_n\end{pmatrix},
+\]
+the free Lagrangian can be reorganized as
+\[
+L=\bar N\Big[(i\gamma^\mu\partial_\mu - m)\,I_2 - \Delta m\,\tau_3\Big]N,
+\]
+with $m\gg \Delta m$. Neglecting the small splitting gives an approximate $U(2)\simeq U(1)\times SU(2)$ invariance:
+\begin{itemize}
+  \item the $U(1)$ piece corresponds to baryon-number conservation,
+  \item the $SU(2)$ piece corresponds to \textbf{isospin} conservation.
+\end{itemize}
+In the quark model, the origin of isospin is $m_u\simeq m_d$, so interactions involving $u$ and $d$ are approximately invariant under rotations in the $(u,d)$ flavor space.
+
+\section{Flavor SU(3): extending isospin to include strangeness}
+Since strange baryons are heavier but not dramatically so, one can treat $u,d,s$ as an approximate triplet
+\[
+q=\begin{pmatrix}\psi_u\\ \psi_d\\ \psi_s\end{pmatrix},
+\]
+and write the quark mass term as an SU(3)-symmetric piece plus breaking terms proportional to the diagonal generators (notably $\lambda_3$ and $\lambda_8$). In the limit $m_u\simeq m_d\simeq m_s$, the Lagrangian becomes approximately invariant under \textbf{flavor SU(3)}.
+
+\section{Representation theory toolbox for SU(2) and SU(3)}
+\subsection{Cartan generators and weights}
+For a Lie algebra, choose a maximal commuting subalgebra (Cartan subalgebra). Its simultaneous eigenvalues label states.
+\begin{itemize}
+  \item For $\mathfrak{su}(2)$ the rank is $1$ and one uses $T_3$.
+  \item For $\mathfrak{su}(3)$ the rank is $2$ and one uses $(T_3,T_8)$.
+\end{itemize}
+Eigenvalues under the Cartan generators are called \textbf{weights}. The pattern of weights forms the familiar weight diagrams used to organize multiplets.
+
+\subsection{SU(3) generators and raising/lowering operators}
+A standard basis for $\mathfrak{su}(3)$ uses the Gell-Mann matrices $\lambda_a$:
+\[
+T_a=\frac{\lambda_a}{2},\qquad a=1,\dots,8,
+\qquad
+\mathrm{tr}(T_aT_b)=\frac{\delta_{ab}}{2}.
+\]
+The Cartan generators can be chosen as
+\[
+H_1=T_3,\qquad H_2=T_8.
+\]
+In analogy with $\mathfrak{su}(2)$, one introduces raising and lowering operators $E_\alpha$ associated with roots $\alpha$, which move you between weights in the diagram.
+
+\subsection{Invariant tensors and tensor methods}
+A powerful and concrete way to decompose tensor products is to use invariant tensors:
+\begin{itemize}
+  \item For SU(3): $\delta^i{}_j$ and $\epsilon_{ijk}$ (and its conjugate).
+  \item For SU(2): $\delta^i{}_j$ and $\epsilon_{ij}$ (and its conjugate).
+\end{itemize}
+They allow you to project tensors onto irreps by symmetrization/antisymmetrization and removing traces.
+
+\subsection{Key SU(3) tensor product decompositions}
+Several decompositions are central for hadron physics:
+\begin{itemize}
+  \item \textbf{Mesons:} $3\otimes 3^* = 8\oplus 1$.
+  \item \textbf{Diquarks:} $3\otimes 3 = 6 \oplus 3^*$ (symmetric $\to 6$, antisymmetric $\to 3^*$).
+  \item \textbf{Three quarks:} $3\otimes 3\otimes 3 = 10\oplus 8\oplus 8\oplus 1$.
+  \item \textbf{Gluon pairs:} $8\otimes 8 = 27\oplus 10\oplus 10^*\oplus 8\oplus 8\oplus 1$.
+\end{itemize}
+These statements immediately answer what kinds of color/flavor singlets (physical states) can exist.
+
+\section{Hadrons as SU(3) multiplets}
+\subsection{Meson octet and singlet}
+Because $3\otimes 3^* = 8\oplus 1$, light $q\bar q$ mesons appear as an octet plus a singlet. The octet fields can be arranged into a traceless Hermitian matrix $M$ transforming as
+\[
+M \to gMg^\dagger,\qquad g\in SU(3),
+\]
+and an SU(3)-invariant free Lagrangian is compactly written as a trace:
+\[
+L=\frac12\,\mathrm{tr}\!\left(\partial_\mu M\,\partial^\mu M - m^2 M^2\right),
+\]
+which reproduces Klein--Gordon dynamics for each component field.
+
+\subsection{Baryon octet}
+The spin-$\tfrac12$ baryon octet can be collected into a matrix $B$ (Dirac fields) transforming similarly:
+\[
+B\to gBg^\dagger,\qquad \bar B \to g\,\bar B\,g^\dagger,
+\]
+with invariant free Lagrangian
+\[
+L=\mathrm{tr}\!\left(\bar B\,(i\slashed{\partial}-m)\,B\right).
+\]
+This compact formulation automatically encodes the correct field content and normalization once the trace is expanded.
+
+\subsection{Baryon decuplet}
+The spin-$\tfrac32$ baryon decuplet corresponds to the totally symmetric representation and is described (in flavor space) by a completely symmetric tensor $\Delta_{ijk}$. A simple mass term has the form
+\[
+L_m=-m\,\Delta^\dagger_{ijk}\Delta_{ijk},
+\]
+and identifying indices $1,2,3\leftrightarrow u,d,s$ maps components to the physical $\Delta$, $\Sigma^*$, $\Xi^*$ and $\Omega^-$ states.
+
+\section{Beyond mesons and baryons: exotic hadrons}
+Tensor-product logic also tells you when exotic color/flavor singlets are allowed:
+\begin{itemize}
+  \item \textbf{Glueballs:} since $8\otimes 8$ contains a singlet, purely gluonic bound states are allowed in principle.
+  \item \textbf{Tetraquarks:} $(3\otimes 3^*)\otimes(3\otimes 3^*)=(1\oplus 8)\otimes(1\oplus 8)$ contains singlets beyond the ``two-meson'' trivial singlet, leaving room for non-trivial tetraquark states.
+  \item \textbf{Pentaquarks:} $(3\otimes 3\otimes 3)\otimes(3\otimes 3^*)$ similarly contains singlets beyond a simple baryon+meson interpretation, allowing non-trivial pentaquark configurations.
+\end{itemize}
+
+\section{Flavor SU(3) breaking and Gell-Mann--Okubo relations}
+\subsection{Spurion viewpoint: breaking along $T_8$}
+Exact flavor SU(3) is broken because $m_u,m_d,m_s$ are not equal. If one keeps isospin as exact ($m_u=m_d$), the dominant breaking is associated with the diagonal generator $T_8$. Operationally, one adds to the SU(3)-invariant Lagrangian all terms linear in $T_8$ consistent with the field content and remaining symmetries.
+
+\subsection{Baryon octet masses: the Gell-Mann--Okubo (GMO) formula}
+For the baryon octet, the most general linear-in-$T_8$ correction involves two independent trace structures,
+\[
+\delta L = -a\,\mathrm{tr}(\bar B B T_8) - b\,\mathrm{tr}(\bar B T_8 B),
+\qquad a,b\in\mathbb{R}.
+\]
+Expanding the traces yields linear relations among octet masses and implies the classic GMO formula
+\[
+2(m_\Xi + m_N) = m_\Sigma + 3m_\Lambda,
+\]
+which is remarkably accurate empirically.
+
+\subsection{Baryon decuplet: equal spacing rule}
+For the decuplet, the leading breaking gives an \emph{equal spacing} relation,
+\[
+m_{\Sigma^*}-m_\Delta = m_{\Xi^*}-m_{\Sigma^*}=m_\Omega-m_{\Xi^*},
+\]
+historically important because it allowed the prediction of the $\Omega^-$ mass before its discovery.
+
+\subsection{Pseudoscalar mesons: a GMO-type relation}
+For the pseudoscalar octet, a linear $T_8$ mass correction leads to
+\[
+4m_K^2 = m_\pi^2 + 3m_\eta^2,
+\]
+which is moderately well satisfied.
+
+\subsection{Vector mesons: why the simplest GMO can fail}
+Applying the same logic to the vector octet gives
+\[
+4m_{K^*}^2 = m_\rho^2 + 3m_\omega^2,
+\]
+but this relation is badly fulfilled. The key missing ingredient is that
+\[
+3\otimes 3^* = 8\oplus 1
+\]
+also predicts a \textbf{singlet} vector meson in addition to the octet. Once SU(3) breaking is included, new quadratic terms can mix the octet isospin-zero state with the singlet. Therefore, the physical $\omega$ and $\phi$ are \emph{mixtures} rather than pure octet/singlet states, and naive octet-only mass relations need not work.
+
+\section{Octet--singlet mixing and physical $\omega$, $\phi$, $\eta$, $\eta'$}
+\subsection{Mixing mechanism}
+Including the singlet field $S_\mu$ (vector case) allows a symmetry-breaking quadratic term of the schematic form
+\[
+\delta L_m \propto \mathrm{tr}(V_\mu T_8)\,S^\mu,
+\]
+which mixes the singlet with the isospin-zero octet component. Diagonalizing the quadratic form defines the physical fields:
+\[
+\omega^8_\mu = \phi_\mu\cos\theta_V + \omega_\mu\sin\theta_V,
+\qquad
+S_\mu = -\phi_\mu\sin\theta_V + \omega_\mu\cos\theta_V.
+\]
+Empirically, the vector mixing angle is large (close to ``ideal mixing''), making $\phi$ approximately $|s\bar s\rangle$ and $\omega$ approximately $(|u\bar u\rangle+|d\bar d\rangle)/\sqrt{2}$.
+
+In the pseudoscalar sector, an analogous diagonalization yields
+\[
+S = \eta'\cos\theta_P + \eta\sin\theta_P,
+\qquad
+\eta_8 = -\eta'\sin\theta_P + \eta\cos\theta_P,
+\]
+but the mixing angle is comparatively small, consistent with pseudoscalar phenomenology.
+
+\subsection{Phenomenological consequence: leptonic decays}
+Because neutral vector mesons couple electromagnetically via quark charges, mixing affects rates such as
+\[
+V \to \gamma^* \to e^+e^-.
+\]
+Writing the vector mesons in SU(3) matrix language, the coupling is proportional to
+\[
+\mathrm{tr}(Q V_{\mu\nu})F^{\mu\nu},
+\qquad
+Q=e\,
+\mathrm{diag}\!\left(\frac23,-\frac13,-\frac13\right),
+\]
+so the quark composition implied by (near-)ideal mixing leads to distinctive predictions for relative leptonic widths.
+
+\section{Take-home messages}
+\begin{itemize}
+  \item \textbf{Noether's theorem} turns continuous symmetries into conserved currents and charges.
+  \item \textbf{Representations} explain degeneracies: states in the same irrep must share quantum numbers and energies (unless the symmetry is broken).
+  \item \textbf{Isospin SU(2)} and \textbf{flavor SU(3)} are approximate symmetries rooted in the near-degeneracy of light-quark masses.
+  \item \textbf{Tensor product decompositions} directly predict which hadronic multiplets can exist and whether singlets (physical states) are possible.
+  \item \textbf{SU(3) breaking along $T_8$} yields robust mass relations (Gell-Mann--Okubo, equal spacing), but \textbf{octet--singlet mixing} is essential for correctly understanding the vector and pseudoscalar meson sectors.
+\end{itemize}

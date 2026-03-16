@@ -2,7 +2,7 @@
 import express from "express";
 import OpenAI from "openai";
 import path from "path";
-import { getTemplateOrThrow } from "../lib/templates";
+import { loadTemplateOrThrow, findPlaceholder, loadMultiFileTemplate } from "../lib/templates";
 import { applyLatexFallbacks, stripMarkdownFences, compileLatexToPdf, compileMultiFileProject } from "../lib/latex";
 import { trimHugeLog } from "../lib/errors";
 
@@ -463,6 +463,194 @@ export function createLatexRouter(deps: LatexDeps) {
       const message = typeof e?.message === "string" ? e.message : "Project compilation failed.";
 
       return res.status(status).json({ ok: false, error: message, code, log });
+    }
+  });
+
+  // POST /latex/generate-project
+  // Multi-file LaTeX project generation (long template)
+  router.post("/generate-project", async (req, res) => {
+    try {
+      const prompt = String(req.body?.prompt ?? "").trim();
+      const existingFiles: Record<string, string> = req.body?.existingFiles ?? {};
+      const files: IncomingAttachment[] = Array.isArray(req.body?.files)
+        ? req.body.files
+            .filter((f: any) => f && typeof f === "object")
+            .map((f: any) => ({
+              type: String(f.type ?? "document"),
+              url: typeof f.url === "string" ? f.url : undefined,
+              data: typeof f.data === "string" ? f.data : undefined,
+              name: typeof f.name === "string" && f.name.trim() ? f.name : "attachment",
+              mimeType: typeof f.mimeType === "string" ? f.mimeType : undefined,
+            }))
+        : [];
+
+      if (!prompt && files.length === 0) {
+        return res.status(400).json({ ok: false, error: "Missing 'prompt' or 'files'." });
+      }
+
+      // Load multi-file template as context for the AI
+      const templateDir = path.join(deps.templateDirAbs, "longTemplate");
+      const templateFiles = loadMultiFileTemplate(templateDir);
+
+      // Extract text from attached files (PDFs, docs, etc.)
+      const userContent: any[] = [{ type: "text", text: "" }];
+      let fileTextContext = "";
+      let remainingFileBudget = MAX_TOTAL_FILE_CONTEXT_CHARS;
+
+      if (files.length > 0) {
+        for (const f of files) {
+          const extracted = await extractFileContent(f);
+          if (typeof extracted === "string") {
+            if (remainingFileBudget <= 0) continue;
+            const clipped =
+              extracted.length > remainingFileBudget
+                ? `${extracted.slice(0, remainingFileBudget)}\n[More attachment context was omitted due to token limits.]\n`
+                : extracted;
+            fileTextContext += clipped;
+            remainingFileBudget -= clipped.length;
+          } else {
+            userContent.push(extracted);
+          }
+        }
+      }
+
+      // Determine if this is an edit (existing files have content) or first generation
+      const hasExistingContent = Object.values(existingFiles).some((v) => v.trim().length > 100);
+
+      // Build template context string for the AI
+      const templateCtx = Object.entries(templateFiles)
+        .map(([p, c]) => `=== ${p} ===\n${c.slice(0, 2000)}`)
+        .join("\n\n");
+
+      // System prompt for multi-file project generation
+      const system = [
+        "You are BetterNotes AI, an expert academic assistant that generates multi-file LaTeX projects.",
+        "You MUST return a valid JSON object with ONE of these three structures:",
+        "  1. { \"files\": { \"path\": \"content\", ... } }  — when generating or updating the document.",
+        "  2. { \"message\": \"...\" }  — for casual chat that does not need document generation.",
+        "  3. { \"questions\": [ { \"id\": \"q1\", \"question\": \"...\", \"options\": [\"A\", \"B\", \"C\"] }, ... ] }  — ONLY when critical information is missing and you cannot produce quality content without it (e.g. the user asked to summarise a file but its content was not provided). Keep it to at most 3 focused questions with 2-4 short options each.",
+        "IMPORTANT: Never generate placeholder or skeleton LaTeX when information is missing — use questions instead.",
+        "Do NOT return anything outside the JSON object. No markdown fences, no explanations before or after.",
+        "",
+        "PROJECT STRUCTURE:",
+        "- main.tex: The root document. Uses \\documentclass[12pt,a4paper]{report}, \\input{packages}, \\begin{document}, \\input{Chapters/first_pages}, then \\input{Chapters/...} for each chapter, \\input{Chapters/Conclusions}, \\bibliographystyle{plain}, \\bibliography{references}, \\end{document}.",
+        "- packages.tex: All \\usepackage declarations. Include amsmath, amsthm, amssymb, graphicx, hyperref, booktabs, enumitem, xcolor, fancyhdr, titlesec, geometry, and any others needed.",
+        "- Chapters/first_pages.tex: Title page with \\begin{titlepage}...\\end{titlepage}, table of contents, page counter reset. IMPORTANT: infer the document title from the user's topic (e.g. 'Thermodynamics', 'World War II', 'Quantum Mechanics'). Infer the department/faculty from the subject field (e.g. 'Department of Physics', 'Department of History'). Keep author as 'Your Name' and professor as 'Your Professor' as placeholders. Always end the title page with: {\\large \\textbf{Document generated with BetterNotes AI} \\par}.",
+        "- Chapters/N-Name.tex: Each chapter file. Use \\chapter{Title} at the top, then \\section{}, \\subsection{} etc.",
+        "- Chapters/Conclusions.tex: Final chapter with conclusions/summary.",
+        "- references.bib: BibTeX entries if citations are used (use \\cite{key} in chapters).",
+        "",
+        "RULES:",
+        "- Decide the number of chapters dynamically based on the content. A short topic might need 3-4 chapters, a full course 6-10+.",
+        "- Name chapter files as: Chapters/1-Introduction.tex, Chapters/2-TopicName.tex, etc.",
+        "- main.tex MUST have \\input{} for every chapter file you create, in order.",
+        "- Generate REALISTIC, DETAILED, HIGH-QUALITY academic content. Not placeholders or TODOs.",
+        "- Use \\includegraphics{Figures/<name>} if the user has images available.",
+        "- Use theorem, definition, lemma, example environments (they are defined in packages.tex).",
+        "- Do NOT re-define \\newtheorem environments in chapter files.",
+        "- Always return ALL project files in the JSON (main.tex, packages.tex, all chapters, references.bib, first_pages, Conclusions).",
+        "- If the user mentions images, reference them with \\includegraphics{Figures/<name>}.",
+      ].join("\n");
+
+      let textPrompt: string;
+
+      if (hasExistingContent) {
+        // Edit mode: user wants to modify existing project
+        const existingCtx = Object.entries(existingFiles)
+          .filter(([, c]) => c.trim())
+          .map(([p, c]) => `=== ${p} ===\n${c}`)
+          .join("\n\n");
+
+        textPrompt = [
+          "The user has an existing multi-file LaTeX project and wants to modify it.",
+          "Return ONLY the files that need to change in the JSON response.",
+          "Do NOT return unchanged files.",
+          "",
+          "=== CURRENT PROJECT FILES ===",
+          existingCtx,
+          "",
+          "=== USER REQUEST ===",
+          prompt,
+        ].join("\n");
+      } else {
+        // First generation
+        textPrompt = [
+          "Generate a complete multi-file LaTeX project about the following topic.",
+          "Use the template structure shown below as a REFERENCE for style and formatting.",
+          "",
+          "=== TEMPLATE REFERENCE ===",
+          templateCtx,
+          "",
+          "=== USER REQUEST ===",
+          prompt,
+          "",
+          "Remember: Return ONLY a JSON object { \"files\": { ... } } with all project files.",
+          "If the user is NOT asking for a document and just chatting (e.g. 'hi'), return { \"message\": \"your reply\" } instead.",
+        ].join("\n");
+      }
+
+      if (fileTextContext) {
+        textPrompt += `\n\n[Attached File Content — use this as SOURCE MATERIAL for the chapters]:\n${fileTextContext}`;
+      }
+
+      userContent[0].text = textPrompt;
+
+      const resp = await deps.openai.chat.completions.create({
+        model: deps.openaiModel,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userContent },
+        ] as any,
+      });
+
+      const out = resp.choices?.[0]?.message?.content ?? "";
+
+      // Parse JSON response
+      let parsed: any;
+      try {
+        // Strip markdown fences if present
+        const cleaned = stripMarkdownFences(out).trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // Try to extract JSON from the response
+        const jsonMatch = out.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            parsed = JSON.parse(jsonMatch[0]);
+          } catch {
+            return res.status(422).json({ ok: false, error: "AI returned invalid JSON.", raw: out.slice(0, 500) });
+          }
+        } else {
+          return res.status(422).json({ ok: false, error: "AI did not return JSON.", raw: out.slice(0, 500) });
+        }
+      }
+
+      // Handle chat message response
+      if (parsed.message && !parsed.files) {
+        return res.json({ ok: true, message: parsed.message });
+      }
+
+      if (!parsed.files || typeof parsed.files !== "object") {
+        return res.status(422).json({ ok: false, error: "AI response missing 'files' object.", raw: out.slice(0, 500) });
+      }
+
+      // Apply LaTeX fallbacks to each .tex file
+      const resultFiles: Record<string, string> = {};
+      for (const [filePath, content] of Object.entries(parsed.files)) {
+        if (typeof content !== "string") continue;
+        if (filePath.endsWith(".tex")) {
+          resultFiles[filePath] = applyLatexFallbacks(content);
+        } else {
+          resultFiles[filePath] = content;
+        }
+      }
+
+      return res.json({ ok: true, files: resultFiles });
+    } catch (e: any) {
+      const status = Number(e?.statusCode ?? 500);
+      return res.status(status).json({ ok: false, error: e?.message ?? "Server error" });
     }
   });
 

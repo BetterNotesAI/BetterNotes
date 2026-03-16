@@ -75,6 +75,34 @@ export async function deleteOutputFile(projectId: string, filePath: string): Pro
   }
 }
 
+// --- Multi-file template initialization ---
+
+/**
+ * Seed a multi-file project from a template's scaffold files.
+ * Fetches each file from public/templates/ and saves it to project_output_files.
+ * Returns array of { filePath, content, dirty } entries for use in the workspace.
+ */
+export async function initializeMultiFileProject(
+  projectId: string,
+  scaffoldBasePath: string,
+  scaffoldFiles: string[],
+): Promise<{ filePath: string; content: string; dirty: boolean }[]> {
+  const results: { filePath: string; content: string; dirty: boolean }[] = [];
+  for (const relPath of scaffoldFiles) {
+    const url = scaffoldBasePath + relPath;
+    let content = "";
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) content = await resp.text();
+    } catch {
+      /* scaffold file not found — seed with empty content */
+    }
+    await saveOutputFile(projectId, relPath, content);
+    results.push({ filePath: relPath, content, dirty: false });
+  }
+  return results;
+}
+
 // --- Project files (user uploads) ---
 
 export interface ProjectFileRecord {

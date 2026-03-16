@@ -766,7 +766,35 @@ export function getTemplateOrThrow(templateId: string): TemplateDefinition {
   return tmpl;
 }
 
-/** List all available template IDs */
-export function listTemplateIds(): string[] {
-  return Object.keys(TEMPLATE_DEFINITIONS).sort();
+export function findPlaceholder(templateSrc: string): string | null {
+  for (const p of CONTENT_PLACEHOLDERS) if (templateSrc.includes(p)) return p;
+  return null;
+}
+
+/**
+ * Recursively read a multi-file template directory.
+ * Returns a map of relative paths to file contents (text files only).
+ */
+export function loadMultiFileTemplate(dirAbs: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!fs.existsSync(dirAbs)) return result;
+
+  function walk(current: string, prefix: string) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        // Skip preview/show directories
+        if (entry.name === "ShowTemplate" || entry.name === "Figures") continue;
+        walk(path.join(current, entry.name), relPath);
+      } else {
+        const ext = path.extname(entry.name).toLowerCase();
+        if ([".tex", ".bib", ".sty", ".cls"].includes(ext)) {
+          result[relPath] = fs.readFileSync(path.join(current, entry.name), "utf8");
+        }
+      }
+    }
+  }
+
+  walk(dirAbs, "");
+  return result;
 }

@@ -11,7 +11,15 @@ function joinClasses(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-export default function ChatThinkingBubble({ text, className }: ChatThinkingBubbleProps) {
+export default function ChatThinkingBubble({
+  text,
+  steps = [],
+  activeStepIndex = 0,
+  className,
+}: ChatThinkingBubbleProps) {
+  void steps;
+  void activeStepIndex;
+
   return (
     <div className={joinClasses(className)}>
       <ThinkingBar text={text} />

@@ -2,19 +2,21 @@
 // The actual LaTeX generation is now fully instruction-based (see app-api/src/lib/templates.ts).
 // This file contains only the UI-relevant metadata: name, description, preview, and Pro flag.
 
-export type TemplateCategory = "cheatsheet" | "notes" | "problem" | "paper" | "report";
-
-export type Template = {
+export interface TemplateDef {
   id: string;
   name: string;
+  format: string;
+  publicPath: string;
+  previewPath: string;
+  thumbnailPath: string;
   description: string;
   isPro: boolean;
-  category: TemplateCategory;
-  thumbnailPath: string;
-  previewPath: string;
-};
+  isMultiFile?: boolean;
+  scaffoldBasePath?: string;
+  scaffoldFiles?: string[];
+}
 
-export const templates: Template[] = [
+export const templates: TemplateDef[] = [
   // ==================== FREE ====================
   {
     id: "landscape_3col_maths",
@@ -33,6 +35,25 @@ export const templates: Template[] = [
     category: "cheatsheet",
     thumbnailPath: "/templates/previews/2cols_portrait.png",
     previewPath: "/templates/previews/2cols_portrait_QED_For_Hadrons.pdf",
+  },
+  {
+    id: "long_template",
+    name: "Long Template (Chapters)",
+    format: "latex",
+    publicPath: "/templates/longTemplate/main.tex",
+    previewPath: "/templates/longTemplate/ShowTemplate/Template_Long_Subject.pdf",
+    thumbnailPath: "/templates/longTemplate/ShowTemplate/Miniatura_Long_Template.png",
+    description: "Long-form chapter-based structure for extensive notes and reports.",
+    isPro: false,
+    isMultiFile: true,
+    scaffoldBasePath: "/templates/longTemplate/",
+    scaffoldFiles: [
+      "main.tex",
+      "packages.tex",
+      "references.bib",
+      "Chapters/first_pages.tex",
+      "Chapters/Conclusions.tex",
+    ],
   },
   {
     id: "cornell",
@@ -90,14 +111,3 @@ export const templates: Template[] = [
     previewPath: "/templates/previews/data_analysis.pdf",
   },
 ];
-
-/** Get a template by ID — returns undefined if not found */
-export function getTemplate(id: string): Template | undefined {
-  return templates.find((t) => t.id === id);
-}
-
-/** Free templates only */
-export const freeTemplates = templates.filter((t) => !t.isPro);
-
-/** Pro templates only */
-export const proTemplates = templates.filter((t) => t.isPro);

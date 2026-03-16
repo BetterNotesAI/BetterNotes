@@ -1,0 +1,252 @@
+\chapter{Overview to Particle Physics}
+
+\section{Elementary particles and interactions: the energy-scale viewpoint}
+The basic questions of particle physics are deceptively simple:
+\begin{itemize}
+  \item What are the elementary building blocks of Nature?
+  \item What are the interactions among them?
+\end{itemize}
+A key lesson is that the answer depends on \emph{the energy scale} at which we probe Nature:
+as we increase the typical energy (or momentum transfer) of our experiments, new degrees of
+freedom become relevant and the effective description changes.
+
+A pragmatic (and historically successful) way to organize our knowledge is to relate
+\emph{energy scales} to the \emph{particles we can resolve}, the \emph{interactions we observe},
+their \emph{ranges}, and their \emph{mediators}. At very low energies we describe matter in terms
+of atoms and effective potentials; at higher energies we resolve nuclei, then nucleons,
+and eventually quarks, leptons and gauge bosons.
+
+\subsection{A qualitative ``energy ladder''}
+\begin{center}
+\small
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}c c c c@{}}
+\toprule
+\textbf{Scale} & \textbf{Degrees of freedom} & \textbf{Interactions} & \textbf{Range} \\
+\midrule
+$\lesssim \mathrm{eV}$ &
+atoms (effective) &
+effective (atomic/molecular) &
+long \\
+
+$\sim \mathrm{keV}$ &
+$e^-$, nuclei &
+e.m. &
+long \\
+
+$\sim \mathrm{MeV}$ &
+$e^\pm$, $p,n$, $\nu_e$ &
+e.m.\ + nuclear + weak &
+long / short / contact \\
+
+$\sim \mathrm{GeV}$ &
+$\mu^\pm$, $\nu_\mu$, hadrons &
+e.m.\ + strong + weak &
+long / short / contact \\
+
+$\sim 10~\mathrm{GeV}$ &
+$\tau^\pm$, $\nu_\tau$, $u,d,s,c,b$ &
+e.m.\ + QCD + weak &
+long / short / contact \\
+
+$\sim \mathrm{TeV}$ &
+$W^\pm$, $Z^0$, $t$, $H$ &
+e.m.\ + QCD + EW &
+long / short / short \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+
+\section{Natural units and physical intuition}
+At subatomic scales we inevitably need quantum mechanics, hence $\hbar$ appears in formulas.
+At high velocities we need special relativity, hence $c$ appears as well. To avoid a
+constant proliferation of $\hbar$ and $c$, we adopt \emph{natural units}
+\begin{equation}
+\hbar = c = 1,
+\end{equation}
+so that any dimensionful quantity can be expressed as a power of energy. In this convention,
+masses, momenta and energies share the same units (eV, MeV, GeV, \dots).
+
+To recover SI units, one reinserts appropriate powers of $\hbar$ and $c$ and uses
+$1~\text{eV} \simeq 1.6\times 10^{-19}\,\text{J}$. Useful reference scales include
+\begin{itemize}
+  \item $E_{\text{Rydberg}}=13.6~\text{eV}$,
+  \item $m_e\simeq 0.5~\text{MeV}$,
+  \item $m_p\simeq 940~\text{MeV}$.
+\end{itemize}
+For distances and cross sections, it is common to use
+\begin{itemize}
+  \item the fermi (fm): $1~\text{fm}=10^{-15}\,\text{m}$, and $\hbar c\simeq 197~\text{MeV}\,\text{fm}$,
+  \item the barn (b): $1~\text{b}=100~\text{fm}^2$.
+\end{itemize}
+
+\section{The Standard Model and what lies beyond}
+The Standard Model (SM) describes elementary particles and their interactions up to energies
+of order $\mathcal{O}(10~\text{TeV})$. It contains:
+\begin{itemize}
+  \item \textbf{Matter fields} (spin $J=\tfrac{1}{2}$): quarks and leptons. Charged leptons and quarks are massive; neutrino masses are very small.
+  \item \textbf{Gauge bosons} (spin $J=1$): photon and gluons are massless; $W^\pm$ and $Z^0$ are massive.
+  \item \textbf{Higgs boson} (spin $J=0$), massive.
+\end{itemize}
+
+Despite its success, there are clear indications that the SM is not the final story:
+\begin{itemize}
+  \item \textbf{Gravity:} extremely weak at subatomic distances but long-range, suggesting a massless mediator (graviton) in a quantum description.
+  \item \textbf{Dark matter:} gravitational evidence at galactic/cosmological scales with no electromagnetic signals, suggesting at least one new particle.
+\end{itemize}
+
+\section{Energy frontiers in Nature}
+The highest man-made energies are achieved in colliders. At present, the LHC reaches
+$\sim 13~\text{TeV}$ in the center-of-mass energy. Future proposals include FCC(hh) at
+$\sim 100~\text{TeV}$ and lepton/hadron options at intermediate energies.
+
+Nature also provides \emph{cosmic rays} with energies far beyond colliders:
+ultra-high energy cosmic rays satisfy $E>10^4~\text{TeV}$, with record events around
+$E\sim 3\times 10^8~\text{TeV}$ (Utah, 1991).
+
+\section{QFT as the language of particle physics}
+Combining quantum mechanics with special relativity naturally leads to
+\emph{quantum field theory} (QFT):
+\begin{itemize}
+  \item states can contain an \emph{arbitrary number of particles} (Fock space),
+  \item elementary particles correspond to \emph{unitary irreducible representations} of the
+  Poincar\'e group ISO$(3,1)$.
+\end{itemize}
+The irreducible unitary representations are characterized by
+\begin{equation}
+m^2 \in \mathbb{R}_+,\qquad \vec p\in \mathbb{R}^3,\qquad J\in \tfrac{1}{2}\mathbb{Z}_+,\qquad
+J_3\in\{-J,-J+1,\dots,J\},
+\end{equation}
+with the special feature that for massless particles only the extreme spin projections appear.
+
+\section{Strength of interactions and unification scales}
+A convenient way to compare interactions is through dimensionless couplings (or effective
+dimensionless combinations at a given scale). At $E\sim m_p\sim 1~\text{GeV}$ (low energies)
+and $E\sim m_Z\sim 100~\text{GeV}$ (high energies), one finds qualitatively:
+\begin{itemize}
+  \item \textbf{Strong:} $\alpha_s(m_p)\sim 1$ but $\alpha_s(m_Z)\sim 0.1$ (running).
+  \item \textbf{Electromagnetic:} $\alpha(m_p)\simeq 1/137$, $\alpha(m_Z)\simeq 1/129$.
+  \item \textbf{Weak:} at low energies appears through $G_F m_p^2\sim 10^{-5}$, while at $m_Z$ one may define $\alpha_W(m_Z)=\dfrac{m_W^2 G_F}{4\pi}\sim \mathcal{O}(1)$.
+  \item \textbf{Gravity:} $G m_p^2\sim 10^{-39}$, negligible in particle physics.
+\end{itemize}
+
+Two important conceptual scales follow from extrapolations:
+\begin{itemize}
+  \item \textbf{Electroweak unification:} around $E\sim m_Z$, electromagnetic and weak strengths become comparable.
+  \item \textbf{Grand unification:} strong and electroweak strengths may meet around $E\sim 10^{16}~\text{GeV}$.
+  \item \textbf{Planck scale:} gravity becomes comparable to other interactions at $E\sim G^{-1/2}\sim 10^{19}~\text{GeV}$.
+\end{itemize}
+
+\section{Conservation laws and discrete symmetries}
+Conservation laws are deeply tied to symmetries:
+\begin{itemize}
+  \item \textbf{Space-time symmetries:} energy--momentum conservation; angular momentum conservation.
+  \item \textbf{Internal symmetries:} electric charge; baryon number $B$; lepton number $L$.
+\end{itemize}
+In the SM, individual lepton flavor numbers (electron, muon, tau) are conserved at the Lagrangian level,
+but neutrino oscillations show this is not an exact symmetry in Nature.
+Quantum effects also violate $B$ and $L$ separately at an unobservably small level, leaving $B+L$
+as the truly conserved combination within the SM description at accessible energies.
+
+Strong and electromagnetic interactions conserve additional discrete symmetries:
+parity (P), charge conjugation (C), time reversal (T), and (approximately) flavor.
+
+\section{Hadrons: mesons, baryons and color}
+Although quarks and gluons are the building blocks of the strong interaction in the SM,
+in Nature we observe only \emph{hadrons}: bound states that are color singlets.
+The simplest hadrons are:
+\begin{itemize}
+  \item \textbf{Mesons:} quark--antiquark ($q\bar q$),
+  \item \textbf{Baryons:} three quarks ($qqq$).
+\end{itemize}
+
+\subsection{Isospin and light mesons/baryons}
+Many light hadrons can be organized into representations of SU(2) isospin.
+For example, pions form an isotriplet $(\pi^+,\pi^0,\pi^-)$ and nucleons form an isodoublet $(p,n)$.
+A simple quark-model picture for light mesons treats them as $q\bar q$ with
+\begin{equation}
+J=\tfrac{1}{2}\otimes \tfrac{1}{2}=0\oplus 1,\qquad
+I=\tfrac{1}{2}\otimes \tfrac{1}{2}=0\oplus 1,
+\end{equation}
+with $u$ and $d$ quarks carrying charges $Q_u=\tfrac{2}{3}e$ and $Q_d=-\tfrac{1}{3}e$.
+
+Similarly, light baryons can be described as three-quark states with vanishing orbital
+angular momentum:
+\begin{equation}
+\tfrac{1}{2}\otimes \tfrac{1}{2}\otimes \tfrac{1}{2}
+= \tfrac{1}{2}\oplus \tfrac{1}{2}\oplus \tfrac{3}{2},
+\end{equation}
+leading to, for instance, the nucleon doublet and the $\Delta$ quartet.
+
+\subsection{The Pauli principle and the need for color}
+A puzzle arises because the spin-$3/2$ $\Delta$ states are totally symmetric under
+exchange of quarks, apparently conflicting with the Pauli principle.
+The resolution is the introduction of a new quantum number: \textbf{color}.
+Quarks transform in the fundamental representation $\mathbf{3}$ of SU(3)$_\text{color}$, and
+physical states must be color singlets.
+
+Group-theory products show why mesons and baryons can be colorless, while isolated quarks
+and gluons cannot appear as asymptotic states:
+\begin{equation}
+\mathbf{3}\otimes \mathbf{3}^\ast = \mathbf{1}\oplus \mathbf{8},\qquad
+\mathbf{3}\otimes \mathbf{3} = \mathbf{3}^\ast \oplus \mathbf{6},\qquad
+\mathbf{3}\otimes \mathbf{3}\otimes \mathbf{3} = \mathbf{1}\oplus \mathbf{8}\oplus \mathbf{8}\oplus \mathbf{10}.
+\end{equation}
+Hence $q\bar q$ and $qqq$ can contain singlets, but single quarks, gluons (octet), or $qq$ states
+cannot be observed as free particles.
+
+\subsection{Exotic hadrons}
+QCD does not forbid hadrons beyond mesons and baryons: tetraquarks and pentaquarks are allowed.
+Their unambiguous identification is easier in systems with heavy quarks, where the spectrum is
+cleaner and thresholds are better controlled.
+
+At low energies, the strong interaction is effectively short-range because the lightest
+physical excitations exchanged between hadrons are pions, with $m_\pi \sim 140~\text{MeV}$.
+
+\section{Weak interactions and flavor quantum numbers}
+Hadron resonances such as $\rho$, $\omega$ or $\Delta$ have typical decay widths
+$\Gamma \sim 1$--$100~\text{MeV}$, characteristic of strong decays.
+However, the lightest isospin multiplets $(\pi^\pm,\pi^0,p,n)$ have much smaller widths:
+\begin{itemize}
+  \item $\pi^0$ decays electromagnetically with $\Gamma \sim 10^{-5}~\text{MeV}$,
+  \item $\pi^\pm$ and $n$ decay weakly with $\Gamma$ as small as $10^{-14}$--$10^{-24}~\text{MeV}$.
+\end{itemize}
+Weak interactions are also needed to describe muon decay and strange-hadron decays.
+
+\subsection{Strangeness}
+Strange hadrons are produced in strong interactions as particle--antiparticle pairs
+but decay via the weak interaction. This motivates an approximately conserved quantum number
+in strong processes: \textbf{strangeness} $S$.
+Strange mesons and baryons populate isospin multiplets, and the lightest ones decay weakly.
+
+\section{Discrete symmetry violation and CP}
+Parity (P) and charge conjugation (C) are maximally violated in weak interactions.
+A further, smaller violation of CP is observed in neutral kaon decays. This will play a central
+role in flavor physics and in understanding the origin of matter--antimatter asymmetry.
+
+\section{More generations: charm, bottom and top}
+The existence of the charm quark was predicted (around 1970) because flavor-changing neutral
+currents were not observed. Charm was discovered in 1974 through the resonance
+$e^+e^-\to \gamma^\ast \to J/\psi$, interpreted as a $c\bar c$ bound state.
+
+Bottom was discovered in 1977 through $e^+e^-\to \gamma^\ast\to \Upsilon$, interpreted as a
+$b\bar b$ bound state. The electroweak theory then implied a third-generation partner, the top quark,
+and the bottom--top structure is crucial for understanding CP violation in kaon (and later $B$) systems.
+
+The top quark was discovered in 1995 at the Tevatron ($p\bar p$ collider), with $m_t\simeq 172~\text{GeV}$
+and a large width $\Gamma_t\sim 1.4~\text{GeV}$. It decays weakly before hadronizing, making it unique among quarks.
+
+\section{Summary and ``big picture''}
+Particle physics is organized around:
+\begin{itemize}
+  \item the energy-scale dependence of effective degrees of freedom,
+  \item QFT as the consistent framework combining QM and SR,
+  \item gauge symmetries and their associated forces,
+  \item confinement and color singlets in QCD,
+  \item weak interactions, flavor, and discrete symmetry violation.
+\end{itemize}
+These themes will guide the construction of concrete field theories and the analysis of real processes
+in the next chapters.
