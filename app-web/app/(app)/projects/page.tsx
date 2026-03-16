@@ -38,42 +38,47 @@ function ProjectsContent() {
     const [newFolderName, setNewFolderName] = useState("");
     const [creatingFolder, setCreatingFolder] = useState(false);
 
-    // Auth first, then projects — with a hard 8s timeout so the page never hangs forever
+    // Auth + initial project load.
+    // We rely on onAuthStateChange(INITIAL_SESSION) as the single source of truth
+    // instead of getSession(), which can return null when the access token has
+    // expired and the middleware hasn't refreshed it yet (race condition).
     const [authLoading, setAuthLoading] = useState(true);
     useEffect(() => {
         let mounted = true;
 
+        // Safety net: never hang forever
         const timeoutId = setTimeout(() => {
             if (mounted) { setAuthLoading(false); setLoading(false); }
         }, 8000);
 
-        async function init() {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
                 if (!mounted) return;
-                setUser(session?.user ?? null);
+                // TOKEN_REFRESHED = tab became active again, session is the same user.
+                // Skip to avoid triggering a redundant project reload.
+                if (event === 'TOKEN_REFRESHED') return;
+
+                const currentUser = session?.user ?? null;
+                setUser(currentUser);
                 setAuthLoading(false);
 
-                const [initialProjects, initialFolders] = await Promise.all([
-                    listProjects({ search: search.trim() || undefined }),
-                    listFolders(),
-                ]);
-                if (!mounted) return;
-                setProjects(initialProjects);
-                setFolders(initialFolders);
+                if (currentUser) {
+                    try {
+                        const [initialProjects, initialFolders] = await Promise.all([
+                            listProjects({ search: search.trim() || undefined }),
+                            listFolders(),
+                        ]);
+                        if (!mounted) return;
+                        setProjects(initialProjects);
+                        setFolders(initialFolders);
+                    } catch { /* ignore */ }
+                }
+
                 setLoading(false);
-            } catch {
-                if (mounted) { setAuthLoading(false); setLoading(false); }
-            } finally {
                 clearTimeout(timeoutId);
             }
-        }
-
-        init();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event, session) => { if (mounted && event !== 'TOKEN_REFRESHED') setUser(session?.user ?? null); }
         );
+
         return () => { mounted = false; clearTimeout(timeoutId); subscription.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
