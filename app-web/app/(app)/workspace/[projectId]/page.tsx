@@ -20,7 +20,10 @@ import { useToast } from "@/app/components/Toast";
 import { useDialog } from "@/app/components/ConfirmDialog";
 import type { User } from "@supabase/supabase-js";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type SurveyQuestion = { id: string; question: string; options: string[] };
+type TextMsg   = { role: "user" | "assistant"; content: string };
+type SurveyMsg = { role: "survey"; questions: SurveyQuestion[]; originalPrompt: string; answered?: boolean };
+type Msg = TextMsg | SurveyMsg;
 
 /** Local in-memory representation of an output file */
 interface OutputEntry {
@@ -52,6 +55,7 @@ export default function ProjectWorkspace() {
         { role: "assistant", content: "Tell me what you want to create. I'll generate LaTeX + PDF for you." },
     ]);
     const [chatInput, setChatInput] = useState("");
+    const [surveyAnswers, setSurveyAnswers] = useState<Record<string, string>>({});
     const bottomRef = useRef<HTMLDivElement | null>(null);
 
     // Project files (user uploads)
@@ -364,11 +368,14 @@ export default function ProjectWorkspace() {
         return 0;
     }
 
-    function replaceLastWorking(m: Msg[], newText: string): Msg[] {
+    function replaceLastWorking(m: Msg[], replacement: string | SurveyMsg): Msg[] {
         const copy = [...m];
         for (let i = copy.length - 1; i >= 0; i--) {
-            if (copy[i].role === "assistant" && isTransientAssistantMessageText(copy[i].content)) {
-                copy[i] = { role: "assistant", content: newText };
+            const msg = copy[i];
+            if (msg.role === "assistant" && isTransientAssistantMessageText(msg.content)) {
+                copy[i] = typeof replacement === "string"
+                    ? { role: "assistant", content: replacement }
+                    : replacement;
                 break;
             }
         }
@@ -452,6 +459,7 @@ export default function ProjectWorkspace() {
     async function generateProjectFiles(prompt: string): Promise<
         { ok: true; files: Record<string, string> } |
         { ok: true; message: string } |
+        { ok: true; questions: SurveyQuestion[]; originalPrompt: string } |
         { ok: false; error: string }
     > {
         try {
@@ -482,6 +490,7 @@ export default function ProjectWorkspace() {
             const data = await r.json().catch(() => null);
             if (!r.ok) return { ok: false, error: data?.error ?? "Failed to generate project." };
             if (data.message) return { ok: true, message: data.message as string };
+            if (data.questions && Array.isArray(data.questions)) return { ok: true, questions: data.questions as SurveyQuestion[], originalPrompt: prompt };
             if (data.files && typeof data.files === "object") return { ok: true, files: data.files as Record<string, string> };
             return { ok: false, error: "Empty response from project generation." };
         } catch (e: unknown) {
@@ -627,6 +636,91 @@ export default function ProjectWorkspace() {
         }
     }
 
+    // ═══ Long-template generation core (shared by handleSend + handleSurveySubmit) ═══
+    async function runLongTemplateGeneration(prompt: string) {
+        const gen = await generateProjectFiles(prompt);
+
+        if (!gen.ok) {
+            setMessages((m) => replaceLastWorking(m, `Error: ${gen.error}`));
+            return;
+        }
+
+        if ("message" in gen && gen.message) {
+            setMessages((m) => replaceLastWorking(m, gen.message));
+            return;
+        }
+
+        if ("questions" in gen && gen.questions) {
+            // Replace "Working…" bubble with interactive survey
+            const surveyMsg: SurveyMsg = { role: "survey", questions: gen.questions, originalPrompt: gen.originalPrompt };
+            setMessages((m) => replaceLastWorking(m, surveyMsg));
+            setSurveyAnswers({});
+            return;
+        }
+
+        if ("files" in gen && gen.files) {
+            const merged = [...outputFiles];
+            for (const [filePath, content] of Object.entries(gen.files)) {
+                const idx = merged.findIndex((f) => f.filePath === filePath);
+                if (idx >= 0) merged[idx] = { ...merged[idx], content, dirty: false };
+                else merged.push({ filePath, content, dirty: false });
+            }
+            setOutputFiles(merged);
+            setActiveTab("preview");
+            setMessages((m) => replaceLastWorking(m, "Generated. Compiling PDF..."));
+
+            const compilePromise = compileProjectWithFiles(merged);
+            const savePromise = (async () => {
+                try {
+                    await incrementMessageCount();
+                    for (const [filePath, content] of Object.entries(gen.files)) {
+                        await saveOutputFile(projectId, filePath, content);
+                    }
+                } catch { /* skip */ }
+            })();
+
+            const comp = await compilePromise;
+            if (comp.ok) {
+                setOutputFiles((prev) => prev.map((f) => ({ ...f, dirty: false })));
+                setMessages((m) => replaceLastWorking(m, "Done. Preview updated."));
+            } else {
+                setMessages((m) => replaceLastWorking(m, 'Generated LaTeX, but compilation failed. Use "Fix with AI".'));
+            }
+            await savePromise;
+        }
+    }
+
+    // ═══ Survey submit — called when user answers all questions and clicks Generate ═══
+    async function handleSurveySubmit(originalPrompt: string, answers: Record<string, string>, questions: SurveyQuestion[]) {
+        if (busy() || sendInFlightRef.current) return;
+        sendInFlightRef.current = true;
+        setIsSending(true);
+        try {
+            // Mark survey as answered (readonly)
+            setMessages((m) => m.map((msg) =>
+                msg.role === "survey" && msg.originalPrompt === originalPrompt
+                    ? { ...msg, answered: true }
+                    : msg
+            ));
+
+            // Build combined prompt from original request + user preferences
+            const answerSummary = questions.map((q) => `${q.question}: ${answers[q.id]}`).join(" · ");
+            const combinedPrompt = `${originalPrompt}\n\nUser preferences: ${answerSummary}`;
+
+            setMessages((m) => [...m,
+                { role: "user", content: answerSummary },
+                { role: "assistant", content: "Working… generating document..." },
+            ]);
+
+            await runLongTemplateGeneration(combinedPrompt);
+        } catch (e: unknown) {
+            setMessages((m) => replaceLastWorking(m, `Error: ${(e as Error)?.message ?? "Generation failed."}`));
+        } finally {
+            sendInFlightRef.current = false;
+            setIsSending(false);
+        }
+    }
+
     // ═══ Send message ═══
     async function handleSend() {
         const text = chatInput.trim();
@@ -645,56 +739,7 @@ export default function ProjectWorkspace() {
 
             // ── Long template: multi-file generation ──
             if (isLongTemplate) {
-                const gen = await generateProjectFiles(text);
-
-                if (!gen.ok) {
-                    setMessages((m) => replaceLastWorking(m, `Error: ${gen.error}`));
-                    return;
-                }
-
-                if ("message" in gen && gen.message) {
-                    setMessages((m) => replaceLastWorking(m, gen.message));
-                    return;
-                }
-
-                if ("files" in gen && gen.files) {
-                    // Merge generated files into current output files
-                    const merged = [...outputFiles];
-                    for (const [filePath, content] of Object.entries(gen.files)) {
-                        const idx = merged.findIndex((f) => f.filePath === filePath);
-                        if (idx >= 0) {
-                            merged[idx] = { ...merged[idx], content, dirty: false };
-                        } else {
-                            merged.push({ filePath, content, dirty: false });
-                        }
-                    }
-                    // Update state with merged files (compileProject will read from state on next render,
-                    // but we also use `merged` directly for the compile payload below)
-                    setOutputFiles(merged);
-
-                    setActiveTab("preview");
-                    setMessages((m) => replaceLastWorking(m, "Generated. Compiling PDF..."));
-
-                    // Compile using the merged files directly (don't rely on stale state)
-                    const compilePromise = compileProjectWithFiles(merged);
-                    const savePromise = (async () => {
-                        try {
-                            await incrementMessageCount();
-                            for (const [filePath, content] of Object.entries(gen.files)) {
-                                await saveOutputFile(projectId, filePath, content);
-                            }
-                        } catch { /* skip */ }
-                    })();
-
-                    const comp = await compilePromise;
-                    if (comp.ok) {
-                        setOutputFiles((prev) => prev.map((f) => ({ ...f, dirty: false })));
-                        setMessages((m) => replaceLastWorking(m, "Done. Preview updated."));
-                    } else {
-                        setMessages((m) => replaceLastWorking(m, 'Generated LaTeX, but compilation failed. Use "Fix with AI".'));
-                    }
-                    await savePromise;
-                }
+                await runLongTemplateGeneration(text);
                 return;
             }
 
@@ -888,20 +933,66 @@ export default function ProjectWorkspace() {
                         const showThinkingBubble =
                             m.role === "assistant" &&
                             idx === messages.length - 1 &&
-                            isTransientAssistantMessageText(m.content);
+                            isTransientAssistantMessageText((m as TextMsg).content);
 
                         if (showThinkingBubble) {
+                            const tm = m as TextMsg;
                             return (
                                 <div key={idx} className="mr-auto max-w-[92%]">
                                     <ChatThinkingBubble
-                                        text={m.content}
+                                        text={tm.content}
                                         steps={thinkingProgressSteps}
-                                        activeStepIndex={getThinkingStepIndex(m.content)}
+                                        activeStepIndex={getThinkingStepIndex(tm.content)}
                                     />
                                 </div>
                             );
                         }
 
+                        // ── Survey message ──
+                        if (m.role === "survey") {
+                            const allAnswered = m.questions.every((q) => surveyAnswers[q.id]);
+                            return (
+                                <div key={idx} className="mr-auto max-w-[96%] w-full rounded-2xl border border-white/10 bg-black/20 p-3 space-y-3">
+                                    <p className="text-[11px] text-white/40 uppercase tracking-wider font-semibold">A few quick questions</p>
+                                    {m.questions.map((q) => (
+                                        <div key={q.id} className="space-y-1.5">
+                                            <p className="text-xs text-white/80">{q.question}</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {q.options.map((opt) => (
+                                                    <button
+                                                        key={opt}
+                                                        disabled={!!m.answered}
+                                                        onClick={() => setSurveyAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                                                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                                            surveyAnswers[q.id] === opt
+                                                                ? "bg-white text-black border-white"
+                                                                : "bg-white/8 text-white/60 border-white/15 hover:bg-white/15"
+                                                        } ${m.answered ? "opacity-40 cursor-default" : "cursor-pointer"}`}
+                                                    >
+                                                        {opt}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {!m.answered && (
+                                        <button
+                                            onClick={() => handleSurveySubmit(m.originalPrompt, surveyAnswers, m.questions)}
+                                            disabled={!allAnswered}
+                                            className={`w-full py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                                                allAnswered
+                                                    ? "bg-white text-black hover:bg-white/90"
+                                                    : "bg-white/8 text-white/25 cursor-not-allowed"
+                                            }`}
+                                        >
+                                            Generate
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        }
+
+                        // ── Text message ──
                         return (
                             <div
                                 key={idx}
