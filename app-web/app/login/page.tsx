@@ -32,8 +32,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/workspace");
     router.refresh();
+    router.replace("/workspace");
   }
 
   async function handleOAuth(provider: "google" | "github") {

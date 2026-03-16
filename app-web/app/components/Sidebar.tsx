@@ -64,8 +64,8 @@ export default function Sidebar() {
 
     // Auth
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUser(user);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (event, session) => {

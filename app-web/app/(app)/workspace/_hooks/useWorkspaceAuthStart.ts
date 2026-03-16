@@ -64,9 +64,9 @@ export function useWorkspaceAuthStart({
             }
         });
 
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            setUser(session?.user ?? null);
-            if (session?.user) setUsageStatus(await getUsageStatus());
+        supabase.auth.getUser().then(async ({ data: { user } }) => {
+            setUser(user);
+            if (user) setUsageStatus(await getUsageStatus());
         }).catch(() => setUser(null));
 
         return () => subscription.unsubscribe();
