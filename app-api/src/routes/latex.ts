@@ -9,7 +9,7 @@ import { trimHugeLog } from "../lib/errors";
 type LatexDeps = {
   openai: OpenAI;
   openaiModel: string;
-  templateDirAbs: string;
+  templateDirAbs: string; // kept for backward compat but no longer used for generation
   latexTimeoutMs: number;
 };
 
@@ -162,14 +162,12 @@ export function createLatexRouter(deps: LatexDeps) {
   async function generateLatexFromPrompt(args: {
     prompt: string;
     templateId: string;
-    templateSource: string;
-    wantOnlyBody: boolean;
     baseLatex?: string;
     files?: IncomingAttachment[];
   }): Promise<{ latex?: string; message?: string }> {
-    const { prompt, templateId, templateSource, wantOnlyBody, baseLatex, files } = args;
+    const { prompt, templateId, baseLatex, files } = args;
 
-    // Build content with files
+    // Build file context
     const userContent: any[] = [{ type: "text", text: "" }];
     let fileTextContext = "";
     let remainingFileBudget = MAX_TOTAL_FILE_CONTEXT_CHARS;
@@ -186,80 +184,76 @@ export function createLatexRouter(deps: LatexDeps) {
           fileTextContext += clipped;
           remainingFileBudget -= clipped.length;
         } else {
-          userContent.push(extracted);
+          userContent.push(extracted); // image
         }
       }
     }
 
-    // System Prompt - UPDATED FOR HYBRID MODE
     const system = [
-      "You are BetterNotes AI, an expert academic assistant FOCUSED on generating LaTeX documents.",
-      "Your goal is ALWAYS to help the user create or refine a LaTeX document.",
-      "- If the user provides a topic, subject, or request (e.g., 'History of Spain', 'Formula sheet'), use the available TEMPLATE to GENERATE the document IMMEDIATELY.",
-      "- Do NOT ask for more details ('what kind of document?'). The template IS the kind of document.",
-      "- Only ask for clarification if the request is completely empty or nonsensical.",
-      "- If the user says 'give me the latex' or 'use selected template', generate it based on previous context or a generic example if context is missing.",
-      "- If output is a document, it MUST be valid LaTeX.",
-      "- Use standard packages. Avoid exotic ones.",
-      "- Never output triple backticks (```).",
-      "CRITICAL: Do NOT use environments like 'example', 'theorem', 'proof' unless defined in the template. Use \\textbf{Example:} or \\section*{Example} instead.",
-      "CRITICAL: If the template ALREADY defines 'definition', 'theorem', or 'example' (look for \\newtheorem), USE THEM. Do NOT re-define them (no \\newtheorem{definition}).",
-      "CRITICAL: If the template uses `tcolorbox`, `tikz` or specific colors, PRESERVE THEM. Do not replace them with standard LaTeX.",
-      "CRITICAL: Use \\verify{...} instead of \\check{...} for solution verification steps.",
+      "You are BetterNotes AI, an expert academic assistant specialised in generating LaTeX documents.",
+      "Your ONLY output is either a complete, compilable LaTeX document OR a short plain-text message (never both).",
+      "RULES:",
+      "- If the request implies a document topic (e.g. 'calculus', 'thermodynamics', 'generate notes'), output a COMPLETE .tex file — no explanations, no markdown, no triple backticks.",
+      "- If the user is just chatting (e.g. 'hi', 'thanks'), reply with a short plain-text message only.",
+      "- NEVER redefine environments (\\newtheorem, \\newcommand) that are already defined in the provided preamble.",
+      "- NEVER output triple backticks (```).",
+      "- Use ONLY standard packages. Do not add \\usepackage commands — the preamble already contains all necessary packages.",
+      "- Use \\verify{...} (not \\check{...}) for solution verification steps in problem sheets.",
+      "- In regular text (titles, headings, sentences), use \\& for ampersand, not bare &. Bare & is only valid inside tabular/array environments.",
+      "- NEVER nest display math environments: do not put \\begin{equation*} or \\begin{align*} inside \\[ ... \\], and do not put \\begin{equation*} inside \\begin{align*}.",
+      "- Always close every \\begin{env} with a matching \\end{env} before closing the enclosing environment.",
     ].join(" ");
 
-    const messages: { role: "system" | "assistant" | "user"; content: any }[] = [{ role: "system", content: system }];
+    const messages: { role: "system" | "assistant" | "user"; content: any }[] = [
+      { role: "system", content: system },
+    ];
 
-    // Construct User Message
     let textPrompt = "";
+
     if (typeof baseLatex === "string" && baseLatex.trim()) {
+      // ── REFINEMENT MODE: user wants to edit an existing document ──────────
       messages.push({ role: "assistant", content: baseLatex });
       textPrompt = [
-        `Revise the previous LaTeX above according to: ${prompt}.`,
-        "Return the FULL updated document.",
-        "Preserve the current structure/style unless the user explicitly asks to change it.",
-        "Apply the requested edit explicitly (add/remove/modify content in the LaTeX source).",
-        "Do NOT return the same document unchanged unless the request is already fully satisfied.",
+        `Revise the LaTeX document above according to this request: "${prompt}"`,
+        "Return the FULL updated document (same preamble and structure).",
+        "Apply the change explicitly — do NOT return the document unchanged.",
+        "Preserve the style, preamble, and layout unless the user explicitly asks to change them.",
       ].join(" ");
-    } else if (wantOnlyBody) {
-      textPrompt = [
-        `We will insert your output into a LaTeX template (templateId="${templateId}").`,
-        "Return ONLY the body/content to be inserted at the placeholder.",
-        `IMPORTANT: The user wants a document about: '${prompt}'. GENERATE IT NOW.`,
-        "Generate REALISTIC, HIGH-QUALITY CONTENT for this topic.",
-        "",
-        "=== TEMPLATE (style ref) ===",
-        templateSource,
-        "",
-        "=== USER REQUEST ===",
-        prompt,
-      ].join("\n");
     } else {
+      // ── GENERATION MODE: new document from template instructions ──────────
+      const template = getTemplateOrThrow(templateId);
+
       textPrompt = [
-        `Create a complete LaTeX document based on templateId="${templateId}".`,
-        "Ensure the final output is a complete compilable .tex file.",
-        `The user wants a document about: '${prompt}'. GENERATE IT NOW.`,
+        `User request: "${prompt}"`,
         "",
-        "=== TEMPLATE ===",
-        templateSource,
+        "Decision: if this is casual conversation (e.g. 'hi', 'thanks', 'how are you'), reply with ONLY a short plain-text message.",
+        "Otherwise (any academic or document topic), generate a COMPLETE LaTeX document using the template below.",
         "",
-        "=== USER REQUEST ===",
-        prompt,
+        `Template style: ${template.id}`,
         "",
-        "If the user is NOT asking for a document and just chatting (e.g. 'hi'), reply with a polite text message.",
-        "BUT if the user implies a document (e.g. 'history', 'physics', 'make it'), GENERATE THE LATEX.",
+        "=== REQUIRED PREAMBLE (copy this VERBATIM before \\begin{document}) ===",
+        template.preamble,
+        "",
+        "=== STYLE GUIDE (follow these rules exactly) ===",
+        template.styleGuide,
+        "",
+        "=== STRUCTURE EXAMPLE (use this as a structural reference, NOT as content to copy) ===",
+        template.structureExample,
+        "",
+        "Now generate the complete .tex document. Fill it with REAL, DETAILED, HIGH-QUALITY academic content about the requested topic.",
+        "Do NOT copy the example content — create original content relevant to the user's topic.",
       ].join("\n");
     }
 
     if (fileTextContext) {
-      textPrompt += `\n\n[Attached File Content]:\n${fileTextContext}`;
+      textPrompt += `\n\n=== ATTACHED FILE CONTENT (extract relevant information) ===\n${fileTextContext}`;
     }
 
     userContent[0].text = textPrompt;
     messages.push({ role: "user", content: userContent });
 
     const resp = await deps.openai.chat.completions.create({
-      model: deps.openaiModel, // Must support vision (gpt-4o)
+      model: deps.openaiModel,
       temperature: 0.2,
       messages: messages as any,
     });
@@ -267,28 +261,30 @@ export function createLatexRouter(deps: LatexDeps) {
     const out = resp.choices?.[0]?.message?.content ?? "";
     const cleanOut = stripMarkdownFences(out);
 
-    // Heuristic: Is it LaTeX or Message?
-    // If it contains \documentclass or \begin{document} or looks like body content for the template (harder to detect)
-    // But if we asked for "body only", it might not have documentclass. 
-    // Let's assume if it contains latex commands like \section or \item or \begin, it is latex. (Simple heuristic)
-    // OR if we explicitly asked for chat (which we didn't, we left it to AI).
+    // Classify: LaTeX document or plain-text message?
+    const looksLikeLatex =
+      cleanOut.includes("\\documentclass") ||
+      cleanOut.includes("\\begin{document}") ||
+      cleanOut.includes("\\section") ||
+      cleanOut.includes("\\begin{");
 
-    // Better heuristic: If it starts with typical chat words "Hello", "Sure", "I can help", it might be chat, UNLESS it's followed by latex.
-    // Let's check if it compiles? No too expensive.
-
-    // If user asked for body only, it's almost certainly LaTeX unless ignored.
-    // If full doc, look for \documentclass.
-
-    if (cleanOut.includes("\\documentclass") || cleanOut.includes("\\begin{document}") || (wantOnlyBody && (cleanOut.includes("\\section") || cleanOut.includes("\\item")))) {
-      return { latex: applyLatexFallbacks(cleanOut) };
+    if (looksLikeLatex) {
+      let latex = cleanOut;
+      // If AI omitted the preamble (starts with \begin{document} but no \documentclass),
+      // auto-prepend the template preamble so the document always compiles.
+      if (!baseLatex && !latex.includes("\\documentclass")) {
+        const tmpl = getTemplateOrThrow(templateId);
+        latex = `${tmpl.preamble}\n\n${latex}`;
+      }
+      return { latex: applyLatexFallbacks(latex) };
     }
 
-    // If it's short and no latex syntax, assume message?
-    if (!cleanOut.includes("\\") && cleanOut.length < 500) {
+    // Short response with no LaTeX commands → treat as chat message
+    if (!cleanOut.includes("\\") && cleanOut.length < 600) {
       return { message: cleanOut };
     }
 
-    // Default to LaTeX if unsure, or treat as message if it really doesn't look like LaTeX
+    // Default: treat as LaTeX if it has any backslash commands
     if (cleanOut.includes("\\")) return { latex: applyLatexFallbacks(cleanOut) };
 
     return { message: cleanOut };
@@ -331,6 +327,23 @@ export function createLatexRouter(deps: LatexDeps) {
     return stripMarkdownFences(out);
   }
 
+  // Simple heuristic: detect casual chat before hitting the AI
+  function isCasualChat(prompt: string): string | null {
+    const p = prompt.trim().toLowerCase().replace(/[!?.]+$/, "");
+    const CHAT_PATTERNS = [
+      /^(hi|hello|hey|hola|howdy|good\s+\w+|greetings)$/i,
+      /^(thanks|thank\s+you|thx|ty|cheers|gracias)$/i,
+      /^(bye|goodbye|ciao|see\s+ya)$/i,
+      /^(how\s+are\s+you|how's\s+it\s+going|what's\s+up|wassup|sup)$/i,
+      /^(ok|okay|sure|great|awesome|cool|nice|perfect|got\s+it|understood)$/i,
+      /^(yes|no|yeah|nope|yep)$/i,
+    ];
+    if (CHAT_PATTERNS.some(rx => rx.test(p))) {
+      return "Hello! I'm BetterNotes AI. Share a topic and I'll generate a LaTeX document for you! 📝";
+    }
+    return null;
+  }
+
   // POST /latex/generate-latex
   router.post("/generate-latex", async (req, res) => {
     try {
@@ -350,30 +363,28 @@ export function createLatexRouter(deps: LatexDeps) {
           }))
         : [];
 
-      if (!prompt && files.length === 0) return res.status(400).json({ ok: false, error: "Missing 'prompt' or 'files'." });
+      // Short-circuit: casual chat without a document topic
+      if (prompt && files.length === 0 && !hasBaseLatex) {
+        const chatReply = isCasualChat(prompt);
+        if (chatReply) return res.json({ ok: true, message: chatReply });
+      }
 
-      const { source: templateSource } = loadTemplateOrThrow(deps.templateDirAbs, templateId);
-      const placeholder = findPlaceholder(templateSource);
-      const wantOnlyBody = !hasBaseLatex && Boolean(placeholder);
+      if (!prompt && files.length === 0) {
+        return res.status(400).json({ ok: false, error: "Missing 'prompt' or 'files'." });
+      }
 
       const result = await generateLatexFromPrompt({
         prompt,
         templateId,
-        templateSource,
-        wantOnlyBody,
         baseLatex: hasBaseLatex ? baseLatexTrimmed.trim() : undefined,
-        files
+        files,
       });
 
       if (result.message) {
         return res.json({ ok: true, message: result.message });
       }
 
-      const generated = result.latex || "";
-      const latexRaw = wantOnlyBody && placeholder ? templateSource.replace(placeholder, generated) : generated;
-      const latex = applyLatexFallbacks(latexRaw);
-
-      return res.json({ ok: true, latex, usedTemplateId: templateId });
+      return res.json({ ok: true, latex: result.latex ?? "", usedTemplateId: templateId });
     } catch (e: any) {
       const status = Number(e?.statusCode ?? 500);
       return res.status(status).json({ ok: false, error: e?.message ?? "Server error" });

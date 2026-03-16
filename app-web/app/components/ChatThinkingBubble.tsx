@@ -4,8 +4,6 @@ import { ThinkingBar } from "@/components/prompt-kit/thinking-bar";
 
 type ChatThinkingBubbleProps = {
   text: string;
-  steps?: string[];
-  activeStepIndex?: number;
   className?: string;
 };
 
@@ -23,7 +21,7 @@ export default function ChatThinkingBubble({
   void activeStepIndex;
 
   return (
-    <div className={joinClasses("space-y-2", className)}>
+    <div className={joinClasses(className)}>
       <ThinkingBar text={text} />
     </div>
   );
