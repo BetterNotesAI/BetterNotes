@@ -316,6 +316,44 @@ app.use(
 );
 
 // -------------------------
+// Auth routes (Server-only admin ops)
+// -------------------------
+app.post("/auth/delete-account", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "Missing authorization header" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!supabaseAdmin) {
+    return res.status(500).json({ ok: false, error: "Supabase admin client not initialized" });
+  }
+
+  try {
+    // 1. Verify token and get user ID
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ ok: false, error: "Invalid or expired token" });
+    }
+
+    // 2. Delete user from Supabase Auth (cascades to DB profiles/projects)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+
+    if (deleteError) {
+      console.error("[ERROR] Failed to delete user from Supabase Auth:", deleteError);
+      return res.status(500).json({ ok: false, error: "Failed to delete account" });
+    }
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[ERROR] Delete account catch:", err);
+    return res.status(500).json({ ok: false, error: err.message || "Internal server error" });
+  }
+});
+
+// -------------------------
 // Error handler
 // -------------------------
 app.use((err: any, _req: any, res: any, _next: any) => {

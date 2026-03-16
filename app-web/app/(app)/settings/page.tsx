@@ -23,17 +23,22 @@ export default function SettingsPage() {
     async function handleDeleteAccount() {
         setDeleting(true);
         try {
-            // Delete user data via RPC, then sign out
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                // Delete profile row (cascades to projects, files, etc.)
-                await supabase.from("profiles").delete().eq("id", user.id);
+            const response = await fetch("/api/auth/delete-account", {
+                method: "POST",
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || "Failed to delete account");
             }
+
             await supabase.auth.signOut();
             router.push("/");
-        } catch {
+        } catch (err: any) {
+            console.error("Deletion error:", err);
             setDeleting(false);
             setShowDeleteConfirm(false);
+            // In a real app, we might want to show an error toast here
         }
     }
 
