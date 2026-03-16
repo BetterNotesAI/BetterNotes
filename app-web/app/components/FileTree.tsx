@@ -12,9 +12,10 @@ interface FileTreeProps {
     onUpload?: (parentId: string | null) => void;
     title?: string;
     emptyText?: string;
+    showHeader?: boolean;
 }
 
-export default function FileTree({ files, selectedId, onSelect, onDelete, onNewFolder, onUpload, title = "Files", emptyText = "No files" }: FileTreeProps) {
+export default function FileTree({ files, selectedId, onSelect, onDelete, onNewFolder, onUpload, title = "Files", emptyText = "No files", showHeader = true }: FileTreeProps) {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
@@ -84,25 +85,27 @@ export default function FileTree({ files, selectedId, onSelect, onDelete, onNewF
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
-                <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">{title}</span>
-                <div className="flex items-center gap-1">
-                    {onNewFolder && (
-                        <button onClick={() => onNewFolder(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="New folder">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                            </svg>
-                        </button>
-                    )}
-                    {onUpload && (
-                        <button onClick={() => onUpload(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="Upload file">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                            </svg>
-                        </button>
-                    )}
+            {showHeader && (
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
+                    <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">{title}</span>
+                    <div className="flex items-center gap-1">
+                        {onNewFolder && (
+                            <button onClick={() => onNewFolder(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="New folder">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                                </svg>
+                            </button>
+                        )}
+                        {onUpload && (
+                            <button onClick={() => onUpload(null)} className="h-6 w-6 rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 flex items-center justify-center" title="Upload file">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
             <div className="flex-1 overflow-y-auto py-1">
                 {rootFiles.length === 0 ? (
                     <div className="px-3 py-4 text-xs text-white/25 text-center">{emptyText}</div>

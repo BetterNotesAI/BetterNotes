@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 // Routes that require authentication.
 // NOTE: /workspace is intentionally NOT protected — the freemium flow handles
 // auth internally, allowing anonymous users to try one free message.
-const protectedRoutes: string[] = [];
+const protectedRoutes = ["/projects", "/settings"];
 
 // Auth pages: redirect to /workspace if the user is already signed in.
 const authRoutes = ["/login", "/signup"];

@@ -1,14 +1,5 @@
 import Image from "next/image";
-
-type Template = {
-  id: string;
-  name: string;
-  format: string;
-  publicPath: string;
-  previewPath?: string;
-  thumbnailPath?: string;
-  isPro?: boolean;
-};
+import type { Template } from "@/lib/templates";
 
 export default function TemplateCardSelect({
   t,
@@ -114,7 +105,7 @@ export default function TemplateCardSelect({
       <div className="mt-3 flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-white">{t.name}</div>
-          <div className="text-xs text-white/60">{t.format.toUpperCase()}</div>
+          <div className="text-xs text-white/60 capitalize">{t.category}</div>
         </div>
         {onPreview && (
           <button

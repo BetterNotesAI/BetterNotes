@@ -5,36 +5,99 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { listProjects, type Project } from "@/lib/api";
+import { listProjects, listFolders, type Project, type Folder } from "@/lib/api";
 import ThemeToggle from "./ThemeToggle";
+import { HomeIcon, ProjectsIcon, TemplatesIcon, UniversitiesIcon, PricingIcon, StarredIcon, SharedIcon, PlaygroundIcon } from "./sidebar/SidebarIcons";
 import type { User } from "@supabase/supabase-js";
+
+// Routes where the sidebar auto-collapses to icon-only (editor pages need max space)
+const WORKSPACE_ROUTES = ["/workspace/"];
+
+function isWorkspaceRoute(pathname: string) {
+    return WORKSPACE_ROUTES.some((prefix) => pathname.startsWith(prefix));
+}
+
+const COLLAPSED_STORAGE_KEY = "sidebar_collapsed";
+
+function readCollapsedFromStorage(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
+}
 
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedFromStorage());
     const [mobileOpen, setMobileOpen] = useState(false);
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
+    const [folders, setFolders] = useState<Folder[]>([]);
     const [projectsExpanded, setProjectsExpanded] = useState(true);
+    const [navProjectsExpanded, setNavProjectsExpanded] = useState(true);
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement | null>(null);
+    const userSetCollapsedRef = useRef(false);
+    const [sidebarWidth, setSidebarWidth] = useState(200);
+    const resizingRef = useRef(false);
+
+    function onResizeMouseDown(e: React.MouseEvent) {
+        e.preventDefault();
+        resizingRef.current = true;
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+        function onMove(ev: MouseEvent) {
+            if (!resizingRef.current) return;
+            setSidebarWidth(Math.min(320, Math.max(160, startWidth + (ev.clientX - startX))));
+        }
+        function onUp() {
+            resizingRef.current = false;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        }
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }
 
     // Auth
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUser(user);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => setUser(session?.user ?? null)
+            (event, session) => {
+                if (event === 'TOKEN_REFRESHED') return;
+                setUser(session?.user ?? null);
+            }
         );
         return () => subscription.unsubscribe();
     }, []);
 
-    // Load recent projects
+    // Persist collapsed state to localStorage whenever it changes
     useEffect(() => {
-        if (!user) { setRecentProjects([]); return; }
+        localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
+    }, [collapsed]);
+
+    // Auto-collapse when entering workspace editor routes (if user hasn't manually expanded)
+    useEffect(() => {
+        if (isWorkspaceRoute(pathname)) {
+            if (!userSetCollapsedRef.current) {
+                setCollapsed(true);
+            }
+        } else {
+            // Reset the override flag when leaving workspace routes
+            userSetCollapsedRef.current = false;
+        }
+    }, [pathname]);
+
+    // Load recent projects + folders
+    useEffect(() => {
+        if (!user) { setRecentProjects([]); setFolders([]); return; }
         listProjects({ limit: 5 }).then(setRecentProjects);
+        listFolders().then(setFolders);
     }, [user]);
 
     // Close profile menu on outside click
@@ -63,16 +126,13 @@ export default function Sidebar() {
     const isActive = (href: string) =>
         pathname === href || pathname.startsWith(href + "/");
 
-    const navItems = [
+    const topNavItems = [
         { label: "Home", href: "/workspace", icon: HomeIcon },
-        // Temporarily hidden (non-priority)
-        // { label: "Playground", href: "/playground", icon: PlaygroundIcon },
-        { label: "Projects", href: "/projects", icon: ProjectsIcon },
-        { label: "Starred", href: "/projects?filter=starred", icon: StarredIcon, indent: true },
-        // { label: "Shared with me", href: "/projects?filter=shared", icon: SharedIcon, indent: true },
         { label: "Templates", href: "/templates", icon: TemplatesIcon },
-        // { label: "Universities", href: "/universities", icon: UniversitiesIcon },
-        { label: "Pricing", href: "/pricing", icon: PricingIcon },
+    ];
+
+    const projectsSubItems = [
+        { label: "Starred", href: "/projects?filter=starred", icon: StarredIcon },
     ];
 
     const sidebarContent = (
@@ -87,14 +147,14 @@ export default function Sidebar() {
                         height={36}
                         className="h-9 w-9 object-contain"
                     />                    {!collapsed && (
-                        <div>
-                            <div className="text-sm font-semibold">BetterNotes</div>
-                            <div className="text-[10px] text-white/50">AI Workspace</div>
-                        </div>
+                        <div className="text-sm font-semibold">BetterNotes</div>
                     )}
                 </Link>
                 <button
-                    onClick={() => setCollapsed(!collapsed)}
+                    onClick={() => {
+                        userSetCollapsedRef.current = true;
+                        setCollapsed(!collapsed);
+                    }}
                     className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
                     aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
@@ -122,19 +182,83 @@ export default function Sidebar() {
 
             {/* Navigation */}
             <nav className="px-2 space-y-0.5">
-                {navItems.map(({ label, href, icon: Icon, indent }) => (
+                {/* Home */}
+                {topNavItems.slice(0, 1).map(({ label, href, icon: Icon }) => (
                     <Link
                         key={href}
                         href={href}
-                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : indent ? "pl-9 pr-3 py-2" : "px-3 py-2.5"
-                            } ${isActive(href)
-                                ? "bg-white/12 text-white font-medium"
-                                : "text-white/60 hover:bg-white/8 hover:text-white/90"
-                            } ${indent && collapsed ? "hidden" : ""}`}
+                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"} ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}
                         title={collapsed ? label : undefined}
                     >
-                        <Icon className={`flex-shrink-0 ${indent ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
-                        {!collapsed && <span className={indent ? "text-[13px]" : ""}>{label}</span>}
+                        <Icon className="flex-shrink-0 h-4 w-4" />
+                        {!collapsed && <span>{label}</span>}
+                    </Link>
+                ))}
+
+                {/* Projects (expandable) */}
+                <div>
+                    <div className={`flex items-center rounded-xl text-sm transition-colors ${isActive("/projects") ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}>
+                        <Link
+                            href="/projects"
+                            className={`flex items-center gap-3 flex-1 ${collapsed ? "justify-center px-2 py-2.5" : "pl-3 py-2.5"}`}
+                            title={collapsed ? "Projects" : undefined}
+                        >
+                            <ProjectsIcon className="flex-shrink-0 h-4 w-4" />
+                            {!collapsed && <span>Projects</span>}
+                        </Link>
+                        {!collapsed && (
+                            <button
+                                onClick={() => setNavProjectsExpanded((v) => !v)}
+                                className="pr-2 py-2.5 text-white/30 hover:text-white/60"
+                                title={navProjectsExpanded ? "Collapse" : "Expand"}
+                            >
+                                <svg className={`h-3 w-3 transition-transform ${navProjectsExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    {!collapsed && navProjectsExpanded && (
+                        <div className="mt-0.5 space-y-0.5">
+                            {/* Starred */}
+                            {projectsSubItems.map(({ label, href, icon: Icon }) => (
+                                <Link
+                                    key={href}
+                                    href={href}
+                                    className={`flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-xl text-[13px] transition-colors ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+                                >
+                                    <Icon className="flex-shrink-0 h-3.5 w-3.5" />
+                                    <span>{label}</span>
+                                </Link>
+                            ))}
+                            {/* User folders */}
+                            {folders.map((folder) => (
+                                <Link
+                                    key={folder.id}
+                                    href={`/projects?folder=${folder.id}`}
+                                    className={`flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-xl text-[13px] transition-colors ${pathname.includes(folder.id) ? "bg-white/12 text-white font-medium" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+                                >
+                                    <svg className="flex-shrink-0 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                                    </svg>
+                                    <span className="truncate">{folder.name}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Templates + rest */}
+                {topNavItems.slice(1).map(({ label, href, icon: Icon }) => (
+                    <Link
+                        key={href}
+                        href={href}
+                        className={`flex items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"} ${isActive(href) ? "bg-white/12 text-white font-medium" : "text-white/60 hover:bg-white/8 hover:text-white/90"}`}
+                        title={collapsed ? label : undefined}
+                    >
+                        <Icon className="flex-shrink-0 h-4 w-4" />
+                        {!collapsed && <span>{label}</span>}
                     </Link>
                 ))}
             </nav>
@@ -289,82 +413,27 @@ export default function Sidebar() {
             )}
 
             {/* Sidebar panel */}
-            <aside className={`
-                fixed md:relative z-40 top-0 left-0 h-screen
-                border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl
-                transition-all duration-200 ease-out
-                ${collapsed ? "md:w-[72px]" : "md:w-[260px]"}
-                ${mobileOpen ? "w-[280px] translate-x-0" : "w-[280px] -translate-x-full md:translate-x-0"}
-            `}>
+            <aside
+                className={`
+                    fixed md:relative z-40 top-0 left-0 h-screen
+                    border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl
+                    transition-[width] duration-200 ease-out
+                    ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+                `}
+                style={{
+                    width: collapsed ? 72 : sidebarWidth,
+                }}
+            >
                 {sidebarContent}
+                {/* Resize handle */}
+                {!collapsed && (
+                    <div
+                        onMouseDown={onResizeMouseDown}
+                        className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors"
+                    />
+                )}
             </aside>
         </>
     );
 }
 
-
-// ── Icon components ─────────────────────────────────────────
-
-function HomeIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-        </svg>
-    );
-}
-
-function ProjectsIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-        </svg>
-    );
-}
-
-function TemplatesIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-        </svg>
-    );
-}
-
-function UniversitiesIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-        </svg>
-    );
-}
-
-function PricingIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-        </svg>
-    );
-}
-
-function StarredIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-        </svg>
-    );
-}
-
-function SharedIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-        </svg>
-    );
-}
-
-function PlaygroundIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-        </svg>
-    );
-}

@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { listProjects, createProject, loadChats, type Project } from "@/lib/api";
+import { listProjects, createProject, listFolders, createFolder, type Project, type Folder } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import ProjectCard from "@/app/components/ProjectCard";
+import FolderCard from "@/app/components/FolderCard";
 import { templates } from "@/lib/templates";
 import type { User } from "@supabase/supabase-js";
 
-type Filter = "all" | "starred" | "chats";
+type Filter = "all" | "starred";
 
 export default function ProjectsPage() {
     return (
@@ -24,6 +25,8 @@ function ProjectsContent() {
     const searchParams = useSearchParams();
     const [user, setUser] = useState<User | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [folders, setFolders] = useState<Folder[]>([]);
+    const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = root view
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<Filter>("all");
     const [search, setSearch] = useState("");
@@ -31,62 +34,97 @@ function ProjectsContent() {
     const [newTitle, setNewTitle] = useState("");
     const [newTemplateId, setNewTemplateId] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
-    const [chats, setChats] = useState<Array<{ id: string; title: string; created_at: string; updated_at: string }>>([]);
+    const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState("");
+    const [creatingFolder, setCreatingFolder] = useState(false);
 
-    // Auth + initial data fetch run in parallel to avoid sequential roundtrips
+    // Auth + initial project load.
+    // We rely on onAuthStateChange(INITIAL_SESSION) as the single source of truth
+    // instead of getSession(), which can return null when the access token has
+    // expired and the middleware hasn't refreshed it yet (race condition).
     const [authLoading, setAuthLoading] = useState(true);
     useEffect(() => {
         let mounted = true;
 
-        Promise.all([
-            supabase.auth.getSession(),
-            listProjects({ search: search.trim() || undefined }),
-        ]).then(([{ data: { session } }, initialProjects]) => {
-            if (!mounted) return;
-            setUser(session?.user ?? null);
-            setAuthLoading(false);
-            setProjects(initialProjects);
-            setLoading(false);
-        });
+        // Safety net: never hang forever
+        const timeoutId = setTimeout(() => {
+            if (mounted) { setAuthLoading(false); setLoading(false); }
+        }, 8000);
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => { if (mounted) setUser(session?.user ?? null); }
+            async (event, session) => {
+                if (!mounted) return;
+                // TOKEN_REFRESHED = tab became active again, session is the same user.
+                // Skip to avoid triggering a redundant project reload.
+                if (event === 'TOKEN_REFRESHED') return;
+
+                const currentUser = session?.user ?? null;
+                setUser(currentUser);
+                setAuthLoading(false);
+
+                if (currentUser) {
+                    try {
+                        const [initialProjects, initialFolders] = await Promise.all([
+                            listProjects({ search: search.trim() || undefined }),
+                            listFolders(),
+                        ]);
+                        if (!mounted) return;
+                        setProjects(initialProjects);
+                        setFolders(initialFolders);
+                    } catch { /* ignore */ }
+                }
+
+                setLoading(false);
+                clearTimeout(timeoutId);
+            }
         );
-        return () => { mounted = false; subscription.unsubscribe(); };
+
+        return () => { mounted = false; clearTimeout(timeoutId); subscription.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-open new modal from URL
+    // Sync URL query params → state
     useEffect(() => {
-        if (searchParams.get("new") === "true") {
-            setShowNewModal(true);
-        }
+        if (searchParams.get("new") === "true") setShowNewModal(true);
+        setActiveFolderId(searchParams.get("folder") ?? null);
+        setFilter(searchParams.get("filter") === "starred" ? "starred" : "all");
     }, [searchParams]);
 
     const fetchProjects = useCallback(async () => {
         if (!user) return;
         setLoading(true);
-        if (filter === "chats") {
-            const chatData = await loadChats();
-            setChats(chatData);
-            setProjects([]);
-        } else {
-            const data = await listProjects({
+        const [data, folderData] = await Promise.all([
+            listProjects({
                 starred: filter === "starred" ? true : undefined,
                 search: search.trim() || undefined,
-            });
-            setProjects(data);
-            setChats([]);
-        }
+                // In folder view, filter server-side. At root, fetch all so we can count per folder.
+                folderId: activeFolderId ?? undefined,
+            }),
+            listFolders(),
+        ]);
+        setProjects(data);
+        setFolders(folderData);
         setLoading(false);
-    }, [user, filter, search]);
+    }, [user, filter, search, activeFolderId]);
 
-    // Re-fetch when filter or search changes (initial load handled above)
+    // Re-fetch when filter, search, or active folder changes (initial load handled above)
     useEffect(() => {
         if (authLoading) return;
         fetchProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filter, search]);
+    }, [filter, search, activeFolderId]);
+
+    async function handleCreateFolder() {
+        if (creatingFolder) return;
+        const name = newFolderName.trim();
+        if (!name) return;
+        setCreatingFolder(true);
+        await createFolder(name);
+        setCreatingFolder(false);
+        setShowNewFolderModal(false);
+        setNewFolderName("");
+        fetchProjects();
+    }
 
     async function handleCreateProject() {
         if (creating) return;
@@ -124,28 +162,60 @@ function ProjectsContent() {
     const filterButtons: { key: Filter; label: string }[] = [
         { key: "all", label: "All" },
         { key: "starred", label: "Starred" },
-        { key: "chats", label: "Chats" },
     ];
+
+    const activeFolder = folders.find(f => f.id === activeFolderId) ?? null;
+    // At root: only show projects not assigned to any folder
+    const displayedProjects = activeFolder ? projects : projects.filter(p => p.folder_id === null);
 
     return (
         <div className="max-w-6xl mx-auto px-6 py-8">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Projects</h1>
+                    {activeFolder ? (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setActiveFolderId(null)}
+                                className="text-sm text-white/40 hover:text-white/70 transition-colors flex items-center gap-1"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                                </svg>
+                                Projects
+                            </button>
+                            <span className="text-white/20">/</span>
+                            <h1 className="text-xl font-bold text-white">{activeFolder.name}</h1>
+                        </div>
+                    ) : (
+                        <h1 className="text-2xl font-bold text-white">Projects</h1>
+                    )}
                     <p className="text-sm text-white/40 mt-1">
                         {projects.length} project{projects.length !== 1 ? "s" : ""}
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowNewModal(true)}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600/80 to-blue-600/80 hover:from-purple-500 hover:to-blue-500 border border-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all"
-                >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    New Project
-                </button>
+                <div className="flex items-center gap-2">
+                    {!activeFolder && (
+                        <button
+                            onClick={() => setShowNewFolderModal(true)}
+                            className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 hover:bg-white/12 px-3 py-2.5 text-sm text-white/70 hover:text-white transition-all"
+                        >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            New Folder
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setShowNewModal(true)}
+                        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600/80 to-blue-600/80 hover:from-purple-500 hover:to-blue-500 border border-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all"
+                    >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        New Project
+                    </button>
+                </div>
             </div>
 
             {/* Search + Filters */}
@@ -186,69 +256,54 @@ function ProjectsContent() {
                         <div key={i} className="rounded-2xl border border-white/8 bg-white/[0.03] h-52 animate-pulse" />
                     ))}
                 </div>
-            ) : filter === "chats" ? (
-                /* ── Chats list ── */
-                chats.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                        <svg className="h-16 w-16 text-white/10 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="0.75">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                        </svg>
-                        <p className="text-white/40 text-sm mb-4">No conversations yet</p>
-                        <Link href="/workspace" className="rounded-xl bg-white/10 border border-white/15 px-4 py-2 text-sm text-white/80 hover:bg-white/15 transition-colors">
-                            Start a conversation
-                        </Link>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {chats.map((chat) => (
-                            <Link
-                                key={chat.id}
-                                href={`/workspace?chat=${chat.id}`}
-                                className="flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] px-5 py-4 transition-colors group"
-                            >
-                                <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex-shrink-0">
-                                    <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                                    </svg>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-white/90 truncate">{chat.title || "Untitled Chat"}</div>
-                                    <div className="text-xs text-white/30 mt-0.5">
-                                        {new Date(chat.updated_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                                        {" · "}
-                                        {new Date(chat.updated_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                                    </div>
-                                </div>
-                                <svg className="h-4 w-4 text-white/20 group-hover:text-white/50 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                                </svg>
-                            </Link>
-                        ))}
-                    </div>
-                )
-            ) : projects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <svg className="h-16 w-16 text-white/10 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="0.75">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                    </svg>
-                    <p className="text-white/40 text-sm mb-4">
-                        {search ? "No projects match your search" : "No projects yet"}
-                    </p>
-                    {!search && (
-                        <button
-                            onClick={() => setShowNewModal(true)}
-                            className="rounded-xl bg-white/10 border border-white/15 px-4 py-2 text-sm text-white/80 hover:bg-white/15 transition-colors"
-                        >
-                            Create your first project
-                        </button>
-                    )}
-                </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {projects.map((p) => (
-                        <ProjectCard key={p.id} project={p} onUpdate={fetchProjects} />
-                    ))}
-                </div>
+                <>
+                    {/* Folder row — only visible at root view */}
+                    {!activeFolder && folders.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                            {folders.map((f) => (
+                                <FolderCard
+                                    key={f.id}
+                                    folder={f}
+                                    projectCount={projects.filter(p => p.folder_id === f.id).length}
+                                    onClick={() => setActiveFolderId(f.id)}
+                                    onUpdate={fetchProjects}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Projects grid */}
+                    {/* Show empty state only when: searching with no results, inside an empty folder, or truly no projects at all */}
+                    {displayedProjects.length === 0 && (search || activeFolder || projects.length === 0) ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center">
+                            <svg className="h-16 w-16 text-white/10 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="0.75">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                            </svg>
+                            <p className="text-white/40 text-sm mb-4">
+                                {search
+                                    ? "No projects match your search"
+                                    : activeFolder
+                                        ? "No projects in this folder"
+                                        : "No projects yet"}
+                            </p>
+                            {!search && (
+                                <button
+                                    onClick={() => setShowNewModal(true)}
+                                    className="rounded-xl bg-white/10 border border-white/15 px-4 py-2 text-sm text-white/80 hover:bg-white/15 transition-colors"
+                                >
+                                    {activeFolder ? "Add a project" : "Create your first project"}
+                                </button>
+                            )}
+                        </div>
+                    ) : displayedProjects.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {displayedProjects.map((p) => (
+                                <ProjectCard key={p.id} project={p} folders={folders} onUpdate={fetchProjects} />
+                            ))}
+                        </div>
+                    ) : null}
+                </>
             )}
 
             {/* New Project Modal */}
@@ -297,6 +352,39 @@ function ProjectsContent() {
                                 className="rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:from-purple-500 hover:to-blue-500 disabled:opacity-50"
                             >
                                 {creating ? "Creating..." : "Create"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* New Folder Modal */}
+            {showNewFolderModal && (
+                <div className="fixed inset-0 z-[99] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="rounded-2xl border border-white/15 bg-neutral-900 p-6 shadow-2xl max-w-sm w-full mx-4">
+                        <h2 className="text-lg font-semibold text-white mb-4">New Folder</h2>
+                        <label className="block text-xs text-white/50 mb-1">Folder name</label>
+                        <input
+                            autoFocus
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleCreateFolder(); if (e.key === "Escape") { setShowNewFolderModal(false); setNewFolderName(""); } }}
+                            placeholder="e.g. Semester 1"
+                            className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-white/25 mb-5"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                            <button
+                                onClick={() => { setShowNewFolderModal(false); setNewFolderName(""); }}
+                                className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateFolder}
+                                disabled={creatingFolder || !newFolderName.trim()}
+                                className="rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:from-purple-500 hover:to-blue-500 disabled:opacity-50"
+                            >
+                                {creatingFolder ? "Creating…" : "Create"}
                             </button>
                         </div>
                     </div>
