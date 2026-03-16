@@ -136,18 +136,23 @@ export default function ProjectWorkspace() {
     const isLongTemplate = project?.template_id === "long_template";
     const figuresPrefix = isLongTemplate ? "Figures" : "figures";
 
+    // Tracks the "userId:projectId" combo that has already been successfully loaded.
+    // Prevents re-fetching when Supabase fires onAuthStateChange with a new User object
+    // reference on token refresh (which would otherwise retrigger the load effect).
+    const loadedKeyRef = useRef<string | null>(null);
+
     // ── Auth ──
     useEffect(() => {
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user ?? null);
-            if (session?.user) setUsageStatus(await getUsageStatus());
-            setAuthResolved(true);
+            setAuthResolved(true); // unblock project loading immediately
+            if (session?.user) getUsageStatus().then(setUsageStatus);
         });
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
-            if (session?.user) setUsageStatus(await getUsageStatus());
+            setAuthResolved(true); // unblock project loading immediately
+            if (session?.user) getUsageStatus().then(setUsageStatus);
             else setUsageStatus(null);
-            setAuthResolved(true);
         });
         return () => subscription.unsubscribe();
     }, []);
@@ -166,6 +171,12 @@ export default function ProjectWorkspace() {
             return;
         }
 
+        // Skip re-fetching if we already successfully loaded this user+project combo.
+        // This prevents the loading screen from reappearing when Supabase calls
+        // onAuthStateChange with a new User object on token refresh.
+        const loadKey = `${user.id}:${projectId}`;
+        if (loadedKeyRef.current === loadKey) return;
+
         setLoading(true);
         let cancelled = false;
         async function load() {
@@ -177,6 +188,7 @@ export default function ProjectWorkspace() {
                     return;
                 }
                 setProject(data as Project);
+                loadedKeyRef.current = loadKey;
             } catch {
                 if (!cancelled) router.push("/projects");
             } finally {
@@ -488,16 +500,21 @@ export default function ProjectWorkspace() {
     async function _compileProject(filesOverride?: OutputEntry[]) {
         setCompileError(""); setCompileLog("");
         const sourceFiles = filesOverride ?? outputFiles;
-        const texFiles = sourceFiles.filter((f) => f.content.trim());
-        if (texFiles.length === 0) { setCompileError("No files to compile."); return { ok: false as const }; }
+
+        // Guard: at least one file must have actual content to compile
+        const hasContent = sourceFiles.some((f) => f.content.trim());
+        if (!hasContent) { setCompileError("No files to compile."); return { ok: false as const }; }
 
         try {
             setIsCompiling(true);
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 180000);
 
-            // Build files array for the backend
-            const filesPayload = texFiles.map((f) => ({
+            // Build files array for the backend.
+            // Include ALL tracked files — even empty ones — so that \input{} references
+            // in main.tex (e.g. Chapters/Conclusions.tex) are always present on disk
+            // and don't cause a fatal "File not found" LaTeX error.
+            const filesPayload = sourceFiles.map((f) => ({
                 path: f.filePath,
                 content: f.content,
             }));
@@ -520,13 +537,13 @@ export default function ProjectWorkspace() {
                 }
             }
 
-            // Use single-file or multi-file endpoint
-            const isMultiFile = texFiles.length > 1;
+            // Use multi-file endpoint whenever the project tracks more than one file
+            const isMultiFile = sourceFiles.length > 1;
             const endpoint = isMultiFile ? COMPILE_PROJECT_API_ENDPOINT : COMPILE_API_ENDPOINT;
             const mainTexContent = sourceFiles.find((f) => f.filePath === "main.tex")?.content;
             const body = isMultiFile
                 ? { files: filesPayload, mainFile: "main.tex" }
-                : { latex: mainTexContent || texFiles[0].content };
+                : { latex: mainTexContent || filesPayload[0].content };
 
             const r = await fetch(endpoint, {
                 method: "POST",
