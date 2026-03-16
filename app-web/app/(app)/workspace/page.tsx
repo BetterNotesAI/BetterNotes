@@ -158,6 +158,16 @@ function WorkspaceContent() {
         return loadingSteps.includes(n) || n.startsWith("Generated. Compiling PDF...");
     }
 
+    const thinkingProgressSteps = [
+        { label: "Thinking...", patterns: [/Analyzing/i, /Tell me what you want/i] },
+        { label: "Generating...", patterns: [/Generating/i, /Structuring/i, /Formatting/i, /Finalizing/i] },
+        { label: "Compiling...", patterns: [/compiling/i] },
+    ];
+
+    function getThinkingStepIndex(content: string) {
+        return thinkingProgressSteps.findIndex(s => s.patterns.some(p => p.test(content)));
+    }
+
     function replaceLastWorking(m: Msg[], newText: string) {
         const copy = [...m];
         for (let i = copy.length - 1; i >= 0; i--) {
@@ -234,127 +244,6 @@ function WorkspaceContent() {
             if (loadingInterval) clearInterval(loadingInterval);
             sendInFlightRef.current = false; setIsSending(false);
         }
-        // Fallback to base64 if upload fails? Or just fail? Let's fallback to base64 for resilience if small enough
-        console.warn("Upload failed, falling back to base64");
-      }
-
-      // Anonymous or fallback: Base64
-      const { fileToBase64 } = await import("../../../lib/storage");
-      const b64 = await fileToBase64(f.file);
-      return { type: f.type, data: b64, name: f.file.name, mimeType: f.file.type || undefined };
-    }));
-
-    return processed;
-  }
-
-  // ── Animated loading steps ──
-  const loadingSteps = [
-    "Analyzing your request…",
-    "Generating LaTeX content…",
-    "Structuring document layout…",
-    "Formatting equations and symbols…",
-    "Finalizing output…",
-  ];
-  // Keep the expandable progress list tied to real stages only.
-  const thinkingProgressSteps = ["Generating AI response…", "Compiling PDF preview…"];
-
-  function isTransientAssistantMessageText(text: string) {
-    const normalized = (text || "").trim();
-    return (
-      loadingSteps.includes(normalized) ||
-      normalized.startsWith("Generated. Compiling PDF...")
-    );
-  }
-
-  function getThinkingStepIndex(text: string) {
-    const normalized = (text || "").trim();
-    if (loadingSteps.includes(normalized)) return 0;
-    if (normalized.startsWith("Generated. Compiling PDF...")) return 1;
-    return 0;
-  }
-
-  function startLoadingAnimation() {
-    let step = 0;
-    const interval = setInterval(() => {
-      if (step >= loadingSteps.length - 1) {
-        clearInterval(interval);
-        return;
-      }
-      step += 1;
-      setMessages((m) => replaceLastWorking(m, loadingSteps[step]));
-    }, 3000);
-    return interval;
-  }
-
-  async function startSend() {
-    const text = startInput.trim();
-    const hasFiles = files.length > 0;
-
-    if ((!text && !hasFiles) || busy() || sendInFlightRef.current) return;
-
-    // Multi-file templates (long_template) need the project workspace
-    // Create a project and redirect — generation happens there
-    const tpl = selectedTemplate ? templates.find((t) => t.id === selectedTemplate.id) : null;
-    if (tpl?.isMultiFile) {
-      sendInFlightRef.current = true;
-      setIsSending(true);
-      try {
-        const allowed = await canSendMessage();
-        if (!allowed) return;
-        const { project: newProject } = await createProject({
-          title: text.slice(0, 60) || "Untitled Project",
-          template_id: tpl.id,
-        });
-        if (newProject) {
-          // Store the initial prompt so the project workspace can pick it up
-          sessionStorage.setItem(`project_initial_prompt_${newProject.id}`, text);
-          router.push(`/workspace/${newProject.id}`);
-          return;
-        }
-      } catch { /* fall through */ } finally {
-        sendInFlightRef.current = false;
-        setIsSending(false);
-      }
-    }
-
-    let loadingInterval: ReturnType<typeof setInterval> | null = null;
-    sendInFlightRef.current = true;
-    setIsSending(true);
-    try {
-      const allowed = await canSendMessage();
-      if (!allowed) return;
-
-      setMode("project");
-      setStartInput("");
-      setProjectInput("");
-
-      setMessages((m) => [
-        ...m,
-        { role: "user", content: text || (hasFiles ? `[Sent ${files.length} file(s)]` : "") },
-        { role: "assistant", content: loadingSteps[0] },
-      ]);
-
-      loadingInterval = startLoadingAnimation();
-
-      // Process files
-      const filePayload = await processFilesForPayload(files);
-      setFiles([]);
-      setFileError("");
-
-      const gen = await generateLatexFromPrompt(text, selectedTemplate?.id, undefined, filePayload);
-
-      if (!gen.ok) {
-        setMessages((m) => replaceLastWorking(m, `Error: ${gen.error}`));
-        return;
-      }
-
-      await handleGenerationResult(gen);
-    } catch (e: any) {
-      setMessages((m) => replaceLastWorking(m, `Error: ${e?.message ?? "Send failed."}`));
-    } finally {
-      if (loadingInterval) clearInterval(loadingInterval);
-      sendInFlightRef.current = false;
-      setIsSending(false);
     }
 
     async function projectSend() {
@@ -444,7 +333,7 @@ function WorkspaceContent() {
                             {draft.messages.map((m, idx) => {
                                 const showThinking = m.role === "assistant" && idx === draft.messages.length - 1 && isTransientMsg(m.content);
                                 if (showThinking) return (
-                                    <div key={idx} className="mr-auto max-w-[92%]"><ChatThinkingBubble text={m.content} /></div>
+                                    <div key={idx} className="mr-auto max-w-[92%]"><ChatThinkingBubble text={m.content} steps={thinkingProgressSteps} activeStepIndex={getThinkingStepIndex(m.content)} /></div>
                                 );
                                 return (
                                     <div key={idx} className={["max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed border", m.role === "user" ? "ml-auto bg-white/10 border-white/15" : "mr-auto bg-black/20 border-white/10"].join(" ")}>

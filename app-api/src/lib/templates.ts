@@ -1,17 +1,13 @@
-// app-api/src/lib/templates.ts
-// Instruction-based template system.
-// Templates are defined as structured objects (preamble + style guide + example)
-// instead of static .tex files. The AI uses these to generate complete documents.
+import fs from "fs";
+import path from "path";
 
 export interface TemplateDefinition {
   id: string;
-  /** LaTeX preamble: \documentclass + all \usepackage + custom commands/environments.
-   *  The AI must paste this verbatim before \begin{document}. */
   preamble: string;
-  /** Plain-English instructions for the AI on layout, style, and content conventions. */
   styleGuide: string;
-  /** Short LaTeX snippet (~20 lines) demonstrating the key environments and commands. */
   structureExample: string;
+  isMultiFile?: boolean;
+  scaffoldDir?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -751,6 +747,14 @@ export const TEMPLATE_DEFINITIONS: Record<string, TemplateDefinition> = {
   academic_paper: academicPaper,
   lab_report: labReport,
   data_analysis: dataAnalysis,
+  long_template: {
+    id: "long_template",
+    preamble: "",
+    styleGuide: "Long-form chapter-based structure. AI will update existing scaffold files logic.",
+    structureExample: "",
+    isMultiFile: true,
+    scaffoldDir: "longTemplate",
+  },
 };
 
 export function getTemplateOrThrow(templateId: string): TemplateDefinition {
@@ -766,9 +770,15 @@ export function getTemplateOrThrow(templateId: string): TemplateDefinition {
   return tmpl;
 }
 
+const CONTENT_PLACEHOLDERS = ["{{CONTENT}}", "[CONTENT]", "[[CONTENT]]"];
+
 export function findPlaceholder(templateSrc: string): string | null {
   for (const p of CONTENT_PLACEHOLDERS) if (templateSrc.includes(p)) return p;
   return null;
+}
+
+export function listTemplateIds(): string[] {
+  return Object.keys(TEMPLATE_DEFINITIONS).sort();
 }
 
 /**

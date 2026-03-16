@@ -94,10 +94,54 @@ export function useLatexActions({
         }
     }
 
-    async function compileProject(): Promise<{ ok: boolean }> {
+    async function generateProjectFiles(prompt: string): Promise<
+        { ok: true; files: Record<string, string> } |
+        { ok: true; message: string } |
+        { ok: true; questions: any[]; originalPrompt: string } |
+        { ok: false; error: string }
+    > {
+        try {
+            setIsGenerating(true);
+            const payload: Record<string, unknown> = { prompt };
+            
+            // Send current files as context
+            const existingFiles: Record<string, string> = {};
+            for (const f of outputFiles) {
+                if (f.content.trim()) existingFiles[f.filePath] = f.content;
+            }
+            payload.existingFiles = existingFiles;
+
+            const imageCtx = await getProjectImageContext();
+            if (imageCtx) payload.prompt = `${prompt}\n\n[System context]\n${imageCtx}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
+            const r = await fetch("/api/generate-project", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            const data = await r.json().catch(() => null);
+            if (!r.ok) return { ok: false, error: data?.error ?? "Failed to generate project." };
+            if (data.message) return { ok: true, message: data.message as string };
+            if (data.questions && Array.isArray(data.questions)) return { ok: true, questions: data.questions, originalPrompt: prompt };
+            if (data.files && typeof data.files === "object") return { ok: true, files: data.files as Record<string, string> };
+            return { ok: false, error: "Empty response from project generation." };
+        } catch (e: unknown) {
+            const err = e as Error;
+            return { ok: false, error: err?.name === "AbortError" ? "Timeout (180s)." : (err?.message ?? "Generate error") };
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+
+    async function compileProject(filesOverride?: OutputEntry[]): Promise<{ ok: boolean }> {
         setCompileError(""); setCompileLog("");
         clearCompileError();
-        const texFiles = outputFiles.filter((f) => f.content.trim());
+        const texFiles = (filesOverride ?? outputFiles).filter((f) => f.content.trim());
         if (texFiles.length === 0) { setCompileError("No files to compile."); return { ok: false }; }
 
         try {
@@ -121,7 +165,7 @@ export function useLatexActions({
                 }
             }
 
-            const mainTex = outputFiles.find((f) => f.filePath === "main.tex");
+            const mainTex = (filesOverride ?? outputFiles).find((f) => f.filePath === "main.tex");
             const isMultiFile = texFiles.length > 1;
             const endpoint = isMultiFile ? COMPILE_PROJECT_API_ENDPOINT : COMPILE_API_ENDPOINT;
             const body = isMultiFile
@@ -206,8 +250,11 @@ export function useLatexActions({
 
     return {
         isGenerating,
+        setIsGenerating,
         isCompiling,
+        setIsCompiling,
         isFixing,
+        setIsFixing,
         isSending,
         setIsSending,
         pdfUrl,
@@ -219,6 +266,7 @@ export function useLatexActions({
         sendInFlightRef,
         busy,
         generateLatex,
+        generateProjectFiles,
         compileProject,
         fixWithAI,
     };

@@ -2,7 +2,7 @@
 import express from "express";
 import OpenAI from "openai";
 import path from "path";
-import { loadTemplateOrThrow, findPlaceholder, loadMultiFileTemplate } from "../lib/templates";
+import { getTemplateOrThrow, findPlaceholder, loadMultiFileTemplate } from "../lib/templates";
 import { applyLatexFallbacks, stripMarkdownFences, compileLatexToPdf, compileMultiFileProject } from "../lib/latex";
 import { trimHugeLog } from "../lib/errors";
 

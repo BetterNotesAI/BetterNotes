@@ -9,8 +9,10 @@ import {
     listOutputFiles, saveOutputFile, initializeMultiFileProject,
     type Project, type ProjectFileRecord, type UsageStatus
 } from "@/lib/api";
+import { type User } from "@supabase/supabase-js";
 import { uploadProjectFile, getProjectFileUrl } from "@/lib/storage";
 import FileTree from "@/app/components/FileTree";
+import dynamic from "next/dynamic";
 const PdfViewer = dynamic(() => import("@/app/components/PdfViewer"), { ssr: false });
 import LatexEditor from "@/app/components/LatexEditor";
 import InlineEditMenu from "@/app/components/InlineEditMenu";
@@ -39,11 +41,7 @@ interface OutputEntry {
     dirty: boolean;
 }
 
-const GENERATE_API_ENDPOINT = "/api/generate-latex";
 const GENERATE_PROJECT_API_ENDPOINT = "/api/generate-project";
-const FIX_API_ENDPOINT = "/api/fix-latex";
-const COMPILE_API_ENDPOINT = "/api/compile";
-const COMPILE_PROJECT_API_ENDPOINT = "/api/latex/compile-project";
 
 export default function ProjectWorkspace() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -71,10 +69,13 @@ export default function ProjectWorkspace() {
     // Output files (LaTeX multi-file)
     const {
         outputFiles, activeOutputPath, setActiveOutputPath,
-        updateOutputFile, setOutputFilesFromGeneration,
+        updateOutputFile, setOutputFilesFromGeneration, setOutputFiles,
         addNewOutputFile, deleteOutputEntry,
         saveAllDirty, markAllClean,
     } = useOutputFiles(projectId);
+
+    const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
+    const [showPaywallModal, setShowPaywallModal] = useState(false);
 
     // Chat
     const [messages, setMessages] = useState<Msg[]>([
@@ -107,9 +108,9 @@ export default function ProjectWorkspace() {
 
     // LaTeX actions
     const {
-        isGenerating, isCompiling, isFixing, isSending, setIsSending,
+        isGenerating, setIsGenerating, isCompiling, setIsCompiling, isFixing, setIsFixing, isSending, setIsSending,
         pdfUrl, setPdfUrl, compileError, setCompileError, compileLog, setCompileLog,
-        sendInFlightRef, busy, generateLatex, compileProject, fixWithAI,
+        sendInFlightRef, busy, generateLatex, generateProjectFiles, compileProject, fixWithAI,
     } = useLatexActions({
         outputFiles,
         activeOutputPath,
@@ -130,7 +131,6 @@ export default function ProjectWorkspace() {
     const activeContent = activeEntry?.content ?? "";
     const mainTex = outputFiles.find((f) => f.filePath === "main.tex");
     const anyDirty = outputFiles.some((f) => f.dirty);
-    const busy = () => isSending || isGenerating || isCompiling || isFixing;
     const isLongTemplate = project?.template_id === "long_template";
     const figuresPrefix = isLongTemplate ? "Figures" : "figures";
 
@@ -291,11 +291,26 @@ export default function ProjectWorkspace() {
         return n.startsWith("Working…") || n.startsWith("Working...") || n.startsWith("Generated. Compiling PDF...");
     }
 
+    const thinkingProgressSteps = [
+        { label: "Thinking...", patterns: [/Working…/i, /Working.../i] },
+        { label: "Generating...", patterns: [/generating/i] },
+        { label: "Compiling...", patterns: [/compiling/i] },
+    ];
+
+    function getThinkingStepIndex(content: string) {
+        return thinkingProgressSteps.findIndex(s => s.patterns.some(p => p.test(content)));
+    }
+
+    async function saveAndCompile() {
+        await saveAllDirty();
+        return compileProject();
+    }
+
     function replaceLastWorking(m: Msg[], replacement: string | SurveyMsg): Msg[] {
         const copy = [...m];
         for (let i = copy.length - 1; i >= 0; i--) {
             const msg = copy[i];
-            if (msg.role === "assistant" && isTransientAssistantMessageText(msg.content)) {
+            if (msg.role === "assistant" && isTransientMsg(msg.content)) {
                 copy[i] = typeof replacement === "string"
                     ? { role: "assistant", content: replacement }
                     : replacement;
@@ -341,223 +356,9 @@ export default function ProjectWorkspace() {
     }, [user, router]);
 
     // ═══ Generate ═══
-    async function generateLatex(prompt: string, baseLatex?: string) {
-        try {
-            setIsGenerating(true);
-            const payload: Record<string, unknown> = { prompt };
-            if (project?.template_id) payload.templateId = project.template_id;
-            // Use one-shot template override if set
-            if (templateOverride) payload.templateId = templateOverride;
-            if (baseLatex?.trim()) payload.baseLatex = baseLatex;
-
-            // Inject image awareness
-            const imageCtx = await getProjectImageContext();
-            if (imageCtx) payload.prompt = `${prompt}\n\n[System context]\n${imageCtx}`;
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 180000);
-            const r = await fetch(GENERATE_API_ENDPOINT, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const data = await r.json().catch(() => null);
-            if (!r.ok) return { ok: false as const, error: data?.error ?? "Failed to generate." };
-            if (data.message) return { ok: true as const, message: data.message as string };
-            const latex = (data?.latex ?? "").toString();
-            if (!latex.trim() && !data.message) return { ok: false as const, error: "Empty response." };
-            return { ok: true as const, latex };
-        } catch (e: unknown) {
-            const err = e as Error;
-            return { ok: false as const, error: err?.name === "AbortError" ? "Timeout (180s)." : (err?.message ?? "Generate error") };
-        } finally {
-            setIsGenerating(false);
-        }
-    }
 
     // ═══ Generate multi-file project (long template) ═══
-    async function generateProjectFiles(prompt: string): Promise<
-        { ok: true; files: Record<string, string> } |
-        { ok: true; message: string } |
-        { ok: true; questions: SurveyQuestion[]; originalPrompt: string } |
-        { ok: false; error: string }
-    > {
-        try {
-            setIsGenerating(true);
-            const payload: Record<string, unknown> = { prompt };
 
-            // Send current files as context for edits
-            const existingFiles: Record<string, string> = {};
-            for (const f of outputFiles) {
-                if (f.content.trim()) existingFiles[f.filePath] = f.content;
-            }
-            payload.existingFiles = existingFiles;
-
-            // Inject image awareness
-            const imageCtx = await getProjectImageContext();
-            if (imageCtx) payload.prompt = `${prompt}\n\n[System context]\n${imageCtx}`;
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 180000);
-            const r = await fetch(GENERATE_PROJECT_API_ENDPOINT, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const data = await r.json().catch(() => null);
-            if (!r.ok) return { ok: false, error: data?.error ?? "Failed to generate project." };
-            if (data.message) return { ok: true, message: data.message as string };
-            if (data.questions && Array.isArray(data.questions)) return { ok: true, questions: data.questions as SurveyQuestion[], originalPrompt: prompt };
-            if (data.files && typeof data.files === "object") return { ok: true, files: data.files as Record<string, string> };
-            return { ok: false, error: "Empty response from project generation." };
-        } catch (e: unknown) {
-            const err = e as Error;
-            return { ok: false, error: err?.name === "AbortError" ? "Timeout (180s)." : (err?.message ?? "Generate error") };
-        } finally {
-            setIsGenerating(false);
-        }
-    }
-
-    // ═══ Compile (multi-file aware) ═══
-    // Optionally accept files directly to avoid stale-state issues after generation
-    async function compileProjectWithFiles(filesOverride?: OutputEntry[]) {
-        return _compileProject(filesOverride);
-    }
-    async function compileProject() {
-        return _compileProject();
-    }
-    async function _compileProject(filesOverride?: OutputEntry[]) {
-        setCompileError(""); setCompileLog("");
-        const sourceFiles = filesOverride ?? outputFiles;
-
-        // Guard: at least one file must have actual content to compile
-        const hasContent = sourceFiles.some((f) => f.content.trim());
-        if (!hasContent) { setCompileError("No files to compile."); return { ok: false as const }; }
-
-        try {
-            setIsCompiling(true);
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 180000);
-
-            // Build files array for the backend.
-            // Include ALL tracked files — even empty ones — so that \input{} references
-            // in main.tex (e.g. Chapters/Conclusions.tex) are always present on disk
-            // and don't cause a fatal "File not found" LaTeX error.
-            const filesPayload = sourceFiles.map((f) => ({
-                path: f.filePath,
-                content: f.content,
-            }));
-
-            // Add project images as binary files (base64)
-            const images = projectFiles.filter((f) => !f.is_folder && f.mime_type?.startsWith("image/") && f.storage_path);
-            for (const img of images) {
-                const url = await getProjectFileUrl(img.storage_path!);
-                if (url) {
-                    try {
-                        const resp = await fetch(url);
-                        const buf = await resp.arrayBuffer();
-                        const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-                        filesPayload.push({
-                            path: `${figuresPrefix}/${img.name}`,
-                            content: base64,
-                            isBinary: true,
-                        } as { path: string; content: string; isBinary?: boolean });
-                    } catch { /* skip failed images */ }
-                }
-            }
-
-            // Use multi-file endpoint whenever the project tracks more than one file
-            const isMultiFile = sourceFiles.length > 1;
-            const endpoint = isMultiFile ? COMPILE_PROJECT_API_ENDPOINT : COMPILE_API_ENDPOINT;
-            const mainTexContent = sourceFiles.find((f) => f.filePath === "main.tex")?.content;
-            const body = isMultiFile
-                ? { files: filesPayload, mainFile: "main.tex" }
-                : { latex: mainTexContent || filesPayload[0].content };
-
-            const r = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const ct = (r.headers.get("content-type") || "").toLowerCase();
-            if (r.ok && ct.includes("application/pdf")) {
-                const buf = await r.arrayBuffer();
-                if (!buf || buf.byteLength === 0) { setCompileError("Empty PDF."); return { ok: false as const }; }
-                const blob = new Blob([buf], { type: "application/pdf" });
-                setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
-                return { ok: true as const };
-            }
-
-            const data = await r.json().catch(() => null);
-            if (r.ok) {
-                const b64 = (data?.pdfBase64 ?? data?.pdf_base64 ?? data?.pdf ?? "").toString();
-                if (b64.trim()) {
-                    const bin = atob(b64);
-                    const bytes = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                    const blob = new Blob([bytes], { type: "application/pdf" });
-                    setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
-                    return { ok: true as const };
-                }
-            }
-
-            const rawErr = (data?.error ?? "Compilation failed.").toString();
-            const markerIdx = rawErr.indexOf("----- compiler output -----");
-            const message = markerIdx === -1 ? rawErr : rawErr.slice(0, markerIdx).trim();
-            const log = markerIdx === -1 ? "" : rawErr.slice(markerIdx + 27).trim();
-            setCompileError(message || "Compilation failed.");
-            setCompileLog(log || (data?.log ? String(data.log) : ""));
-            return { ok: false as const };
-        } catch (e: unknown) {
-            if ((e as Error)?.name === "AbortError") {
-                setCompileError("Compile request timed out (180s).");
-                return { ok: false as const };
-            }
-            setCompileError((e as Error)?.message || "Compile error");
-            return { ok: false as const };
-        } finally {
-            setIsCompiling(false);
-        }
-    }
-
-    // ═══ Fix with AI ═══
-    async function fixWithAI() {
-        const current = activeEntry?.content || mainTex?.content;
-        if (!current?.trim() || !compileLog.trim()) return;
-        setIsFixing(true);
-        try {
-            const r = await fetch(FIX_API_ENDPOINT, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ latex: current, log: compileLog }),
-            });
-            const data = await r.json().catch(() => null);
-            if (!r.ok) throw new Error(data?.error ?? "Fix failed.");
-            const fixed = (data?.fixedLatex ?? "").toString();
-            if (!fixed.trim()) throw new Error("Empty fix result.");
-            updateOutputFile(activeOutputPath, fixed);
-            setCompileError(""); setCompileLog("");
-            // Recompile after fix
-            const comp = await compileProject();
-            if (comp.ok) {
-                setOutputFiles((prev) => prev.map((f) => ({ ...f, dirty: false })));
-                setMessages((m) => [...m, { role: "assistant", content: "Applied AI fix and recompiled successfully." }]);
-            }
-        } catch (e: unknown) {
-            setCompileError((e as Error)?.message ?? "Fix error");
-        } finally {
-            setIsFixing(false);
-        }
-    }
 
     // ═══ Long-template generation core (shared by handleSend + handleSurveySubmit) ═══
     async function runLongTemplateGeneration(prompt: string) {
@@ -583,7 +384,8 @@ export default function ProjectWorkspace() {
 
         if ("files" in gen && gen.files) {
             const merged = [...outputFiles];
-            for (const [filePath, content] of Object.entries(gen.files)) {
+            const filesObj = gen.files as Record<string, string>;
+            for (const [filePath, content] of Object.entries(filesObj)) {
                 const idx = merged.findIndex((f) => f.filePath === filePath);
                 if (idx >= 0) merged[idx] = { ...merged[idx], content, dirty: false };
                 else merged.push({ filePath, content, dirty: false });
@@ -592,11 +394,11 @@ export default function ProjectWorkspace() {
             setActiveTab("preview");
             setMessages((m) => replaceLastWorking(m, "Generated. Compiling PDF..."));
 
-            const compilePromise = compileProjectWithFiles(merged);
+            const compilePromise = compileProject(merged);
             const savePromise = (async () => {
                 try {
                     await incrementMessageCount();
-                    for (const [filePath, content] of Object.entries(gen.files)) {
+                    for (const [filePath, content] of Object.entries(filesObj)) {
                         await saveOutputFile(projectId, filePath, content);
                     }
                 } catch { /* skip */ }
@@ -780,105 +582,9 @@ export default function ProjectWorkspace() {
                         </svg>
                         {isCompiling ? "Compiling…" : "Compile"}
                     </button>
-
-                {/* Chat messages */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
-                    {messages.map((m, idx) => {
-                        const showThinkingBubble =
-                            m.role === "assistant" &&
-                            idx === messages.length - 1 &&
-                            isTransientAssistantMessageText((m as TextMsg).content);
-
-                        if (showThinkingBubble) {
-                            const tm = m as TextMsg;
-                            return (
-                                <div key={idx} className="mr-auto max-w-[92%]">
-                                    <ChatThinkingBubble
-                                        text={tm.content}
-                                        steps={thinkingProgressSteps}
-                                        activeStepIndex={getThinkingStepIndex(tm.content)}
-                                    />
-                                    <span className="text-xs text-white/30 tabular-nums">/ {pdfNumPages}</span>
-                                    <button onClick={() => { const p = Math.min(pdfNumPages, pdfCurrentPage + 1); setPdfTargetPage(p); }} className="h-6 w-6 flex items-center justify-center rounded text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors" title="Next page">
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-                                    </button>
-                                </div>
-                            );
-                        }
-
-                        // ── Survey message ──
-                        if (m.role === "survey") {
-                            const allAnswered = m.questions.every((q) => surveyAnswers[q.id]);
-                            return (
-                                <div key={idx} className="mr-auto max-w-[96%] w-full rounded-2xl border border-white/10 bg-black/20 p-3 space-y-3">
-                                    <p className="text-[11px] text-white/40 uppercase tracking-wider font-semibold">A few quick questions</p>
-                                    {m.questions.map((q) => (
-                                        <div key={q.id} className="space-y-1.5">
-                                            <p className="text-xs text-white/80">{q.question}</p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {q.options.map((opt) => (
-                                                    <button
-                                                        key={opt}
-                                                        disabled={!!m.answered}
-                                                        onClick={() => setSurveyAnswers((prev) => ({ ...prev, [q.id]: opt }))}
-                                                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                                                            surveyAnswers[q.id] === opt
-                                                                ? "bg-white text-black border-white"
-                                                                : "bg-white/8 text-white/60 border-white/15 hover:bg-white/15"
-                                                        } ${m.answered ? "opacity-40 cursor-default" : "cursor-pointer"}`}
-                                                    >
-                                                        {opt}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {!m.answered && (
-                                        <button
-                                            onClick={() => handleSurveySubmit(m.originalPrompt, surveyAnswers, m.questions)}
-                                            disabled={!allAnswered}
-                                            className={`w-full py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                                                allAnswered
-                                                    ? "bg-white text-black hover:bg-white/90"
-                                                    : "bg-white/8 text-white/25 cursor-not-allowed"
-                                            }`}
-                                        >
-                                            Generate
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        }
-
-                        // ── Text message ──
-                        return (
-                            <div
-                                key={idx}
-                                className={`max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed border ${m.role === "user"
-                                    ? "ml-auto bg-white/10 border-white/15"
-                                    : "mr-auto bg-black/20 border-white/8"
-                                    }`}
-                            >
-                                {m.content}
-                            </div>
-                        );
-                    })}
-                    <div ref={bottomRef} />
                 </div>
 
-                {/* File browser (bottom of left column) */}
-                <div className="h-48 border-t border-white/8 overflow-hidden">
-                    <FileTree
-                        files={projectFiles}
-                        selectedId={selectedFileId}
-                        onSelect={(f) => setSelectedFileId(f.id)}
-                        onDelete={handleDeleteFile}
-                        onNewFolder={handleNewFolder}
-                        onUpload={handleUpload}
-                        title="Project Files"
-                        emptyText="No files uploaded yet"
-                    />
-                </div>
+
 
                 {/* Chat input */}
                 <div className="p-3 border-t border-white/8">
@@ -978,7 +684,7 @@ export default function ProjectWorkspace() {
                                                 {f.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved" />}
                                             </button>
                                             {f.filePath !== "main.tex" && (
-                                                <button onClick={() => deleteOutputEntry(f.filePath)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity flex-shrink-0">
+                                                <button onClick={() => deleteOutputEntry(f.filePath, showConfirm, toast)} className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-red-300 transition-opacity flex-shrink-0">
                                                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                                 </button>
                                             )}
@@ -1074,9 +780,59 @@ export default function ProjectWorkspace() {
                 {/* Chat messages */}
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
                     {messages.map((m, idx) => {
-                        const showThinking = m.role === "assistant" && idx === messages.length - 1 && isTransientMsg(m.content);
-                        if (showThinking) return <div key={idx} className="mr-auto max-w-[92%]"><ChatThinkingBubble text={m.content} /></div>;
-                        return <ChatMessage key={idx} role={m.role} content={m.content} />;
+                        const showThinking = m.role === "assistant" && idx === messages.length - 1 && isTransientMsg((m as TextMsg).content);
+                        if (showThinking) {
+                            const tm = m as TextMsg;
+                            return (
+                                <div key={idx} className="mr-auto max-w-[92%]">
+                                    <ChatThinkingBubble text={tm.content} steps={thinkingProgressSteps} activeStepIndex={getThinkingStepIndex(tm.content)} />
+                                </div>
+                            );
+                        }
+                        if (m.role === "survey") {
+                            const sm = m as SurveyMsg;
+                            const allAnswered = sm.questions.every((q) => surveyAnswers[q.id]);
+                            return (
+                                <div key={idx} className="mr-auto max-w-[96%] w-full rounded-2xl border border-white/10 bg-black/20 p-3 space-y-3">
+                                    <p className="text-[11px] text-white/40 uppercase tracking-wider font-semibold">A few quick questions</p>
+                                    {sm.questions.map((q) => (
+                                        <div key={q.id} className="space-y-1.5">
+                                            <p className="text-xs text-white/80">{q.question}</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {q.options.map((opt) => (
+                                                    <button
+                                                        key={opt}
+                                                        disabled={!!sm.answered}
+                                                        onClick={() => setSurveyAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                                                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                                            surveyAnswers[q.id] === opt
+                                                                ? "bg-white text-black border-white"
+                                                                : "bg-white/8 text-white/60 border-white/15 hover:bg-white/15"
+                                                        } ${sm.answered ? "opacity-40 cursor-default" : "cursor-pointer"}`}
+                                                    >
+                                                        {opt}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {!sm.answered && (
+                                        <button
+                                            onClick={() => handleSurveySubmit(sm.originalPrompt, surveyAnswers, sm.questions)}
+                                            disabled={!allAnswered}
+                                            className={`w-full py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                                                allAnswered
+                                                    ? "bg-white text-black hover:bg-white/90"
+                                                    : "bg-white/8 text-white/25 cursor-not-allowed"
+                                            }`}
+                                        >
+                                            Generate
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        }
+                        return <ChatMessage key={idx} role={m.role as "user" | "assistant"} content={(m as TextMsg).content} />;
                     })}
                     <div ref={bottomRef} />
                 </div>

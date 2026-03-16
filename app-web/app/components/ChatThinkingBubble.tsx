@@ -4,6 +4,8 @@ import { ThinkingBar } from "@/components/prompt-kit/thinking-bar";
 
 type ChatThinkingBubbleProps = {
   text: string;
+  steps?: { label: string; patterns: RegExp[] }[];
+  activeStepIndex?: number;
   className?: string;
 };
 
