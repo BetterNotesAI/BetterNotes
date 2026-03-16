@@ -484,7 +484,7 @@ function WorkspaceContent() {
             <div className="mx-auto max-w-5xl px-4 pt-16 pb-44">
                 <div className="text-center">
                     <h1 className="mt-6 text-3xl sm:text-5xl font-semibold tracking-tight">What should we build?</h1>
-                    <p className="mt-3 text-white/70">Example: "Generate a formula sheet from my lecture notes (LaTeX + PDF)".</p>
+                    <p className="mt-3 text-white/70">Example: &quot;Generate a formula sheet from my lecture notes (LaTeX + PDF)&quot;.</p>
                 </div>
 
                 <div className="mt-10 mx-auto max-w-3xl rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
