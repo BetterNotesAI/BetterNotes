@@ -5,12 +5,13 @@
 export interface TemplateDef {
   id: string;
   name: string;
-  format: string;
-  publicPath: string;
-  previewPath: string;
-  thumbnailPath: string;
+  format?: string;
+  publicPath?: string;
+  previewPath?: string;
+  thumbnailPath?: string;
   description: string;
   isPro: boolean;
+  category?: string;
   isMultiFile?: boolean;
   scaffoldBasePath?: string;
   scaffoldFiles?: string[];

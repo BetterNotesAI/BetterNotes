@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import type { Template } from "@/lib/templates";
+import type { TemplateDef } from "@/lib/templates";
 
 interface TemplateCardProps {
-  t: Template;
-  onClick?: (template: Template) => void;
+  t: TemplateDef;
+  onClick?: (template: TemplateDef) => void;
 }
 
 export default function TemplateCard({ t, onClick }: TemplateCardProps) {

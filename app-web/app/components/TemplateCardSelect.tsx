@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { Template } from "@/lib/templates";
+import type { TemplateDef } from "@/lib/templates";
 
 export default function TemplateCardSelect({
   t,
@@ -9,7 +9,7 @@ export default function TemplateCardSelect({
   userIsPro = false,
   onProBlocked,
 }: {
-  t: Template;
+  t: TemplateDef;
   selected: boolean;
   onSelect: () => void;
   onPreview?: () => void;
