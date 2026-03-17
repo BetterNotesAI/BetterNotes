@@ -28,7 +28,7 @@ export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
-    const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedFromStorage());
+    const [collapsed, setCollapsed] = useState<boolean>(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
     const [folders, setFolders] = useState<Folder[]>([]);
@@ -74,6 +74,11 @@ export default function Sidebar() {
             }
         );
         return () => subscription.unsubscribe();
+    }, []);
+
+    // Sync collapsed state from localStorage after hydration
+    useEffect(() => {
+        setCollapsed(readCollapsedFromStorage());
     }, []);
 
     // Persist collapsed state to localStorage whenever it changes
