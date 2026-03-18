@@ -141,7 +141,7 @@ export default function DocumentWorkspacePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="h-full bg-[#0a0a0a] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
@@ -149,7 +149,7 @@ export default function DocumentWorkspacePage() {
 
   if (!document) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-gray-500">
+      <div className="h-full bg-[#0a0a0a] flex items-center justify-center text-gray-500">
         <div className="text-center space-y-3">
           <p>Document not found</p>
           <button
@@ -168,7 +168,7 @@ export default function DocumentWorkspacePage() {
   const loadingLabel = getLoadingLabel(generationPhase);
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0a] overflow-hidden">
+    <div className="h-full flex flex-col bg-[#0a0a0a] overflow-hidden">
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 shrink-0">
         <div className="flex items-center gap-3 min-w-0">

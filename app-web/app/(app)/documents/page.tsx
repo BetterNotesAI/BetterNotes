@@ -156,13 +156,20 @@ export default function DocumentsPage() {
     }
   }
 
+  async function handleDeleteDocument(e: React.MouseEvent, docId: string) {
+    e.stopPropagation();
+    if (!confirm('Delete this document? This cannot be undone.')) return;
+    await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+  }
+
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="h-full overflow-y-auto bg-[#0a0a0a] text-white">
       {/* Header */}
       <div className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">My Documents</h1>
@@ -217,21 +224,27 @@ export default function DocumentsPage() {
             {documents.map((doc) => {
               const statusInfo = STATUS_LABELS[doc.status] ?? { label: doc.status, color: 'text-gray-500' };
               return (
-                <button
+                <div
                   key={doc.id}
+                  className="relative text-left bg-gray-900/60 border border-gray-800 rounded-xl p-4
+                    hover:border-gray-600 hover:bg-gray-900 transition-all group cursor-pointer"
                   onClick={() => router.push(`/documents/${doc.id}`)}
-                  className="text-left bg-gray-900/60 border border-gray-800 rounded-xl p-4
-                    hover:border-gray-600 hover:bg-gray-900 transition-all group"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="text-sm font-semibold text-white truncate pr-2 leading-snug">
                       {doc.title}
                     </h3>
-                    {doc.is_starred && (
-                      <svg className="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    <button
+                      onClick={(e) => handleDeleteDocument(e, doc.id)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-0.5 rounded"
+                      aria-label="Delete document"
+                      title="Delete"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
-                    )}
+                    </button>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">
                     {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
@@ -244,7 +257,7 @@ export default function DocumentsPage() {
                       {formatDate(doc.updated_at)}
                     </span>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
