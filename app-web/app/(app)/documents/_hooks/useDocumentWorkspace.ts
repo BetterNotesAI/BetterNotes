@@ -13,10 +13,21 @@ export interface DocumentData {
   updated_at: string;
 }
 
+export interface VersionMeta {
+  id: string;
+  version_number: number;
+  created_at: string;
+  prompt_used: string | null;
+  compile_status: string;
+}
+
 interface WorkspaceState {
   document: DocumentData | null;
   pdfSignedUrl: string | null;
   latexContent: string | null;
+  versions: VersionMeta[];
+  activeVersionId: string | null;
+  versionNumber: number | null;
   isLoading: boolean;
   isGenerating: boolean;
   error: string | null;
@@ -27,6 +38,9 @@ export function useDocumentWorkspace(documentId: string) {
     document: null,
     pdfSignedUrl: null,
     latexContent: null,
+    versions: [],
+    activeVersionId: null,
+    versionNumber: null,
     isLoading: true,
     isGenerating: false,
     error: null,
@@ -46,10 +60,14 @@ export function useDocumentWorkspace(documentId: string) {
         document: data.document,
         pdfSignedUrl: data.pdfSignedUrl ?? null,
         latexContent: data.latexContent ?? null,
+        versions: data.versions ?? [],
+        activeVersionId: data.activeVersionId ?? null,
+        versionNumber: data.versionNumber ?? null,
         isLoading: false,
       }));
-    } catch (err: any) {
-      setState((s) => ({ ...s, isLoading: false, error: err.message }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setState((s) => ({ ...s, isLoading: false, error: message }));
     }
   }, [documentId]);
 
@@ -88,11 +106,34 @@ export function useDocumentWorkspace(documentId: string) {
       }));
 
       return { versionId: data.versionId as string, pdfSignedUrl: data.pdfSignedUrl as string | null };
-    } catch (err: any) {
-      setState((s) => ({ ...s, isGenerating: false, error: err.message }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Generation failed';
+      setState((s) => ({ ...s, isGenerating: false, error: message }));
       throw err;
     }
   }, [documentId, load]);
+
+  const switchVersion = useCallback(async (versionId: string) => {
+    setState((s) => ({ ...s, isLoading: true }));
+    try {
+      const resp = await fetch(`/api/documents/${documentId}?versionId=${versionId}`);
+      if (!resp.ok) {
+        setState((s) => ({ ...s, isLoading: false }));
+        return;
+      }
+      const data = await resp.json();
+      setState((s) => ({
+        ...s,
+        pdfSignedUrl: data.pdfSignedUrl ?? null,
+        latexContent: data.latexContent ?? null,
+        activeVersionId: data.activeVersionId ?? null,
+        versionNumber: data.versionNumber ?? null,
+        isLoading: false,
+      }));
+    } catch {
+      setState((s) => ({ ...s, isLoading: false }));
+    }
+  }, [documentId]);
 
   const refreshPdfUrl = useCallback(async () => {
     // Reload document to get fresh signed URL
@@ -104,5 +145,6 @@ export function useDocumentWorkspace(documentId: string) {
     generate,
     refreshPdfUrl,
     reload: load,
+    switchVersion,
   };
 }

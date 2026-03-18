@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
+import { VersionSelector } from '../_components/VersionSelector';
 import { useDocumentWorkspace } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
@@ -29,12 +30,15 @@ export default function DocumentWorkspacePage() {
   const {
     document,
     pdfSignedUrl,
-    latexContent,
+    latexContent: _latexContent,
+    versions,
+    activeVersionId,
     isLoading,
     isGenerating,
     error: wsError,
     generate,
     reload: reloadDocument,
+    switchVersion,
   } = useDocumentWorkspace(documentId);
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
@@ -54,7 +58,7 @@ export default function DocumentWorkspacePage() {
     reloadDocument();
   }, [reloadDocument]);
 
-  const { messages, isSending, sendMessage } = useChatMessages({
+  const { messages, isSending, sendMessage, reloadMessages } = useChatMessages({
     documentId,
     onNewVersion: handleNewVersion,
   });
@@ -72,8 +76,7 @@ export default function DocumentWorkspacePage() {
         if (result && 'pdfSignedUrl' in result && result.pdfSignedUrl) {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
-        // Reload messages
-        await reloadDocument();
+        await Promise.all([reloadDocument(), reloadMessages()]);
       } catch {
         // Error is shown via wsError
       }
@@ -87,6 +90,11 @@ export default function DocumentWorkspacePage() {
       }
     }
   }
+
+  const handleSwitchVersion = useCallback(async (versionId: string) => {
+    setCurrentPdfUrl(null);
+    await switchVersion(versionId);
+  }, [switchVersion]);
 
   if (isLoading) {
     return (
@@ -137,6 +145,14 @@ export default function DocumentWorkspacePage() {
           <span className="text-xs bg-gray-800 text-gray-400 rounded px-2 py-0.5 border border-gray-700">
             {templateLabel}
           </span>
+
+          {versions.length > 0 && activeVersionId && (
+            <VersionSelector
+              versions={versions}
+              activeVersionId={activeVersionId}
+              onSwitch={handleSwitchVersion}
+            />
+          )}
 
           {document.status === 'generating' && (
             <span className="text-xs text-blue-400 animate-pulse">Generating...</span>

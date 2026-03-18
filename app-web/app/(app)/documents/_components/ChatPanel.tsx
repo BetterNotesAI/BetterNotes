@@ -7,6 +7,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   version_id?: string | null;
+  version_number?: number | null;
   created_at: string;
 }
 
@@ -16,6 +17,13 @@ interface ChatPanelProps {
   isDraft: boolean;
   onSend: (content: string) => void;
   placeholder?: string;
+}
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder }: ChatPanelProps) {
@@ -79,7 +87,7 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder }:
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
               className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
@@ -89,10 +97,23 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder }:
               }`}
             >
               <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-              {msg.role === 'assistant' && msg.version_id && (
-                <p className="text-xs text-gray-500 mt-1">Document updated</p>
-              )}
             </div>
+
+            {msg.role === 'assistant' && msg.version_id && (
+              <div className="flex items-center gap-1 mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs text-teal-400 bg-teal-950/50
+                  rounded px-1.5 py-0.5 border border-teal-900/50">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                  </svg>
+                  Document updated
+                </span>
+              </div>
+            )}
+
+            <p className={`text-xs text-gray-600 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+              {formatTime(msg.created_at)}
+            </p>
           </div>
         ))}
 

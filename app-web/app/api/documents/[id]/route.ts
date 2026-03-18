@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
@@ -13,6 +13,8 @@ export async function GET(
   }
 
   const { id: documentId } = await params;
+  const { searchParams } = new URL(req.url);
+  const requestedVersionId = searchParams.get('versionId');
 
   const { data: doc, error: docError } = await supabase
     .from('documents')
@@ -34,15 +36,26 @@ export async function GET(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
+  // Load version metadata list (no PDF URLs — caller fetches individually when needed)
+  const { data: versions } = await supabase
+    .from('document_versions')
+    .select('id, version_number, created_at, prompt_used, compile_status')
+    .eq('document_id', documentId)
+    .order('version_number', { ascending: false });
+
   let pdfSignedUrl: string | null = null;
   let latexContent: string | null = null;
   let versionNumber: number | null = null;
+  let activeVersionId: string | null = null;
 
-  if (doc.current_version_id) {
+  const targetVersionId = requestedVersionId ?? doc.current_version_id;
+
+  if (targetVersionId) {
     const { data: version } = await supabase
       .from('document_versions')
       .select('id, latex_content, pdf_storage_path, version_number')
-      .eq('id', doc.current_version_id)
+      .eq('id', targetVersionId)
+      .eq('document_id', documentId)
       .maybeSingle();
 
     if (version?.pdf_storage_path) {
@@ -52,6 +65,7 @@ export async function GET(
       pdfSignedUrl = signedUrlData?.signedUrl ?? null;
       latexContent = version.latex_content;
       versionNumber = version.version_number;
+      activeVersionId = version.id;
     }
   }
 
@@ -60,6 +74,8 @@ export async function GET(
     pdfSignedUrl,
     latexContent,
     versionNumber,
+    activeVersionId,
+    versions: versions ?? [],
   });
 }
 
