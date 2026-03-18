@@ -53,3 +53,4 @@ yarn-error.log*
 # claude 
 .claude
 prompt.txt
+.mcp.json
