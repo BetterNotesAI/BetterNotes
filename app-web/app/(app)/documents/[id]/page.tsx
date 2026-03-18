@@ -1,10 +1,12 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { VersionSelector } from '../_components/VersionSelector';
+import { UsageBanner } from '../_components/UsageBanner';
+import { UpgradeModal } from '../_components/UpgradeModal';
 import { useDocumentWorkspace } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
@@ -43,6 +45,25 @@ export default function DocumentWorkspacePage() {
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
   const [isChatGenerating, setIsChatGenerating] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
+  const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
+
+  useEffect(() => {
+    async function loadUsage() {
+      try {
+        const resp = await fetch('/api/usage');
+        if (resp.ok) {
+          const data = await resp.json();
+          setUsageRemaining(data.remaining ?? null);
+          setUsagePlan(data.plan ?? null);
+        }
+      } catch {
+        // Non-fatal — usage banner is optional
+      }
+    }
+    loadUsage();
+  }, []);
 
   // Use the PDF URL from workspace or the one updated by chat
   const activePdfUrl = currentPdfUrl ?? pdfSignedUrl;
@@ -66,6 +87,12 @@ export default function DocumentWorkspacePage() {
   const isDraft = document?.status === 'draft';
   const isDocumentGenerating = isGenerating || document?.status === 'generating';
 
+  function isLimitReachedError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    const msg = err.message.toLowerCase();
+    return msg === 'limit_reached' || msg.includes('limit_reached');
+  }
+
   async function handleSend(content: string) {
     if (!document) return;
 
@@ -77,14 +104,21 @@ export default function DocumentWorkspacePage() {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
-      } catch {
-        // Error is shown via wsError
+      } catch (err: unknown) {
+        if (isLimitReachedError(err)) {
+          setShowUpgradeModal(true);
+        }
+        // Other errors are shown via wsError from the hook
       }
     } else {
       // Chat refinement
       setIsChatGenerating(true);
       try {
         await sendMessage(content);
+      } catch (err: unknown) {
+        if (isLimitReachedError(err)) {
+          setShowUpgradeModal(true);
+        }
       } finally {
         setIsChatGenerating(false);
       }
@@ -179,10 +213,15 @@ export default function DocumentWorkspacePage() {
       </header>
 
       {/* Error banner */}
-      {wsError && (
+      {wsError && !showUpgradeModal && (
         <div className="px-4 py-2 bg-red-950/50 border-b border-red-900 text-red-400 text-sm">
           {wsError}
         </div>
+      )}
+
+      {/* Usage banner — shown when ≤5 generations remain on free plan */}
+      {usagePlan === 'free' && usageRemaining !== null && usageRemaining <= 5 && (
+        <UsageBanner remaining={usageRemaining} />
       )}
 
       {/* Main content: PDF viewer + Chat */}
@@ -205,6 +244,12 @@ export default function DocumentWorkspacePage() {
           />
         </div>
       </div>
+
+      {/* Upgrade modal — triggered on 402 responses */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+      />
     </div>
   );
 }

@@ -17,7 +17,7 @@ export async function POST(
 
   const { id: documentId } = await params;
 
-  // Load document and verify ownership
+  // Verify ownership BEFORE consuming usage quota
   const { data: doc, error: docError } = await supabase
     .from('documents')
     .select('id, template_id, title, status, current_version_id')
@@ -27,6 +27,17 @@ export async function POST(
 
   if (docError || !doc) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+  }
+
+  // Check and increment usage limit before any expensive work
+  const { data: usageCheck } = await supabase.rpc('check_and_increment_usage', {
+    p_user_id: user.id,
+  });
+  if (!usageCheck?.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck?.plan ?? 'free', remaining: 0 },
+      { status: 402 }
+    );
   }
 
   const body = await req.json().catch(() => ({}));
@@ -171,20 +182,6 @@ export async function POST(
       version_id: version.id,
     },
   ]);
-
-  // Increment message usage
-  const periodStart = new Date();
-  periodStart.setDate(1);
-  periodStart.setHours(0, 0, 0, 0);
-
-  try {
-    await supabase.rpc('increment_message_count', {
-      p_user_id: user.id,
-      p_period_start: periodStart.toISOString(),
-    });
-  } catch {
-    // Non-fatal if RPC doesn't exist yet
-  }
 
   return NextResponse.json({
     documentId,

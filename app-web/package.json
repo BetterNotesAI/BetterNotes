@@ -15,7 +15,8 @@
     "next": "^15.0.0",
     "pdfjs-dist": "^3.11.174",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "@types/node": "^20",

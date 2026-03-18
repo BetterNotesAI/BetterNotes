@@ -74,6 +74,17 @@ export async function POST(
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
   }
 
+  // Check and increment usage limit before calling app-api
+  const { data: usageCheck } = await supabase.rpc('check_and_increment_usage', {
+    p_user_id: user.id,
+  });
+  if (!usageCheck?.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck?.plan ?? 'free', remaining: 0 },
+      { status: 402 }
+    );
+  }
+
   // Load current latex if available
   let baseLatex: string | undefined;
   if (doc.current_version_id) {
@@ -228,19 +239,6 @@ export async function POST(
     content: 'Document updated.',
     version_id: version.id,
   });
-
-  // Increment usage (non-fatal)
-  const periodStart = new Date();
-  periodStart.setDate(1);
-  periodStart.setHours(0, 0, 0, 0);
-  try {
-    await supabase.rpc('increment_message_count', {
-      p_user_id: user.id,
-      p_period_start: periodStart.toISOString(),
-    });
-  } catch {
-    // Non-fatal
-  }
 
   return NextResponse.json({
     versionId: version.id,
