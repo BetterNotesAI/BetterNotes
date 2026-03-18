@@ -17,6 +17,7 @@ interface ChatPanelProps {
   isDraft: boolean;
   onSend: (content: string) => void;
   placeholder?: string;
+  loadingLabel?: string;
 }
 
 function formatTime(dateStr: string): string {
@@ -26,7 +27,7 @@ function formatTime(dateStr: string): string {
   return `${hours}:${minutes}`;
 }
 
-export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder }: ChatPanelProps) {
+export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, loadingLabel }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -125,6 +126,9 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder }:
                 <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
+              {loadingLabel && (
+                <p className="text-xs text-gray-500 mt-1.5">{loadingLabel}</p>
+              )}
             </div>
           </div>
         )}

@@ -5,9 +5,20 @@ import { useEffect, useRef, useState } from 'react';
 interface PdfViewerProps {
   url: string | null;
   isLoading?: boolean;
+  loadingLabel?: string;
 }
 
-export function PdfViewer({ url, isLoading }: PdfViewerProps) {
+const PHASES = ['Asking AI', 'Compiling', 'Finalizing'] as const;
+
+function getActivePhase(label: string | undefined): number {
+  if (!label) return 0;
+  if (label.includes('AI')) return 0;
+  if (label.includes('Compiling')) return 1;
+  if (label.includes('Finalizing')) return 2;
+  return 0;
+}
+
+export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
@@ -43,22 +54,34 @@ export function PdfViewer({ url, isLoading }: PdfViewerProps) {
     };
   }, [url]);
 
-  // Revoke previous object URL when it changes
+  // Revoke previous object URL when it changes to avoid memory leaks
   useEffect(() => {
     return () => {
       if (objectUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(objectUrl);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [objectUrl]);
 
   if (isLoading) {
+    const activePhase = getActivePhase(loadingLabel);
     return (
       <div className="flex-1 flex items-center justify-center bg-[#111] text-gray-500">
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-3 w-56">
           <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Generating your document...</p>
+          <p className="text-sm">{loadingLabel ?? 'Generating your document...'}</p>
+          <div className="flex gap-1 mt-3">
+            {PHASES.map((phase, i) => (
+              <div key={phase} className="flex-1 flex flex-col items-center gap-1">
+                <div className={`h-1 w-full rounded-full transition-colors ${
+                  i <= activePhase ? 'bg-blue-500' : 'bg-gray-800'
+                }`} />
+                <span className={`text-xs ${
+                  i === activePhase ? 'text-gray-400' : 'text-gray-700'
+                }`}>{phase}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );

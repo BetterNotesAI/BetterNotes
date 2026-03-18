@@ -12,7 +12,7 @@ export interface TemplateMeta {
 
 interface TemplateSelectorProps {
   templates: TemplateMeta[];
-  onSelect: (templateId: string) => void;
+  onChoose: (templateId: string) => void;
   isLoading?: boolean;
 }
 
@@ -31,14 +31,14 @@ const TEMPLATE_COLORS: Record<string, string> = {
   long_template: 'from-gray-800 to-gray-700',
 };
 
-export function TemplateSelector({ templates, onSelect, isLoading }: TemplateSelectorProps) {
+export function TemplateSelector({ templates, onChoose, isLoading }: TemplateSelectorProps) {
   const [selected, setSelected] = useState<string | null>(null);
 
   const free = templates.filter((t) => !t.isPro);
   const pro = templates.filter((t) => t.isPro);
 
   function handleConfirm() {
-    if (selected) onSelect(selected);
+    if (selected) onChoose(selected);
   }
 
   return (

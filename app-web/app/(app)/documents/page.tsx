@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TemplateSelector, type TemplateMeta } from './_components/TemplateSelector';
+import { SpecsModal } from './_components/SpecsModal';
+import { DocumentSpecs } from './_types';
 
 interface Document {
   id: string;
@@ -49,12 +51,56 @@ const TEMPLATES: TemplateMeta[] = [
   { id: 'data_analysis', displayName: 'Data Analysis Report', description: 'Statistics or ML report with Python code listings, results tables, and math.', isPro: true },
 ];
 
+interface SpecsStep {
+  id: string;
+  displayName: string;
+  description: string;
+}
+
+const ONBOARDING_STEPS = [
+  {
+    step: '1',
+    title: 'Choose a template',
+    desc: '10 academic templates — cheat sheets, notes, problem sets',
+    icon: (
+      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+      </svg>
+    ),
+  },
+  {
+    step: '2',
+    title: 'Describe the content',
+    desc: 'Tell the AI what to fill in — topic, examples, formulas',
+    icon: (
+      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+  },
+  {
+    step: '3',
+    title: 'Download your PDF',
+    desc: 'Print-ready in seconds, refine with follow-up messages',
+    icon: (
+      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+    ),
+  },
+];
+
 export default function DocumentsPage() {
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [specsStep, setSpecsStep] = useState<SpecsStep | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -73,18 +119,38 @@ export default function DocumentsPage() {
     }
   }
 
-  async function handleSelectTemplate(templateId: string) {
+  function handleCloseModal() {
+    setShowNewDocModal(false);
+    setSpecsStep(null);
+  }
+
+  function handleChooseTemplate(templateId: string) {
+    const template = TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+    setSpecsStep({
+      id: template.id,
+      displayName: template.displayName,
+      description: template.description,
+    });
+  }
+
+  async function handleConfirmWithSpecs(templateId: string, specs: DocumentSpecs) {
     setIsCreating(true);
+    setCreateError(null);
     try {
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: templateId }),
+        body: JSON.stringify({ template_id: templateId, specs }),
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        router.push(`/documents/${data.document.id}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        setCreateError(data?.error ?? 'Failed to create document. Please try again.');
+        return;
       }
+      router.push(`/documents/${data.document.id}`);
+    } catch {
+      setCreateError('Something went wrong. Please try again.');
     } finally {
       setIsCreating(false);
     }
@@ -119,20 +185,32 @@ export default function DocumentsPage() {
             <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
           </div>
         ) : documents.length === 0 ? (
-          <div
-            onClick={() => setShowNewDocModal(true)}
-            className="border border-dashed border-gray-700 rounded-2xl p-16 text-center cursor-pointer
-              hover:border-gray-500 transition-colors group"
-          >
-            <div className="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center mx-auto mb-4
-              group-hover:bg-gray-700 transition-colors">
-              <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+          /* Onboarding empty state */
+          <div className="text-center py-20">
+            <h2 className="text-2xl font-bold text-white mb-2">Create your first document</h2>
+            <p className="text-gray-500 text-sm mb-10">Let AI generate a print-ready PDF from your notes.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-10">
+              {ONBOARDING_STEPS.map(({ step, icon, title, desc }) => (
+                <div
+                  key={step}
+                  className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 text-left"
+                >
+                  <div className="mb-3">{icon}</div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">Step {step}</p>
+                  <p className="text-sm font-semibold text-white mb-1">{title}</p>
+                  <p className="text-xs text-gray-500">{desc}</p>
+                </div>
+              ))}
             </div>
-            <p className="text-gray-400 font-medium">Create your first document</p>
-            <p className="text-gray-600 text-sm mt-1">Select a template and let AI generate it for you</p>
+
+            <button
+              onClick={() => setShowNewDocModal(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl
+                transition-colors text-sm"
+            >
+              Get started
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -169,32 +247,19 @@ export default function DocumentsPage() {
                 </button>
               );
             })}
-
-            {/* New document card */}
-            <button
-              onClick={() => setShowNewDocModal(true)}
-              className="text-left border border-dashed border-gray-800 rounded-xl p-4
-                hover:border-gray-600 transition-all flex items-center justify-center gap-2
-                text-gray-600 hover:text-gray-400 min-h-[100px]"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="text-sm">New document</span>
-            </button>
           </div>
         )}
       </div>
 
-      {/* Template selector modal */}
+      {/* New Document modal — 2-step flow */}
       {showNewDocModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+          <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
               <h2 className="text-lg font-bold text-white">New Document</h2>
               <button
-                onClick={() => setShowNewDocModal(false)}
+                onClick={handleCloseModal}
                 className="text-gray-500 hover:text-gray-300 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,13 +267,32 @@ export default function DocumentsPage() {
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              <TemplateSelector
-                templates={TEMPLATES}
-                onSelect={handleSelectTemplate}
-                isLoading={isCreating}
-              />
-            </div>
+
+            {specsStep === null ? (
+              /* Step 1 — Template selector */
+              <div className="flex-1 overflow-y-auto">
+                <TemplateSelector
+                  templates={TEMPLATES}
+                  onChoose={handleChooseTemplate}
+                  isLoading={isCreating}
+                />
+              </div>
+            ) : (
+              /* Step 2 — Specs modal */
+              <div className="flex-1 overflow-y-auto">
+                {createError && (
+                  <p className="mx-6 mt-4 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
+                    {createError}
+                  </p>
+                )}
+                <SpecsModal
+                  template={specsStep}
+                  onConfirm={(specs) => handleConfirmWithSpecs(specsStep.id, specs)}
+                  onBack={() => { setSpecsStep(null); setCreateError(null); }}
+                  isLoading={isCreating}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

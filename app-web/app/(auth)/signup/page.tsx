@@ -5,6 +5,19 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+function humanizeAuthError(message: string): string {
+  if (message.includes('Invalid login credentials')) {
+    return 'Incorrect email or password'
+  }
+  if (message.includes('Email not confirmed')) {
+    return 'Please verify your email before signing in'
+  }
+  if (message.includes('User already registered')) {
+    return 'An account with this email already exists'
+  }
+  return 'Something went wrong, please try again'
+}
+
 export default function SignupPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -28,7 +41,7 @@ export default function SignupPage() {
     })
 
     if (error) {
-      setError(error.message)
+      setError(humanizeAuthError(error.message))
       setLoading(false)
       return
     }
@@ -50,7 +63,7 @@ export default function SignupPage() {
     })
 
     if (error) {
-      setError(error.message)
+      setError(humanizeAuthError(error.message))
       setLoading(false)
     }
   }
@@ -80,9 +93,30 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-sm text-gray-400 mt-1">Start generating study documents</p>
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors mb-6"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+              />
+            </svg>
+            Back to home
+          </Link>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white">Create your account</h1>
+            <p className="text-sm text-gray-400 mt-1">Start generating study documents</p>
+          </div>
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">

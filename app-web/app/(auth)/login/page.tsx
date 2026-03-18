@@ -5,6 +5,19 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+function humanizeAuthError(message: string): string {
+  if (message.includes('Invalid login credentials')) {
+    return 'Incorrect email or password'
+  }
+  if (message.includes('Email not confirmed')) {
+    return 'Please verify your email before signing in'
+  }
+  if (message.includes('User already registered')) {
+    return 'An account with this email already exists'
+  }
+  return 'Something went wrong, please try again'
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -21,13 +34,13 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(error.message)
+      setError(humanizeAuthError(error.message))
       setLoading(false)
       return
     }
 
-    router.push('/documents')
     router.refresh()
+    router.push('/documents')
   }
 
   async function handleGoogleLogin() {
@@ -43,7 +56,7 @@ export default function LoginPage() {
     })
 
     if (error) {
-      setError(error.message)
+      setError(humanizeAuthError(error.message))
       setLoading(false)
     }
   }
@@ -51,9 +64,30 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-          <p className="text-sm text-gray-400 mt-1">Sign in to BetterNotes</p>
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors mb-6"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+              />
+            </svg>
+            Back to home
+          </Link>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white">Welcome back</h1>
+            <p className="text-sm text-gray-400 mt-1">Sign in to BetterNotes</p>
+          </div>
         </div>
 
         <form onSubmit={handleEmailLogin} className="space-y-4">
@@ -140,7 +174,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-center text-sm text-gray-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/signup" className="text-blue-400 hover:text-blue-300">
             Sign up
           </Link>

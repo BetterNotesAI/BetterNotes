@@ -21,6 +21,8 @@ export interface VersionMeta {
   compile_status: string;
 }
 
+export type GenerationPhase = 'calling_ai' | 'compiling' | 'uploading' | null;
+
 interface WorkspaceState {
   document: DocumentData | null;
   pdfSignedUrl: string | null;
@@ -30,7 +32,16 @@ interface WorkspaceState {
   versionNumber: number | null;
   isLoading: boolean;
   isGenerating: boolean;
+  generationPhase: GenerationPhase;
   error: string | null;
+}
+
+function humanizeError(msg: string): string {
+  if (msg.includes('limit_reached')) return 'Monthly generation limit reached. Upgrade to Pro for unlimited generations.';
+  if (msg.includes('compile') || msg.includes('LaTeX')) return 'PDF compilation failed. The AI will try to fix it automatically next time.';
+  if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) return 'The generation service is taking too long. Please try again.';
+  if (msg.includes('template')) return 'Template not found. Please refresh and try again.';
+  return 'Something went wrong. Please try again.';
 }
 
 export function useDocumentWorkspace(documentId: string) {
@@ -43,6 +54,7 @@ export function useDocumentWorkspace(documentId: string) {
     versionNumber: null,
     isLoading: true,
     isGenerating: false,
+    generationPhase: null,
     error: null,
   });
 
@@ -76,7 +88,7 @@ export function useDocumentWorkspace(documentId: string) {
   }, [load]);
 
   const generate = useCallback(async (prompt: string, files?: unknown[]) => {
-    setState((s) => ({ ...s, isGenerating: true, error: null }));
+    setState((s) => ({ ...s, isGenerating: true, generationPhase: 'calling_ai', error: null }));
     try {
       const resp = await fetch(`/api/documents/${documentId}/generate`, {
         method: 'POST',
@@ -90,11 +102,15 @@ export function useDocumentWorkspace(documentId: string) {
         throw new Error(data?.error ?? 'Generation failed');
       }
 
+      setState((s) => ({ ...s, generationPhase: 'compiling' }));
+
       if (data.message) {
         // AI replied with a chat message, not a document
-        setState((s) => ({ ...s, isGenerating: false }));
+        setState((s) => ({ ...s, isGenerating: false, generationPhase: null }));
         return { message: data.message as string };
       }
+
+      setState((s) => ({ ...s, generationPhase: 'uploading' }));
 
       // Reload the document to get updated state
       await load();
@@ -103,12 +119,14 @@ export function useDocumentWorkspace(documentId: string) {
         pdfSignedUrl: data.pdfSignedUrl ?? s.pdfSignedUrl,
         latexContent: data.latex ?? s.latexContent,
         isGenerating: false,
+        generationPhase: null,
       }));
 
       return { versionId: data.versionId as string, pdfSignedUrl: data.pdfSignedUrl as string | null };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Generation failed';
-      setState((s) => ({ ...s, isGenerating: false, error: message }));
+      const raw = err instanceof Error ? err.message : 'Generation failed';
+      const message = humanizeError(raw);
+      setState((s) => ({ ...s, isGenerating: false, generationPhase: null, error: message }));
       throw err;
     }
   }, [documentId, load]);

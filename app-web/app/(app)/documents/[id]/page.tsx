@@ -7,7 +7,7 @@ import { ChatPanel } from '../_components/ChatPanel';
 import { VersionSelector } from '../_components/VersionSelector';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
-import { useDocumentWorkspace } from '../_hooks/useDocumentWorkspace';
+import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
 const TEMPLATE_LABELS: Record<string, string> = {
@@ -24,6 +24,13 @@ const TEMPLATE_LABELS: Record<string, string> = {
   long_template: 'Long Document',
 };
 
+function getLoadingLabel(phase: GenerationPhase): string | undefined {
+  if (phase === 'calling_ai') return 'Asking the AI...';
+  if (phase === 'compiling') return 'Compiling LaTeX...';
+  if (phase === 'uploading') return 'Finalizing PDF...';
+  return undefined;
+}
+
 export default function DocumentWorkspacePage() {
   const params = useParams();
   const router = useRouter();
@@ -37,6 +44,7 @@ export default function DocumentWorkspacePage() {
     activeVersionId,
     isLoading,
     isGenerating,
+    generationPhase,
     error: wsError,
     generate,
     reload: reloadDocument,
@@ -48,6 +56,7 @@ export default function DocumentWorkspacePage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
+  const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
 
   useEffect(() => {
     async function loadUsage() {
@@ -156,15 +165,16 @@ export default function DocumentWorkspacePage() {
 
   const templateLabel = TEMPLATE_LABELS[document.template_id] ?? document.template_id;
   const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
+  const loadingLabel = getLoadingLabel(generationPhase);
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] overflow-hidden">
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => router.push('/documents')}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
             aria-label="Back"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +186,7 @@ export default function DocumentWorkspacePage() {
             {document.title}
           </h1>
 
-          <span className="text-xs bg-gray-800 text-gray-400 rounded px-2 py-0.5 border border-gray-700">
+          <span className="text-xs bg-gray-800 text-gray-400 rounded px-2 py-0.5 border border-gray-700 shrink-0 hidden sm:inline">
             {templateLabel}
           </span>
 
@@ -189,11 +199,11 @@ export default function DocumentWorkspacePage() {
           )}
 
           {document.status === 'generating' && (
-            <span className="text-xs text-blue-400 animate-pulse">Generating...</span>
+            <span className="text-xs text-blue-400 animate-pulse shrink-0">Generating...</span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Download PDF */}
           {activePdfUrl && (
             <a
@@ -206,7 +216,7 @@ export default function DocumentWorkspacePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Download
+              <span className="hidden sm:inline">Download</span>
             </a>
           )}
         </div>
@@ -214,7 +224,7 @@ export default function DocumentWorkspacePage() {
 
       {/* Error banner */}
       {wsError && !showUpgradeModal && (
-        <div className="px-4 py-2 bg-red-950/50 border-b border-red-900 text-red-400 text-sm">
+        <div className="px-4 py-2 bg-red-950/50 border-b border-red-900 text-red-400 text-sm shrink-0">
           {wsError}
         </div>
       )}
@@ -224,23 +234,49 @@ export default function DocumentWorkspacePage() {
         <UsageBanner remaining={usageRemaining} />
       )}
 
+      {/* Mobile tab bar */}
+      <div className="flex md:hidden border-b border-gray-800 shrink-0">
+        <button
+          onClick={() => setMobileTab('pdf')}
+          className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            mobileTab === 'pdf' ? 'text-white border-b-2 border-blue-500' : 'text-gray-500'
+          }`}
+        >
+          Document
+        </button>
+        <button
+          onClick={() => setMobileTab('chat')}
+          className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            mobileTab === 'chat' ? 'text-white border-b-2 border-blue-500' : 'text-gray-500'
+          }`}
+        >
+          Chat
+        </button>
+      </div>
+
       {/* Main content: PDF viewer + Chat */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* PDF Viewer (60%) */}
-        <div className="flex-[3] flex flex-col min-w-0 min-h-0">
+        {/* PDF Viewer — hidden on mobile when chat tab is active */}
+        <div className={`flex-[3] flex-col min-w-0 min-h-0 ${
+          mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
+        }`}>
           <PdfViewer
             url={activePdfUrl}
             isLoading={showGenerating && !activePdfUrl}
+            loadingLabel={loadingLabel}
           />
         </div>
 
-        {/* Chat Panel (40%, ~350px min) */}
-        <div className="flex-[2] min-w-[300px] max-w-[420px] flex flex-col min-h-0">
+        {/* Chat Panel — hidden on mobile when pdf tab is active */}
+        <div className={`flex-[2] flex-col min-h-0 ${
+          mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
+        } md:min-w-[300px] md:max-w-[420px] max-w-none`}>
           <ChatPanel
             messages={messages}
             isLoading={showGenerating}
             isDraft={isDraft}
             onSend={handleSend}
+            loadingLabel={loadingLabel}
           />
         </div>
       </div>
