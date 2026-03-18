@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx supabase:*)",
+      "Bash(python -c \":*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(find C:/Users/pedro/GitHub/BetterNotes/.claude/worktrees/agent-af083bac -name .env* -type f)",
+      "mcp__supabase__list_tables",
+      "Bash(find /c/Users/pedro/GitHub/BetterNotes/app-web -name *[Cc]hat* -o -name *[Cc]omponent*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

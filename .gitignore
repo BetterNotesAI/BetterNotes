@@ -49,8 +49,3 @@ yarn-error.log*
 *.fls
 *.fdb_latexmk
 *.synctex.gz
-
-# claude 
-.claude
-prompt.txt
-.mcp.json
