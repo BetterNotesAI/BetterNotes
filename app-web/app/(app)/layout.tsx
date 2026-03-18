@@ -1,22 +1,19 @@
-import AppBackground from "../components/AppBackground";
-import Sidebar from "../components/Sidebar";
-import SearchModal from "../components/SearchModal";
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="h-screen text-white relative flex flex-col overflow-hidden">
-      <AppBackground />
-      <SearchModal />
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-      <div className="flex flex-1 min-h-0">
-        {/* Phase 2 Sidebar — replaces the old minimal sidebar */}
-        <Sidebar />
+  if (!user) {
+    redirect('/login')
+  }
 
-        {/* Main content area */}
-        <div className="flex-1 overflow-y-auto">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
+  return <>{children}</>
 }
