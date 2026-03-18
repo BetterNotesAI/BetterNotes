@@ -1,0 +1,205 @@
+import { Router, Request, Response } from 'express';
+import { AIProvider } from '../lib/ai/types';
+import { getTemplateOrThrow } from '../lib/templates';
+import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
+import { trimHugeLog } from '../lib/errors';
+
+export interface LatexRouterOptions {
+  aiProvider: AIProvider;
+  latexTimeoutMs: number;
+}
+
+export function createLatexRouter(opts: LatexRouterOptions): Router {
+  const router = Router();
+  const { aiProvider, latexTimeoutMs } = opts;
+
+  // ─── POST /latex/generate-and-compile ───────────────────────────────────────
+  // Generates LaTeX via AI, compiles it, returns PDF as binary.
+  // On compile failure: attempts one AI fix + recompile.
+  router.post('/generate-and-compile', async (req: Request, res: Response) => {
+    try {
+      const { prompt, templateId, baseLatex, files } = req.body as {
+        prompt?: string;
+        templateId?: string;
+        baseLatex?: string;
+        files?: Array<{ type: string; url?: string; data?: string; name: string; mimeType?: string }>;
+      };
+
+      if (!prompt || typeof prompt !== 'string') {
+        res.status(400).json({ ok: false, error: 'prompt is required' });
+        return;
+      }
+      if (!templateId || typeof templateId !== 'string') {
+        res.status(400).json({ ok: false, error: 'templateId is required' });
+        return;
+      }
+
+      const template = getTemplateOrThrow(templateId);
+
+      // Step 1: Generate LaTeX via AI
+      const generated = await aiProvider.generateLatex({
+        prompt,
+        templateId,
+        preamble: template.preamble,
+        styleGuide: template.styleGuide,
+        structureTemplate: template.structureTemplate,
+        structureExample: template.structureExample,
+        baseLatex: baseLatex ?? undefined,
+        files: files ?? [],
+      });
+
+      // If AI responded with a chat message (not a document), return it immediately
+      if (generated.message && !generated.latex) {
+        res.json({ ok: true, message: generated.message });
+        return;
+      }
+
+      if (!generated.latex) {
+        res.status(500).json({ ok: false, error: 'AI did not produce LaTeX output' });
+        return;
+      }
+
+      const latexSource = generated.latex;
+
+      // Step 2: Compile
+      let pdfBuffer: Buffer;
+      let compileLog: string;
+      let latexPatched: string;
+      let finalLatex = latexSource;
+
+      try {
+        const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs });
+        pdfBuffer = result.pdf;
+        compileLog = result.log;
+        latexPatched = result.latexPatched;
+        finalLatex = latexPatched;
+      } catch (compileErr: any) {
+        // Step 3: AI fix attempt
+        const errLog = compileErr?.log ?? compileErr?.message ?? String(compileErr);
+        let fixedLatex: string;
+        try {
+          fixedLatex = await aiProvider.fixLatex({ latex: latexSource, log: errLog });
+          fixedLatex = applyLatexFallbacks(fixedLatex);
+        } catch {
+          res.status(422).json({
+            ok: false,
+            error: 'LaTeX compilation failed and AI fix also failed',
+            compileLog: trimHugeLog(errLog),
+            latex: latexSource,
+          });
+          return;
+        }
+
+        try {
+          const retryResult = await compileLatexToPdf(fixedLatex, { timeoutMs: latexTimeoutMs });
+          pdfBuffer = retryResult.pdf;
+          compileLog = retryResult.log;
+          latexPatched = retryResult.latexPatched;
+          finalLatex = latexPatched;
+        } catch (retryErr: any) {
+          const retryLog = retryErr?.log ?? retryErr?.message ?? String(retryErr);
+          res.status(422).json({
+            ok: false,
+            error: 'LaTeX compilation failed after AI fix attempt',
+            compileLog: trimHugeLog(retryLog),
+            latex: fixedLatex,
+          });
+          return;
+        }
+      }
+
+      // Return PDF binary with latex in header
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Length': String(pdfBuffer!.length),
+        'X-Latex-Length': String(Buffer.byteLength(finalLatex, 'utf8')),
+      });
+      // Encode latex in a separate response field by sending JSON when client wants it.
+      // The standard path: return PDF binary. Caller gets latex via X-Betternotes-Latex header (base64).
+      const latexB64 = Buffer.from(finalLatex, 'utf8').toString('base64');
+      res.set('X-Betternotes-Latex', latexB64);
+      res.send(pdfBuffer!);
+    } catch (err: any) {
+      const status = err?.statusCode ?? err?.status ?? 500;
+      res.status(status).json({
+        ok: false,
+        error: err?.message ?? 'Internal server error',
+        code: err?.code,
+        compileLog: err?.log ? trimHugeLog(err.log) : undefined,
+      });
+    }
+  });
+
+  // ─── POST /latex/compile-only ────────────────────────────────────────────────
+  // Compiles provided LaTeX source, returns PDF binary or error JSON.
+  router.post('/compile-only', async (req: Request, res: Response) => {
+    try {
+      const { latex } = req.body as { latex?: string };
+
+      if (!latex || typeof latex !== 'string') {
+        res.status(400).json({ ok: false, error: 'latex is required' });
+        return;
+      }
+
+      const { pdf, log, latexPatched } = await compileLatexToPdf(latex, { timeoutMs: latexTimeoutMs });
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Length': String(pdf.length),
+        'X-Betternotes-Latex': Buffer.from(latexPatched, 'utf8').toString('base64'),
+      });
+      res.send(pdf);
+    } catch (err: any) {
+      const status = err?.statusCode ?? err?.status ?? 422;
+      res.status(status).json({
+        ok: false,
+        error: err?.message ?? 'Compilation failed',
+        code: err?.code,
+        compileLog: err?.log ? trimHugeLog(err.log) : undefined,
+      });
+    }
+  });
+
+  // ─── POST /latex/fix-latex ───────────────────────────────────────────────────
+  // Uses AI to fix broken LaTeX. Returns fixed source (does not compile).
+  router.post('/fix-latex', async (req: Request, res: Response) => {
+    try {
+      const { latex, log } = req.body as { latex?: string; log?: string };
+
+      if (!latex || typeof latex !== 'string') {
+        res.status(400).json({ ok: false, error: 'latex is required' });
+        return;
+      }
+
+      const fixedLatex = await aiProvider.fixLatex({ latex, log: log ?? '' });
+
+      res.json({ ok: true, fixedLatex });
+    } catch (err: any) {
+      const status = err?.statusCode ?? err?.status ?? 500;
+      res.status(status).json({
+        ok: false,
+        error: err?.message ?? 'Internal server error',
+      });
+    }
+  });
+
+  // ─── GET /latex/templates ────────────────────────────────────────────────────
+  // Returns list of all template definitions (without preamble/structureTemplate for brevity).
+  router.get('/templates', (_req: Request, res: Response) => {
+    try {
+      const { TEMPLATE_DEFINITIONS } = require('../lib/templates');
+      const list = Object.values(TEMPLATE_DEFINITIONS as Record<string, any>).map((t: any) => ({
+        id: t.id,
+        displayName: t.displayName,
+        description: t.description,
+        isPro: t.isPro,
+        isMultiFile: t.isMultiFile ?? false,
+      }));
+      res.json({ ok: true, templates: list });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
+  return router;
+}

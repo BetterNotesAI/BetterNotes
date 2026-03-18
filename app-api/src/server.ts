@@ -2,6 +2,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { createLatexRouter } from './routes/latex';
+import { createAIProvider } from './lib/ai';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -14,5 +16,20 @@ app.use(cors({
 app.use(express.json({ limit: process.env.MAX_JSON_SIZE ?? '20mb' }));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+// AI provider
+const aiProvider = createAIProvider(
+  process.env.AI_PROVIDER ?? 'openai',
+  {
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o',
+  }
+);
+
+// Routers
+app.use('/latex', createLatexRouter({
+  aiProvider,
+  latexTimeoutMs: Number(process.env.LATEX_TIMEOUT_MS ?? 180000),
+}));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));

@@ -1,0 +1,195 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
+const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: documentId } = await params;
+
+  // Load document and verify ownership
+  const { data: doc, error: docError } = await supabase
+    .from('documents')
+    .select('id, template_id, title, status, current_version_id')
+    .eq('id', documentId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (docError || !doc) {
+    return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const { prompt, files } = body as { prompt?: string; files?: unknown[] };
+
+  if (!prompt || typeof prompt !== 'string') {
+    return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+  }
+
+  // Mark document as generating
+  await supabase.from('documents').update({ status: 'generating' }).eq('id', documentId);
+
+  // Call app-api to generate and compile
+  let pdfBuffer: ArrayBuffer;
+  let latexSource: string;
+
+  try {
+    const apiResp = await fetch(`${API_URL}/latex/generate-and-compile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({
+        prompt,
+        templateId: doc.template_id,
+        files: files ?? [],
+      }),
+    });
+
+    if (!apiResp.ok) {
+      const errBody = await apiResp.json().catch(() => ({ error: 'API error' }));
+
+      // If it was a chat message response, relay it
+      if (errBody?.message) {
+        await supabase.from('documents').update({ status: doc.status }).eq('id', documentId);
+        return NextResponse.json({ message: errBody.message });
+      }
+
+      await supabase.from('documents').update({ status: 'error' }).eq('id', documentId);
+      return NextResponse.json(
+        { error: errBody?.error ?? 'Generation failed', compileLog: errBody?.compileLog },
+        { status: apiResp.status }
+      );
+    }
+
+    // Check if it's a chat message (JSON) or PDF (binary)
+    const contentType = apiResp.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const jsonBody = await apiResp.json();
+      if (jsonBody?.message) {
+        await supabase.from('documents').update({ status: doc.status }).eq('id', documentId);
+        return NextResponse.json({ message: jsonBody.message });
+      }
+    }
+
+    pdfBuffer = await apiResp.arrayBuffer();
+
+    // Decode latex from header
+    const latexB64 = apiResp.headers.get('x-betternotes-latex') ?? '';
+    latexSource = latexB64
+      ? Buffer.from(latexB64, 'base64').toString('utf8')
+      : '';
+  } catch (fetchErr: any) {
+    await supabase.from('documents').update({ status: 'error' }).eq('id', documentId);
+    return NextResponse.json({ error: `Failed to reach app-api: ${fetchErr.message}` }, { status: 502 });
+  }
+
+  // Determine next version number
+  const { data: lastVersion } = await supabase
+    .from('document_versions')
+    .select('version_number')
+    .eq('document_id', documentId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const versionNumber = (lastVersion?.version_number ?? 0) + 1;
+
+  // Upload PDF to Supabase Storage
+  const storagePath = `${user.id}/${documentId}/${versionNumber}.pdf`;
+  const { error: uploadError } = await supabase.storage
+    .from('documents-output')
+    .upload(storagePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadError) {
+    await supabase.from('documents').update({ status: 'error' }).eq('id', documentId);
+    return NextResponse.json({ error: `PDF upload failed: ${uploadError.message}` }, { status: 500 });
+  }
+
+  // Create signed URL (1 hour)
+  const { data: signedUrlData } = await supabase.storage
+    .from('documents-output')
+    .createSignedUrl(storagePath, 3600);
+
+  const pdfSignedUrl = signedUrlData?.signedUrl ?? null;
+
+  // Insert document_version
+  const { data: version, error: versionError } = await supabase
+    .from('document_versions')
+    .insert({
+      document_id: documentId,
+      version_number: versionNumber,
+      latex_content: latexSource,
+      pdf_storage_path: storagePath,
+      compile_status: 'success',
+      prompt_used: prompt,
+    })
+    .select('id')
+    .single();
+
+  if (versionError || !version) {
+    return NextResponse.json({ error: `Failed to save version: ${versionError?.message}` }, { status: 500 });
+  }
+
+  // Update document status and current_version_id
+  await supabase
+    .from('documents')
+    .update({
+      status: 'ready',
+      current_version_id: version.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', documentId);
+
+  // Save chat messages
+  await supabase.from('chat_messages').insert([
+    {
+      document_id: documentId,
+      user_id: user.id,
+      role: 'user',
+      content: prompt,
+    },
+    {
+      document_id: documentId,
+      user_id: user.id,
+      role: 'assistant',
+      content: 'Document generated successfully.',
+      version_id: version.id,
+    },
+  ]);
+
+  // Increment message usage
+  const periodStart = new Date();
+  periodStart.setDate(1);
+  periodStart.setHours(0, 0, 0, 0);
+
+  try {
+    await supabase.rpc('increment_message_count', {
+      p_user_id: user.id,
+      p_period_start: periodStart.toISOString(),
+    });
+  } catch {
+    // Non-fatal if RPC doesn't exist yet
+  }
+
+  return NextResponse.json({
+    documentId,
+    versionId: version.id,
+    pdfSignedUrl,
+    latex: latexSource,
+  });
+}
