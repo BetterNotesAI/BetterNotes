@@ -324,11 +324,21 @@ export default function DocumentWorkspacePage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Download PDF */}
+          {/* Download PDF — fetch blob so browser shows Save-As dialog */}
           {activePdfUrl && (
-            <a
-              href={activePdfUrl}
-              download={`${docData.title}.pdf`}
+            <button
+              onClick={async () => {
+                const res = await fetch(activePdfUrl);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${docData.title}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }}
               className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white px-2.5 py-1.5
                 rounded-lg border border-white/15 hover:border-white/30 transition-colors"
             >
@@ -337,7 +347,7 @@ export default function DocumentWorkspacePage() {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               <span className="hidden sm:inline">Download</span>
-            </a>
+            </button>
           )}
         </div>
       </header>
