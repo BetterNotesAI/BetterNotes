@@ -101,11 +101,11 @@ export function Sidebar() {
 
   return (
     <aside
-      className="relative z-40 flex flex-col h-screen border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl shrink-0 transition-[width] duration-200 ease-out"
+      className="relative z-40 flex flex-col h-screen border-r border-white/10 bg-black/40 backdrop-blur-md shrink-0 transition-[width] duration-200 ease-out"
       style={{ width: collapsed ? 64 : 224 }}
     >
       {/* Header: logo + toggle */}
-      <div className={`flex items-center h-14 px-3 border-b border-white/8 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`flex items-center h-14 px-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
         {!collapsed && (
           <Link href="/documents" className="flex items-center gap-2 min-w-0">
             <Image src="/brand/logo.png" alt="BetterNotes" width={28} height={28} className="w-7 h-7 object-contain shrink-0" />
@@ -128,12 +128,12 @@ export function Sidebar() {
             key={`${label}-${href}`}
             href={href}
             title={collapsed ? label : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors ${
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
               isActive(href)
-                ? 'bg-white/12 text-white font-medium'
-                : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -151,10 +151,10 @@ export function Sidebar() {
               <Link
                 key={doc.id}
                 href={`/documents/${doc.id}`}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors truncate ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 truncate ${
                   pathname === `/documents/${doc.id}`
-                    ? 'bg-white/12 text-white'
-                    : 'text-white/55 hover:bg-white/8 hover:text-white/85'
+                    ? 'bg-white/15 text-white border-r-2 border-indigo-400'
+                    : 'text-white/50 hover:bg-white/5 hover:text-white/80'
                 }`}
               >
                 <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/30" />
@@ -166,10 +166,10 @@ export function Sidebar() {
       </nav>
 
       {/* Profile footer */}
-      <div ref={profileRef} className="relative border-t border-white/8 p-2 shrink-0">
+      <div ref={profileRef} className="relative border-t border-white/10 p-2 shrink-0 bg-black/20">
         <button
           onClick={() => setProfileOpen(o => !o)}
-          className={`flex items-center gap-2.5 w-full rounded-xl hover:bg-white/8 transition-colors ${
+          className={`flex items-center gap-2.5 w-full rounded-xl hover:bg-white/10 transition-colors duration-150 ${
             collapsed ? 'justify-center p-2' : 'px-3 py-2.5'
           }`}
         >
@@ -185,7 +185,7 @@ export function Sidebar() {
         </button>
 
         {profileOpen && (
-          <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
+          <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/20 bg-black/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
             <Link
               href="/settings/billing"
               onClick={() => setProfileOpen(false)}

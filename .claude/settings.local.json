@@ -7,7 +7,13 @@
       "Bash(npm run:*)",
       "Bash(find C:/Users/pedro/GitHub/BetterNotes/.claude/worktrees/agent-af083bac -name .env* -type f)",
       "mcp__supabase__list_tables",
-      "Bash(find /c/Users/pedro/GitHub/BetterNotes/app-web -name *[Cc]hat* -o -name *[Cc]omponent*)"
+      "Bash(find /c/Users/pedro/GitHub/BetterNotes/app-web -name *[Cc]hat* -o -name *[Cc]omponent*)",
+      "Bash(git ls-tree:*)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(ls:*)",
+      "Bash(ls /c/Users/pedro/GitHub/BetterNotes/app-web/app/\\\\\\(app\\\\\\)/_hooks/)",
+      "Bash(ls /c/Users/pedro/GitHub/BetterNotes/app-web/app/\\\\\\(app\\\\\\)/documents/)",
+      "Bash(npx tsc:*)"
     ]
   },
   "enabledMcpjsonServers": [

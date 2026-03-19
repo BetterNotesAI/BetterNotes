@@ -4,6 +4,28 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-19 — F2-M2 (parte 2): Elementos visuales pendientes — PDF viewer + Sidebar
+
+### ✅ Completado
+- `app/(app)/documents/[id]/page.tsx`: sistema de 3 vistas en el visor — tabs PDF / LaTeX / Split. Tab activo `bg-white/20`, inactivo `text-white/60 hover:bg-white/10`. Split view 50/50 con `border-r border-white/10`. LaTeX en `<pre>` con `font-mono text-xs text-white/70 overflow-auto`.
+- `app/(app)/_components/Sidebar.tsx`: glassmorphism completo — `bg-black/40 backdrop-blur-md border-r border-white/10`. Item activo: `bg-white/15 border-r-2 border-indigo-400`. Hover: `hover:bg-white/10 hover:text-white`. Footer perfil: `bg-black/20 border-t border-white/10`. Popup perfil: `bg-black/60 backdrop-blur-xl border-white/20`.
+- `app/(app)/documents/page.tsx`: modal "New Document" → `bg-black/60 backdrop-blur-xl border-white/20`
+- `app/(app)/documents/_components/PdfViewer.tsx`: fondos sólidos → `bg-black/40` para que se vea el AppBackground a través
+
+### 🧠 Decisiones tomadas
+- Split view usa `w-1/2` fijo (no flex proporcional) — garantiza widths iguales estables
+- Border activo `border-r-2 border-indigo-400` se oculta en sidebar colapsada (64px) — el `bg-white/15` es suficiente indicador en modo icono
+- `latexContent` viene directamente del hook `useDocumentWorkspace`, se actualiza automáticamente al switchVersion o generar
+
+### ⚠️ Deuda visual conocida (diferida a F2-M5)
+- `DocumentsIcon` en Sidebar.tsx definido pero no usado — limpieza pendiente
+- `bg-gray-800` en barra de progreso de PdfViewer — menor inconsistencia estética, no visual priority
+- Delete de documentos en documents/page.tsx es optimista (no verifica respuesta del servidor) — bug menor pre-existente
+
+### ✅ F2-M2 CERRADO — Todos los elementos visuales implementados
+
+---
+
 ## Sesión 2026-03-19 — F2-M2: Rediseño visual y estructura de navegación
 
 ### ✅ Completado

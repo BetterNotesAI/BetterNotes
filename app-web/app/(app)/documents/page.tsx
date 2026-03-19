@@ -267,7 +267,7 @@ export default function DocumentsPage() {
       {/* New Document modal — 2-step flow */}
       {showNewDocModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-neutral-950/90 border border-white/20 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col backdrop-blur-xl">
+          <div className="bg-black/60 border border-white/20 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col backdrop-blur-xl">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
               <h2 className="text-lg font-semibold text-white">New Document</h2>

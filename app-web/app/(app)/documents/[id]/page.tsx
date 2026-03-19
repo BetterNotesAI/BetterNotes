@@ -10,6 +10,8 @@ import { UpgradeModal } from '../_components/UpgradeModal';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
+type ViewerTab = 'pdf' | 'latex' | 'split';
+
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
   landscape_3col_maths: '3-Col Landscape',
@@ -39,7 +41,7 @@ export default function DocumentWorkspacePage() {
   const {
     document,
     pdfSignedUrl,
-    latexContent: _latexContent,
+    latexContent,
     versions,
     activeVersionId,
     isLoading,
@@ -57,6 +59,7 @@ export default function DocumentWorkspacePage() {
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
+  const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
 
   useEffect(() => {
     async function loadUsage() {
@@ -254,17 +257,63 @@ export default function DocumentWorkspacePage() {
         </button>
       </div>
 
-      {/* Main content: PDF viewer + Chat */}
+      {/* Main content: viewer area + Chat */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* PDF Viewer — hidden on mobile when chat tab is active */}
+
+        {/* Viewer column — hidden on mobile when chat tab is active */}
         <div className={`flex-[3] flex-col min-w-0 min-h-0 ${
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         }`}>
-          <PdfViewer
-            url={activePdfUrl}
-            isLoading={showGenerating && !activePdfUrl}
-            loadingLabel={loadingLabel}
-          />
+
+          {/* Viewer tab bar */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
+            {(['pdf', 'latex', 'split'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setViewerTab(tab)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                  viewerTab === tab
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/60 hover:text-white/80 hover:bg-white/10'
+                }`}
+              >
+                {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
+              </button>
+            ))}
+          </div>
+
+          {/* Viewer body */}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* PDF pane — shown in pdf and split modes */}
+            {(viewerTab === 'pdf' || viewerTab === 'split') && (
+              <div className={`flex flex-col min-h-0 min-w-0 ${
+                viewerTab === 'split' ? 'w-1/2 border-r border-white/10' : 'flex-1'
+              }`}>
+                <PdfViewer
+                  url={activePdfUrl}
+                  isLoading={showGenerating && !activePdfUrl}
+                  loadingLabel={loadingLabel}
+                />
+              </div>
+            )}
+
+            {/* LaTeX pane — shown in latex and split modes */}
+            {(viewerTab === 'latex' || viewerTab === 'split') && (
+              <div className={`flex flex-col min-h-0 min-w-0 bg-black/30 ${
+                viewerTab === 'split' ? 'w-1/2' : 'flex-1'
+              }`}>
+                {latexContent ? (
+                  <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-white/70 leading-relaxed whitespace-pre-wrap break-words">
+                    {latexContent}
+                  </pre>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-white/30 text-sm">
+                    No LaTeX content yet
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Chat Panel — hidden on mobile when pdf tab is active */}

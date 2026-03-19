@@ -49,8 +49,9 @@ _Prioridad: 🔴 Alta_
 - [ ] Landing page rediseñada: página de presentación inicial que ve el usuario al entrar
 - [ ] Flujo de navegación: landing → login → workspace → documents / templates
 - [ ] Sidebar expandible con nombres de los enlaces (no solo iconos) 🟡
-- [ ] Workspace /documents/[id]: recuperar estilo visual del visor de PDF de v1
-- [ ] Revisor valida consistencia visual antes de cerrar milestone
+- [x] Workspace /documents/[id]: recuperar estilo visual del visor de PDF de v1 — 3 tabs PDF/LaTeX/Split implementados
+- [x] Sidebar: glassmorphism coherente con el sistema visual — bg-black/40, border-indigo-400 activo, hover states
+- [x] Revisor valida consistencia visual antes de cerrar milestone — APROBADO CON MEJORAS MENORES
 
 ### F2-M3 — Organización de documentos
 _Prioridad: 🔴/🟡_
