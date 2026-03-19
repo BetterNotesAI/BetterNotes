@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: documentId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,7 +27,7 @@ export async function POST(
   const { data: doc } = await supabase
     .from('documents')
     .select('id')
-    .eq('id', params.id)
+    .eq('id', documentId)
     .eq('user_id', user.id)
     .single();
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -51,7 +52,7 @@ export async function POST(
   const pdfBuffer = await response.arrayBuffer();
 
   // Save new version to Supabase Storage
-  const versionPath = `${user.id}/${params.id}/v_manual_${Date.now()}.pdf`;
+  const versionPath = `${user.id}/${documentId}/v_manual_${Date.now()}.pdf`;
   const { error: uploadError } = await supabase.storage
     .from('documents-output')
     .upload(versionPath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
@@ -64,7 +65,7 @@ export async function POST(
   const { data: version, error: versionError } = await supabase
     .from('document_versions')
     .insert({
-      document_id: params.id,
+      document_id: documentId,
       latex_content: latex,
       pdf_storage_path: versionPath,
       status: 'compiled',
@@ -80,7 +81,7 @@ export async function POST(
   await supabase
     .from('documents')
     .update({ current_version_id: version.id })
-    .eq('id', params.id);
+    .eq('id', documentId);
 
   // Get signed URL
   const { data: signedData } = await supabase.storage
