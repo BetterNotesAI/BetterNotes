@@ -4,7 +4,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
-import { VersionSelector } from '../_components/VersionSelector';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
@@ -52,7 +51,6 @@ export default function DocumentWorkspacePage() {
     error: wsError,
     generate,
     reload: reloadDocument,
-    switchVersion,
   } = useDocumentWorkspace(documentId);
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
@@ -209,11 +207,6 @@ export default function DocumentWorkspacePage() {
     }
   }
 
-  const handleSwitchVersion = useCallback(async (versionId: string) => {
-    setCurrentPdfUrl(null);
-    setCurrentPage(1);
-    await switchVersion(versionId);
-  }, [switchVersion]);
 
   if (isLoading) {
     return (
@@ -266,12 +259,10 @@ export default function DocumentWorkspacePage() {
             {templateLabel}
           </span>
 
-          {versions.length > 0 && activeVersionId && (
-            <VersionSelector
-              versions={versions}
-              activeVersionId={activeVersionId}
-              onSwitch={handleSwitchVersion}
-            />
+          {versions.length > 0 && (
+            <span className="text-xs bg-white/8 text-white/50 rounded px-2 py-0.5 border border-white/15 shrink-0 tabular-nums">
+              v{versions[0]?.version_number ?? 1}
+            </span>
           )}
 
           {docData.status === 'generating' && (

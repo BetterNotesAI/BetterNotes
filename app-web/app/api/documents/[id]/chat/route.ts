@@ -68,7 +68,7 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}));
-  const { content, files } = body as { content?: string; files?: unknown[] };
+  const { content } = body as { content?: string };
 
   if (!content || typeof content !== 'string') {
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
@@ -96,6 +96,28 @@ export async function POST(
     baseLatex = currentVersion?.latex_content ?? undefined;
   }
 
+  // Load attachments from DB and generate short-lived signed URLs (same as generate route)
+  const { data: attachmentRows } = await supabase
+    .from('document_attachments')
+    .select('id, name, storage_path, mime_type')
+    .eq('document_id', documentId);
+
+  const attachmentFiles = await Promise.all(
+    (attachmentRows ?? []).map(async (row) => {
+      const { data: urlData } = await supabase.storage
+        .from('document-attachments')
+        .createSignedUrl(row.storage_path, 60);
+      if (!urlData?.signedUrl) return null;
+      return {
+        name: row.name,
+        mimeType: row.mime_type ?? 'application/octet-stream',
+        url: urlData.signedUrl,
+        embedInPdf: (row.mime_type ?? '').startsWith('image/'),
+      };
+    })
+  );
+  const validAttachments = attachmentFiles.filter(Boolean);
+
   // Save user message
   await supabase.from('chat_messages').insert({
     document_id: documentId,
@@ -122,7 +144,7 @@ export async function POST(
         prompt: content,
         templateId: doc.template_id,
         baseLatex,
-        files: files ?? [],
+        files: validAttachments,
       }),
     });
 
