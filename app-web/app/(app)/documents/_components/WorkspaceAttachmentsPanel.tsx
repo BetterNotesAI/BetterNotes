@@ -274,7 +274,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
   return (
     // shrink-0 so this panel doesn't flex-grow and steal height from ChatPanel
-    <div className="shrink-0 border-b border-white/10">
+    <div className="shrink-0 border-b border-l border-white/10">
       {/* Header — always visible, 44px tall */}
       <button
         onClick={() => setIsOpen((v) => !v)}

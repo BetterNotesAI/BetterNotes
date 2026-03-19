@@ -479,17 +479,19 @@ export default function DocumentWorkspacePage() {
         </div>
 
         {/* Right column: attachments panel + chat — hidden on mobile when pdf tab is active */}
-        <div className={`flex-[2] flex-col min-h-0 ${
+        <div className={`flex-[2] flex-col min-h-0 overflow-hidden ${
           mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
         } md:min-w-[300px] md:max-w-[420px] max-w-none`}>
           <WorkspaceAttachmentsPanel documentId={documentId} />
-          <ChatPanel
-            messages={messages}
-            isLoading={showGenerating}
-            isDraft={isDraft}
-            onSend={handleSend}
-            loadingLabel={loadingLabel}
-          />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ChatPanel
+              messages={messages}
+              isLoading={showGenerating}
+              isDraft={isDraft}
+              onSend={handleSend}
+              loadingLabel={loadingLabel}
+            />
+          </div>
         </div>
       </div>
 
