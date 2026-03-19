@@ -100,6 +100,15 @@ export default function DocumentsPage() {
       .then((r) => r.ok ? r.json() : { folders: [] })
       .then((data) => setFolders(data.folders ?? []))
       .catch(() => {});
+
+    // Handle sidebar folder click when already on /documents (no remount)
+    function handleFolderActivate(e: Event) {
+      const folderId = (e as CustomEvent<{ folderId: string }>).detail.folderId;
+      setActiveFolderId(folderId);
+      localStorage.removeItem('bn_active_folder');
+    }
+    window.addEventListener('folder:activate', handleFolderActivate);
+    return () => window.removeEventListener('folder:activate', handleFolderActivate);
   }, []);
 
   // Re-fetch documents whenever filters change

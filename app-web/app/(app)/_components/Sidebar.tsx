@@ -202,6 +202,7 @@ export function Sidebar() {
                       key={folder.id}
                       onClick={() => {
                         localStorage.setItem('bn_active_folder', folder.id);
+                        window.dispatchEvent(new CustomEvent('folder:activate', { detail: { folderId: folder.id } }));
                         router.push('/documents');
                       }}
                       className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
