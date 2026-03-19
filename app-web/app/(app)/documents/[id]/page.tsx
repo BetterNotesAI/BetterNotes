@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
@@ -53,6 +53,28 @@ export default function DocumentWorkspacePage() {
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
   const [isChatGenerating, setIsChatGenerating] = useState(false);
+  const [isRenamingTitle, setIsRenamingTitle] = useState(false);
+  const [renameTitleValue, setRenameTitleValue] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useLayoutEffect(() => {
+    if (isRenamingTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [isRenamingTitle]);
+
+  const commitTitleRename = useCallback(async () => {
+    const trimmed = renameTitleValue.trim();
+    setIsRenamingTitle(false);
+    if (!trimmed || !docData || trimmed === docData.title) return;
+    await fetch(`/api/documents/${documentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: trimmed }),
+    });
+    reloadDocument();
+  }, [renameTitleValue, docData, documentId, reloadDocument]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
@@ -267,9 +289,29 @@ export default function DocumentWorkspacePage() {
             </svg>
           </button>
 
-          <h1 className="text-sm font-semibold text-white truncate max-w-xs">
-            {docData.title}
-          </h1>
+          {isRenamingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={renameTitleValue}
+              onChange={(e) => setRenameTitleValue(e.target.value)}
+              onBlur={commitTitleRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitTitleRename();
+                if (e.key === 'Escape') setIsRenamingTitle(false);
+              }}
+              className="text-sm font-semibold text-white bg-white/10 border border-indigo-400/60
+                rounded px-2 py-0.5 outline-none max-w-xs w-48 sm:w-64"
+              maxLength={120}
+            />
+          ) : (
+            <h1
+              className="text-sm font-semibold text-white truncate max-w-xs cursor-text select-none"
+              onDoubleClick={() => { setRenameTitleValue(docData.title); setIsRenamingTitle(true); }}
+              title="Double-click to rename"
+            >
+              {docData.title}
+            </h1>
+          )}
 
           <span className="text-xs bg-white/8 text-white/60 rounded px-2 py-0.5 border border-white/15 shrink-0 hidden sm:inline">
             {templateLabel}

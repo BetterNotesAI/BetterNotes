@@ -245,10 +245,28 @@ export function DocumentCard({
 
             {menuOpen && (
               <div
-                className="absolute right-0 bottom-full mb-1 w-44 rounded-xl border border-white/20
+                className="absolute right-0 top-full mt-1 w-44 rounded-xl border border-white/20
                   bg-black/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 z-50"
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Rename */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    setRenameValue(doc.title);
+                    setIsRenaming(true);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/70
+                    hover:bg-white/10 hover:text-white transition-colors text-left"
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  </svg>
+                  Rename
+                </button>
+                <div className="h-px bg-white/10 my-0.5" />
+
                 {/* Move to folder */}
                 {folders.length > 0 && (
                   <>
