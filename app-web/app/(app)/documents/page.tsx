@@ -89,8 +89,13 @@ export default function DocumentsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [specsStep, setSpecsStep] = useState<SpecsStep | null>(null);
 
-  // Initial load: fetch folders once on mount
+  // Initial load: fetch folders + apply folder selected from sidebar (localStorage)
   useEffect(() => {
+    const pendingFolder = localStorage.getItem('bn_active_folder');
+    if (pendingFolder) {
+      setActiveFolderId(pendingFolder);
+      localStorage.removeItem('bn_active_folder');
+    }
     fetch('/api/folders')
       .then((r) => r.ok ? r.json() : { folders: [] })
       .then((data) => setFolders(data.folders ?? []))

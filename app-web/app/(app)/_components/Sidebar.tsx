@@ -71,8 +71,8 @@ export function Sidebar() {
       .catch(() => {});
   }, []);
 
-  // Load folders
-  useEffect(() => {
+  // Load folders (and re-load when FolderPanel dispatches 'folders:updated')
+  function loadFolders() {
     fetch('/api/folders')
       .then(r => r.ok ? r.json() : { folders: [] })
       .then(data => {
@@ -84,6 +84,13 @@ export function Sidebar() {
         setFolders(sorted);
       })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadFolders();
+    window.addEventListener('folders:updated', loadFolders);
+    return () => window.removeEventListener('folders:updated', loadFolders);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close profile menu on outside click
@@ -168,7 +175,7 @@ export function Sidebar() {
         {/* Folders section */}
         {!collapsed && (
           <div className="mt-4">
-            <div className="flex items-center justify-between px-3 py-1.5">
+            <div className="flex items-center px-3 py-1.5">
               <button
                 onClick={() => setFoldersExpanded(e => !e)}
                 className="flex items-center gap-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider hover:text-white/60 transition-colors"
@@ -184,16 +191,6 @@ export function Sidebar() {
                 </svg>
                 Folders
               </button>
-              <Link
-                href="/documents"
-                className="text-white/30 hover:text-white/70 transition-colors p-0.5 rounded"
-                title="Manage folders"
-                aria-label="Go to folders"
-              >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-              </Link>
             </div>
             {foldersExpanded && (
               <div className="space-y-0.5">
@@ -201,20 +198,23 @@ export function Sidebar() {
                   <p className="px-3 py-2 text-xs text-white/30">No folders yet</p>
                 ) : (
                   folders.map(folder => (
-                    <Link
+                    <button
                       key={folder.id}
-                      href="/documents"
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
+                      onClick={() => {
+                        localStorage.setItem('bn_active_folder', folder.id);
+                        router.push('/documents');
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
                     >
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: folder.color ?? '#6366f1' }}
                       />
-                      <span className="flex-1 truncate text-sm">{folder.name}</span>
+                      <span className="flex-1 truncate text-sm text-left">{folder.name}</span>
                       {folder.document_count > 0 && (
                         <span className="shrink-0 text-white/30 text-[10px]">{folder.document_count}</span>
                       )}
-                    </Link>
+                    </button>
                   ))
                 )}
               </div>
