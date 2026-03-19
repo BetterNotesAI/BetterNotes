@@ -77,6 +77,20 @@ export default function DocumentWorkspacePage() {
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Native Ctrl+scroll zoom on PDF pane (passive:false required to preventDefault)
+  const pdfPaneRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = pdfPaneRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => Math.min(200, Math.max(50, z + (e.deltaY < 0 ? 10 : -10))));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
   const handleResizerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
@@ -147,14 +161,6 @@ export default function DocumentWorkspacePage() {
     return msg === 'limit_reached' || msg.includes('limit_reached');
   }
 
-  // Ctrl+scroll zoom on the PDF pane
-  const handlePdfWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setZoom((z) => Math.min(200, Math.max(50, z + (e.deltaY < 0 ? 10 : -10))));
-  }, []);
-
   // --- Task 6c: compile handler ---
   const handleCompile = useCallback(async () => {
     if (!editedLatex || isCompiling) return;
@@ -214,7 +220,7 @@ export default function DocumentWorkspacePage() {
   }
 
 
-  if (isLoading) {
+  if (isLoading && !docData) {
     return (
       <div className="h-full bg-transparent flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
@@ -424,11 +430,11 @@ export default function DocumentWorkspacePage() {
             {/* PDF pane — shown in pdf and split modes */}
             {(viewerTab === 'pdf' || viewerTab === 'split') && (
               <div
+                ref={pdfPaneRef}
                 style={viewerTab === 'split' ? { width: `${splitRatio * 100}%` } : undefined}
                 className={`flex flex-col min-h-0 min-w-0 ${
                   viewerTab === 'split' ? '' : 'flex-1'
                 }`}
-                onWheel={handlePdfWheel}
               >
                 <PdfViewer
                   url={activePdfUrl}
