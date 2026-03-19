@@ -8,23 +8,26 @@ interface Props {
   readOnly?: boolean;
 }
 
-// Token types
-type TokenType = 'command' | 'brace' | 'math' | 'comment' | 'plain';
+// Token types — mirrors v1 color scheme
+type TokenType = 'command' | 'brace' | 'braceContent' | 'math' | 'comment' | 'plain';
 interface Token { type: TokenType; text: string }
 
 function tokenize(src: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
+  let braceDepth = 0;
+
   while (i < src.length) {
     // Comment: % to end of line
     if (src[i] === '%') {
       let j = i + 1;
       while (j < src.length && src[j] !== '\n') j++;
-      if (j < src.length) j++; // include newline
+      if (j < src.length) j++;
       tokens.push({ type: 'comment', text: src.slice(i, j) });
       i = j;
       continue;
     }
+
     // Display math: $$...$$
     if (src[i] === '$' && src[i + 1] === '$') {
       let j = i + 2;
@@ -34,6 +37,7 @@ function tokenize(src: string): Token[] {
       i = j;
       continue;
     }
+
     // Inline math: $...$
     if (src[i] === '$') {
       let j = i + 1;
@@ -43,44 +47,69 @@ function tokenize(src: string): Token[] {
       i = j;
       continue;
     }
-    // \command
+
+    // LaTeX math delimiters: \(...\) and \[...\]
+    if (src[i] === '\\' && i + 1 < src.length && (src[i + 1] === '(' || src[i + 1] === '[')) {
+      const closeChar = src[i + 1] === '(' ? ')' : ']';
+      let j = i + 2;
+      while (j < src.length - 1 && !(src[j] === '\\' && src[j + 1] === closeChar)) j++;
+      if (j < src.length - 1) j += 2;
+      tokens.push({ type: 'math', text: src.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    // \command (after math delimiters so \( \[ are handled above)
     if (src[i] === '\\') {
       let j = i + 1;
       while (j < src.length && /[a-zA-Z*]/.test(src[j])) j++;
-      if (j === i + 1) j++; // single special char like \\
+      if (j === i + 1) j++;
       tokens.push({ type: 'command', text: src.slice(i, j) });
       i = j;
       continue;
     }
-    // Braces
-    if (src[i] === '{' || src[i] === '}') {
-      tokens.push({ type: 'brace', text: src[i] });
+
+    // Opening brace
+    if (src[i] === '{') {
+      tokens.push({ type: 'brace', text: '{' });
+      braceDepth++;
       i++;
       continue;
     }
-    // Plain — accumulate until next special char
+
+    // Closing brace
+    if (src[i] === '}') {
+      if (braceDepth > 0) braceDepth--;
+      tokens.push({ type: 'brace', text: '}' });
+      i++;
+      continue;
+    }
+
+    // Plain text — cyan when inside braces, muted gray at top level
     let j = i + 1;
     while (j < src.length && !['%', '$', '\\', '{', '}'].includes(src[j])) j++;
-    tokens.push({ type: 'plain', text: src.slice(i, j) });
+    tokens.push({ type: braceDepth > 0 ? 'braceContent' : 'plain', text: src.slice(i, j) });
     i = j;
   }
   return tokens;
 }
 
 const COLOR: Record<TokenType, string> = {
-  command: '#fb923c',   // orange
-  brace:   '#64748b',   // slate
-  math:    '#86efac',   // green
-  comment: '#c4b5fd',   // violet
-  plain:   '#e2e8f0',   // light gray
+  command:      '#fb923c',  // orange  — \commands
+  brace:        '#64748b',  // slate   — { }
+  braceContent: '#67e8f9',  // cyan    — {content inside braces}
+  math:         '#86efac',  // green   — $math$ \(...\) \[...\]
+  comment:      '#c4b5fd',  // violet  — % comments
+  plain:        '#94a3b8',  // muted blue-gray — top-level text
 };
 
 const ITALIC: Record<TokenType, boolean> = {
-  command: false,
-  brace: false,
-  math: false,
-  comment: true,
-  plain: false,
+  command:      false,
+  brace:        false,
+  braceContent: false,
+  math:         false,
+  comment:      true,
+  plain:        false,
 };
 
 export function LatexHighlighter({ value, onChange, readOnly = false }: Props) {
