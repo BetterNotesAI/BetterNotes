@@ -26,6 +26,7 @@ export function DocumentFilters({
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
+          style={{ colorScheme: 'dark' }}
           className="appearance-none bg-white/8 hover:bg-white/12 border border-white/15 text-white/80
             text-xs font-medium rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer
             focus:border-white/30 focus:bg-white/12 transition-colors"

@@ -169,6 +169,24 @@ export default function DocumentsPage() {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
   }
 
+  async function handleMoveToFolder(docId: string, folderId: string | null) {
+    await fetch(`/api/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: folderId }),
+    });
+    loadDocuments();
+  }
+
+  async function handleDropDocument(docId: string, folderId: string) {
+    await fetch(`/api/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: folderId }),
+    });
+    loadDocuments();
+  }
+
   // --- New document modal handlers ---
 
   function handleCloseModal() {
@@ -208,8 +226,6 @@ export default function DocumentsPage() {
     }
   }
 
-  const hasFolders = folders.length > 0;
-
   return (
     <div className="h-full flex flex-col overflow-hidden bg-transparent text-white">
       {/* Header */}
@@ -239,15 +255,14 @@ export default function DocumentsPage() {
 
       {/* Content area: folders + documents */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Folder panel — only shown when there are folders */}
-        {hasFolders && (
-          <FolderPanel
-            folders={folders}
-            activeFolderId={activeFolderId}
-            onSelectFolder={setActiveFolderId}
-            onFoldersChange={setFolders}
-          />
-        )}
+        {/* Folder panel — always visible */}
+        <FolderPanel
+          folders={folders}
+          activeFolderId={activeFolderId}
+          onSelectFolder={setActiveFolderId}
+          onFoldersChange={setFolders}
+          onDropDocument={handleDropDocument}
+        />
 
         {/* Documents grid */}
         <div className="flex-1 overflow-y-auto">
@@ -311,6 +326,8 @@ export default function DocumentsPage() {
                     onArchive={(archive) => handleArchive(doc.id, archive)}
                     onDelete={() => handleDelete(doc.id)}
                     onNavigate={() => router.push(`/documents/${doc.id}`)}
+                    folders={folders.map(f => ({ id: f.id, name: f.name, color: f.color }))}
+                    onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
                   />
                 ))}
               </div>

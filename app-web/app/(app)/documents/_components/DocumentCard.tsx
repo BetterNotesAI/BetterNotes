@@ -14,6 +14,12 @@ export interface DocumentItem {
   updated_at: string;
 }
 
+interface FolderOption {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface DocumentCardProps {
   doc: DocumentItem;
   onRename: (newTitle: string) => void;
@@ -21,6 +27,8 @@ interface DocumentCardProps {
   onArchive: (archive: boolean) => void;
   onDelete: () => void;
   onNavigate: () => void;
+  folders: FolderOption[];
+  onMoveToFolder: (folderId: string | null) => void;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -56,10 +64,14 @@ export function DocumentCard({
   onArchive,
   onDelete,
   onNavigate,
+  folders,
+  onMoveToFolder,
 }: DocumentCardProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(doc.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +127,16 @@ export function DocumentCard({
 
   function handleMenuToggle(e: React.MouseEvent) {
     e.stopPropagation();
-    setMenuOpen((o) => !o);
+    setMenuOpen((o) => {
+      if (o) setShowFolderSubmenu(false);
+      return !o;
+    });
+  }
+
+  function handleMoveToFolder(folderId: string | null) {
+    setMenuOpen(false);
+    setShowFolderSubmenu(false);
+    onMoveToFolder(folderId);
   }
 
   function handleArchive(e: React.MouseEvent) {
@@ -133,8 +154,15 @@ export function DocumentCard({
 
   return (
     <div
-      className="relative text-left bg-white/10 border border-white/20 rounded-xl p-4
-        hover:bg-white/15 hover:border-white/30 backdrop-blur transition-all group cursor-pointer"
+      draggable={true}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', doc.id);
+        setIsDragging(true);
+      }}
+      onDragEnd={() => setIsDragging(false)}
+      className={`relative text-left bg-white/10 border border-white/20 rounded-xl p-4
+        hover:bg-white/15 hover:border-white/30 backdrop-blur transition-all group cursor-pointer
+        ${isDragging ? 'opacity-50' : ''}`}
       onClick={() => {
         if (!isRenaming) onNavigate();
       }}
@@ -217,10 +245,64 @@ export function DocumentCard({
 
             {menuOpen && (
               <div
-                className="absolute right-0 bottom-full mb-1 w-36 rounded-xl border border-white/20
+                className="absolute right-0 bottom-full mb-1 w-44 rounded-xl border border-white/20
                   bg-black/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 z-50"
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Move to folder */}
+                {folders.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowFolderSubmenu(s => !s)}
+                      className="flex items-center justify-between gap-2 w-full px-3 py-2 text-xs
+                        text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left"
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                        </svg>
+                        Move to folder
+                      </span>
+                      <svg
+                        className={`w-3 h-3 shrink-0 transition-transform duration-150 ${showFolderSubmenu ? 'rotate-180' : ''}`}
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {showFolderSubmenu && (
+                      <div className="border-t border-white/10 pt-0.5 pb-0.5">
+                        {folders.map(folder => (
+                          <button
+                            key={folder.id}
+                            onClick={() => handleMoveToFolder(folder.id)}
+                            className={`flex items-center gap-2 w-full px-4 py-1.5 text-xs
+                              text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left
+                              ${doc.folder_id === folder.id ? 'opacity-40 pointer-events-none' : ''}`}
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color ?? '#6366f1' }}
+                            />
+                            <span className="truncate">{folder.name}</span>
+                          </button>
+                        ))}
+                        {doc.folder_id !== null && (
+                          <button
+                            onClick={() => handleMoveToFolder(null)}
+                            className="flex items-center gap-2 w-full px-4 py-1.5 text-xs
+                              text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors text-left"
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0 border border-white/30" />
+                            <span>No folder</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div className="h-px bg-white/10 my-0.5" />
+                  </>
+                )}
+
                 <button
                   onClick={handleArchive}
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/70

@@ -15,6 +15,7 @@ interface FolderPanelProps {
   activeFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
   onFoldersChange: (folders: Folder[]) => void;
+  onDropDocument: (docId: string, folderId: string) => void;
 }
 
 export function FolderPanel({
@@ -22,7 +23,9 @@ export function FolderPanel({
   activeFolderId,
   onSelectFolder,
   onFoldersChange,
+  onDropDocument,
 }: FolderPanelProps) {
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -171,13 +174,23 @@ export function FolderPanel({
           <div
             key={folder.id}
             className={`group flex items-center gap-2 w-full px-3 py-2 text-xs rounded-lg mx-1 transition-colors
-              cursor-pointer select-none ${
-              activeFolderId === folder.id
-                ? 'bg-white/15 text-white font-medium'
-                : 'text-white/60 hover:bg-white/8 hover:text-white/80'
+              cursor-pointer select-none border ${
+              dragOverFolderId === folder.id
+                ? 'bg-indigo-500/20 border-indigo-400/50 text-white'
+                : activeFolderId === folder.id
+                ? 'bg-white/15 border-transparent text-white font-medium'
+                : 'text-white/60 hover:bg-white/8 hover:text-white/80 border-transparent'
             }`}
             style={{ width: 'calc(100% - 8px)' }}
             onClick={() => { if (renamingId !== folder.id) onSelectFolder(folder.id); }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(folder.id); }}
+            onDragLeave={() => setDragOverFolderId(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverFolderId(null);
+              const docId = e.dataTransfer.getData('text/plain');
+              if (docId) onDropDocument(docId, folder.id);
+            }}
           >
             {/* Folder color dot */}
             <span
