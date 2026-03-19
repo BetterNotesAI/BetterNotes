@@ -1,12 +1,13 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { VersionSelector } from '../_components/VersionSelector';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
+import { LatexHighlighter } from '../_components/LatexHighlighter';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
@@ -39,7 +40,7 @@ export default function DocumentWorkspacePage() {
   const documentId = params.id as string;
 
   const {
-    document,
+    document: docData,
     pdfSignedUrl,
     latexContent,
     versions,
@@ -60,6 +61,46 @@ export default function DocumentWorkspacePage() {
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
+
+  // --- Task 6: editable LaTeX state ---
+  const [editedLatex, setEditedLatex] = useState<string>('');
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [compileError, setCompileError] = useState<string | null>(null);
+
+  // Sync editedLatex when latexContent from hook changes
+  useEffect(() => {
+    setEditedLatex(latexContent ?? '');
+  }, [latexContent]);
+
+  // --- Task 5: resizable split ---
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const isDragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleResizerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const ratio = (ev.clientX - rect.left) / rect.width;
+      setSplitRatio(Math.min(0.7, Math.max(0.3, ratio)));
+    };
+
+    const onMouseUp = () => {
+      isDragging.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
 
   useEffect(() => {
     async function loadUsage() {
@@ -96,8 +137,8 @@ export default function DocumentWorkspacePage() {
     onNewVersion: handleNewVersion,
   });
 
-  const isDraft = document?.status === 'draft';
-  const isDocumentGenerating = isGenerating || document?.status === 'generating';
+  const isDraft = docData?.status === 'draft';
+  const isDocumentGenerating = isGenerating || docData?.status === 'generating';
 
   function isLimitReachedError(err: unknown): boolean {
     if (!(err instanceof Error)) return false;
@@ -105,8 +146,34 @@ export default function DocumentWorkspacePage() {
     return msg === 'limit_reached' || msg.includes('limit_reached');
   }
 
+  // --- Task 6c: compile handler ---
+  const handleCompile = useCallback(async () => {
+    if (!editedLatex || isCompiling) return;
+    setIsCompiling(true);
+    setCompileError(null);
+    try {
+      const res = await fetch(`/api/documents/${documentId}/compile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latex: editedLatex }),
+      });
+      if (res.ok) {
+        const { pdfUrl } = await res.json();
+        await reloadDocument();
+        if (pdfUrl) setCurrentPdfUrl(pdfUrl);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCompileError(data.error ?? 'Compilation failed');
+      }
+    } catch {
+      setCompileError('Network error — check your connection');
+    } finally {
+      setIsCompiling(false);
+    }
+  }, [editedLatex, isCompiling, documentId, reloadDocument]);
+
   async function handleSend(content: string) {
-    if (!document) return;
+    if (!docData) return;
 
     if (isDraft) {
       // First generation
@@ -150,7 +217,7 @@ export default function DocumentWorkspacePage() {
     );
   }
 
-  if (!document) {
+  if (!docData) {
     return (
       <div className="h-full bg-transparent flex items-center justify-center text-gray-500">
         <div className="text-center space-y-3">
@@ -166,7 +233,7 @@ export default function DocumentWorkspacePage() {
     );
   }
 
-  const templateLabel = TEMPLATE_LABELS[document.template_id] ?? document.template_id;
+  const templateLabel = TEMPLATE_LABELS[docData.template_id] ?? docData.template_id;
   const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
   const loadingLabel = getLoadingLabel(generationPhase);
 
@@ -186,7 +253,7 @@ export default function DocumentWorkspacePage() {
           </button>
 
           <h1 className="text-sm font-semibold text-white truncate max-w-xs">
-            {document.title}
+            {docData.title}
           </h1>
 
           <span className="text-xs bg-white/8 text-white/60 rounded px-2 py-0.5 border border-white/15 shrink-0 hidden sm:inline">
@@ -201,7 +268,7 @@ export default function DocumentWorkspacePage() {
             />
           )}
 
-          {document.status === 'generating' && (
+          {docData.status === 'generating' && (
             <span className="text-xs text-blue-400 animate-pulse shrink-0">Generating...</span>
           )}
         </div>
@@ -211,7 +278,7 @@ export default function DocumentWorkspacePage() {
           {activePdfUrl && (
             <a
               href={activePdfUrl}
-              download={`${document.title}.pdf`}
+              download={`${docData.title}.pdf`}
               className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white px-2.5 py-1.5
                 rounded-lg border border-white/15 hover:border-white/30 transition-colors"
             >
@@ -280,15 +347,41 @@ export default function DocumentWorkspacePage() {
                 {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
               </button>
             ))}
+
+            {/* Compile button — visible when LaTeX pane is visible */}
+            {viewerTab !== 'pdf' && (
+              <button
+                onClick={handleCompile}
+                disabled={isCompiling}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 hover:bg-indigo-500/30 text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                {isCompiling ? (
+                  <><span className="animate-spin inline-block">⟳</span> Compiling…</>
+                ) : (
+                  <>&#9889; Compile</>
+                )}
+              </button>
+            )}
           </div>
 
+          {/* Compile error */}
+          {compileError && (
+            <div className="px-3 py-1.5 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs shrink-0 flex items-center justify-between">
+              <span>{compileError}</span>
+              <button onClick={() => setCompileError(null)} className="ml-2 text-red-400/60 hover:text-red-400">✕</button>
+            </div>
+          )}
+
           {/* Viewer body */}
-          <div className="flex-1 flex min-h-0 overflow-hidden">
+          <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden">
             {/* PDF pane — shown in pdf and split modes */}
             {(viewerTab === 'pdf' || viewerTab === 'split') && (
-              <div className={`flex flex-col min-h-0 min-w-0 ${
-                viewerTab === 'split' ? 'w-1/2 border-r border-white/10' : 'flex-1'
-              }`}>
+              <div
+                style={viewerTab === 'split' ? { width: `${splitRatio * 100}%` } : undefined}
+                className={`flex flex-col min-h-0 min-w-0 ${
+                  viewerTab === 'split' ? '' : 'flex-1'
+                }`}
+              >
                 <PdfViewer
                   url={activePdfUrl}
                   isLoading={showGenerating && !activePdfUrl}
@@ -297,17 +390,28 @@ export default function DocumentWorkspacePage() {
               </div>
             )}
 
+            {/* Resizer — only visible in split mode */}
+            {viewerTab === 'split' && (
+              <div
+                onMouseDown={handleResizerMouseDown}
+                className="w-1 bg-white/10 hover:bg-indigo-400/60 cursor-col-resize transition-colors flex-shrink-0"
+              />
+            )}
+
             {/* LaTeX pane — shown in latex and split modes */}
             {(viewerTab === 'latex' || viewerTab === 'split') && (
-              <div className={`flex flex-col min-h-0 min-w-0 bg-black/30 ${
-                viewerTab === 'split' ? 'w-1/2' : 'flex-1'
-              }`}>
-                {latexContent ? (
-                  <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-white/70 leading-relaxed whitespace-pre-wrap break-words">
-                    {latexContent}
-                  </pre>
+              <div
+                style={viewerTab === 'split' ? { width: `${(1 - splitRatio) * 100}%` } : undefined}
+                className={`flex flex-col min-h-0 min-w-0 ${viewerTab !== 'split' ? 'flex-1' : ''}`}
+              >
+                {latexContent !== null ? (
+                  <LatexHighlighter
+                    value={editedLatex}
+                    onChange={setEditedLatex}
+                    readOnly={false}
+                  />
                 ) : (
-                  <div className="flex-1 flex items-center justify-center text-white/30 text-sm">
+                  <div className="flex-1 flex items-center justify-center text-white/30 text-sm" style={{ background: 'rgba(0,0,0,0.20)' }}>
                     No LaTeX content yet
                   </div>
                 )}

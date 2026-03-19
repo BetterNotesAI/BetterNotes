@@ -101,7 +101,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="relative z-40 flex flex-col h-screen border-r border-white/10 bg-black/40 backdrop-blur-md shrink-0 transition-[width] duration-200 ease-out"
+      className="relative z-40 flex flex-col h-screen border-r border-white/10 bg-neutral-950/70 backdrop-blur-xl shrink-0 transition-[width] duration-200 ease-out"
       style={{ width: collapsed ? 64 : 224 }}
     >
       {/* Header: logo + toggle */}
