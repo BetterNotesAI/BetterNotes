@@ -17,10 +17,10 @@ listo para imprimir. El documento puede refinarse mediante un chat iterativo con
 - Freemium: tier gratuito funcional, upgrade a Pro por $9/mes con Stripe
 
 ## Estado actual
-- **Fase:** MVP en producción — Fase 1 completada
+- **Fase:** Fase 2 en curso — F2-M2 completado
 - **URL producción:** https://www.better-notes.ai
 - **Rama activa:** v2
-- **Todos los milestones M1–M7 completados**
+- **Último commit:** `cf6c6b5` — fix LaTeX syntax highlighting paleta completa
 
 ---
 

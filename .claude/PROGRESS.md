@@ -4,6 +4,110 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-19 (3) — F2-M3 completo: organización de documentos
+
+### ✅ Completado
+
+**Base de datos — Migración `20260319000001_f2m3_folders_and_archive.sql`**
+- Nueva tabla `folders` (id, user_id, name, color, created_at, updated_at)
+- Nuevas columnas en `documents`: `archived_at` (timestamptz nullable), `folder_id` (uuid FK con ON DELETE SET NULL)
+- RLS en `folders`: 4 policies patrón owner-only (igual que documents)
+- 4 índices de performance: idx_documents_user_archived, idx_documents_user_folder, idx_documents_user_starred, idx_folders_user_id
+
+**Backend — Endpoints ampliados**
+- `GET /api/documents`: query params `sort` (date_desc/date_asc/title_asc/template), `starred`, `archived`, `folder_id`. Por defecto excluye archivados (`.is('archived_at', null)`)
+- `PATCH /api/documents/[id]`: soporta `is_starred`, `archived_at`, `folder_id` con validación de ownership de folder_id
+- `GET /api/folders` + `POST /api/folders`: listar y crear carpetas
+- `PATCH /api/folders/[id]` + `DELETE /api/folders/[id]`: renombrar y eliminar carpetas
+
+**Frontend — Componentes principales**
+- `DocumentCard.tsx`: extraído del map en page.tsx. Rename inline (doble-click), star siempre visible (optimistic), menú ⋯ con Archive/Delete
+- `DocumentFilters.tsx`: barra de filtros con select de sort + chips "Starred only" / "Show archived" + botón "Clear filters"
+- `FolderPanel.tsx`: panel lateral colapsable (208px). Lista carpetas con contador de documentos, crear/renombrar/eliminar inline
+- `page.tsx`: integra los 3 componentes. 5 estados de filtro internos, loadDocuments con query params, 4 handlers con rollback en optimistic updates
+
+**Fixes tras revisión**
+- folder_id validation en PATCH documents: ownership check antes de usar
+- Rollback en handleRename y handleStar si el PATCH falla
+- handleDeleteFolder y handleRenameFolder actualizan estado solo si respuesta es 2xx
+
+### 🧠 Decisiones tomadas
+- Archivados excluidos por defecto de listado (lógica `.is('archived_at', null)` en query) — separa documentos activos de histórico
+- Carpetas con `color` como string hexadecimal — UI puede renderizar badges coloreadas sin tabla de opciones
+- Operaciones optimistas en todos los handlers para UX fluida — rollback automático si backend rechaza
+- FolderPanel solo se muestra si hay carpetas ya creadas — menor UX, registrado en deuda
+
+### ⚠️ Deuda técnica conocida
+- FolderPanel no tiene botón visible para crear la primera carpeta (sin carpetas, panel no se renderiza) — menor, UX
+- `document_count` en carpetas no se actualiza cuando se archiva doc desde vista con filterStarred activo — edge case, low priority
+- `loadDocuments` usa stale closures (eslint-disable) — mejorable con useCallback en futuro, no bloqueante
+
+### ✅ F2-M3 CERRADO — Carpetas, archivo y filtros en producción
+
+---
+
+## Sesión 2026-03-19 (2) — F2-M2 completo: visor PDF, editor LaTeX, ajustes visuales
+
+### ✅ Completado
+
+**Visor de PDF — react-pdf (commits 8b0d4bb, 0e9baa0)**
+- Migración de `<iframe>` a `react-pdf` (Document + Page como canvas)
+- Fondo transparente: el AppBackground es visible alrededor de las páginas
+- Contador de páginas real X/Y via `onDocumentLoadSuccess`
+- Worker pdfjs servido desde `/public/pdf.worker.min.mjs` (evita problemas SSR)
+
+**Barra unificada (commit 8b0d4bb)**
+- Tabs PDF/LaTeX/Split + controles zoom/página + botón Compile fusionados en una sola barra
+- Zoom 50–200%, página ‹ X/Y ›, botón Compile solo visible cuando LaTeX pane está activo
+- Estado zoom/currentPage/totalPages migrado a `page.tsx`; PdfViewer recibe props
+
+**Split view resizable (commit 1bad018)**
+- Divisor arrastrable entre paneles PDF y LaTeX (30%–70%)
+- `useCallback` + `removeEventListener` en mouseup para evitar memory leaks
+
+**Editor LaTeX con syntax highlighting (commits 1bad018, 9a57426, cf6c6b5)**
+- Componente `LatexHighlighter.tsx`: técnica textarea+overlay
+- Paleta de colores completa fiel a v1:
+  - `\commands` → naranja `#fb923c`
+  - `{` `}` → gris `#64748b`
+  - `{contenido entre llaves}` → cyan `#67e8f9`
+  - `$math$` `\(...\)` `\[...\]` → verde `#86efac`
+  - `% comentarios` → violeta italic `#c4b5fd`
+  - Texto llano → gris azulado `#94a3b8`
+- Fix Chrome: `WebkitTextFillColor: transparent` en textarea
+- `useMemo` en tokenizador para evitar recálculo en cada render
+
+**Botón Compile (commit 1bad018)**
+- Nuevo route handler `POST /api/documents/[id]/compile`
+- Llama a `app-api /latex/compile-only`, guarda nueva versión en Storage, devuelve signed URL
+- Validación input: try/catch JSON, type check, límite 500KB
+- Error feedback visible en barra (banner rojo descartable)
+
+**Auth glassmorphism (commit 1bad018)**
+- Login y signup: Background animado (blobs) + card glassmorphism
+- Inputs `bg-black/20 border-white/20`, botón `bg-white text-neutral-950`
+
+**Sidebar (commits e201f3d, 1bad018)**
+- `bg-neutral-950/70 backdrop-blur-xl border-r border-white/10`
+- Item activo: `bg-white/15 border-r-2 border-indigo-400`
+
+### 🧠 Decisiones tomadas
+- react-pdf elegido sobre iframe para control total del fondo y total de páginas
+- Worker pdfjs en /public/ (ruta estática) en lugar de `new URL(import.meta.url)` — más fiable en Next.js SSR
+- Técnica textarea+overlay para highlighting (sin CodeMirror) — zero new deps salvo react-pdf
+- `braceContent` como token separado (no `plain`) para distinguir argumentos de comandos LaTeX
+- Soporte `\(...\)` y `\[...\]` añadido porque el AI genera LaTeX con esos delimitadores, no `$...$`
+
+### ⚠️ Deuda visual conocida (diferida a F2-M5)
+- `/login` y `/signup`: fondo animado añadido pero botón Google aún no tiene estilo final
+- `/pricing` y `/settings/billing`: usan `bg-[#0a0a0a]` que tapa el AppBackground
+- `DocumentsIcon` en Sidebar.tsx definido pero no usado — dead code menor
+- Navegación de página (scroll inverso → actualizar página en padre) no implementada — manual solamente
+
+### ✅ F2-M2 CERRADO — Todos los elementos visuales implementados y en producción
+
+---
+
 ## Sesión 2026-03-19 — F2-M2 (parte 2): Elementos visuales pendientes — PDF viewer + Sidebar
 
 ### ✅ Completado
@@ -283,3 +387,4 @@ Ver TASKS.md — 5 categorías con prioridades 🔴🟡🟢:
 4. **ESPERAR aprobación antes de implementar**
 
 ---
+

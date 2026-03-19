@@ -1,6 +1,6 @@
 # Tasks — BetterNotes v2
 
-_Última actualización: 2026-03-19_
+_Última actualización: 2026-03-19 (sesión 2)_
 
 ---
 
@@ -26,7 +26,7 @@ _Última actualización: 2026-03-19_
 |---|-----------|--------|-------------|
 | F2-M1 | Diagnóstico visual + propuesta de diseño | ✅ COMPLETADO | Analizar v1 (rama main), proponer orden óptimo, referencias visuales |
 | F2-M2 | Rediseño visual y estructura de navegación | ✅ COMPLETADO | Recuperar estilo v1, nueva landing, flujo de páginas, icono/marca |
-| F2-M3 | Organización de documentos | ⏳ Pendiente | Carpetas, renombrar docs, favoritos, filtros |
+| F2-M3 | Organización de documentos | ✅ COMPLETADO | Carpetas, renombrar docs, favoritos, filtros |
 | F2-M4 | Subida de archivos como contexto IA | ⏳ Pendiente | PDF, imágenes, DOCX → contexto para generación + imágenes en LaTeX |
 | F2-M5 | Mejoras de UX y pulido | ⏳ Pendiente | Mobile responsive, onboarding, sidebar expandible, perfil |
 | F2-M6 | Infraestructura y calidad | ⏳ Pendiente | Tests E2E, Sentry, caché de PDFs, monitorización |
@@ -41,26 +41,32 @@ _Última actualización: 2026-03-19_
 - [x] Proponer orden óptimo de implementación de Fase 2 con justificación
 - [x] **PAUSA — esperando aprobación antes de F2-M2**
 
-### F2-M2 — Rediseño visual y estructura de navegación
+### F2-M2 — Rediseño visual y estructura de navegación ✅ COMPLETADO
 _Prioridad: 🔴 Alta_
 
-- [ ] Recuperar paleta de colores, tema y tipografía de v1
-- [ ] Icono / favicon de la aplicación
-- [ ] Landing page rediseñada: página de presentación inicial que ve el usuario al entrar
-- [ ] Flujo de navegación: landing → login → workspace → documents / templates
-- [ ] Sidebar expandible con nombres de los enlaces (no solo iconos) 🟡
-- [x] Workspace /documents/[id]: recuperar estilo visual del visor de PDF de v1 — 3 tabs PDF/LaTeX/Split implementados
-- [x] Sidebar: glassmorphism coherente con el sistema visual — bg-black/40, border-indigo-400 activo, hover states
-- [x] Revisor valida consistencia visual antes de cerrar milestone — APROBADO CON MEJORAS MENORES
+- [x] Recuperar paleta de colores, tema y tipografía de v1
+- [x] Icono / favicon de la aplicación (logo.png reutilizado de v1)
+- [x] Landing page rediseñada: glassmorphism, blobs animados, hero gradient indigo→fuchsia→emerald
+- [x] Flujo de navegación: landing → login (con Background animado) → workspace → documents
+- [x] Sidebar: glassmorphism bg-neutral-950/70 backdrop-blur-xl, item activo border-indigo-400, hover states
+- [x] Auth pages (login/signup): Background animado + formulario glassmorphism
+- [x] Visor de PDF en /documents/[id]:
+  - [x] 3 tabs en una sola barra: PDF / LaTeX / Split (con controles zoom + página a la derecha)
+  - [x] react-pdf: páginas como canvas → fondo transparente, AppBackground visible
+  - [x] Contador de páginas X/Y con navegación ‹ ›
+  - [x] Zoom 50–200% con controles propios
+  - [x] Split view con divisor redimensionable (30%–70%)
+  - [x] Editor LaTeX editable con syntax highlighting (colores por tipo de token)
+  - [x] Botón Compile + route handler POST /api/documents/[id]/compile
+- [x] Revisor valida consistencia visual — APROBADO
 
-### F2-M3 — Organización de documentos
-_Prioridad: 🔴/🟡_
+### F2-M3 — Organización de documentos ✅ COMPLETADO
 
-- [ ] 🔴 Renombrar documentos inline (endpoint PATCH ya existe — solo falta UI)
-- [ ] 🟡 Carpetas para organizar documentos (requiere tabla `folders` en DB)
-- [ ] 🟡 Archivar / ocultar documentos sin borrarlos
-- [ ] 🟢 Ordenar y filtrar lista de documentos (por fecha, plantilla, estado)
-- [ ] 🟢 Marcar documentos como favoritos (columna `is_starred` ya existe en DB)
+- [x] 🔴 Renombrar documentos inline (doble-click en título → input inline)
+- [x] 🟡 Carpetas para organizar documentos (tabla `folders` en DB + FolderPanel UI)
+- [x] 🟡 Archivar / ocultar documentos sin borrarlos (columna `archived_at`)
+- [x] 🟢 Ordenar y filtrar lista de documentos (date_desc/asc, title_asc, template)
+- [x] 🟢 Marcar documentos como favoritos (star siempre visible, optimistic update)
 
 ### F2-M4 — Subida de archivos como contexto IA
 _Prioridad: 🔴 Alta_

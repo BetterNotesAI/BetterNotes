@@ -92,11 +92,31 @@ export async function PATCH(
 
   const { id: documentId } = await params;
   const body = await req.json().catch(() => ({}));
-  const { title, is_starred } = body as { title?: string; is_starred?: boolean };
+  const { title, is_starred, archived_at, folder_id } = body as {
+    title?: string;
+    is_starred?: boolean;
+    archived_at?: string | null;
+    folder_id?: string | null;
+  };
+
+  // Validate folder_id ownership before updating (prevents cross-user folder assignment)
+  if (folder_id !== undefined && folder_id !== null) {
+    const { data: folder, error: folderErr } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('id', folder_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (folderErr || !folder) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+  }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (title !== undefined) updates.title = title.trim();
   if (is_starred !== undefined) updates.is_starred = is_starred;
+  if (archived_at !== undefined) updates.archived_at = archived_at;
+  if (folder_id !== undefined) updates.folder_id = folder_id;
 
   const { error } = await supabase
     .from('documents')

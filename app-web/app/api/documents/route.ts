@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 // GET /api/documents — list user's documents
-export async function GET() {
+// Query params:
+//   sort       = date_desc (default) | date_asc | title_asc | template
+//   starred    = true   → only starred documents
+//   archived   = true   → include archived documents (default excludes them)
+//   folder_id  = <uuid> → filter by folder
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -10,7 +15,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: documents, error } = await supabase
+  const { searchParams } = new URL(req.url);
+  const sort = searchParams.get('sort') ?? 'date_desc';
+  const starred = searchParams.get('starred') === 'true';
+  const archived = searchParams.get('archived') === 'true';
+  const folderId = searchParams.get('folder_id');
+
+  let query = supabase
     .from('documents')
     .select(`
       id,
@@ -18,12 +29,46 @@ export async function GET() {
       template_id,
       status,
       is_starred,
+      archived_at,
+      folder_id,
       created_at,
       updated_at,
       current_version_id
     `)
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false });
+    .eq('user_id', user.id);
+
+  // Exclude archived documents unless explicitly requested
+  if (!archived) {
+    query = query.is('archived_at', null);
+  } else {
+    query = query.not('archived_at', 'is', null);
+  }
+
+  if (starred) {
+    query = query.eq('is_starred', true);
+  }
+
+  if (folderId) {
+    query = query.eq('folder_id', folderId);
+  }
+
+  switch (sort) {
+    case 'date_asc':
+      query = query.order('created_at', { ascending: true });
+      break;
+    case 'title_asc':
+      query = query.order('title', { ascending: true });
+      break;
+    case 'template':
+      query = query.order('template_id', { ascending: true });
+      break;
+    case 'date_desc':
+    default:
+      query = query.order('created_at', { ascending: false });
+      break;
+  }
+
+  const { data: documents, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
