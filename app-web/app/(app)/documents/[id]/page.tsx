@@ -147,6 +147,14 @@ export default function DocumentWorkspacePage() {
     return msg === 'limit_reached' || msg.includes('limit_reached');
   }
 
+  // Ctrl+scroll zoom on the PDF pane
+  const handlePdfWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setZoom((z) => Math.min(200, Math.max(50, z + (e.deltaY < 0 ? 10 : -10))));
+  }, []);
+
   // --- Task 6c: compile handler ---
   const handleCompile = useCallback(async () => {
     if (!editedLatex || isCompiling) return;
@@ -420,6 +428,7 @@ export default function DocumentWorkspacePage() {
                 className={`flex flex-col min-h-0 min-w-0 ${
                   viewerTab === 'split' ? '' : 'flex-1'
                 }`}
+                onWheel={handlePdfWheel}
               >
                 <PdfViewer
                   url={activePdfUrl}

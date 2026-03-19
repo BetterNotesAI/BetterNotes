@@ -84,14 +84,25 @@ export async function POST(
     return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 });
   }
 
+  // Determine next version number
+  const { data: lastVersion } = await supabase
+    .from('document_versions')
+    .select('version_number')
+    .eq('document_id', documentId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextVersionNumber = (lastVersion?.version_number ?? 0) + 1;
+
   // Save new document_version record
   const { data: version, error: versionError } = await supabase
     .from('document_versions')
     .insert({
       document_id: documentId,
+      version_number: nextVersionNumber,
       latex_content: latex,
       pdf_storage_path: versionPath,
-      status: 'compiled',
+      compile_status: 'success',
     })
     .select()
     .single();

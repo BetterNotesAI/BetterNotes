@@ -56,9 +56,11 @@ function buildAttachmentContent(
       lines.push(`  attachment_${i}.${ext}   (Image ${i + 1}: ${f.name})`);
     });
     lines.push(
-      'Use \\includegraphics[width=\\linewidth]{attachment_0.jpg} or similar.',
-      'The graphicx package is already loaded in the preamble.',
-      'IMPORTANT: use ONLY the normalized filenames above, never the original names.'
+      'IMPORTANT: Add \\usepackage{graphicx} and \\usepackage{float} to the preamble.',
+      'Use \\begin{figure}[H] (capital H, from float package) to force exact placement.',
+      'Example: \\begin{figure}[H]\\centering\\includegraphics[width=0.9\\linewidth]{FILENAME}\\caption{...}\\end{figure}',
+      'Replace FILENAME with the exact normalized filename listed above.',
+      'IMPORTANT: use ONLY the normalized filenames listed above, never the original file names.'
     );
     textParts.push(lines.join('\n'));
   }
