@@ -139,7 +139,6 @@ export function LatexHighlighter({ value, onChange, readOnly = false }: Props) {
           inset: 0,
           overflow: 'hidden',
           pointerEvents: 'none',
-          color: 'transparent', // own text hidden, spans provide color
           zIndex: 0,
         }}
       >
@@ -166,6 +165,7 @@ export function LatexHighlighter({ value, onChange, readOnly = false }: Props) {
           height: '100%',
           background: 'transparent',
           color: 'transparent',
+          WebkitTextFillColor: 'transparent',
           caretColor: '#fff',
           resize: 'none',
           zIndex: 1,
