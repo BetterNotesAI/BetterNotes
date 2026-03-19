@@ -43,8 +43,6 @@ export default function DocumentWorkspacePage() {
     document: docData,
     pdfSignedUrl,
     latexContent,
-    versions,
-    activeVersionId,
     isLoading,
     isGenerating,
     generationPhase,
@@ -259,11 +257,6 @@ export default function DocumentWorkspacePage() {
             {templateLabel}
           </span>
 
-          {versions.length > 0 && (
-            <span className="text-xs bg-white/8 text-white/50 rounded px-2 py-0.5 border border-white/15 shrink-0 tabular-nums">
-              v{versions[0]?.version_number ?? 1}
-            </span>
-          )}
 
           {docData.status === 'generating' && (
             <span className="text-xs text-blue-400 animate-pulse shrink-0">Generating...</span>

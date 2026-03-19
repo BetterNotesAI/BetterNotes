@@ -32,12 +32,35 @@ export async function POST(
     .single();
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Fetch document attachments and generate short-lived signed URLs for images
+  const { data: attachmentRows } = await supabase
+    .from('document_attachments')
+    .select('name, storage_path, mime_type')
+    .eq('document_id', documentId)
+    .eq('user_id', user.id);
+
+  const attachmentFiles = await Promise.all(
+    (attachmentRows ?? []).map(async (row) => {
+      const { data: urlData } = await supabase.storage
+        .from('document-attachments')
+        .createSignedUrl(row.storage_path, 60);
+      if (!urlData?.signedUrl) return null;
+      return {
+        name: row.name,
+        mimeType: row.mime_type ?? 'application/octet-stream',
+        url: urlData.signedUrl,
+        embedInPdf: (row.mime_type ?? '').startsWith('image/'),
+      };
+    })
+  );
+  const validAttachments = attachmentFiles.filter(Boolean);
+
   // Call app-api compile-only endpoint
   const apiUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
   const response = await fetch(`${apiUrl}/latex/compile-only`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latex }),
+    body: JSON.stringify({ latex, files: validAttachments }),
   });
 
   if (!response.ok) {

@@ -146,14 +146,23 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
   // Compiles provided LaTeX source, returns PDF binary or error JSON.
   router.post('/compile-only', async (req: Request, res: Response) => {
     try {
-      const { latex } = req.body as { latex?: string };
+      const { latex, files } = req.body as { latex?: string; files?: AttachmentInput[] };
 
       if (!latex || typeof latex !== 'string') {
         res.status(400).json({ ok: false, error: 'latex is required' });
         return;
       }
 
-      const { pdf, log, latexPatched } = await compileLatexToPdf(latex, { timeoutMs: latexTimeoutMs });
+      // Download image attachments so \includegraphics{} commands resolve correctly
+      const processedFiles = files && files.length > 0 ? await processAttachments(files) : [];
+      const imageFiles = processedFiles
+        .filter((a) => a.imageBuffer && a.embedInPdf)
+        .map((a, i) => {
+          const ext = (a.mimeType ?? 'image/jpeg').split('/')[1].replace('jpeg', 'jpg');
+          return { filename: `attachment_${i}.${ext}`, buffer: a.imageBuffer! };
+        });
+
+      const { pdf, log, latexPatched } = await compileLatexToPdf(latex, { timeoutMs: latexTimeoutMs }, imageFiles);
 
       res.set({
         'Content-Type': 'application/pdf',
