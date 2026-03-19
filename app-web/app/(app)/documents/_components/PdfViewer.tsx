@@ -1,11 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface PdfViewerProps {
   url: string | null;
   isLoading?: boolean;
   loadingLabel?: string;
+  zoom: number;
+  currentPage: number;
+  onTotalPages: (total: number) => void;
 }
 
 const PHASES = ['Asking AI', 'Compiling', 'Finalizing'] as const;
@@ -18,25 +26,30 @@ function getActivePhase(label: string | undefined): number {
   return 0;
 }
 
-export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+export function PdfViewer({
+  url,
+  isLoading,
+  loadingLabel,
+  zoom,
+  currentPage,
+  onTotalPages,
+}: PdfViewerProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(100);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [numPages, setNumPages] = useState<number>(0);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Fetch PDF and create object URL to avoid CORS/redirect issues with signed URLs
   useEffect(() => {
     if (!url) {
       setObjectUrl(null);
       return;
     }
 
-    // If it's already an object URL or data URL, use directly
     if (url.startsWith('blob:') || url.startsWith('data:')) {
       setObjectUrl(url);
       return;
     }
 
-    // For signed Supabase URLs, fetch and create object URL to avoid CORS/redirect issues
     let active = true;
     let createdUrl: string | null = null;
 
@@ -48,7 +61,8 @@ export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
           setObjectUrl(createdUrl);
         } else {
           // Component unmounted before fetch finished — revoke immediately
-          URL.revokeObjectURL(URL.createObjectURL(blob));
+          const tmp = URL.createObjectURL(blob);
+          URL.revokeObjectURL(tmp);
         }
       })
       .catch(() => {
@@ -61,24 +75,28 @@ export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
     };
   }, [url]);
 
-  // Reset page when URL changes
+  // Revoke object URL on cleanup when it changes
   useEffect(() => {
-    setCurrentPage(1);
-  }, [objectUrl]);
-
-  // Revoke previous object URL when it changes to avoid memory leaks
-  useEffect(() => {
+    const current = objectUrl;
     return () => {
-      if (objectUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(objectUrl);
+      if (current?.startsWith('blob:')) {
+        URL.revokeObjectURL(current);
       }
     };
   }, [objectUrl]);
 
-  const iframeSrc = objectUrl
-    ? `${objectUrl}#toolbar=0&navpanes=0&page=${currentPage}`
-    : '';
+  // Scroll to currentPage when it changes from parent
+  useEffect(() => {
+    if (currentPage < 1 || currentPage > numPages) return;
+    pageRefs.current[currentPage - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [currentPage, numPages]);
 
+  function handleLoadSuccess({ numPages: n }: { numPages: number }) {
+    setNumPages(n);
+    onTotalPages(n);
+  }
+
+  // Loading state
   if (isLoading) {
     const activePhase = getActivePhase(loadingLabel);
     return (
@@ -103,7 +121,8 @@ export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
     );
   }
 
-  if (!objectUrl && !url) {
+  // Empty state
+  if (!url && !isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-transparent text-gray-600">
         <div className="text-center space-y-2">
@@ -118,67 +137,49 @@ export function PdfViewer({ url, isLoading, loadingLabel }: PdfViewerProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-transparent min-h-0">
-      {/* Controls toolbar */}
-      <div className="flex items-center justify-center gap-3 px-4 py-2 border-b border-white/10 bg-black/20 shrink-0">
-        {/* Zoom controls */}
-        <button
-          onClick={() => setZoom(z => Math.max(50, z - 10))}
-          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-sm transition-colors flex items-center justify-center"
-          aria-label="Zoom out"
+    <div className="flex-1 flex flex-col bg-transparent min-h-0 overflow-auto">
+      {objectUrl && (
+        <Document
+          file={objectUrl}
+          onLoadSuccess={handleLoadSuccess}
+          loading={
+            <div className="flex-1 flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+            </div>
+          }
+          error={
+            <div className="flex-1 flex items-center justify-center py-12 text-gray-500">
+              <div className="text-center space-y-2">
+                <svg className="w-10 h-10 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm">No se pudo cargar el PDF</p>
+              </div>
+            </div>
+          }
+          className="flex flex-col items-center py-6"
         >
-          −
-        </button>
-        <span className="text-white/50 text-xs w-12 text-center tabular-nums">{zoom}%</span>
-        <button
-          onClick={() => setZoom(z => Math.min(200, z + 10))}
-          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-sm transition-colors flex items-center justify-center"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
+          {Array.from({ length: numPages }, (_, i) => (
+            <div
+              key={i}
+              ref={(el) => { pageRefs.current[i] = el; }}
+              className="mb-6"
+            >
+              <Page
+                pageNumber={i + 1}
+                scale={zoom / 100}
+                className="shadow-[0_4px_32px_rgba(0,0,0,0.6)]"
+                renderAnnotationLayer={false}
+                renderTextLayer={false}
+              />
+            </div>
+          ))}
+        </Document>
+      )}
 
-        {/* Separator */}
-        <div className="w-px h-4 bg-white/10" />
-
-        {/* Page controls */}
-        <button
-          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs transition-colors flex items-center justify-center"
-          aria-label="Previous page"
-        >
-          ‹
-        </button>
-        <span className="text-white/50 text-xs">p. {currentPage}</span>
-        <button
-          onClick={() => setCurrentPage(p => p + 1)}
-          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs transition-colors flex items-center justify-center"
-          aria-label="Next page"
-        >
-          ›
-        </button>
-      </div>
-
-      {/* PDF content area */}
-      {objectUrl ? (
-        <div className="flex-1 overflow-auto min-h-0">
-          <div
-            style={{
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: 'top center',
-              width: '100%',
-              height: `${10000 / zoom}%`,
-            }}
-          >
-            <iframe
-              ref={iframeRef}
-              src={iframeSrc}
-              title="PDF Preview"
-              style={{ width: '100%', height: '100%', border: 'none' }}
-            />
-          </div>
-        </div>
-      ) : (
+      {/* Fetching blob — URL exists but objectUrl not ready yet */}
+      {url && !objectUrl && (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-6 h-6 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
         </div>

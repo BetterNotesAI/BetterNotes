@@ -61,6 +61,9 @@ export default function DocumentWorkspacePage() {
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
+  const [zoom, setZoom] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
 
   // --- Task 6: editable LaTeX state ---
   const [editedLatex, setEditedLatex] = useState<string>('');
@@ -129,6 +132,7 @@ export default function DocumentWorkspacePage() {
     if (data.pdfSignedUrl) {
       setCurrentPdfUrl(data.pdfSignedUrl);
     }
+    setCurrentPage(1);
     reloadDocument();
   }, [reloadDocument]);
 
@@ -206,6 +210,7 @@ export default function DocumentWorkspacePage() {
 
   const handleSwitchVersion = useCallback(async (versionId: string) => {
     setCurrentPdfUrl(null);
+    setCurrentPage(1);
     await switchVersion(versionId);
   }, [switchVersion]);
 
@@ -332,8 +337,9 @@ export default function DocumentWorkspacePage() {
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         }`}>
 
-          {/* Viewer tab bar */}
+          {/* Unified tab + controls bar */}
           <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
+            {/* Tabs left */}
             {(['pdf', 'latex', 'split'] as const).map((tab) => (
               <button
                 key={tab}
@@ -348,12 +354,60 @@ export default function DocumentWorkspacePage() {
               </button>
             ))}
 
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Zoom + page controls — only when PDF pane is visible */}
+            {(viewerTab === 'pdf' || viewerTab === 'split') && (
+              <>
+                <button
+                  onClick={() => setZoom((z) => Math.max(50, z - 10))}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-sm transition-colors flex items-center justify-center"
+                  aria-label="Zoom out"
+                >
+                  −
+                </button>
+                <span className="text-white/50 text-xs w-10 text-center tabular-nums">{zoom}%</span>
+                <button
+                  onClick={() => setZoom((z) => Math.min(200, z + 10))}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-sm transition-colors flex items-center justify-center"
+                  aria-label="Zoom in"
+                >
+                  +
+                </button>
+
+                {/* Separator */}
+                <div className="w-px h-4 bg-white/10 mx-1" />
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs transition-colors flex items-center justify-center"
+                  aria-label="Previous page"
+                >
+                  ‹
+                </button>
+                <span className="text-white/50 text-xs tabular-nums whitespace-nowrap">
+                  {currentPage}{totalPages > 0 ? `/${totalPages}` : ''}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => totalPages > 0 ? Math.min(totalPages, p + 1) : p + 1)}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs transition-colors flex items-center justify-center"
+                  aria-label="Next page"
+                >
+                  ›
+                </button>
+
+                {/* Separator */}
+                <div className="w-px h-4 bg-white/10 mx-1" />
+              </>
+            )}
+
             {/* Compile button — visible when LaTeX pane is visible */}
             {viewerTab !== 'pdf' && (
               <button
                 onClick={handleCompile}
                 disabled={isCompiling}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 hover:bg-indigo-500/30 text-xs font-medium transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 hover:bg-indigo-500/30 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 {isCompiling ? (
                   <><span className="animate-spin inline-block">⟳</span> Compiling…</>
@@ -386,6 +440,9 @@ export default function DocumentWorkspacePage() {
                   url={activePdfUrl}
                   isLoading={showGenerating && !activePdfUrl}
                   loadingLabel={loadingLabel}
+                  zoom={zoom}
+                  currentPage={currentPage}
+                  onTotalPages={setTotalPages}
                 />
               </div>
             )}
