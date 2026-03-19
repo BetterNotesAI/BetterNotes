@@ -141,15 +141,15 @@ export default function DocumentWorkspacePage() {
 
   if (isLoading) {
     return (
-      <div className="h-full bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
+      <div className="h-full bg-transparent flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!document) {
     return (
-      <div className="h-full bg-[#0a0a0a] flex items-center justify-center text-gray-500">
+      <div className="h-full bg-transparent flex items-center justify-center text-gray-500">
         <div className="text-center space-y-3">
           <p>Document not found</p>
           <button
@@ -168,9 +168,9 @@ export default function DocumentWorkspacePage() {
   const loadingLabel = getLoadingLabel(generationPhase);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a] overflow-hidden">
+    <div className="h-full flex flex-col bg-transparent overflow-hidden">
       {/* Top bar */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 shrink-0">
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => router.push('/documents')}
@@ -186,7 +186,7 @@ export default function DocumentWorkspacePage() {
             {document.title}
           </h1>
 
-          <span className="text-xs bg-gray-800 text-gray-400 rounded px-2 py-0.5 border border-gray-700 shrink-0 hidden sm:inline">
+          <span className="text-xs bg-white/8 text-white/60 rounded px-2 py-0.5 border border-white/15 shrink-0 hidden sm:inline">
             {templateLabel}
           </span>
 
@@ -209,8 +209,8 @@ export default function DocumentWorkspacePage() {
             <a
               href={activePdfUrl}
               download={`${document.title}.pdf`}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1.5
-                rounded-lg border border-gray-700 hover:border-gray-500 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white px-2.5 py-1.5
+                rounded-lg border border-white/15 hover:border-white/30 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -224,7 +224,7 @@ export default function DocumentWorkspacePage() {
 
       {/* Error banner */}
       {wsError && !showUpgradeModal && (
-        <div className="px-4 py-2 bg-red-950/50 border-b border-red-900 text-red-400 text-sm shrink-0">
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm shrink-0">
           {wsError}
         </div>
       )}
@@ -235,7 +235,7 @@ export default function DocumentWorkspacePage() {
       )}
 
       {/* Mobile tab bar */}
-      <div className="flex md:hidden border-b border-gray-800 shrink-0">
+      <div className="flex md:hidden border-b border-white/10 shrink-0">
         <button
           onClick={() => setMobileTab('pdf')}
           className={`flex-1 py-2 text-sm font-medium transition-colors ${

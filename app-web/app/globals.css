@@ -2,14 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---- Design Tokens ---- */
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #ededed;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --border: rgba(255, 255, 255, 0.15);
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0a;
+  --accent: rgba(255, 255, 255, 0.1);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  antialiased: true;
 }
+
+/* ---- Utilities ---- */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Blob Animations ---- */
+@keyframes blob1 {
+  0%   { transform: translate(-50%, 0) scale(1); }
+  33%  { transform: translate(-45%, 20px) scale(1.05); }
+  66%  { transform: translate(-55%, -10px) scale(0.98); }
+  100% { transform: translate(-50%, 0) scale(1); }
+}
+@keyframes blob2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(30px, -20px) scale(1.06); }
+  66%  { transform: translate(-10px, 20px) scale(0.98); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes blob3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-20px, 10px) scale(1.05); }
+  66%  { transform: translate(20px, -10px) scale(0.99); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.animate-blob1 { animation: blob1 14s ease-in-out infinite; }
+.animate-blob2 { animation: blob2 16s ease-in-out infinite; }
+.animate-blob3 { animation: blob3 18s ease-in-out infinite; }
+
+/* ---- UI Animations ---- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97) translateY(-8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-in    { animation: fadeIn 0.15s ease-out; }
+.animate-scale { animation: scaleIn 0.2s ease-out; }

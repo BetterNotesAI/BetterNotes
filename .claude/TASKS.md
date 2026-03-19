@@ -24,8 +24,8 @@ _Última actualización: 2026-03-19_
 
 | # | Milestone | Estado | Descripción |
 |---|-----------|--------|-------------|
-| F2-M1 | Diagnóstico visual + propuesta de diseño | ⏳ Pendiente | Analizar v1 (rama main), proponer orden óptimo, referencias visuales |
-| F2-M2 | Rediseño visual y estructura de navegación | ⏳ Pendiente | Recuperar estilo v1, nueva landing, flujo de páginas, icono/marca |
+| F2-M1 | Diagnóstico visual + propuesta de diseño | ✅ COMPLETADO | Analizar v1 (rama main), proponer orden óptimo, referencias visuales |
+| F2-M2 | Rediseño visual y estructura de navegación | ✅ COMPLETADO | Recuperar estilo v1, nueva landing, flujo de páginas, icono/marca |
 | F2-M3 | Organización de documentos | ⏳ Pendiente | Carpetas, renombrar docs, favoritos, filtros |
 | F2-M4 | Subida de archivos como contexto IA | ⏳ Pendiente | PDF, imágenes, DOCX → contexto para generación + imágenes en LaTeX |
 | F2-M5 | Mejoras de UX y pulido | ⏳ Pendiente | Mobile responsive, onboarding, sidebar expandible, perfil |
@@ -35,11 +35,11 @@ _Última actualización: 2026-03-19_
 
 ## Detalle y backlog por milestone
 
-### F2-M1 — Diagnóstico visual + propuesta de diseño
-- [ ] Analizar rama main: paleta, tipografía, componentes visuales clave
-- [ ] Mapear flujo de navegación de v1 (landing → workspace → documents → templates)
-- [ ] Proponer orden óptimo de implementación de Fase 2 con justificación
-- [ ] **PAUSA — esperar aprobación antes de F2-M2**
+### F2-M1 — Diagnóstico visual + propuesta de diseño ✅
+- [x] Analizar rama main: paleta, tipografía, componentes visuales clave
+- [x] Mapear flujo de navegación de v1 (landing → workspace → workspace/[id] → projects → templates)
+- [x] Proponer orden óptimo de implementación de Fase 2 con justificación
+- [x] **PAUSA — esperando aprobación antes de F2-M2**
 
 ### F2-M2 — Rediseño visual y estructura de navegación
 _Prioridad: 🔴 Alta_

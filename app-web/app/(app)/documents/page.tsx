@@ -169,14 +169,14 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-[#0a0a0a] text-white">
+    <div className="h-full overflow-y-auto bg-transparent text-white">
       {/* Header */}
-      <div className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">My Documents</h1>
+      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">My Documents</h1>
         <button
           onClick={() => setShowNewDocModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm
-            font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-white hover:bg-white/90 text-neutral-950 text-sm
+            font-semibold px-4 py-2 rounded-xl transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -189,31 +189,31 @@ export default function DocumentsPage() {
       <div className="max-w-5xl mx-auto px-6 py-8">
         {isLoadingDocs ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
           </div>
         ) : documents.length === 0 ? (
           /* Onboarding empty state */
           <div className="text-center py-20">
             <h2 className="text-2xl font-bold text-white mb-2">Create your first document</h2>
-            <p className="text-gray-500 text-sm mb-10">Let AI generate a print-ready PDF from your notes.</p>
+            <p className="text-white/55 text-sm mb-10">Let AI generate a print-ready PDF from your notes.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-10">
               {ONBOARDING_STEPS.map(({ step, icon, title, desc }) => (
                 <div
                   key={step}
-                  className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 text-left"
+                  className="bg-white/10 border border-white/20 rounded-2xl p-5 text-left backdrop-blur"
                 >
                   <div className="mb-3">{icon}</div>
-                  <p className="text-xs text-gray-500 font-medium mb-1">Step {step}</p>
+                  <p className="text-xs text-white/40 font-medium mb-1">Step {step}</p>
                   <p className="text-sm font-semibold text-white mb-1">{title}</p>
-                  <p className="text-xs text-gray-500">{desc}</p>
+                  <p className="text-xs text-white/55">{desc}</p>
                 </div>
               ))}
             </div>
 
             <button
               onClick={() => setShowNewDocModal(true)}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl
+              className="bg-white hover:bg-white/90 text-neutral-950 font-semibold px-6 py-3 rounded-xl
                 transition-colors text-sm"
             >
               Get started
@@ -226,8 +226,8 @@ export default function DocumentsPage() {
               return (
                 <div
                   key={doc.id}
-                  className="relative text-left bg-gray-900/60 border border-gray-800 rounded-xl p-4
-                    hover:border-gray-600 hover:bg-gray-900 transition-all group cursor-pointer"
+                  className="relative text-left bg-white/10 border border-white/20 rounded-xl p-4
+                    hover:bg-white/15 hover:border-white/30 backdrop-blur transition-all group cursor-pointer"
                   onClick={() => router.push(`/documents/${doc.id}`)}
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -236,7 +236,7 @@ export default function DocumentsPage() {
                     </h3>
                     <button
                       onClick={(e) => handleDeleteDocument(e, doc.id)}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-0.5 rounded"
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all p-0.5 rounded"
                       aria-label="Delete document"
                       title="Delete"
                     >
@@ -246,14 +246,14 @@ export default function DocumentsPage() {
                       </svg>
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-white/50 mb-3">
                     {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
                   </p>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-medium ${statusInfo.color}`}>
                       {statusInfo.label}
                     </span>
-                    <span className="text-xs text-gray-700">
+                    <span className="text-xs text-white/30">
                       {formatDate(doc.updated_at)}
                     </span>
                   </div>
@@ -267,13 +267,13 @@ export default function DocumentsPage() {
       {/* New Document modal — 2-step flow */}
       {showNewDocModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+          <div className="bg-neutral-950/90 border border-white/20 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col backdrop-blur-xl">
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
-              <h2 className="text-lg font-bold text-white">New Document</h2>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+              <h2 className="text-lg font-semibold text-white">New Document</h2>
               <button
                 onClick={handleCloseModal}
-                className="text-gray-500 hover:text-gray-300 transition-colors"
+                className="text-white/40 hover:text-white/80 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

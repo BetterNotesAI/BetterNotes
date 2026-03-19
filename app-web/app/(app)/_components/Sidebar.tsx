@@ -1,111 +1,283 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+
+interface RecentDoc { id: string; title: string }
+
+const COLLAPSED_KEY = 'bn_sidebar_collapsed';
+// Routes where sidebar auto-collapses (editor needs space)
+const EDITOR_PREFIX = '/documents/';
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(true); // default collapsed during SSR
+  const [userToggled, setUserToggled] = useState(false);
+  const [email, setEmail] = useState('');
+  const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
-  async function handleLogout() {
+  // Hydrate from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(COLLAPSED_KEY);
+    if (stored !== null) setCollapsed(stored === 'true');
+  }, []);
+
+  // Persist collapsed state
+  useEffect(() => {
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
+
+  // Auto-collapse on editor routes (unless user manually expanded)
+  useEffect(() => {
+    if (pathname.startsWith(EDITOR_PREFIX)) {
+      if (!userToggled) setCollapsed(true);
+    } else {
+      setUserToggled(false);
+    }
+  }, [pathname, userToggled]);
+
+  // Load user email
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setEmail(data.user.email);
+    });
+  }, []);
+
+  // Load recent documents — API returns { documents: [...] }, no limit param, slice client-side
+  useEffect(() => {
+    fetch('/api/documents')
+      .then(r => r.ok ? r.json() : { documents: [] })
+      .then(data => {
+        const docs: RecentDoc[] = (data.documents ?? []).slice(0, 5);
+        setRecentDocs(docs);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Close profile menu on outside click
+  useEffect(() => {
+    if (!profileOpen) return;
+    function handler(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [profileOpen]);
+
+  async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/login');
+    router.push('/');
+  }
+
+  function toggle() {
+    setUserToggled(true);
+    setCollapsed(c => !c);
   }
 
   function isActive(href: string) {
+    if (href === '/documents') return pathname === '/documents';
     return pathname.startsWith(href);
   }
 
-  return (
-    <aside className="w-14 h-screen flex flex-col items-center py-3 border-r border-gray-800 bg-[#0a0a0a] shrink-0">
-      {/* Logo */}
-      <Link
-        href="/documents"
-        className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center mb-6 shrink-0"
-        aria-label="BetterNotes"
-      >
-        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" />
-        </svg>
-      </Link>
+  const navItems = [
+    { label: 'Home', href: '/documents', icon: HomeIcon },
+    { label: 'Templates', href: '/templates', icon: TemplatesIcon },
+    { label: 'Starred', href: '/documents?filter=starred', icon: StarIcon },
+    { label: 'Settings', href: '/settings/billing', icon: SettingsIcon },
+    { label: 'Support', href: '/support', icon: SupportIcon },
+  ];
 
-      {/* Nav */}
-      <nav className="flex flex-col items-center gap-1 flex-1">
-        <NavItem
-          href="/documents"
-          active={isActive('/documents')}
-          label="Documents"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
-        />
-        <NavItem
-          href="/pricing"
-          active={isActive('/pricing')}
-          label="Pricing"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-          }
-        />
-        <NavItem
-          href="/settings/billing"
-          active={isActive('/settings')}
-          label="Billing"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-            </svg>
-          }
-        />
+  const initial = email ? email[0].toUpperCase() : 'U';
+
+  return (
+    <aside
+      className="relative z-40 flex flex-col h-screen border-r border-white/8 bg-neutral-950/70 backdrop-blur-xl shrink-0 transition-[width] duration-200 ease-out"
+      style={{ width: collapsed ? 64 : 224 }}
+    >
+      {/* Header: logo + toggle */}
+      <div className={`flex items-center h-14 px-3 border-b border-white/8 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        {!collapsed && (
+          <Link href="/documents" className="flex items-center gap-2 min-w-0">
+            <Image src="/brand/logo.png" alt="BetterNotes" width={28} height={28} className="w-7 h-7 object-contain shrink-0" />
+            <span className="text-sm font-semibold tracking-tight text-white truncate">BetterNotes</span>
+          </Link>
+        )}
+        <button
+          onClick={toggle}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors shrink-0"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+        </button>
+      </div>
+
+      {/* Nav items */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
+        {navItems.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={`${label}-${href}`}
+            href={href}
+            title={collapsed ? label : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive(href)
+                ? 'bg-white/12 text-white font-medium'
+                : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+            }`}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">{label}</span>}
+          </Link>
+        ))}
+
+        {/* Recent documents */}
+        {!collapsed && recentDocs.length > 0 && (
+          <div className="mt-4">
+            <p className="px-3 py-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
+              Recent
+            </p>
+            {recentDocs.map(doc => (
+              <Link
+                key={doc.id}
+                href={`/documents/${doc.id}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors truncate ${
+                  pathname === `/documents/${doc.id}`
+                    ? 'bg-white/12 text-white'
+                    : 'text-white/55 hover:bg-white/8 hover:text-white/85'
+                }`}
+              >
+                <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/30" />
+                <span className="truncate">{doc.title || 'Untitled'}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
 
-      {/* Logout */}
-      <button
-        onClick={handleLogout}
-        className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-        aria-label="Sign out"
-        title="Sign out"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-      </button>
+      {/* Profile footer */}
+      <div ref={profileRef} className="relative border-t border-white/8 p-2 shrink-0">
+        <button
+          onClick={() => setProfileOpen(o => !o)}
+          className={`flex items-center gap-2.5 w-full rounded-xl hover:bg-white/8 transition-colors ${
+            collapsed ? 'justify-center p-2' : 'px-3 py-2.5'
+          }`}
+        >
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 border border-white/15 flex items-center justify-center shrink-0">
+            <span className="text-xs font-medium text-white/80">{initial}</span>
+          </div>
+          {!collapsed && (
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-xs text-white/80 truncate">{email.split('@')[0]}</div>
+              <div className="text-[10px] text-white/40 truncate">{email}</div>
+            </div>
+          )}
+        </button>
+
+        {profileOpen && (
+          <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
+            <Link
+              href="/settings/billing"
+              onClick={() => setProfileOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+            >
+              <SettingsIcon className="w-4 h-4" />
+              Settings
+            </Link>
+            <div className="h-px bg-white/10 my-1" />
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-300/80 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+            >
+              <SignOutIcon className="w-4 h-4" />
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
 
-function NavItem({
-  href,
-  active,
-  label,
-  icon,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-  icon: React.ReactNode;
-}) {
+/* ---- Icon components ---- */
+function HomeIcon({ className }: { className?: string }) {
   return (
-    <Link
-      href={href}
-      title={label}
-      className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-        active
-          ? 'bg-gray-800 text-white'
-          : 'text-gray-600 hover:text-gray-300 hover:bg-gray-800'
-      }`}
-    >
-      {icon}
-    </Link>
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+    </svg>
+  );
+}
+function DocumentsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+    </svg>
+  );
+}
+function TemplatesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+    </svg>
+  );
+}
+function StarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+    </svg>
+  );
+}
+function SettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+function SupportIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+    </svg>
+  );
+}
+function FileIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    </svg>
+  );
+}
+function ChevronLeftIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+  );
+}
+function ChevronRightIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+function SignOutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+    </svg>
   );
 }

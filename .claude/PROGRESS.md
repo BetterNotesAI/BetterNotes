@@ -4,6 +4,71 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-19 — F2-M2: Rediseño visual y estructura de navegación
+
+### ✅ Completado
+- `globals.css`: design tokens completos (CSS vars dark mode), Geist font vars, keyframes blob1/2/3 (14/16/18s), animate-blob1/2/3, fadeIn, scaleIn
+- `app/layout.tsx`: Geist Sans + Geist Mono via next/font/google
+- `app/components/Background.tsx`: fondo landing con blobs animados + gradientes radiales + grid + grain
+- `app/components/AppBackground.tsx`: fondo app (fixed, sin blobs, gradientes suaves)
+- `app/page.tsx`: landing completa con glassmorphism — badge, h1 gradiente indigo→fuchsia→emerald, 3 feature cards, CTA, footer
+- `app/(app)/layout.tsx`: AppBackground añadido, bg-transparent en contenedor
+- `app/(app)/_components/Sidebar.tsx`: rewrite completo — expandible 64px↔224px, toggle con persistencia localStorage, auto-colapsa en /documents/[id], 5 nav items (Home/Templates/Starred/Settings/Support) con icons + labels, sección Recent (fetch /api/documents, slice 5), profile footer con avatar + email + sign out
+- `public/brand/logo.png`: extraído de rama main (98KB)
+- `app/(app)/documents/page.tsx`: glassmorphism aplicado — cards docs, modal New Document, onboarding steps
+- `app/(app)/documents/_components/ChatPanel.tsx`: glassmorphism aplicado — fondo, input, botón send, burbujas
+- `app/(app)/documents/[id]/page.tsx`: colores de borde/fondo actualizados al nuevo sistema
+- Stubs: `app/(app)/templates/page.tsx` y `app/(app)/support/page.tsx`
+
+### 🧠 Decisiones tomadas
+- Sidebar: 5 items (no 6) — "Home" y "Documents" apuntaban a la misma ruta, se eliminó el duplicado
+- Sidebar: sidebar auto-colapsa en /documents/ (editor) pero no en /documents (lista) — editor necesita espacio
+- Logo: reutilizado el logo.png de v1 (rama main) — branding nuevo diferido a F2-M5
+- Páginas /templates y /support: stubs con estilo glassmorphism, implementación real en milestones posteriores
+- No se tocaron: auth pages, pricing, settings/billing — deuda visual registrada para F2-M5
+
+### ⚠️ Deuda visual conocida (diferida a F2-M5)
+- `/login` y `/signup`: todavía usan `bg-[#0a0a0a]` sólido sin Background animado
+- `/pricing` y `/settings/billing`: usan `bg-[#0a0a0a]` que tapa el AppBackground
+
+---
+
+## Sesión 2026-03-19 — F2-M1: Diagnóstico visual + propuesta de diseño
+
+### ✅ Completado
+- Análisis completo de rama main (v1): paleta, tipografía, componentes, animaciones, assets
+- Mapeo de flujo de navegación de v1: landing → auth → workspace → workspace/[projectId] → projects → templates
+- Análisis diferencial v1 vs v2: qué existe en v1 pero no en v2
+- Propuesta de orden óptimo para Fase 2: F2-M2 → M3 → M4 → M5 → M6
+
+### 🧠 Diagnóstico visual extraído
+
+**Paleta v1:**
+- Fondo: `#0a0a0a` (neutral-950)
+- Texto: `#ededed` / white/70 (secundario)
+- Acento indigo: `#6366f1` | fuchsia: `#d946ef` | emerald: `#34d399`
+- CTA primario: `bg-white text-neutral-950` | CTA glass: `bg-white/10 border-white/20`
+- Gradiente hero: `from-indigo-500 via-fuchsia-500 to-emerald-400`
+
+**Tipografía:** Geist Sans + Geist Mono (ya en v2)
+
+**Background animado:** 3 blobs (indigo/fuchsia/emerald) + radial gradients + grid 56px + grain SVG
+
+**Componentes clave:** glassmorphism cards (rounded-2xl, bg-white/10, backdrop-blur, shadow doble)
+
+**Assets:** `/public/brand/logo.png` (PNG 36x36) + apple-icon + template thumbnails
+
+### 📊 Diferencias principales v2 vs v1
+- Landing v2: sin blobs animados, sin template cards, sin prompt box glassmorphism
+- Sidebar v2: 56px fija solo iconos vs v1 expandible 160-320px con labels + Recent + ThemeToggle
+- Rutas v2 faltantes: /workspace (hub), /projects (carpetas), /templates (galería), /settings/profile
+- Logo v2: SVG genérico azul vs v1: PNG real de marca
+
+### 📋 Orden propuesto Fase 2
+F2-M2 (rediseño visual base) → F2-M3 (organización docs) → F2-M4 (adjuntos IA) → F2-M5 (UX/polish) → F2-M6 (infra)
+
+---
+
 ## Sesión 2026-03-19 — Cierre Fase 1 / M7: MVP público
 
 ### ✅ Completado
