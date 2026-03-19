@@ -370,9 +370,15 @@ export function applyLatexFallbacks(latex: string): string {
    compile
 ------------------------- */
 
+export interface ImageFile {
+  filename: string;
+  buffer: Buffer;
+}
+
 export async function compileLatexToPdf(
   latexSourceRaw: string,
-  opts: { timeoutMs: number }
+  opts: { timeoutMs: number },
+  imageFiles?: ImageFile[]
 ): Promise<{ pdf: Buffer; log: string; latexPatched: string }> {
   const latexSource = applyLatexFallbacks(latexSourceRaw);
 
@@ -382,6 +388,15 @@ export async function compileLatexToPdf(
   const texLogPath = path.join(workDir, "main.log");
 
   await fs.promises.writeFile(texPath, latexSource, "utf8");
+
+  // Write image files into the work directory so \includegraphics can find them
+  if (imageFiles && imageFiles.length > 0) {
+    await Promise.all(
+      imageFiles.map((img) =>
+        fs.promises.writeFile(path.join(workDir, img.filename), img.buffer)
+      )
+    );
+  }
 
   let log = "";
   try {

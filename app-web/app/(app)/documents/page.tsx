@@ -7,7 +7,7 @@ import { SpecsModal } from './_components/SpecsModal';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
 import { FolderPanel, type Folder } from './_components/FolderPanel';
-import { DocumentSpecs } from './_types';
+import { DocumentSpecs, LocalAttachment } from './_types';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
 
@@ -88,6 +88,11 @@ export default function DocumentsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [specsStep, setSpecsStep] = useState<SpecsStep | null>(null);
+
+  // Attachment state
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Initial load: fetch folders + apply folder selected from sidebar (localStorage)
   useEffect(() => {
@@ -201,11 +206,48 @@ export default function DocumentsPage() {
     loadDocuments();
   }
 
+  // --- Attachment handlers ---
+
+  async function handleAddAttachment(file: File) {
+    if (attachments.length >= 3) return;
+    setIsUploadingAttachment(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/attachments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadError(data?.error ?? 'Upload failed');
+        return;
+      }
+      setAttachments((prev) => [...prev, {
+        name: data.name,
+        mimeType: data.mimeType,
+        sizeBytes: data.sizeBytes,
+        storagePath: data.storagePath,
+      }]);
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  }
+
+  function handleRemoveAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
   // --- New document modal handlers ---
 
   function handleCloseModal() {
     setShowNewDocModal(false);
     setSpecsStep(null);
+    setAttachments([]);
+    setUploadError(null);
   }
 
   function handleChooseTemplate(templateId: string) {
@@ -225,7 +267,11 @@ export default function DocumentsPage() {
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: templateId, specs }),
+        body: JSON.stringify({
+          template_id: templateId,
+          specs,
+          attachments: specs.attachments ?? [],
+        }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -389,6 +435,11 @@ export default function DocumentsPage() {
                   onConfirm={(specs) => handleConfirmWithSpecs(specsStep.id, specs)}
                   onBack={() => { setSpecsStep(null); setCreateError(null); }}
                   isLoading={isCreating}
+                  attachments={attachments}
+                  onAddAttachment={handleAddAttachment}
+                  onRemoveAttachment={handleRemoveAttachment}
+                  isUploadingAttachment={isUploadingAttachment}
+                  uploadError={uploadError}
                 />
               </div>
             )}

@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { AIProvider } from '../lib/ai/types';
+import { AIProvider, AttachmentInput } from '../lib/ai/types';
 import { getTemplateOrThrow } from '../lib/templates';
 import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
 import { trimHugeLog } from '../lib/errors';
+import { processAttachments } from '../lib/attachments';
 
 export interface LatexRouterOptions {
   aiProvider: AIProvider;
@@ -22,7 +23,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         prompt?: string;
         templateId?: string;
         baseLatex?: string;
-        files?: Array<{ type: string; url?: string; data?: string; name: string; mimeType?: string }>;
+        files?: AttachmentInput[];
       };
 
       if (!prompt || typeof prompt !== 'string') {
@@ -36,7 +37,18 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
 
       const template = getTemplateOrThrow(templateId);
 
-      // Step 1: Generate LaTeX via AI
+      // Step 1: Download and process attachments (extract text from PDFs/DOCX, encode images)
+      const processedFiles = await processAttachments(files ?? []);
+
+      // Build the image file list for compileLatexToPdf (images flagged for PDF embed)
+      const imageFiles = processedFiles
+        .filter((a) => a.imageBuffer && a.embedInPdf)
+        .map((a, i) => {
+          const ext = (a.mimeType ?? 'image/jpeg').split('/')[1].replace('jpeg', 'jpg');
+          return { filename: `attachment_${i}.${ext}`, buffer: a.imageBuffer! };
+        });
+
+      // Step 2: Generate LaTeX via AI
       const generated = await aiProvider.generateLatex({
         prompt,
         templateId,
@@ -45,7 +57,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         structureTemplate: template.structureTemplate,
         structureExample: template.structureExample,
         baseLatex: baseLatex ?? undefined,
-        files: files ?? [],
+        files: processedFiles,
       });
 
       // If AI responded with a chat message (not a document), return it immediately
@@ -68,7 +80,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
       let finalLatex = latexSource;
 
       try {
-        const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs });
+        const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs }, imageFiles);
         pdfBuffer = result.pdf;
         compileLog = result.log;
         latexPatched = result.latexPatched;
@@ -91,7 +103,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         }
 
         try {
-          const retryResult = await compileLatexToPdf(fixedLatex, { timeoutMs: latexTimeoutMs });
+          const retryResult = await compileLatexToPdf(fixedLatex, { timeoutMs: latexTimeoutMs }, imageFiles);
           pdfBuffer = retryResult.pdf;
           compileLog = retryResult.log;
           latexPatched = retryResult.latexPatched;

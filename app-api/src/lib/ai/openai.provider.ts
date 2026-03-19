@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, AttachmentInput } from './types';
+import type { ProcessedAttachment } from '../attachments';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
 const MAX_TOTAL_FILE_CONTEXT_CHARS = 45000;
@@ -34,29 +35,70 @@ function applyLatexFallbacks(latex: string): string {
 }
 
 function buildAttachmentContent(
-  files: AttachmentInput[]
+  files: (AttachmentInput | ProcessedAttachment)[]
 ): { textContext: string; imageItems: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> } {
   const imageItems: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> = [];
   const textParts: string[] = [];
   let totalTextChars = 0;
 
+  // Build the embed-image filename instruction block first
+  const embedImages = files.filter(
+    (f): f is ProcessedAttachment =>
+      !!(f as ProcessedAttachment).embedInPdf && (f.mimeType ?? '').startsWith('image/')
+  );
+  if (embedImages.length > 0) {
+    const lines: string[] = [
+      '=== IMAGE ATTACHMENTS (embed in document) ===',
+      'Reference them in your LaTeX using ONLY these exact filenames:',
+    ];
+    embedImages.forEach((f, i) => {
+      const ext = (f.mimeType ?? 'image/jpeg').split('/')[1].replace('jpeg', 'jpg');
+      lines.push(`  attachment_${i}.${ext}   (Image ${i + 1}: ${f.name})`);
+    });
+    lines.push(
+      'Use \\includegraphics[width=\\linewidth]{attachment_0.jpg} or similar.',
+      'The graphicx package is already loaded in the preamble.',
+      'IMPORTANT: use ONLY the normalized filenames above, never the original names.'
+    );
+    textParts.push(lines.join('\n'));
+  }
+
   for (const file of files) {
     const mimeType = file.mimeType ?? '';
+    const processed = file as ProcessedAttachment;
 
     if (mimeType.startsWith('image/')) {
-      if (file.url) {
-        imageItems.push({ type: 'image_url', image_url: { url: file.url, detail: 'high' } });
-      } else if (file.data) {
-        imageItems.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${file.data}`, detail: 'high' } });
+      if (processed.embedInPdf) {
+        // Embed images: pass as image_url for vision so the model can see them
+        if (processed.data) {
+          imageItems.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${processed.data}`, detail: 'high' } });
+        } else if (file.url) {
+          imageItems.push({ type: 'image_url', image_url: { url: file.url, detail: 'high' } });
+        }
+      } else {
+        // Vision-only images: pass as image_url
+        if (processed.data) {
+          imageItems.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${processed.data}`, detail: 'high' } });
+        } else if (file.url) {
+          imageItems.push({ type: 'image_url', image_url: { url: file.url, detail: 'high' } });
+        }
       }
-    } else if (file.data && totalTextChars < MAX_TOTAL_FILE_CONTEXT_CHARS) {
-      const snippet = file.data.slice(0, MAX_FILE_CONTEXT_CHARS);
-      textParts.push(`=== File: ${file.name} ===\n${snippet}${snippet.length < file.data.length ? '\n[truncated]' : ''}`);
-      totalTextChars += snippet.length;
+    } else if (totalTextChars < MAX_TOTAL_FILE_CONTEXT_CHARS) {
+      // Prefer extractedText (from pdf-parse / mammoth); fall back to raw data field
+      const rawText = processed.extractedText ?? file.data;
+      if (rawText) {
+        const snippet = rawText.slice(0, MAX_FILE_CONTEXT_CHARS);
+        textParts.push(`=== File: ${file.name} ===\n${snippet}${snippet.length < rawText.length ? '\n[truncated]' : ''}`);
+        totalTextChars += snippet.length;
+      }
     }
   }
 
-  return { textContext: textParts.join('\n\n'), imageItems };
+  const header = textParts.length > 0 ? '=== ATTACHED CONTEXT FILES ===' : '';
+  const body = textParts.join('\n\n');
+  const textContext = header ? `${header}\n${body}` : '';
+
+  return { textContext, imageItems };
 }
 
 export class OpenAIProvider implements AIProvider {
@@ -130,7 +172,7 @@ export class OpenAIProvider implements AIProvider {
     if (args.files && args.files.length > 0) {
       const { textContext, imageItems } = buildAttachmentContent(args.files);
       if (textContext) {
-        userContent[0].text += `\n\n=== ATTACHED CONTEXT FILES ===\n${textContext}`;
+        userContent[0].text += `\n\n${textContext}`;
       }
       for (const img of imageItems) {
         userContent.push(img);

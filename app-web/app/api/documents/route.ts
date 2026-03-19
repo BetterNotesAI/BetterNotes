@@ -87,7 +87,16 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { template_id, title } = body as { template_id?: string; title?: string };
+  const { template_id, title, attachments } = body as {
+    template_id?: string;
+    title?: string;
+    attachments?: Array<{
+      storagePath: string;
+      name: string;
+      mimeType: string;
+      sizeBytes: number;
+    }>;
+  };
 
   if (!template_id || typeof template_id !== 'string') {
     return NextResponse.json({ error: 'template_id is required' }, { status: 400 });
@@ -106,6 +115,19 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (attachments && attachments.length > 0) {
+    await supabase.from('document_attachments').insert(
+      attachments.map((a) => ({
+        document_id: doc.id,
+        user_id: user.id,
+        name: a.name,
+        storage_path: a.storagePath,
+        mime_type: a.mimeType,
+        size_bytes: a.sizeBytes,
+      }))
+    );
   }
 
   return NextResponse.json({ document: doc }, { status: 201 });

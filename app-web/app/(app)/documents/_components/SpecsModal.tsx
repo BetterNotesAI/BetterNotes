@@ -1,13 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { DocumentSpecs } from '../_types';
+import { DocumentSpecs, LocalAttachment } from '../_types';
+import { AttachmentDropzone } from './AttachmentDropzone';
 
 interface SpecsModalProps {
   template: { id: string; displayName: string; description: string };
   onConfirm: (specs: DocumentSpecs) => void;
   onBack: () => void;
   isLoading: boolean;
+  attachments: LocalAttachment[];
+  onAddAttachment: (file: File) => Promise<void>;
+  onRemoveAttachment: (index: number) => void;
+  isUploadingAttachment: boolean;
+  uploadError: string | null;
 }
 
 const DENSITY_OPTIONS: { value: DocumentSpecs['density']; label: string; desc: string }[] = [
@@ -26,7 +32,17 @@ const LANGUAGE_OPTIONS: { value: DocumentSpecs['language']; label: string }[] = 
 
 const MAX_TOPIC_HINT = 200;
 
-export function SpecsModal({ template, onConfirm, onBack, isLoading }: SpecsModalProps) {
+export function SpecsModal({
+  template,
+  onConfirm,
+  onBack,
+  isLoading,
+  attachments,
+  onAddAttachment,
+  onRemoveAttachment,
+  isUploadingAttachment,
+  uploadError,
+}: SpecsModalProps) {
   const [pages, setPages] = useState<number>(2);
   const [density, setDensity] = useState<DocumentSpecs['density']>('balanced');
   const [language, setLanguage] = useState<DocumentSpecs['language']>('auto');
@@ -46,6 +62,7 @@ export function SpecsModal({ template, onConfirm, onBack, isLoading }: SpecsModa
       density,
       language,
       ...(topicHint.trim() ? { topicHint: topicHint.trim() } : {}),
+      attachments,
     };
     onConfirm(specs);
   }
@@ -153,6 +170,24 @@ export function SpecsModal({ template, onConfirm, onBack, isLoading }: SpecsModa
           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white
             placeholder:text-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500
             transition-colors resize-none"
+        />
+      </div>
+
+      {/* Attachments */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">
+          Context files
+          <span className="text-gray-600 font-normal ml-1">(optional)</span>
+        </label>
+        <p className="text-xs text-gray-600 mb-3">
+          Upload PDFs, Word docs, or images to use as context for AI generation.
+        </p>
+        <AttachmentDropzone
+          attachments={attachments}
+          onAdd={onAddAttachment}
+          onRemove={onRemoveAttachment}
+          isUploading={isUploadingAttachment}
+          error={uploadError}
         />
       </div>
 

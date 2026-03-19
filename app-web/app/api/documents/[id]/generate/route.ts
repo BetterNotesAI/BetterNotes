@@ -50,6 +50,29 @@ export async function POST(
   // Mark document as generating
   await supabase.from('documents').update({ status: 'generating' }).eq('id', documentId);
 
+  // Load attachments from DB and generate signed URLs
+  const { data: attachmentRows } = await supabase
+    .from('document_attachments')
+    .select('id, name, storage_path, mime_type')
+    .eq('document_id', documentId);
+
+  const attachmentFiles = await Promise.all(
+    (attachmentRows ?? []).map(async (row) => {
+      const { data: urlData } = await supabase.storage
+        .from('document-attachments')
+        .createSignedUrl(row.storage_path, 60);
+      if (!urlData?.signedUrl) return null;
+      return {
+        name: row.name,
+        mimeType: row.mime_type ?? 'application/octet-stream',
+        url: urlData.signedUrl,
+        embedInPdf: (row.mime_type ?? '').startsWith('image/'),
+      };
+    })
+  );
+
+  const validAttachments = attachmentFiles.filter(Boolean);
+
   // Call app-api to generate and compile
   let pdfBuffer: ArrayBuffer;
   let latexSource: string;
@@ -64,7 +87,7 @@ export async function POST(
       body: JSON.stringify({
         prompt,
         templateId: doc.template_id,
-        files: files ?? [],
+        files: validAttachments,
       }),
     });
 

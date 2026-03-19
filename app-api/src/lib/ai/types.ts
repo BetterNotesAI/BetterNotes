@@ -6,6 +6,7 @@ export interface AttachmentInput {
   data?: string;
   name: string;
   mimeType?: string;
+  embedInPdf?: boolean;  // true = image that must appear in the final PDF
 }
 
 export interface GenerateLatexArgs {
