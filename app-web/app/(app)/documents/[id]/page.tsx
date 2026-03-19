@@ -8,6 +8,7 @@ import { VersionSelector } from '../_components/VersionSelector';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
+import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 
@@ -477,10 +478,11 @@ export default function DocumentWorkspacePage() {
           </div>
         </div>
 
-        {/* Chat Panel — hidden on mobile when pdf tab is active */}
+        {/* Right column: attachments panel + chat — hidden on mobile when pdf tab is active */}
         <div className={`flex-[2] flex-col min-h-0 ${
           mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
         } md:min-w-[300px] md:max-w-[420px] max-w-none`}>
+          <WorkspaceAttachmentsPanel documentId={documentId} />
           <ChatPanel
             messages={messages}
             isLoading={showGenerating}
