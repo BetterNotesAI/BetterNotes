@@ -8,6 +8,7 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: { default: 'BetterNotes — Study Documents with AI', template: '%s | BetterNotes' },
   description: 'Generate beautiful study documents, formula sheets, and PDFs in seconds — powered by AI and LaTeX.',
+  icons: { icon: '/brand/logo.png', apple: '/brand/logo.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

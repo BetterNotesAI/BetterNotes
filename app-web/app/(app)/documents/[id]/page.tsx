@@ -77,18 +77,22 @@ export default function DocumentWorkspacePage() {
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Native Ctrl+scroll zoom on PDF pane (passive:false required to preventDefault)
+  // Ctrl+scroll zoom: must listen on window with passive:false so preventDefault
+  // actually reaches Chrome before it handles the native page zoom.
+  // We only intercept when the pointer is physically over the PDF pane.
   const pdfPaneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = pdfPaneRef.current;
-    if (!el) return;
     const handler = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
+      const el = pdfPaneRef.current;
+      if (!el) return;
+      const { left, right, top, bottom } = el.getBoundingClientRect();
+      if (e.clientX < left || e.clientX > right || e.clientY < top || e.clientY > bottom) return;
       e.preventDefault();
       setZoom((z) => Math.min(200, Math.max(50, z + (e.deltaY < 0 ? 10 : -10))));
     };
-    el.addEventListener('wheel', handler, { passive: false });
-    return () => el.removeEventListener('wheel', handler);
+    window.addEventListener('wheel', handler, { passive: false });
+    return () => window.removeEventListener('wheel', handler);
   }, []);
 
   const handleResizerMouseDown = useCallback((e: React.MouseEvent) => {
