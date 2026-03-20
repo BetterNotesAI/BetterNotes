@@ -426,11 +426,20 @@ function FolderSection({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.focus();
   }, [isRenaming]);
+
+  useEffect(() => {
+    if (confirmDelete) {
+      confirmTimerRef.current = setTimeout(() => setConfirmDelete(false), 3000);
+    }
+    return () => { if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current); };
+  }, [confirmDelete]);
 
   function commitRename() {
     const trimmed = renameValue.trim();
@@ -445,12 +454,13 @@ function FolderSection({
     if (e.key === 'Escape') { setRenameValue(folder.name); setIsRenaming(false); }
   }
 
-  function handleDeleteFolder() {
-    const msg = attachments.length > 0
-      ? `Delete folder "${folder.name}"? The ${attachments.length} file(s) inside will become unfiled.`
-      : `Delete folder "${folder.name}"?`;
-    if (!confirm(msg)) return;
-    onDeleteFolder(folder.id);
+  function handleDeleteClick() {
+    if (confirmDelete) {
+      setConfirmDelete(false);
+      onDeleteFolder(folder.id);
+    } else {
+      setConfirmDelete(true);
+    }
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -488,7 +498,10 @@ function FolderSection({
         }`}
     >
       {/* Folder header */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 group/header">
+      <div
+        className="flex items-center gap-1.5 px-2.5 py-1.5 group/header"
+        onMouseLeave={() => setConfirmDelete(false)}
+      >
         <button
           onClick={() => setIsOpen((v) => !v)}
           className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
@@ -532,16 +545,25 @@ function FolderSection({
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
-            <button
-              onClick={handleDeleteFolder}
-              aria-label={`Delete folder ${folder.name}`}
-              className="p-0.5 text-white/30 hover:text-red-400 transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {confirmDelete ? (
+              <button
+                onClick={handleDeleteClick}
+                className="h-5 px-1.5 flex items-center rounded text-[10px] font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              >
+                Delete?
+              </button>
+            ) : (
+              <button
+                onClick={handleDeleteClick}
+                aria-label={`Delete folder ${folder.name}`}
+                className="p-0.5 text-white/30 hover:text-red-400 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </div>

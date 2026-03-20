@@ -295,18 +295,8 @@ export default function DocumentsPage() {
         <NewDocumentWatcher onTrigger={() => setShowNewDocModal(true)} />
       </Suspense>
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between shrink-0">
+      <div className="border-b border-white/10 px-6 py-4 shrink-0">
         <h1 className="text-xl font-semibold">My Documents</h1>
-        <button
-          onClick={() => setShowNewDocModal(true)}
-          className="flex items-center gap-2 bg-white hover:bg-white/90 text-neutral-950 text-sm
-            font-semibold px-4 py-2 rounded-xl transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Document
-        </button>
       </div>
 
       {/* Filters bar */}

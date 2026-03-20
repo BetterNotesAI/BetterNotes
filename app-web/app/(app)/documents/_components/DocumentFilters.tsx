@@ -20,24 +20,23 @@ export function DocumentFilters({
   setShowArchived,
 }: DocumentFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur">
+    <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-white/10 bg-white/[0.02] backdrop-blur">
       {/* Sort select */}
       <div className="relative">
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
           style={{ colorScheme: 'dark' }}
-          className="appearance-none bg-white/8 hover:bg-white/12 border border-white/15 text-white/80
-            text-xs font-medium rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer
-            focus:border-white/30 focus:bg-white/12 transition-colors"
+          className="appearance-none bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/25
+            text-indigo-200/80 text-xs font-medium rounded-xl pl-3 pr-7 py-1.5 outline-none cursor-pointer
+            focus:border-indigo-400/50 transition-colors"
         >
           <option value="date_desc">Newest first</option>
           <option value="date_asc">Oldest first</option>
           <option value="title_asc">A &#8594; Z</option>
           <option value="template">By template</option>
         </select>
-        {/* Chevron icon */}
-        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-indigo-300/50">
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
@@ -47,12 +46,11 @@ export function DocumentFilters({
       {/* Starred toggle */}
       <button
         onClick={() => setFilterStarred(!filterStarred)}
-        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border
-          transition-colors ${
-            filterStarred
-              ? 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300'
-              : 'bg-white/8 border-white/15 text-white/60 hover:bg-white/12 hover:text-white/80'
-          }`}
+        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+          filterStarred
+            ? 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300'
+            : 'bg-white/5 border-white/10 text-white/50 hover:bg-indigo-500/10 hover:border-indigo-500/25 hover:text-indigo-200/80'
+        }`}
         aria-pressed={filterStarred}
       >
         <svg
@@ -70,12 +68,11 @@ export function DocumentFilters({
       {/* Show archived toggle */}
       <button
         onClick={() => setShowArchived(!showArchived)}
-        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border
-          transition-colors ${
-            showArchived
-              ? 'bg-white/15 border-white/30 text-white'
-              : 'bg-white/8 border-white/15 text-white/60 hover:bg-white/12 hover:text-white/80'
-          }`}
+        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+          showArchived
+            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-200'
+            : 'bg-white/5 border-white/10 text-white/50 hover:bg-indigo-500/10 hover:border-indigo-500/25 hover:text-indigo-200/80'
+        }`}
         aria-pressed={showArchived}
       >
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -84,14 +81,11 @@ export function DocumentFilters({
         Show archived
       </button>
 
-      {/* Active filters summary */}
+      {/* Clear filters */}
       {(filterStarred || showArchived) && (
         <button
-          onClick={() => {
-            setFilterStarred(false);
-            setShowArchived(false);
-          }}
-          className="text-xs text-white/40 hover:text-white/60 transition-colors ml-1 underline underline-offset-2"
+          onClick={() => { setFilterStarred(false); setShowArchived(false); }}
+          className="text-xs text-indigo-400/60 hover:text-indigo-300 transition-colors ml-1 underline underline-offset-2"
         >
           Clear filters
         </button>

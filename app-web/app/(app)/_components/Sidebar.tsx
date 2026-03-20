@@ -261,7 +261,9 @@ export function Sidebar() {
           <Link
             href="/documents?new=1"
             title={collapsed ? 'New Document' : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 mb-2 bg-white text-neutral-950 hover:bg-white/90 font-semibold ${
+            className={`flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
+              bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400
+              text-white shadow-[0_2px_12px_rgba(99,102,241,0.35)] hover:shadow-[0_2px_16px_rgba(99,102,241,0.5)] ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             }`}
           >
