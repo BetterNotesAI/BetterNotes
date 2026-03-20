@@ -472,6 +472,7 @@ function FolderSection({
     setIsDragOver(false);
     const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
     if (!attachmentId) return;
+    onDragEnd(); // clear draggingId before re-render so new position doesn't inherit drag style
     onMove(attachmentId, folder.id);
   }
 
@@ -918,7 +919,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
                 e.preventDefault();
                 setUnfiledDragOver(false);
                 const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
-                if (attachmentId) handleMoveAttachment(attachmentId, null);
+                if (attachmentId) { handleDragEnd(); handleMoveAttachment(attachmentId, null); }
               }}
             >
               {folders.length > 0 && (
