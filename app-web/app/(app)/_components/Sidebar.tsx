@@ -19,6 +19,8 @@ interface SidebarFolder {
 const COLLAPSED_KEY = 'bn_sidebar_collapsed';
 // Routes where sidebar auto-collapses (editor needs space)
 const EDITOR_PREFIX = '/documents/';
+// Max folders shown in the sub-menu before "View all →"
+const MAX_FOLDERS_VISIBLE = 5;
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -28,7 +30,7 @@ export function Sidebar() {
   const [email, setEmail] = useState('');
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
-  const [foldersExpanded, setFoldersExpanded] = useState(true);
+  const [docsExpanded, setDocsExpanded] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -79,8 +81,7 @@ export function Sidebar() {
         const sorted: SidebarFolder[] = (data.folders ?? [])
           .sort((a: SidebarFolder, b: SidebarFolder) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
-          .slice(0, 5);
+          );
         setFolders(sorted);
       })
       .catch(() => {});
@@ -116,19 +117,20 @@ export function Sidebar() {
     setCollapsed(c => !c);
   }
 
+  // isActive for /documents: true on /documents AND any /documents/* sub-route
+  function isActiveDocuments() {
+    return pathname === '/documents' || pathname.startsWith('/documents/');
+  }
+
   function isActive(href: string) {
-    if (href === '/documents') return pathname === '/documents';
+    if (href === '/home') return pathname === '/home';
     return pathname.startsWith(href);
   }
 
-  const navItems = [
-    { label: 'Home', href: '/documents', icon: HomeIcon },
-    { label: 'Templates', href: '/templates', icon: TemplatesIcon },
-    { label: 'Settings', href: '/settings/billing', icon: SettingsIcon },
-    { label: 'Support', href: '/support', icon: SupportIcon },
-  ];
-
   const initial = email ? email[0].toUpperCase() : 'U';
+
+  const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
+  const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
 
   return (
     <aside
@@ -154,34 +156,72 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
-        {navItems.map(({ label, href, icon: Icon }) => (
+
+        {/* A) New Document CTA */}
+        <Link
+          href="/documents?new=1"
+          title={collapsed ? 'New Document' : undefined}
+          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 mb-2 bg-white text-neutral-950 hover:bg-white/90 font-semibold ${
+            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+          }`}
+        >
+          <PlusIcon className="w-4 h-4 shrink-0" />
+          {!collapsed && <span className="text-sm truncate">New Document</span>}
+        </Link>
+
+        {/* B) Home */}
+        <Link
+          href="/home"
+          title={collapsed ? 'Home' : undefined}
+          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+          } ${
+            isActive('/home')
+              ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+              : 'text-white/60 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <HomeIcon className="w-4 h-4 shrink-0" />
+          {!collapsed && <span className="text-sm truncate">Home</span>}
+        </Link>
+
+        {/* C) All Documents — with collapsible folder sub-menu when expanded */}
+        {collapsed ? (
           <Link
-            key={`${label}-${href}`}
-            href={href}
-            title={collapsed ? label : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-            } ${
-              isActive(href)
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+            href="/documents"
+            title="All Documents"
+            className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
+              isActiveDocuments()
+                ? 'bg-white/15 text-white font-medium'
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <Icon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">{label}</span>}
+            <DocumentsIcon className="w-4 h-4 shrink-0" />
           </Link>
-        ))}
-
-        {/* Folders section */}
-        {!collapsed && (
-          <div className="mt-4">
-            <div className="flex items-center px-3 py-1.5">
+        ) : (
+          <div>
+            {/* All Documents row with toggle arrow */}
+            <div
+              className={`flex items-center gap-3 rounded-xl transition-colors duration-150 px-3 py-2.5 ${
+                isActiveDocuments()
+                  ? 'bg-white/15 text-white font-medium border-r-2 border-indigo-400'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <Link
+                href="/documents"
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
+                <DocumentsIcon className="w-4 h-4 shrink-0" />
+                <span className="text-sm truncate">All Documents</span>
+              </Link>
               <button
-                onClick={() => setFoldersExpanded(e => !e)}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider hover:text-white/60 transition-colors"
+                onClick={() => setDocsExpanded(e => !e)}
+                className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
+                aria-label={docsExpanded ? 'Collapse folders' : 'Expand folders'}
               >
                 <svg
-                  className={`w-2.5 h-2.5 transition-transform duration-150 ${foldersExpanded ? 'rotate-90' : ''}`}
+                  className={`w-3 h-3 transition-transform duration-150 ${docsExpanded ? 'rotate-90' : ''}`}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -189,41 +229,68 @@ export function Sidebar() {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
-                Folders
               </button>
             </div>
-            {foldersExpanded && (
-              <div className="space-y-0.5">
+
+            {/* Folder sub-menu */}
+            {docsExpanded && (
+              <div className="mt-0.5 space-y-0.5">
                 {folders.length === 0 ? (
-                  <p className="px-3 py-2 text-xs text-white/30">No folders yet</p>
+                  <p className="pl-9 pr-3 py-1.5 text-xs text-white/30">No folders yet</p>
                 ) : (
-                  folders.map(folder => (
-                    <button
-                      key={folder.id}
-                      onClick={() => {
-                        localStorage.setItem('bn_active_folder', folder.id);
-                        window.dispatchEvent(new CustomEvent('folder:activate', { detail: { folderId: folder.id } }));
-                        router.push('/documents');
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: folder.color ?? '#6366f1' }}
-                      />
-                      <span className="flex-1 truncate text-sm text-left">{folder.name}</span>
-                      {folder.document_count > 0 && (
-                        <span className="shrink-0 text-white/30 text-[10px]">{folder.document_count}</span>
-                      )}
-                    </button>
-                  ))
+                  <>
+                    {visibleFolders.map(folder => (
+                      <button
+                        key={folder.id}
+                        onClick={() => {
+                          localStorage.setItem('bn_active_folder', folder.id);
+                          window.dispatchEvent(new CustomEvent('folder:activate', { detail: { folderId: folder.id } }));
+                          router.push('/documents');
+                        }}
+                        className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: folder.color ?? '#6366f1' }}
+                        />
+                        <span className="flex-1 truncate text-sm text-left">{folder.name}</span>
+                        {folder.document_count > 0 && (
+                          <span className="shrink-0 text-white/30 text-[10px]">{folder.document_count}</span>
+                        )}
+                      </button>
+                    ))}
+                    {hasMoreFolders && (
+                      <Link
+                        href="/documents"
+                        className="flex items-center pl-9 pr-3 py-1.5 text-xs text-indigo-400/70 hover:text-indigo-400 transition-colors"
+                      >
+                        View all →
+                      </Link>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* Recent documents */}
+        {/* D) Templates */}
+        <Link
+          href="/templates"
+          title={collapsed ? 'Templates' : undefined}
+          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+          } ${
+            isActive('/templates')
+              ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+              : 'text-white/60 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <TemplatesIcon className="w-4 h-4 shrink-0" />
+          {!collapsed && <span className="text-sm truncate">Templates</span>}
+        </Link>
+
+        {/* E) Recent documents — expanded only */}
         {!collapsed && recentDocs.length > 0 && (
           <div className="mt-4">
             <p className="px-3 py-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
@@ -276,6 +343,14 @@ export function Sidebar() {
               <SettingsIcon className="w-4 h-4" />
               Settings
             </Link>
+            <Link
+              href="/support"
+              onClick={() => setProfileOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+            >
+              <SupportIcon className="w-4 h-4" />
+              Support
+            </Link>
             <div className="h-px bg-white/10 my-1" />
             <button
               onClick={handleSignOut}
@@ -292,6 +367,13 @@ export function Sidebar() {
 }
 
 /* ---- Icon components ---- */
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
 function HomeIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

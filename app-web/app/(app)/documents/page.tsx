@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { TemplateSelector, type TemplateMeta } from './_components/TemplateSelector';
 import { SpecsModal } from './_components/SpecsModal';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
-import { FolderPanel, type Folder } from './_components/FolderPanel';
 import { DocumentSpecs, LocalAttachment } from './_types';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
@@ -67,6 +66,18 @@ const ONBOARDING_STEPS = [
   },
 ];
 
+function NewDocumentWatcher({ onTrigger }: { onTrigger: () => void }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      onTrigger();
+      router.replace('/documents', { scroll: false });
+    }
+  }, [searchParams, router, onTrigger]);
+  return null;
+}
+
 export default function DocumentsPage() {
   const router = useRouter();
 
@@ -80,8 +91,8 @@ export default function DocumentsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
-  // Folders state
-  const [folders, setFolders] = useState<Folder[]>([]);
+  // Folders for DocumentCard "move to folder" menu
+  const [folders, setFolders] = useState<{ id: string; name: string; color: string | null }[]>([]);
 
   // Create modal state
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -94,13 +105,14 @@ export default function DocumentsPage() {
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Initial load: fetch folders + apply folder selected from sidebar (localStorage)
+  // Initial load: read active folder from localStorage (set by sidebar) + load folders for card menu
   useEffect(() => {
     const pendingFolder = localStorage.getItem('bn_active_folder');
     if (pendingFolder) {
       setActiveFolderId(pendingFolder);
       localStorage.removeItem('bn_active_folder');
     }
+
     fetch('/api/folders')
       .then((r) => r.ok ? r.json() : { folders: [] })
       .then((data) => setFolders(data.folders ?? []))
@@ -197,15 +209,6 @@ export default function DocumentsPage() {
     loadDocuments();
   }
 
-  async function handleDropDocument(docId: string, folderId: string) {
-    await fetch(`/api/documents/${docId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder_id: folderId }),
-    });
-    loadDocuments();
-  }
-
   // --- Attachment handlers ---
 
   async function handleAddAttachment(file: File) {
@@ -288,6 +291,9 @@ export default function DocumentsPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-transparent text-white">
+      <Suspense fallback={null}>
+        <NewDocumentWatcher onTrigger={() => setShowNewDocModal(true)} />
+      </Suspense>
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between shrink-0">
         <h1 className="text-xl font-semibold">My Documents</h1>
@@ -313,86 +319,74 @@ export default function DocumentsPage() {
         setShowArchived={setShowArchived}
       />
 
-      {/* Content area: folders + documents */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Folder panel — always visible */}
-        <FolderPanel
-          folders={folders}
-          activeFolderId={activeFolderId}
-          onSelectFolder={setActiveFolderId}
-          onFoldersChange={setFolders}
-          onDropDocument={handleDropDocument}
-        />
-
-        {/* Documents grid */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8">
-            {isLoadingDocs ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
+      {/* Documents list — full width */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-8">
+          {isLoadingDocs ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
+            </div>
+          ) : documents.length === 0 ? (
+            /* Empty state — onboarding if no filters active, else a simple message */
+            filterStarred || showArchived || activeFolderId ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
+                <button
+                  onClick={() => {
+                    setFilterStarred(false);
+                    setShowArchived(false);
+                    setActiveFolderId(null);
+                  }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
+                >
+                  Clear all filters
+                </button>
               </div>
-            ) : documents.length === 0 ? (
-              /* Empty state — onboarding if no filters active, else a simple message */
-              filterStarred || showArchived || activeFolderId ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
-                  <button
-                    onClick={() => {
-                      setFilterStarred(false);
-                      setShowArchived(false);
-                      setActiveFolderId(null);
-                    }}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
-                  >
-                    Clear all filters
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center py-20">
-                  <h2 className="text-2xl font-bold text-white mb-2">Create your first document</h2>
-                  <p className="text-white/55 text-sm mb-10">Let AI generate a print-ready PDF from your notes.</p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-10">
-                    {ONBOARDING_STEPS.map(({ step, icon, title, desc }) => (
-                      <div
-                        key={step}
-                        className="bg-white/10 border border-white/20 rounded-2xl p-5 text-left backdrop-blur"
-                      >
-                        <div className="mb-3">{icon}</div>
-                        <p className="text-xs text-white/40 font-medium mb-1">Step {step}</p>
-                        <p className="text-sm font-semibold text-white mb-1">{title}</p>
-                        <p className="text-xs text-white/55">{desc}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setShowNewDocModal(true)}
-                    className="bg-white hover:bg-white/90 text-neutral-950 font-semibold px-6 py-3
-                      rounded-xl transition-colors text-sm"
-                  >
-                    Get started
-                  </button>
-                </div>
-              )
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {documents.map((doc) => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    onRename={(newTitle) => handleRename(doc.id, newTitle)}
-                    onStar={(isStarred) => handleStar(doc.id, isStarred)}
-                    onArchive={(archive) => handleArchive(doc.id, archive)}
-                    onDelete={() => handleDelete(doc.id)}
-                    onNavigate={() => router.push(`/documents/${doc.id}`)}
-                    folders={folders.map(f => ({ id: f.id, name: f.name, color: f.color }))}
-                    onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
-                  />
-                ))}
+              <div className="text-center py-20">
+                <h2 className="text-2xl font-bold text-white mb-2">Create your first document</h2>
+                <p className="text-white/55 text-sm mb-10">Let AI generate a print-ready PDF from your notes.</p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-10">
+                  {ONBOARDING_STEPS.map(({ step, icon, title, desc }) => (
+                    <div
+                      key={step}
+                      className="bg-white/10 border border-white/20 rounded-2xl p-5 text-left backdrop-blur"
+                    >
+                      <div className="mb-3">{icon}</div>
+                      <p className="text-xs text-white/40 font-medium mb-1">Step {step}</p>
+                      <p className="text-sm font-semibold text-white mb-1">{title}</p>
+                      <p className="text-xs text-white/55">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setShowNewDocModal(true)}
+                  className="bg-white hover:bg-white/90 text-neutral-950 font-semibold px-6 py-3
+                    rounded-xl transition-colors text-sm"
+                >
+                  Get started
+                </button>
               </div>
-            )}
-          </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {documents.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  doc={doc}
+                  onRename={(newTitle) => handleRename(doc.id, newTitle)}
+                  onStar={(isStarred) => handleStar(doc.id, isStarred)}
+                  onArchive={(archive) => handleArchive(doc.id, archive)}
+                  onDelete={() => handleDelete(doc.id)}
+                  onNavigate={() => router.push(`/documents/${doc.id}`)}
+                  folders={folders}
+                  onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
