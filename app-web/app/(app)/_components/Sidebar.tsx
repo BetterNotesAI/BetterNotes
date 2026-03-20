@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -17,15 +18,19 @@ interface SidebarFolder {
 }
 
 const COLLAPSED_KEY = 'bn_sidebar_collapsed';
-// Routes where sidebar auto-collapses (editor needs space)
 const EDITOR_PREFIX = '/documents/';
-// Max folders shown in the sub-menu before "View all →"
 const MAX_FOLDERS_VISIBLE = 5;
+
+const PRESET_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#3b82f6', '#94a3b8',
+];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(true); // default collapsed during SSR
+  const [collapsed, setCollapsed] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
   const [email, setEmail] = useState('');
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
@@ -34,18 +39,28 @@ export function Sidebar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
+  // Folder CRUD state
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [colorPickerFolderId, setColorPickerFolderId] = useState<string | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState<{ top: number; left: number } | null>(null);
+
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
   // Hydrate from localStorage
   useEffect(() => {
     const stored = localStorage.getItem(COLLAPSED_KEY);
     if (stored !== null) setCollapsed(stored === 'true');
   }, []);
 
-  // Persist collapsed state
   useEffect(() => {
     localStorage.setItem(COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
 
-  // Auto-collapse on editor routes (unless user manually expanded)
   useEffect(() => {
     if (pathname.startsWith(EDITOR_PREFIX)) {
       if (!userToggled) setCollapsed(true);
@@ -54,7 +69,6 @@ export function Sidebar() {
     }
   }, [pathname, userToggled]);
 
-  // Load user email
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
@@ -62,18 +76,13 @@ export function Sidebar() {
     });
   }, []);
 
-  // Load recent documents — API returns { documents: [...] }, no limit param, slice client-side
   useEffect(() => {
     fetch('/api/documents')
       .then(r => r.ok ? r.json() : { documents: [] })
-      .then(data => {
-        const docs: RecentDoc[] = (data.documents ?? []).slice(0, 5);
-        setRecentDocs(docs);
-      })
+      .then(data => setRecentDocs((data.documents ?? []).slice(0, 5)))
       .catch(() => {});
   }, []);
 
-  // Load folders (and re-load when FolderPanel dispatches 'folders:updated')
   function loadFolders() {
     fetch('/api/folders')
       .then(r => r.ok ? r.json() : { folders: [] })
@@ -94,7 +103,6 @@ export function Sidebar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Close profile menu on outside click
   useEffect(() => {
     if (!profileOpen) return;
     function handler(e: MouseEvent) {
@@ -105,6 +113,29 @@ export function Sidebar() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [profileOpen]);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!colorPickerFolderId) return;
+    function handler(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-color-picker]') && !target.closest('[data-color-dot]')) {
+        setColorPickerFolderId(null);
+        setColorPickerPos(null);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorPickerFolderId]);
+
+  // Auto-focus inputs when they appear
+  useEffect(() => {
+    if (creatingFolder) newFolderInputRef.current?.focus();
+  }, [creatingFolder]);
+
+  useEffect(() => {
+    if (renamingFolderId) renameInputRef.current?.focus();
+  }, [renamingFolderId]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -117,7 +148,6 @@ export function Sidebar() {
     setCollapsed(c => !c);
   }
 
-  // isActive for /documents: true on /documents AND any /documents/* sub-route
   function isActiveDocuments() {
     return pathname === '/documents' || pathname.startsWith('/documents/');
   }
@@ -127,242 +157,419 @@ export function Sidebar() {
     return pathname.startsWith(href);
   }
 
-  const initial = email ? email[0].toUpperCase() : 'U';
+  function navigateToFolder(folder: SidebarFolder) {
+    localStorage.setItem('bn_active_folder', folder.id);
+    window.dispatchEvent(new CustomEvent('folder:activate', { detail: { folderId: folder.id } }));
+    router.push('/documents');
+  }
 
+  // ── Folder CRUD ─────────────────────────────────────────────
+
+  async function handleCreateFolder() {
+    const name = newFolderName.trim();
+    if (!name) { setCreatingFolder(false); setNewFolderName(''); return; }
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      setCreatingFolder(false);
+      setNewFolderName('');
+      loadFolders();
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
+  async function handleRenameFolder(id: string) {
+    const name = renameName.trim();
+    setRenamingFolderId(null);
+    if (!name) return;
+    const previous = folders.find(f => f.id === id)?.name ?? '';
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+    const res = await fetch(`/api/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      setFolders(prev => prev.map(f => f.id === id ? { ...f, name: previous } : f));
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
+  async function handleColorChange(id: string, color: string) {
+    setColorPickerFolderId(null);
+    setColorPickerPos(null);
+    const previous = folders.find(f => f.id === id)?.color ?? null;
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, color } : f));
+    const res = await fetch(`/api/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color }),
+    });
+    if (!res.ok) {
+      setFolders(prev => prev.map(f => f.id === id ? { ...f, color: previous } : f));
+    }
+  }
+
+  async function handleDeleteFolder(id: string) {
+    setDeletingFolderId(null);
+    setFolders(prev => prev.filter(f => f.id !== id));
+    await fetch(`/api/folders/${id}`, { method: 'DELETE' });
+    window.dispatchEvent(new Event('folders:updated'));
+  }
+
+  function openColorPicker(id: string, dotEl: HTMLElement) {
+    const rect = dotEl.getBoundingClientRect();
+    setColorPickerFolderId(id);
+    setColorPickerPos({ top: rect.bottom + 6, left: rect.left });
+  }
+
+  const initial = email ? email[0].toUpperCase() : 'U';
   const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
   const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
 
   return (
-    <aside
-      className="relative z-40 flex flex-col h-screen border-r border-white/10 bg-neutral-950/70 backdrop-blur-xl shrink-0 transition-[width] duration-200 ease-out"
-      style={{ width: collapsed ? 64 : 224 }}
-    >
-      {/* Header: logo + toggle */}
-      <div className={`flex items-center h-14 px-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
-        {!collapsed && (
-          <Link href="/documents" className="flex items-center gap-2 min-w-0">
-            <Image src="/brand/logo.png" alt="BetterNotes" width={28} height={28} className="w-7 h-7 object-contain shrink-0" />
-            <span className="text-sm font-semibold tracking-tight text-white truncate">BetterNotes</span>
-          </Link>
-        )}
-        <button
-          onClick={toggle}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors shrink-0"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-        </button>
-      </div>
+    <>
+      <aside
+        className="relative z-40 flex flex-col h-screen border-r border-white/10 bg-neutral-950/70 backdrop-blur-xl shrink-0 transition-[width] duration-200 ease-out"
+        style={{ width: collapsed ? 64 : 224 }}
+      >
+        {/* Header */}
+        <div className={`flex items-center h-14 px-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          {!collapsed && (
+            <Link href="/documents" className="flex items-center gap-2 min-w-0">
+              <Image src="/brand/logo.png" alt="BetterNotes" width={28} height={28} className="w-7 h-7 object-contain shrink-0" />
+              <span className="text-sm font-semibold tracking-tight text-white truncate">BetterNotes</span>
+            </Link>
+          )}
+          <button
+            onClick={toggle}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors shrink-0"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </button>
+        </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
 
-        {/* A) New Document CTA */}
-        <Link
-          href="/documents?new=1"
-          title={collapsed ? 'New Document' : undefined}
-          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 mb-2 bg-white text-neutral-950 hover:bg-white/90 font-semibold ${
-            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-          }`}
-        >
-          <PlusIcon className="w-4 h-4 shrink-0" />
-          {!collapsed && <span className="text-sm truncate">New Document</span>}
-        </Link>
-
-        {/* B) Home */}
-        <Link
-          href="/home"
-          title={collapsed ? 'Home' : undefined}
-          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-          } ${
-            isActive('/home')
-              ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
-              : 'text-white/60 hover:bg-white/10 hover:text-white'
-          }`}
-        >
-          <HomeIcon className="w-4 h-4 shrink-0" />
-          {!collapsed && <span className="text-sm truncate">Home</span>}
-        </Link>
-
-        {/* C) All Documents — with collapsible folder sub-menu when expanded */}
-        {collapsed ? (
+          {/* New Document CTA */}
           <Link
-            href="/documents"
-            title="All Documents"
-            className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
-              isActiveDocuments()
-                ? 'bg-white/15 text-white font-medium'
+            href="/documents?new=1"
+            title={collapsed ? 'New Document' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 mb-2 bg-white text-neutral-950 hover:bg-white/90 font-semibold ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            }`}
+          >
+            <PlusIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">New Document</span>}
+          </Link>
+
+          {/* Home */}
+          <Link
+            href="/home"
+            title={collapsed ? 'Home' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/home')
+                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <DocumentsIcon className="w-4 h-4 shrink-0" />
+            <HomeIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">Home</span>}
           </Link>
-        ) : (
-          <div>
-            {/* All Documents row with toggle arrow */}
-            <div
-              className={`flex items-center gap-3 rounded-xl transition-colors duration-150 px-3 py-2.5 ${
+
+          {/* All Documents */}
+          {collapsed ? (
+            <Link
+              href="/documents"
+              title="All Documents"
+              className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
-                  ? 'bg-white/15 text-white font-medium border-r-2 border-indigo-400'
+                  ? 'bg-white/15 text-white font-medium'
                   : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Link
-                href="/documents"
-                className="flex items-center gap-3 flex-1 min-w-0"
+              <DocumentsIcon className="w-4 h-4 shrink-0" />
+            </Link>
+          ) : (
+            <div>
+              <div
+                className={`flex items-center gap-3 rounded-xl transition-colors duration-150 px-3 py-2.5 ${
+                  isActiveDocuments()
+                    ? 'bg-white/15 text-white font-medium border-r-2 border-indigo-400'
+                    : 'text-white/60 hover:bg-white/10 hover:text-white'
+                }`}
               >
-                <DocumentsIcon className="w-4 h-4 shrink-0" />
-                <span className="text-sm truncate">All Documents</span>
-              </Link>
-              <button
-                onClick={() => setDocsExpanded(e => !e)}
-                className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
-                aria-label={docsExpanded ? 'Collapse folders' : 'Expand folders'}
-              >
-                <svg
-                  className={`w-3 h-3 transition-transform duration-150 ${docsExpanded ? 'rotate-90' : ''}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
+                <Link href="/documents" className="flex items-center gap-3 flex-1 min-w-0">
+                  <DocumentsIcon className="w-4 h-4 shrink-0" />
+                  <span className="text-sm truncate">All Documents</span>
+                </Link>
+                <button
+                  onClick={() => setDocsExpanded(e => !e)}
+                  className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
+                  aria-label={docsExpanded ? 'Collapse folders' : 'Expand folders'}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+                  <svg
+                    className={`w-3 h-3 transition-transform duration-150 ${docsExpanded ? 'rotate-90' : ''}`}
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
 
-            {/* Folder sub-menu */}
-            {docsExpanded && (
-              <div className="mt-0.5 space-y-0.5">
-                {folders.length === 0 ? (
-                  <p className="pl-9 pr-3 py-1.5 text-xs text-white/30">No folders yet</p>
-                ) : (
-                  <>
-                    {visibleFolders.map(folder => (
-                      <button
-                        key={folder.id}
-                        onClick={() => {
-                          localStorage.setItem('bn_active_folder', folder.id);
-                          window.dispatchEvent(new CustomEvent('folder:activate', { detail: { folderId: folder.id } }));
-                          router.push('/documents');
-                        }}
-                        className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
-                      >
+              {docsExpanded && (
+                <div className="mt-0.5 space-y-0.5">
+                  {visibleFolders.map(folder => (
+                    renamingFolderId === folder.id ? (
+                      /* Inline rename input */
+                      <div key={folder.id} className="flex items-center gap-2 pl-9 pr-2 py-1">
                         <span
                           className="w-2 h-2 rounded-full shrink-0"
                           style={{ backgroundColor: folder.color ?? '#6366f1' }}
                         />
-                        <span className="flex-1 truncate text-sm text-left">{folder.name}</span>
-                        {folder.document_count > 0 && (
-                          <span className="shrink-0 text-white/30 text-[10px]">{folder.document_count}</span>
-                        )}
-                      </button>
-                    ))}
-                    {hasMoreFolders && (
-                      <Link
-                        href="/documents"
-                        className="flex items-center pl-9 pr-3 py-1.5 text-xs text-indigo-400/70 hover:text-indigo-400 transition-colors"
+                        <input
+                          ref={renameInputRef}
+                          value={renameName}
+                          onChange={e => setRenameName(e.target.value)}
+                          onBlur={() => handleRenameFolder(folder.id)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleRenameFolder(folder.id);
+                            if (e.key === 'Escape') setRenamingFolderId(null);
+                          }}
+                          className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60"
+                        />
+                      </div>
+                    ) : (
+                      /* Normal folder row */
+                      <div
+                        key={folder.id}
+                        className="group flex items-center gap-2 w-full pl-9 pr-2 py-1.5 rounded-xl transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
+                        onMouseLeave={() => {
+                          if (deletingFolderId === folder.id) setDeletingFolderId(null);
+                        }}
                       >
-                        View all →
-                      </Link>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                        {/* Color dot — click to open color picker */}
+                        <button
+                          data-color-dot
+                          onClick={e => openColorPicker(folder.id, e.currentTarget)}
+                          className="shrink-0 w-4 h-4 flex items-center justify-center rounded-sm hover:bg-white/10 transition-colors"
+                          title="Change color"
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: folder.color ?? '#6366f1' }}
+                          />
+                        </button>
 
-        {/* D) Templates */}
-        <Link
-          href="/templates"
-          title={collapsed ? 'Templates' : undefined}
-          className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-          } ${
-            isActive('/templates')
-              ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
-              : 'text-white/60 hover:bg-white/10 hover:text-white'
-          }`}
-        >
-          <TemplatesIcon className="w-4 h-4 shrink-0" />
-          {!collapsed && <span className="text-sm truncate">Templates</span>}
-        </Link>
+                        {/* Name — click to navigate */}
+                        <button
+                          onClick={() => navigateToFolder(folder)}
+                          className="flex-1 truncate text-sm text-left"
+                        >
+                          {folder.name}
+                        </button>
 
-        {/* E) Recent documents — expanded only */}
-        {!collapsed && recentDocs.length > 0 && (
-          <div className="mt-4">
-            <p className="px-3 py-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
-              Recent
-            </p>
-            {recentDocs.map(doc => (
-              <Link
-                key={doc.id}
-                href={`/documents/${doc.id}`}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 truncate ${
-                  pathname === `/documents/${doc.id}`
-                    ? 'bg-white/15 text-white border-r-2 border-indigo-400'
-                    : 'text-white/50 hover:bg-white/5 hover:text-white/80'
-                }`}
-              >
-                <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/30" />
-                <span className="truncate">{doc.title || 'Untitled'}</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </nav>
+                        {/* Hover actions */}
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Rename */}
+                          <button
+                            onClick={() => { setRenamingFolderId(folder.id); setRenameName(folder.name); }}
+                            className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors"
+                            title="Rename"
+                          >
+                            <PencilIcon />
+                          </button>
 
-      {/* Profile footer */}
-      <div ref={profileRef} className="relative border-t border-white/10 p-2 shrink-0 bg-black/20">
-        <button
-          onClick={() => setProfileOpen(o => !o)}
-          className={`flex items-center gap-2.5 w-full rounded-xl hover:bg-white/10 transition-colors duration-150 ${
-            collapsed ? 'justify-center p-2' : 'px-3 py-2.5'
-          }`}
-        >
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 border border-white/15 flex items-center justify-center shrink-0">
-            <span className="text-xs font-medium text-white/80">{initial}</span>
-          </div>
-          {!collapsed && (
-            <div className="flex-1 text-left min-w-0">
-              <div className="text-xs text-white/80 truncate">{email.split('@')[0]}</div>
-              <div className="text-[10px] text-white/40 truncate">{email}</div>
+                          {/* Delete (two-step) */}
+                          {deletingFolderId === folder.id ? (
+                            <button
+                              onClick={() => handleDeleteFolder(folder.id)}
+                              className="h-5 px-1.5 flex items-center rounded text-[10px] font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                            >
+                              Delete?
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingFolderId(folder.id)}
+                              className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/40 hover:text-red-400/70 transition-colors"
+                              title="Delete folder"
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {hasMoreFolders && (
+                    <Link
+                      href="/documents"
+                      className="flex items-center pl-9 pr-3 py-1.5 text-xs text-indigo-400/70 hover:text-indigo-400 transition-colors"
+                    >
+                      View all →
+                    </Link>
+                  )}
+
+                  {/* New folder item */}
+                  {creatingFolder ? (
+                    <div className="flex items-center gap-2 pl-9 pr-2 py-1">
+                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                        <span className="w-2 h-2 rounded-full border border-dashed border-white/30" />
+                      </span>
+                      <input
+                        ref={newFolderInputRef}
+                        value={newFolderName}
+                        onChange={e => setNewFolderName(e.target.value)}
+                        onBlur={handleCreateFolder}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleCreateFolder();
+                          if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
+                        }}
+                        placeholder="Folder name"
+                        className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/30"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCreatingFolder(true)}
+                      className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl transition-colors duration-150 text-white/30 hover:bg-white/5 hover:text-white/60"
+                    >
+                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                        <span className="w-3.5 h-3.5 rounded-full border border-dashed border-current flex items-center justify-center">
+                          <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                        </span>
+                      </span>
+                      <span className="text-sm">New folder</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </button>
 
-        {profileOpen && (
-          <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/20 bg-black/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
-            <Link
-              href="/settings/billing"
-              onClick={() => setProfileOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
-            >
-              <SettingsIcon className="w-4 h-4" />
-              Settings
-            </Link>
-            <Link
-              href="/support"
-              onClick={() => setProfileOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
-            >
-              <SupportIcon className="w-4 h-4" />
-              Support
-            </Link>
-            <div className="h-px bg-white/10 my-1" />
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-300/80 hover:bg-red-500/10 hover:text-red-300 transition-colors"
-            >
-              <SignOutIcon className="w-4 h-4" />
-              Sign out
-            </button>
+          {/* Templates */}
+          <Link
+            href="/templates"
+            title={collapsed ? 'Templates' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/templates')
+                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <TemplatesIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">Templates</span>}
+          </Link>
+
+          {/* Recent documents */}
+          {!collapsed && recentDocs.length > 0 && (
+            <div className="mt-4">
+              <p className="px-3 py-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
+                Recent
+              </p>
+              {recentDocs.map(doc => (
+                <Link
+                  key={doc.id}
+                  href={`/documents/${doc.id}`}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 truncate ${
+                    pathname === `/documents/${doc.id}`
+                      ? 'bg-white/15 text-white border-r-2 border-indigo-400'
+                      : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+                  }`}
+                >
+                  <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/30" />
+                  <span className="truncate">{doc.title || 'Untitled'}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </nav>
+
+        {/* Profile footer */}
+        <div ref={profileRef} className="relative border-t border-white/10 p-2 shrink-0 bg-black/20">
+          <button
+            onClick={() => setProfileOpen(o => !o)}
+            className={`flex items-center gap-2.5 w-full rounded-xl hover:bg-white/10 transition-colors duration-150 ${
+              collapsed ? 'justify-center p-2' : 'px-3 py-2.5'
+            }`}
+          >
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 border border-white/15 flex items-center justify-center shrink-0">
+              <span className="text-xs font-medium text-white/80">{initial}</span>
+            </div>
+            {!collapsed && (
+              <div className="flex-1 text-left min-w-0">
+                <div className="text-xs text-white/80 truncate">{email.split('@')[0]}</div>
+                <div className="text-[10px] text-white/40 truncate">{email}</div>
+              </div>
+            )}
+          </button>
+
+          {profileOpen && (
+            <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/20 bg-black/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
+              <Link
+                href="/settings/billing"
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <SettingsIcon className="w-4 h-4" />
+                Settings
+              </Link>
+              <Link
+                href="/support"
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <SupportIcon className="w-4 h-4" />
+                Support
+              </Link>
+              <div className="h-px bg-white/10 my-1" />
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-300/80 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+              >
+                <SignOutIcon className="w-4 h-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Color picker portal */}
+      {colorPickerFolderId && colorPickerPos && createPortal(
+        <div
+          data-color-picker
+          style={{ top: colorPickerPos.top, left: colorPickerPos.left }}
+          className="fixed z-[9999] bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl p-2 shadow-2xl"
+        >
+          <div className="grid grid-cols-5 gap-1.5">
+            {PRESET_COLORS.map(color => (
+              <button
+                key={color}
+                onClick={() => handleColorChange(colorPickerFolderId, color)}
+                className="w-5 h-5 rounded-full transition-transform hover:scale-110 ring-offset-neutral-900 hover:ring-2 hover:ring-white/40 hover:ring-offset-1"
+                style={{ backgroundColor: color }}
+                title={color}
+              />
+            ))}
           </div>
-        )}
-      </div>
-    </aside>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -435,6 +642,20 @@ function SignOutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+    </svg>
+  );
+}
+function PencilIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
   );
 }
