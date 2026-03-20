@@ -318,7 +318,7 @@ function AttachmentRow({
       }}
       onDragEnd={onDragEnd}
       className={`relative flex items-center gap-2 border rounded-lg px-3 py-1.5 text-xs group
-        cursor-grab active:cursor-grabbing transition-all duration-150
+        cursor-grab active:cursor-grabbing transition-all duration-150 select-none
         ${isDragging
           ? 'opacity-40 border-indigo-400/40 bg-indigo-500/10'
           : 'bg-white/[0.06] border-white/10 hover:border-white/20'
