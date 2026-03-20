@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,8 +27,7 @@ interface WorkspaceAttachmentsPanelProps {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (self-contained — no import from AttachmentDropzone to keep
-// this component independent of the modal context)
+// Helpers
 // ---------------------------------------------------------------------------
 
 const MAX_ATTACHMENTS = 10;
@@ -71,7 +71,6 @@ function FileTypeIcon({ mimeType }: { mimeType: string }) {
       </svg>
     );
   }
-  // Images and everything else
   return (
     <svg className="w-4 h-4 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -81,7 +80,7 @@ function FileTypeIcon({ mimeType }: { mimeType: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Compact dropzone — smaller than the modal version (py-3 instead of py-6)
+// Compact dropzone
 // ---------------------------------------------------------------------------
 
 interface CompactDropzoneProps {
@@ -107,6 +106,8 @@ function CompactDropzone({ isDisabled, isUploading, isMaxReached, onFile }: Comp
   }
 
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    // Only accept file drags (not attachment row drags)
+    if (e.dataTransfer.types.includes('application/x-attachment-id')) return;
     e.preventDefault();
     if (!isDisabled) setIsDragOver(true);
   }
@@ -117,6 +118,7 @@ function CompactDropzone({ isDisabled, isUploading, isMaxReached, onFile }: Comp
   }
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    if (e.dataTransfer.types.includes('application/x-attachment-id')) return;
     e.preventDefault();
     setIsDragOver(false);
     if (isDisabled) return;
@@ -172,34 +174,53 @@ function CompactDropzone({ isDisabled, isUploading, isMaxReached, onFile }: Comp
 }
 
 // ---------------------------------------------------------------------------
-// Move-to-folder dropdown
+// Move-to-folder dropdown — rendered in a portal to escape overflow clipping
 // ---------------------------------------------------------------------------
 
 interface MoveFolderDropdownProps {
   folders: AttachmentFolder[];
   currentFolderId: string | null | undefined;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
   onMove: (folderId: string | null) => void;
   onClose: () => void;
 }
 
-function MoveFolderDropdown({ folders, currentFolderId, onMove, onClose }: MoveFolderDropdownProps) {
+function MoveFolderDropdown({ folders, currentFolderId, anchorRef, onMove, onClose }: MoveFolderDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
 
+  // Calculate position from anchor on mount
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [anchorRef]);
+
+  // Close on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        anchorRef.current && !anchorRef.current.contains(e.target as Node)
+      ) {
         onClose();
       }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [onClose, anchorRef]);
 
-  return (
+  if (!coords) return null;
+
+  return createPortal(
     <div
       ref={dropdownRef}
-      className="absolute right-0 top-full mt-1 z-50 min-w-[140px] bg-[#1a1a2e]/95 border border-white/15
-        rounded-lg shadow-xl backdrop-blur-sm overflow-hidden"
+      style={{ position: 'fixed', top: coords.top, right: coords.right, zIndex: 9999 }}
+      className="min-w-[150px] bg-neutral-950/95 border border-white/15 rounded-lg shadow-xl backdrop-blur-sm overflow-hidden"
     >
       <button
         onClick={() => onMove(null)}
@@ -231,12 +252,13 @@ function MoveFolderDropdown({ folders, currentFolderId, onMove, onClose }: MoveF
           <span className="truncate">{folder.name}</span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // ---------------------------------------------------------------------------
-// Attachment row
+// Attachment row (draggable)
 // ---------------------------------------------------------------------------
 
 interface AttachmentRowProps {
@@ -244,27 +266,42 @@ interface AttachmentRowProps {
   folders: AttachmentFolder[];
   isDeleting: boolean;
   deletingDisabled: boolean;
+  isDragging: boolean;
   onDelete: () => void;
   onMove: (folderId: string | null) => void;
+  onDragStart: (attachmentId: string) => void;
+  onDragEnd: () => void;
 }
 
-function AttachmentRow({ attachment, folders, isDeleting, deletingDisabled, onDelete, onMove }: AttachmentRowProps) {
+function AttachmentRow({
+  attachment, folders, isDeleting, deletingDisabled, isDragging,
+  onDelete, onMove, onDragStart, onDragEnd,
+}: AttachmentRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const folderBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div
-      className="relative flex items-center gap-2 bg-white/[0.06] border border-white/10
-        rounded-lg px-3 py-1.5 text-xs group"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-attachment-id', attachment.id);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart(attachment.id);
+      }}
+      onDragEnd={onDragEnd}
+      className={`relative flex items-center gap-2 border rounded-lg px-3 py-1.5 text-xs group
+        cursor-grab active:cursor-grabbing transition-all duration-150
+        ${isDragging
+          ? 'opacity-40 border-indigo-400/40 bg-indigo-500/10'
+          : 'bg-white/[0.06] border-white/10 hover:border-white/20'
+        }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <FileTypeIcon mimeType={attachment.mimeType} />
 
-      <span
-        className="flex-1 text-gray-200 truncate min-w-0"
-        title={attachment.name}
-      >
+      <span className="flex-1 text-gray-200 truncate min-w-0" title={attachment.name}>
         {truncateName(attachment.name, 24)}
       </span>
 
@@ -273,33 +310,37 @@ function AttachmentRow({ attachment, folders, isDeleting, deletingDisabled, onDe
       </span>
 
       {/* Move-to-folder button */}
-      <div className="relative shrink-0">
-        <button
-          onClick={() => setShowMoveDropdown((v) => !v)}
-          aria-label={`Move ${attachment.name} to folder`}
-          className={`transition-all duration-150
-            ${isHovered || showMoveDropdown ? 'opacity-100' : 'opacity-0'}
-            ${showMoveDropdown ? 'text-indigo-400' : 'text-white/30 hover:text-white/60'}`}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-          </svg>
-        </button>
-        {showMoveDropdown && (
-          <MoveFolderDropdown
-            folders={folders}
-            currentFolderId={attachment.folderId}
-            onMove={(folderId) => {
-              onMove(folderId);
-              setShowMoveDropdown(false);
-            }}
-            onClose={() => setShowMoveDropdown(false)}
-          />
-        )}
-      </div>
+      {folders.length > 0 && (
+        <div className="relative shrink-0">
+          <button
+            ref={folderBtnRef}
+            onClick={() => setShowMoveDropdown((v) => !v)}
+            aria-label={`Move ${attachment.name} to folder`}
+            className={`transition-all duration-150
+              ${isHovered || showMoveDropdown ? 'opacity-100' : 'opacity-0'}
+              ${showMoveDropdown ? 'text-indigo-400' : 'text-white/30 hover:text-white/60'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+            </svg>
+          </button>
+          {showMoveDropdown && (
+            <MoveFolderDropdown
+              folders={folders}
+              currentFolderId={attachment.folderId}
+              anchorRef={folderBtnRef}
+              onMove={(folderId) => {
+                onMove(folderId);
+                setShowMoveDropdown(false);
+              }}
+              onClose={() => setShowMoveDropdown(false)}
+            />
+          )}
+        </div>
+      )}
 
-      {/* Delete button — visible on row hover or while deleting */}
+      {/* Delete button */}
       <button
         onClick={onDelete}
         disabled={deletingDisabled}
@@ -321,7 +362,7 @@ function AttachmentRow({ attachment, folders, isDeleting, deletingDisabled, onDe
 }
 
 // ---------------------------------------------------------------------------
-// Folder section (collapsible)
+// Folder section (collapsible, drop target)
 // ---------------------------------------------------------------------------
 
 interface FolderSectionProps {
@@ -329,25 +370,23 @@ interface FolderSectionProps {
   attachments: WorkspaceAttachment[];
   allFolders: AttachmentFolder[];
   deletingId: string | null;
+  draggingId: string | null;
   onDelete: (attachmentId: string) => void;
   onMove: (attachmentId: string, folderId: string | null) => void;
   onRenameFolder: (folderId: string, name: string) => void;
   onDeleteFolder: (folderId: string) => void;
+  onDragStart: (attachmentId: string) => void;
+  onDragEnd: () => void;
 }
 
 function FolderSection({
-  folder,
-  attachments,
-  allFolders,
-  deletingId,
-  onDelete,
-  onMove,
-  onRenameFolder,
-  onDeleteFolder,
+  folder, attachments, allFolders, deletingId, draggingId,
+  onDelete, onMove, onRenameFolder, onDeleteFolder, onDragStart, onDragEnd,
 }: FolderSectionProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
+  const [isDragOver, setIsDragOver] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -375,11 +414,41 @@ function FolderSection({
     onDeleteFolder(folder.id);
   }
 
+  function handleDragOver(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('application/x-attachment-id')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    // Only clear if leaving the folder section entirely (not entering a child)
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
+    if (!attachmentId) return;
+    onMove(attachmentId, folder.id);
+  }
+
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg overflow-hidden">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`border rounded-lg overflow-hidden transition-colors duration-150
+        ${isDragOver
+          ? 'border-indigo-400/50 bg-indigo-500/10'
+          : 'bg-white/[0.03] border-white/[0.06]'
+        }`}
+    >
       {/* Folder header */}
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 group/header">
-        {/* Chevron + name — clicking toggles collapse */}
         <button
           onClick={() => setIsOpen((v) => !v)}
           className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
@@ -387,9 +456,7 @@ function FolderSection({
         >
           <svg
             className={`w-3 h-3 text-white/40 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-0' : '-rotate-90'}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
@@ -413,7 +480,6 @@ function FolderSection({
           )}
         </button>
 
-        {/* Rename / delete — visible on hover */}
         {!isRenaming && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity shrink-0">
             <button
@@ -450,15 +516,20 @@ function FolderSection({
               folders={allFolders}
               isDeleting={deletingId === attachment.id}
               deletingDisabled={!!deletingId}
+              isDragging={draggingId === attachment.id}
               onDelete={() => onDelete(attachment.id)}
               onMove={(folderId) => onMove(attachment.id, folderId)}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))}
         </div>
       )}
 
       {isOpen && attachments.length === 0 && (
-        <p className="px-2.5 pb-2 text-xs text-white/20">Empty folder</p>
+        <p className={`px-2.5 pb-2 text-xs transition-colors ${isDragOver ? 'text-indigo-400/60' : 'text-white/20'}`}>
+          {isDragOver ? 'Drop here' : 'Empty folder'}
+        </p>
       )}
     </div>
   );
@@ -476,11 +547,12 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Folder creation state
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
+  // Drag state
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [unfiledDragOver, setUnfiledDragOver] = useState(false);
 
   // Load attachments
   const loadAttachments = useCallback(async () => {
@@ -509,7 +581,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
       const data = await res.json();
       setFolders(data.folders ?? []);
     } catch {
-      // non-critical: folders silently fail
+      // non-critical
     }
   }, [documentId]);
 
@@ -544,9 +616,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
   // Rename folder
   async function handleRenameFolder(folderId: string, name: string) {
-    // Save previous name for rollback
     const previousName = folders.find((f) => f.id === folderId)?.name ?? name;
-    // Optimistic update
     setFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, name } : f));
     try {
       const res = await fetch(`/api/documents/${documentId}/attachment-folders/${folderId}`, {
@@ -559,17 +629,14 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
     } catch (err) {
-      // Rollback to previous name
       setFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, name: previousName } : f));
       setError(err instanceof Error ? err.message : 'Failed to rename folder');
-      // Reload to recover
       loadFolders();
     }
   }
 
   // Delete folder
   async function handleDeleteFolder(folderId: string) {
-    // Optimistic: remove folder and unfile its attachments
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
     setAttachments((prev) => prev.map((a) => a.folderId === folderId ? { ...a, folderId: null } : a));
     try {
@@ -589,7 +656,6 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
   // Move attachment to folder
   async function handleMoveAttachment(attachmentId: string, folderId: string | null) {
-    // Optimistic update
     setAttachments((prev) => prev.map((a) => a.id === attachmentId ? { ...a, folderId } : a));
     try {
       const res = await fetch(`/api/documents/${documentId}/attachments/${attachmentId}`, {
@@ -607,14 +673,13 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
     }
   }
 
-  // Upload: two-step — storage upload then register on document
+  // Upload
   async function handleUploadFile(file: File) {
     if (attachments.length >= MAX_ATTACHMENTS || isUploading) return;
     setIsUploading(true);
     setError(null);
 
     try {
-      // Step 1: upload to storage
       const formData = new FormData();
       formData.append('file', file);
 
@@ -630,7 +695,6 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
       const { storagePath, name, mimeType, sizeBytes } = await uploadRes.json();
 
-      // Step 2: register on document
       const registerRes = await fetch(`/api/documents/${documentId}/attachments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -677,15 +741,16 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
   const isMaxReached = attachments.length >= MAX_ATTACHMENTS;
   const count = attachments.length;
-
-  // Group attachments
   const unfiledAttachments = attachments.filter((a) => !a.folderId);
   const attachmentsByFolder = (folderId: string) => attachments.filter((a) => a.folderId === folderId);
 
+  // Shared drag handlers for AttachmentRow
+  const handleDragStart = (attachmentId: string) => setDraggingId(attachmentId);
+  const handleDragEnd = () => { setDraggingId(null); setUnfiledDragOver(false); };
+
   return (
-    // shrink-0 so this panel doesn't flex-grow and steal height from ChatPanel
     <div className="shrink-0 border-b border-l border-white/10">
-      {/* Header — always visible, 44px tall */}
+      {/* Header */}
       <button
         onClick={() => setIsOpen((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-2.5 bg-black/20 hover:bg-white/[0.04]
@@ -707,13 +772,9 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             )}
           </span>
         </div>
-
-        {/* Chevron */}
         <svg
           className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -723,7 +784,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
       {isOpen && (
         <div className="bg-black/20 backdrop-blur-sm px-3 pb-3 pt-2 flex flex-col gap-2">
 
-          {/* Top row: + New Folder button */}
+          {/* New Folder button */}
           <div className="flex items-center justify-end">
             <button
               onClick={() => setIsCreatingFolder(true)}
@@ -736,7 +797,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             </button>
           </div>
 
-          {/* Inline folder creation input */}
+          {/* Inline folder creation */}
           {isCreatingFolder && (
             <div className="flex items-center gap-2">
               <input
@@ -751,31 +812,17 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
                 className="flex-1 bg-black/30 border border-white/20 rounded-lg px-2 py-1 text-xs text-white/80
                   placeholder-white/30 focus:outline-none focus:border-indigo-500/60"
               />
-              <button
-                onClick={handleCreateFolder}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                Add
-              </button>
-              <button
-                onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }}
-                className="text-xs text-white/30 hover:text-white/60 transition-colors"
-              >
-                ✕
-              </button>
+              <button onClick={handleCreateFolder} className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Add</button>
+              <button onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }}
+                className="text-xs text-white/30 hover:text-white/60 transition-colors">✕</button>
             </div>
           )}
 
           {/* Error banner */}
           {error && (
-            <div className="flex items-center justify-between gap-2 bg-red-950/40 border border-red-900/50
-              rounded-lg px-3 py-1.5">
+            <div className="flex items-center justify-between gap-2 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-1.5">
               <p className="text-xs text-red-400 flex-1">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="text-red-400/60 hover:text-red-400 transition-colors shrink-0"
-                aria-label="Dismiss error"
-              >
+              <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400 transition-colors shrink-0" aria-label="Dismiss error">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -791,7 +838,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             </div>
           )}
 
-          {/* Folders with their attachments */}
+          {/* Folder sections */}
           {!isFetching && folders.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {folders.map((folder) => (
@@ -801,21 +848,42 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
                   attachments={attachmentsByFolder(folder.id)}
                   allFolders={folders}
                   deletingId={deletingId}
+                  draggingId={draggingId}
                   onDelete={handleDelete}
                   onMove={handleMoveAttachment}
                   onRenameFolder={handleRenameFolder}
                   onDeleteFolder={handleDeleteFolder}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
                 />
               ))}
             </div>
           )}
 
-          {/* Unfiled attachments */}
+          {/* Unfiled attachments — also a drop target */}
           {!isFetching && unfiledAttachments.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {/* Section label — only shown when there are also folders */}
+            <div
+              className={`flex flex-col gap-1 rounded-lg transition-colors duration-150 ${unfiledDragOver ? 'bg-indigo-500/10' : ''}`}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-attachment-id')) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setUnfiledDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                  setUnfiledDragOver(false);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setUnfiledDragOver(false);
+                const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
+                if (attachmentId) handleMoveAttachment(attachmentId, null);
+              }}
+            >
               {folders.length > 0 && (
-                <p className="text-xs text-white/30 px-0.5">
+                <p className={`text-xs px-0.5 transition-colors ${unfiledDragOver ? 'text-indigo-400/70' : 'text-white/30'}`}>
                   Unfiled ({unfiledAttachments.length})
                 </p>
               )}
@@ -826,14 +894,17 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
                   folders={folders}
                   isDeleting={deletingId === attachment.id}
                   deletingDisabled={!!deletingId}
+                  isDragging={draggingId === attachment.id}
                   onDelete={() => handleDelete(attachment.id)}
                   onMove={(folderId) => handleMoveAttachment(attachment.id, folderId)}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
                 />
               ))}
             </div>
           )}
 
-          {/* Empty state — only shown after fetch, when list is empty */}
+          {/* Empty state */}
           {!isFetching && attachments.length === 0 && !error && (
             <p className="text-xs text-white/25 py-0.5">No attachments yet.</p>
           )}
