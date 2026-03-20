@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const MAX_ATTACHMENTS_PER_DOCUMENT = 10;
+const MAX_NAME_LENGTH = 100;
 
 export async function GET(
   _req: NextRequest,
@@ -27,9 +27,9 @@ export async function GET(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  const { data: attachments, error: listError } = await supabase
-    .from('document_attachments')
-    .select('id, name, mime_type, size_bytes, folder_id, created_at')
+  const { data: folders, error: listError } = await supabase
+    .from('attachment_folders')
+    .select('id, name, created_at')
     .eq('document_id', documentId)
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
@@ -39,13 +39,10 @@ export async function GET(
   }
 
   return NextResponse.json({
-    attachments: (attachments ?? []).map((a) => ({
-      id: a.id,
-      name: a.name,
-      mimeType: a.mime_type,
-      sizeBytes: a.size_bytes,
-      folderId: a.folder_id ?? null,
-      createdAt: a.created_at,
+    folders: (folders ?? []).map((f) => ({
+      id: f.id,
+      name: f.name,
+      createdAt: f.created_at,
     })),
   });
 }
@@ -74,64 +71,34 @@ export async function POST(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  // Validate request body
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { storagePath, name, mimeType, sizeBytes } = body as {
-    storagePath?: unknown;
-    name?: unknown;
-    mimeType?: unknown;
-    sizeBytes?: unknown;
-  };
+  const { name } = body as { name?: unknown };
 
-  if (typeof storagePath !== 'string' || !storagePath.trim()) {
-    return NextResponse.json({ error: 'storagePath is required' }, { status: 400 });
-  }
   if (typeof name !== 'string' || !name.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
-  if (typeof mimeType !== 'string' || !mimeType.trim()) {
-    return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
-  }
-  if (typeof sizeBytes !== 'number' || sizeBytes < 0) {
-    return NextResponse.json({ error: 'sizeBytes must be a non-negative number' }, { status: 400 });
-  }
-
-  // Enforce per-document attachment limit
-  const { count, error: countError } = await supabase
-    .from('document_attachments')
-    .select('id', { count: 'exact', head: true })
-    .eq('document_id', documentId)
-    .eq('user_id', user.id);
-
-  if (countError) {
-    return NextResponse.json({ error: countError.message }, { status: 500 });
-  }
-
-  if ((count ?? 0) >= MAX_ATTACHMENTS_PER_DOCUMENT) {
+  if (name.trim().length > MAX_NAME_LENGTH) {
     return NextResponse.json(
-      { error: 'Maximum 10 attachments per document' },
+      { error: `name must be at most ${MAX_NAME_LENGTH} characters` },
       { status: 400 }
     );
   }
 
-  const { data: attachment, error: insertError } = await supabase
-    .from('document_attachments')
+  const { data: folder, error: insertError } = await supabase
+    .from('attachment_folders')
     .insert({
       document_id: documentId,
       user_id: user.id,
-      storage_path: storagePath.trim(),
       name: name.trim(),
-      mime_type: mimeType.trim(),
-      size_bytes: sizeBytes,
     })
-    .select('id, name, mime_type, size_bytes, created_at')
+    .select('id, name, created_at')
     .single();
 
-  if (insertError || !attachment) {
+  if (insertError || !folder) {
     return NextResponse.json(
       { error: insertError?.message ?? 'Insert failed' },
       { status: 500 }
@@ -140,13 +107,10 @@ export async function POST(
 
   return NextResponse.json(
     {
-      attachment: {
-        id: attachment.id,
-        name: attachment.name,
-        mimeType: attachment.mime_type,
-        sizeBytes: attachment.size_bytes,
-        createdAt: attachment.created_at,
-        folderId: null,
+      folder: {
+        id: folder.id,
+        name: folder.name,
+        createdAt: folder.created_at,
       },
     },
     { status: 201 }
