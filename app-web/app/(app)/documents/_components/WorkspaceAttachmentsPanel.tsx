@@ -279,7 +279,34 @@ function AttachmentRow({
 }: AttachmentRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const folderBtnRef = useRef<HTMLButtonElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-cancel confirm state after 3s
+  useEffect(() => {
+    if (confirmDelete) {
+      confirmTimerRef.current = setTimeout(() => setConfirmDelete(false), 3000);
+    }
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, [confirmDelete]);
+
+  // Cancel confirm if mouse leaves the row
+  function handleMouseLeave() {
+    setIsHovered(false);
+    setConfirmDelete(false);
+  }
+
+  function handleDeleteClick() {
+    if (confirmDelete) {
+      onDelete();
+      setConfirmDelete(false);
+    } else {
+      setConfirmDelete(true);
+    }
+  }
 
   return (
     <div
@@ -297,7 +324,7 @@ function AttachmentRow({
           : 'bg-white/[0.06] border-white/10 hover:border-white/20'
         }`}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={handleMouseLeave}
     >
       <FileTypeIcon mimeType={attachment.mimeType} />
 
@@ -340,20 +367,32 @@ function AttachmentRow({
         </div>
       )}
 
-      {/* Delete button */}
+      {/* Separator */}
+      {(isHovered || isDeleting) && (
+        <span className="shrink-0 w-px h-3 bg-white/15" />
+      )}
+
+      {/* Delete button — two-step confirmation */}
       <button
-        onClick={onDelete}
+        onClick={handleDeleteClick}
         disabled={deletingDisabled}
-        aria-label={`Remove ${attachment.name}`}
-        className={`shrink-0 ml-0.5 transition-all duration-150
+        aria-label={confirmDelete ? `Confirm delete ${attachment.name}` : `Remove ${attachment.name}`}
+        className={`shrink-0 transition-all duration-150 rounded px-1 py-0.5
           ${isHovered || isDeleting ? 'opacity-100' : 'opacity-0'}
-          text-white/40 hover:text-red-400 disabled:cursor-not-allowed`}
+          ${confirmDelete
+            ? 'text-red-400 bg-red-500/15 border border-red-500/30 text-[10px] font-medium'
+            : 'text-white/40 hover:text-red-400'
+          }
+          disabled:cursor-not-allowed`}
       >
         {isDeleting ? (
           <span className="w-3 h-3 border border-white/25 border-t-white/60 rounded-full animate-spin block" />
+        ) : confirmDelete ? (
+          'Delete?'
         ) : (
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         )}
       </button>
