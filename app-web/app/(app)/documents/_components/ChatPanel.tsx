@@ -27,10 +27,27 @@ function formatTime(dateStr: string): string {
   return `${hours}:${minutes}`;
 }
 
+const LOADING_PHASES = [
+  { label: 'Generating LaTeX...', duration: 4000 },
+  { label: 'Compiling PDF...', duration: null },
+] as const;
+
 export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, loadingLabel }: ChatPanelProps) {
   const [input, setInput] = useState('');
+  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingPhaseIndex(0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLoadingPhaseIndex(1);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,18 +117,6 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
               <p className="whitespace-pre-wrap break-words">{msg.content}</p>
             </div>
 
-            {msg.role === 'assistant' && msg.version_id && (
-              <div className="flex items-center gap-1 mt-1.5">
-                <span className="inline-flex items-center gap-1 text-xs text-teal-400 bg-teal-950/50
-                  rounded px-1.5 py-0.5 border border-teal-900/50">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-                  </svg>
-                  Document updated
-                </span>
-              </div>
-            )}
-
             <p className={`text-xs text-white/25 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
               {formatTime(msg.created_at)}
             </p>
@@ -120,15 +125,29 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white/10 rounded-xl px-3 py-2.5">
-              <div className="flex space-x-1 items-center">
-                <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-3 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.2s' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.4s' }} />
+                </div>
+                <span className="text-xs text-white/50 font-medium">
+                  {LOADING_PHASES[loadingPhaseIndex].label}
+                </span>
               </div>
-              {loadingLabel && (
-                <p className="text-xs text-white/40 mt-1.5">{loadingLabel}</p>
-              )}
+              <div className="flex items-center gap-1.5 mt-2">
+                {LOADING_PHASES.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-0.5 rounded-full transition-all duration-500 ${
+                      i <= loadingPhaseIndex
+                        ? 'bg-indigo-400/60 w-6'
+                        : 'bg-white/15 w-4'
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -130,6 +130,10 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
       // The standard path: return PDF binary. Caller gets latex via X-Betternotes-Latex header (base64).
       const latexB64 = Buffer.from(finalLatex, 'utf8').toString('base64');
       res.set('X-Betternotes-Latex', latexB64);
+      if (generated.summary) {
+        const summaryB64 = Buffer.from(generated.summary, 'utf8').toString('base64');
+        res.set('X-Betternotes-Summary', summaryB64);
+      }
       res.send(pdfBuffer!);
     } catch (err: any) {
       const status = err?.statusCode ?? err?.status ?? 500;

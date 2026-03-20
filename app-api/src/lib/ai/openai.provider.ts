@@ -127,6 +127,8 @@ export class OpenAIProvider implements AIProvider {
       '- CRITICAL: The STRUCTURE EXAMPLE shows formatting style only — DO NOT copy its content.',
       '- NEVER output triple backticks.',
       '- In titles/headings, use \\& for ampersand, not bare &.',
+      '- When generating or modifying a document, add ONE line at the very start of your output: [SUMMARY: <what you created or changed, plain English, max 30 words>]',
+      '- This [SUMMARY: ...] line must be the absolute first line, before \\documentclass.',
     ].join(' ');
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: any }> = [
@@ -192,26 +194,31 @@ export class OpenAIProvider implements AIProvider {
     const raw = resp.choices?.[0]?.message?.content ?? '';
     const out = stripMarkdownFences(raw);
 
-    if (isLatex(out)) {
-      let latex = out;
+    // Extract optional [SUMMARY: ...] prefix
+    const summaryMatch = out.match(/^\[SUMMARY:\s*(.+?)\]\s*\r?\n?/);
+    const summary = summaryMatch?.[1]?.trim();
+    const outWithoutSummary = summaryMatch ? out.slice(summaryMatch[0].length) : out;
+
+    if (isLatex(outWithoutSummary)) {
+      let latex = outWithoutSummary;
       // If there's no preamble (AI only output body), prepend it
       if (!args.baseLatex && !latex.includes('\\documentclass')) {
         latex = `${args.preamble}\n\n${latex}`;
       }
-      return { latex: applyLatexFallbacks(latex) };
+      return { latex: applyLatexFallbacks(latex), summary };
     }
 
     // Short conversational reply
-    if (!out.includes('\\') && out.length < 600) {
-      return { message: out };
+    if (!outWithoutSummary.includes('\\') && outWithoutSummary.length < 600) {
+      return { message: outWithoutSummary };
     }
 
     // Fallback: treat as LaTeX if it contains backslashes
-    if (out.includes('\\')) {
-      return { latex: applyLatexFallbacks(out) };
+    if (outWithoutSummary.includes('\\')) {
+      return { latex: applyLatexFallbacks(outWithoutSummary), summary };
     }
 
-    return { message: out };
+    return { message: outWithoutSummary };
   }
 
   async fixLatex(args: FixLatexArgs): Promise<string> {

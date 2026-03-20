@@ -23,6 +23,7 @@ export interface GenerateLatexArgs {
 export interface GenerateLatexResult {
   latex?: string;
   message?: string;
+  summary?: string;  // breve descripción de lo que fue generado/modificado
 }
 
 export interface FixLatexArgs {

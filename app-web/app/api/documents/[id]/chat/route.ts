@@ -132,6 +132,7 @@ export async function POST(
   // Call app-api
   let pdfBuffer: ArrayBuffer;
   let latexSource: string;
+  let aiSummary: string | null = null;
 
   try {
     const apiResp = await fetch(`${API_URL}/latex/generate-and-compile`, {
@@ -189,6 +190,8 @@ export async function POST(
     pdfBuffer = await apiResp.arrayBuffer();
     const latexB64 = apiResp.headers.get('x-betternotes-latex') ?? '';
     latexSource = latexB64 ? Buffer.from(latexB64, 'base64').toString('utf8') : baseLatex ?? '';
+    const summaryB64 = apiResp.headers.get('x-betternotes-summary') ?? '';
+    aiSummary = summaryB64 ? Buffer.from(summaryB64, 'base64').toString('utf8') : null;
   } catch (fetchErr: any) {
     await supabase.from('documents').update({ status: 'error' }).eq('id', documentId);
     return NextResponse.json({ error: `Failed to reach app-api: ${fetchErr.message}` }, { status: 502 });
@@ -258,7 +261,7 @@ export async function POST(
     document_id: documentId,
     user_id: user.id,
     role: 'assistant',
-    content: 'Document updated.',
+    content: aiSummary ?? `Document updated (version ${versionNumber}).`,
     version_id: version.id,
   });
 
