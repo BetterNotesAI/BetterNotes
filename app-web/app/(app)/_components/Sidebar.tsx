@@ -327,6 +327,41 @@ export function Sidebar() {
 
               {docsExpanded && (
                 <div className="mt-0.5 space-y-0.5">
+                  {/* New folder item — always first */}
+                  {creatingFolder ? (
+                    <div className="flex items-center gap-2 pl-9 pr-2 py-1">
+                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                        <span className="w-2 h-2 rounded-full border border-dashed border-white/30" />
+                      </span>
+                      <input
+                        ref={newFolderInputRef}
+                        value={newFolderName}
+                        onChange={e => setNewFolderName(e.target.value)}
+                        onBlur={handleCreateFolder}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleCreateFolder();
+                          if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
+                        }}
+                        placeholder="Folder name"
+                        className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/30"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCreatingFolder(true)}
+                      className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl transition-colors duration-150 text-white/30 hover:bg-white/5 hover:text-white/60"
+                    >
+                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                        <span className="w-3.5 h-3.5 rounded-full border border-dashed border-current flex items-center justify-center">
+                          <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                        </span>
+                      </span>
+                      <span className="text-sm">New folder</span>
+                    </button>
+                  )}
+
                   {visibleFolders.map(folder => (
                     renamingFolderId === folder.id ? (
                       /* Inline rename input */
@@ -417,41 +452,6 @@ export function Sidebar() {
                     >
                       View all →
                     </Link>
-                  )}
-
-                  {/* New folder item */}
-                  {creatingFolder ? (
-                    <div className="flex items-center gap-2 pl-9 pr-2 py-1">
-                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                        <span className="w-2 h-2 rounded-full border border-dashed border-white/30" />
-                      </span>
-                      <input
-                        ref={newFolderInputRef}
-                        value={newFolderName}
-                        onChange={e => setNewFolderName(e.target.value)}
-                        onBlur={handleCreateFolder}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleCreateFolder();
-                          if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
-                        }}
-                        placeholder="Folder name"
-                        className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/30"
-                      />
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setCreatingFolder(true)}
-                      className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl transition-colors duration-150 text-white/30 hover:bg-white/5 hover:text-white/60"
-                    >
-                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                        <span className="w-3.5 h-3.5 rounded-full border border-dashed border-current flex items-center justify-center">
-                          <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                          </svg>
-                        </span>
-                      </span>
-                      <span className="text-sm">New folder</span>
-                    </button>
                   )}
                 </div>
               )}
