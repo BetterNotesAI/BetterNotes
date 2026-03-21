@@ -64,6 +64,7 @@ export function LandingInteractive() {
           submitLabel="Get started"
           autoFocus={false}
           selectedTemplateId={selectedTemplateId}
+          onTemplateChange={setSelectedTemplateId}
         />
       </div>
 

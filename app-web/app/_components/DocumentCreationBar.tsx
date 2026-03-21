@@ -21,6 +21,8 @@ interface Props {
   initialTemplateId?: string;
   /** Controlled: when this changes, the internal templateId updates */
   selectedTemplateId?: string;
+  /** Called whenever the user picks a different template */
+  onTemplateChange?: (templateId: string) => void;
 }
 
 const TEMPLATES = [
@@ -46,6 +48,7 @@ export function DocumentCreationBar({
   submitLabel,
   initialTemplateId,
   selectedTemplateId,
+  onTemplateChange,
 }: Props) {
   const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
@@ -187,7 +190,7 @@ export function DocumentCreationBar({
               return (
                 <button
                   key={t.id}
-                  onClick={() => { setTemplateId(t.id); setOpenPanel(null); setPopoverPos(null); }}
+                  onClick={() => { setTemplateId(t.id); onTemplateChange?.(t.id); setOpenPanel(null); setPopoverPos(null); }}
                   className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
                     isSelected
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-white'

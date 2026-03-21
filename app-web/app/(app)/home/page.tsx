@@ -120,6 +120,7 @@ export default function HomePage() {
               placeholder="Describe the document you want to create..."
               autoFocus
               selectedTemplateId={selectedTemplateId}
+              onTemplateChange={setSelectedTemplateId}
             />
           </div>
 
