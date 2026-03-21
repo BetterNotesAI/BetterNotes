@@ -4,6 +4,33 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-21
+
+### Completado
+- Fix entorno local: react-pdf downgrade v10→v7, pdfjs-dist v5→v3, worker copiado a public/
+- next.config.ts: añadido alias `canvas: false` para webpack
+- B2: blobs animados + grid en AppBackground (afecta todo el dashboard)
+- B7: Modo guest completo — anonymous auth de Supabase
+  - Migración DB: `profiles.is_anonymous`, RPC `check_guest_limits`, RPC `get_guest_status`
+  - Backend: chequeo guest en POST /documents, /generate, /chat + endpoint GET /api/guest-status
+  - Frontend: `signInAnonymously()` en landing y home, banner amber en workspace, GuestSignupModal
+  - Fixes post-review: generate bloqueaba por doc_limit (fix condición), humanizeError suprime errores guest, banner desaparece con onAuthStateChange
+
+### Decisiones técnicas
+- react-pdf v7 + pdfjs-dist v3: necesario para Next.js dev mode (v10+pdfjs-dist v5 falla en webpack dev)
+- Blobs en AppBackground en lugar de home/page.tsx: consistencia visual en todo el dashboard
+- linkIdentity para Google + updateUser para email/password: preservan user_id del guest
+- onAuthStateChange en workspace: el banner guest desaparece automáticamente tras registro
+
+### Deuda técnica pendiente
+- [ ] Race condition creación simultánea de docs (2 tabs): requiere RPC atómica o constraint DB
+- [ ] Email confirmations: si está activo en Supabase, mostrar "check your email" en vez de reload
+
+### Próximos pasos
+- F2-M5: Mobile responsive, onboarding, página de perfil
+
+---
+
 ## Sesión 2026-03-22 — F2-M2b: B3 completo + pulido DocumentCreationBar + fixes UX
 
 ### ✅ Completado

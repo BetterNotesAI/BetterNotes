@@ -74,6 +74,14 @@ export async function POST(
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
   }
 
+  // Check guest limits before calling app-api (runs before the paid-plan quota check)
+  const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
+    user_id: user.id,
+  });
+  if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_message_limit') {
+    return NextResponse.json({ error: 'guest_message_limit' }, { status: 402 });
+  }
+
   // Check and increment usage limit before calling app-api
   const { data: usageCheck } = await supabase.rpc('check_and_increment_usage', {
     p_user_id: user.id,

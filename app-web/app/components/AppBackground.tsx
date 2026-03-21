@@ -7,6 +7,11 @@ export default function AppBackground() {
       {/* Soft radial glows */}
       <div className="absolute inset-0 bg-[radial-gradient(900px_600px_at_35%_10%,rgba(99,102,241,0.22),transparent_60%),radial-gradient(900px_600px_at_75%_30%,rgba(236,72,153,0.18),transparent_60%),radial-gradient(900px_600px_at_70%_85%,rgba(34,197,94,0.12),transparent_60%)]" />
 
+      {/* Animated blobs */}
+      <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl animate-blob1" />
+      <div className="absolute top-40 -left-20 h-[520px] w-[520px] rounded-full bg-fuchsia-500/15 blur-3xl animate-blob2" />
+      <div className="absolute top-56 -right-24 h-[520px] w-[520px] rounded-full bg-emerald-400/10 blur-3xl animate-blob3" />
+
       {/* Subtle grid */}
       <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.16)_1px,transparent_1px)] bg-[size:64px_64px]" />
 

@@ -29,6 +29,14 @@ export async function POST(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
+  // Check guest limits before any expensive work (runs before the paid-plan quota check)
+  const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
+    user_id: user.id,
+  });
+  if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_message_limit') {
+    return NextResponse.json({ error: guestCheck.reason }, { status: 402 });
+  }
+
   // Check and increment usage limit before any expensive work
   const { data: usageCheck } = await supabase.rpc('check_and_increment_usage', {
     p_user_id: user.id,

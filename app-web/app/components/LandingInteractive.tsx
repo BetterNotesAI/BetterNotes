@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
+import { createClient } from '@/lib/supabase/client';
 
 const FEATURED = [
   {
@@ -38,19 +39,47 @@ export function LandingInteractive() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('2cols_portrait');
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   function handleCardClick(templateId: string) {
     setSelectedTemplateId(templateId);
     barRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  function handleSubmit(data: CreateDocumentInput) {
-    localStorage.setItem('bn_pending_creation', JSON.stringify({
-      prompt: data.prompt,
-      templateId: data.templateId,
-      specs: data.specs,
-    }));
-    router.push('/signup');
+  async function handleSubmit(data: CreateDocumentInput) {
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      const supabase = createClient();
+
+      // Ensure there is a session — create an anonymous one if needed
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        const { error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError) {
+          setCreateError('Could not start a session. Please try again.');
+          setIsCreating(false);
+          return;
+        }
+      }
+
+      const resp = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: data.templateId, attachments: [] }),
+      });
+      const docData = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        setCreateError(docData?.error ?? 'Failed to create document');
+        setIsCreating(false);
+        return;
+      }
+      router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
+    } catch {
+      setCreateError('Something went wrong. Please try again.');
+      setIsCreating(false);
+    }
   }
 
   return (
@@ -60,8 +89,10 @@ export function LandingInteractive() {
         <DocumentCreationBar
           mode="landing"
           onSubmit={handleSubmit}
+          isLoading={isCreating}
+          error={createError}
           placeholder="Describe the document you want to create..."
-          submitLabel="Get started"
+          submitLabel={isCreating ? 'Building...' : 'Get started'}
           autoFocus={false}
           selectedTemplateId={selectedTemplateId}
           onTemplateChange={setSelectedTemplateId}

@@ -102,6 +102,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'template_id is required' }, { status: 400 });
   }
 
+  // Check guest limits before creating the document
+  const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
+    user_id: user.id,
+  });
+  if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_doc_limit') {
+    return NextResponse.json({ error: 'guest_doc_limit' }, { status: 402 });
+  }
+
   const { data: doc, error } = await supabase
     .from('documents')
     .insert({

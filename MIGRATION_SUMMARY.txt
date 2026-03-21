@@ -1,0 +1,194 @@
+================================================================================
+                    GUEST MODE MIGRATION - SUMMARY
+================================================================================
+
+PROJECT: BetterNotes v2
+SUPABASE: unnaedblaufyganyconl
+DATE: 2026-03-21
+STATUS: COMPLETED & DOCUMENTED
+
+================================================================================
+WHAT WAS DELIVERED
+================================================================================
+
+1. SQL MIGRATION FILE
+   Location: supabase/migrations/20260321000001_guest_mode.sql
+   Size: 6.7 KB
+   Contents:
+   - ALTER TABLE profiles ADD COLUMN is_anonymous
+   - CREATE INDEX idx_profiles_is_anonymous
+   - UPDATE FUNCTION handle_new_user() to capture is_anonymous
+   - CREATE FUNCTION check_guest_limits(uuid) RETURNS jsonb
+   - CREATE FUNCTION get_guest_status() RETURNS jsonb
+   - RLS policies analysis (no changes needed)
+   - Reversibility notes
+
+2. DOCUMENTATION (8 FILES)
+   - 00_START_HERE.md (Entry point, where to start)
+   - GUEST_MODE_README.md (Overview & quick start)
+   - GUEST_MODE_QUICK_REFERENCE.md (Code snippets & formats)
+   - GUEST_MODE_IMPLEMENTATION.md (Full technical guide)
+   - GUEST_MODE_ARCHITECTURE.md (Design decisions & security)
+   - GUEST_MODE_TESTING.md (10 detailed test cases)
+   - GUEST_MODE_RESPONSE_SCHEMA.md (JSON response structures)
+   - GUEST_MODE_DEPLOYMENT.md (Deployment checklist)
+   - GUEST_MODE_INDEX.md (Navigation guide)
+
+3. MIGRATION SUPPORT FILES (2 FILES)
+   - supabase/migrations/GUEST_MODE_NOTES.md (Migration details)
+   - supabase/migrations/GUEST_MODE_USAGE_EXAMPLES.sql (SQL examples)
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+LIMITS FOR ANONYMOUS USERS
+- 1 Document (total, not monthly)
+- 3 Messages (total, not monthly)
+
+RPC FUNCTIONS
+1. check_guest_limits(p_user_id uuid) RETURNS jsonb
+   Purpose: Validate if guest can create document/message
+   Returns: { allowed: bool, reason?: string, docs_used, messages_used }
+
+2. get_guest_status() RETURNS jsonb
+   Purpose: Get current guest's status and remaining resources
+   Returns: { is_guest: bool, docs_used, docs_limit, messages_used, messages_limit }
+
+DATABASE CHANGES
+- NEW: Column profiles.is_anonymous (boolean, default false)
+- NEW: Index idx_profiles_is_anonymous
+- UPDATED: Trigger handle_new_user() captures is_anonymous
+- NO CHANGES: RLS policies (work with anonymous users as-is)
+
+================================================================================
+ARCHITECTURE DECISIONS
+================================================================================
+
+1. RLS POLICIES: NO CHANGES NEEDED
+   - All existing policies use auth.uid() = user_id
+   - Anonymous users have valid UUIDs
+   - Policies only check ownership, not authentication type
+   - Limit validation happens at application layer
+
+2. LIMIT ENFORCEMENT
+   - Where: Backend API (before INSERT)
+   - How: Call check_guest_limits() before creating resources
+   - Why: RLS is for isolation, not quotas
+
+3. TRIGGER UPDATED
+   - handle_new_user() now captures is_anonymous from auth.users
+   - Single source of truth for guest status
+
+4. LIMITS ARE GLOBAL (NOT MONTHLY)
+   - Prevents "reset abuse"
+   - Creates pressure to sign up
+
+================================================================================
+IMPLEMENTATION STATUS
+================================================================================
+
+COMPLETED
+✓ Database schema designed
+✓ Migration SQL created
+✓ RLS compatibility analyzed
+✓ New RPCs implemented
+✓ Documentation completed (15,000+ words)
+✓ Test plan created (10 cases)
+✓ Deployment checklist created
+
+PENDING
+□ Migration applied to Supabase
+□ Backend validation implementation
+□ Frontend UI implementation
+□ QA testing execution
+□ Production deployment
+
+================================================================================
+NEXT STEPS (IN ORDER)
+================================================================================
+
+1. DBA REVIEW
+   - Read: supabase/migrations/GUEST_MODE_NOTES.md
+   - Verify: Migration syntax and safety
+
+2. CODE REVIEW
+   - Read: GUEST_MODE_IMPLEMENTATION.md
+   - Review: Security considerations
+
+3. STAGING DEPLOYMENT
+   - Apply: supabase migration up
+   - Verify: All columns, indexes, functions created
+
+4. BACKEND IMPLEMENTATION
+   - Validate with check_guest_limits() before creating resources
+   - Return 403 on limit violations
+
+5. FRONTEND IMPLEMENTATION
+   - Call get_guest_status() to show progress
+   - Disable buttons when limits hit
+
+6. QA TESTING
+   - Execute test cases
+   - Performance testing
+
+7. PRODUCTION DEPLOYMENT
+   - Apply migration
+   - Deploy backend and frontend
+   - Monitor
+
+================================================================================
+FILE LOCATIONS
+================================================================================
+
+Main Migration:
+  supabase/migrations/20260321000001_guest_mode.sql
+
+Entry Point:
+  00_START_HERE.md
+
+Documentation:
+  GUEST_MODE_README.md
+  GUEST_MODE_QUICK_REFERENCE.md
+  GUEST_MODE_IMPLEMENTATION.md
+  GUEST_MODE_ARCHITECTURE.md
+  GUEST_MODE_TESTING.md
+  GUEST_MODE_RESPONSE_SCHEMA.md
+  GUEST_MODE_DEPLOYMENT.md
+  GUEST_MODE_INDEX.md
+
+Support:
+  supabase/migrations/GUEST_MODE_NOTES.md
+  supabase/migrations/GUEST_MODE_USAGE_EXAMPLES.sql
+
+================================================================================
+CRITICAL NOTES
+================================================================================
+
+SECURITY
+- RLS protects data isolation (no changes needed)
+- Application logic enforces limits (backend validates)
+- Rate limiting recommended on RPC endpoints
+
+PERFORMANCE
+- check_guest_limits() expected < 150ms
+- Acceptable for MVP, optimize if needed post-launch
+
+DATA INTEGRITY
+- Migration is fully reversible without data loss
+- No breaking changes to existing queries
+
+REVERSIBILITY
+- Drop functions: check_guest_limits, get_guest_status
+- Drop index: idx_profiles_is_anonymous
+- Drop column: is_anonymous from profiles
+- Time to rollback: < 5 minutes
+
+================================================================================
+MIGRATION COMPLETE - READY FOR IMPLEMENTATION
+================================================================================
+
+Start with: 00_START_HERE.md
+Time to deployment: ~1 week
+Risk level: LOW (fully reversible)
+Priority: HIGH (enables guest mode feature)

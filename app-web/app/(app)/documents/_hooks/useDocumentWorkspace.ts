@@ -37,6 +37,7 @@ interface WorkspaceState {
 }
 
 function humanizeError(msg: string): string {
+  if (msg.includes('guest_doc_limit') || msg.includes('guest_message_limit')) return '';
   if (msg.includes('limit_reached')) return 'Monthly generation limit reached. Upgrade to Pro for unlimited generations.';
   if (msg.includes('compile') || msg.includes('LaTeX')) return 'PDF compilation failed. The AI will try to fix it automatically next time.';
   if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) return 'The generation service is taking too long. Please try again.';
@@ -126,7 +127,7 @@ export function useDocumentWorkspace(documentId: string) {
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : 'Generation failed';
       const message = humanizeError(raw);
-      setState((s) => ({ ...s, isGenerating: false, generationPhase: null, error: message }));
+      setState((s) => ({ ...s, isGenerating: false, generationPhase: null, error: message || null }));
       throw err;
     }
   }, [documentId, load]);

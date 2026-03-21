@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
+import { createClient } from '@/lib/supabase/client';
 
 interface RecentDocument {
   id: string;
@@ -62,6 +63,19 @@ export default function HomePage() {
     setIsCreating(true);
     setCreateError(null);
     try {
+      // Ensure there is a session — create an anonymous one if the user
+      // landed on /home without being authenticated (guest entry point).
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        const { error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError) {
+          setCreateError('Could not start a session. Please try again.');
+          setIsCreating(false);
+          return;
+        }
+      }
+
       const uploadedAttachments: {
         name: string; mimeType: string; sizeBytes: number; storagePath: string;
       }[] = [];

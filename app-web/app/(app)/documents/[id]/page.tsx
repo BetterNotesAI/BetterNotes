@@ -10,6 +10,8 @@ import { LatexHighlighter } from '../_components/LatexHighlighter';
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
+import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
+import { createClient } from '@/lib/supabase/client';
 
 type ViewerTab = 'pdf' | 'latex' | 'split';
 
@@ -101,8 +103,12 @@ export default function DocumentWorkspacePage() {
     reloadDocument();
   }, [renameTitleValue, docData, documentId, reloadDocument]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestMessagesUsed, setGuestMessagesUsed] = useState(0);
+  const [guestMessagesLimit, setGuestMessagesLimit] = useState(3);
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
   const [zoom, setZoom] = useState(100);
@@ -183,6 +189,30 @@ export default function DocumentWorkspacePage() {
     loadUsage();
   }, []);
 
+  useEffect(() => {
+    async function loadGuestStatus() {
+      try {
+        const resp = await fetch('/api/guest-status');
+        if (resp.ok) {
+          const data = await resp.json();
+          setIsGuest(data.is_guest ?? false);
+          setGuestMessagesUsed(data.messages_used ?? 0);
+          setGuestMessagesLimit(data.messages_limit ?? 3);
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+    loadGuestStatus();
+
+    // Re-check when auth state changes (e.g. guest converts to real account)
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadGuestStatus();
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Use the PDF URL from workspace or the one updated by chat
   const activePdfUrl = currentPdfUrl ?? pdfSignedUrl;
 
@@ -210,6 +240,12 @@ export default function DocumentWorkspacePage() {
     if (!(err instanceof Error)) return false;
     const msg = err.message.toLowerCase();
     return msg === 'limit_reached' || msg.includes('limit_reached');
+  }
+
+  function isGuestLimitError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    const msg = err.message.toLowerCase();
+    return msg === 'guest_doc_limit' || msg === 'guest_message_limit';
   }
 
   // --- Task 6c: compile handler ---
@@ -249,8 +285,18 @@ export default function DocumentWorkspacePage() {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
+        // Refresh guest status after a successful generation
+        if (isGuest) {
+          const r = await fetch('/api/guest-status').catch(() => null);
+          if (r?.ok) {
+            const d = await r.json().catch(() => ({}));
+            setGuestMessagesUsed(d.messages_used ?? guestMessagesUsed);
+          }
+        }
       } catch (err: unknown) {
-        if (isLimitReachedError(err)) {
+        if (isGuestLimitError(err)) {
+          setShowGuestModal(true);
+        } else if (isLimitReachedError(err)) {
           setShowUpgradeModal(true);
         }
         // Other errors are shown via wsError from the hook
@@ -260,8 +306,18 @@ export default function DocumentWorkspacePage() {
       setIsChatGenerating(true);
       try {
         await sendMessage(content);
+        // Refresh guest status after a successful message
+        if (isGuest) {
+          const r = await fetch('/api/guest-status').catch(() => null);
+          if (r?.ok) {
+            const d = await r.json().catch(() => ({}));
+            setGuestMessagesUsed(d.messages_used ?? guestMessagesUsed);
+          }
+        }
       } catch (err: unknown) {
-        if (isLimitReachedError(err)) {
+        if (isGuestLimitError(err)) {
+          setShowGuestModal(true);
+        } else if (isLimitReachedError(err)) {
           setShowUpgradeModal(true);
         }
       } finally {
@@ -385,9 +441,26 @@ export default function DocumentWorkspacePage() {
       </header>
 
       {/* Error banner */}
-      {wsError && !showUpgradeModal && (
+      {wsError && !showUpgradeModal && !showGuestModal && (
         <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm shrink-0">
           {wsError}
+        </div>
+      )}
+
+      {/* Guest banner */}
+      {isGuest && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
+          <p className="text-xs text-amber-400">
+            You&apos;re using BetterNotes as a guest
+            {' '}&mdash;{' '}
+            <span className="font-medium">{guestMessagesUsed}/{guestMessagesLimit} messages used</span>
+          </p>
+          <button
+            onClick={() => setShowGuestModal(true)}
+            className="text-xs text-amber-300 hover:text-amber-200 font-medium transition-colors ml-3 shrink-0 whitespace-nowrap"
+          >
+            Save your work &rarr;
+          </button>
         </div>
       )}
 
@@ -586,6 +659,12 @@ export default function DocumentWorkspacePage() {
       <UpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
+      />
+
+      {/* Guest signup modal — triggered when guest hits a limit or clicks "Save your work" */}
+      <GuestSignupModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
       />
     </div>
   );

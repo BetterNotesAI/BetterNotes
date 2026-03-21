@@ -28,7 +28,7 @@ _Última actualización: 2026-03-22_
 | F2-M2 | Rediseño visual y estructura de navegación | ✅ COMPLETADO | Estilo v1, landing, visor PDF, sidebar |
 | F2-M3 | Organización de documentos | ✅ COMPLETADO | Carpetas, renombrar, favoritos, filtros |
 | F2-M4 | Subida de archivos como contexto IA | ✅ COMPLETADO | PDF, imágenes, DOCX + imágenes en LaTeX |
-| F2-M2b | Navegación, UX y flujo del producto | 🔄 **EN CURSO** (6/7 bloques) | Sidebar, Home dashboard, landing bar, chat IA, modo guest |
+| F2-M2b | Navegación, UX y flujo del producto | ✅ COMPLETADO | Sidebar, Home dashboard, landing bar, chat IA, modo guest |
 | F2-M5 | Mejoras de UX y pulido | ⏳ Pendiente | Mobile responsive, onboarding, perfil |
 | F2-M6 | Infraestructura y calidad | ⏳ Pendiente | Tests E2E, Sentry, caché PDFs |
 
@@ -48,8 +48,8 @@ _Prioridad: 🔴 Alta — implementar antes de F2-M5 y F2-M6_
 | B1 | Sidebar reestructurada + fix useSearchParams Suspense | ✅ COMPLETADO |
 | B4 | DocumentCreationBar (landing, home, documents) | ✅ COMPLETADO |
 | B3 | Página de Templates — look v1 | ✅ COMPLETADO |
-| B2 | Home dashboard completo (blobs, polish visual) | ⏳ SIGUIENTE |
-| B7 | Modo guest (Supabase anonymous auth) | ⏳ Pendiente |
+| B2 | Home dashboard completo (blobs, polish visual) | ✅ COMPLETADO |
+| B7 | Modo guest (Supabase anonymous auth) | ✅ COMPLETADO |
 
 #### Detalle de bloques pendientes
 
