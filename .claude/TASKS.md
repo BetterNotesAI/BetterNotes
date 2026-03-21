@@ -1,6 +1,6 @@
 # Tasks — BetterNotes v2
 
-_Última actualización: 2026-03-21_
+_Última actualización: 2026-03-22_
 
 ---
 
@@ -28,7 +28,7 @@ _Última actualización: 2026-03-21_
 | F2-M2 | Rediseño visual y estructura de navegación | ✅ COMPLETADO | Estilo v1, landing, visor PDF, sidebar |
 | F2-M3 | Organización de documentos | ✅ COMPLETADO | Carpetas, renombrar, favoritos, filtros |
 | F2-M4 | Subida de archivos como contexto IA | ✅ COMPLETADO | PDF, imágenes, DOCX + imágenes en LaTeX |
-| F2-M2b | Navegación, UX y flujo del producto | 🔄 **EN CURSO** (5/7 bloques) | Sidebar, Home dashboard, landing bar, chat IA, modo guest |
+| F2-M2b | Navegación, UX y flujo del producto | 🔄 **EN CURSO** (6/7 bloques) | Sidebar, Home dashboard, landing bar, chat IA, modo guest |
 | F2-M5 | Mejoras de UX y pulido | ⏳ Pendiente | Mobile responsive, onboarding, perfil |
 | F2-M6 | Infraestructura y calidad | ⏳ Pendiente | Tests E2E, Sentry, caché PDFs |
 
@@ -47,23 +47,23 @@ _Prioridad: 🔴 Alta — implementar antes de F2-M5 y F2-M6_
 | B6 | Carpetas en Attachments + drag & drop | ✅ COMPLETADO |
 | B1 | Sidebar reestructurada + fix useSearchParams Suspense | ✅ COMPLETADO |
 | B4 | DocumentCreationBar (landing, home, documents) | ✅ COMPLETADO |
-| B3 | Página de Templates — look v1 | ⏳ SIGUIENTE |
-| B2 | Home dashboard completo (blobs, polish visual) | ⏳ Pendiente |
+| B3 | Página de Templates — look v1 | ✅ COMPLETADO |
+| B2 | Home dashboard completo (blobs, polish visual) | ⏳ SIGUIENTE |
 | B7 | Modo guest (Supabase anonymous auth) | ⏳ Pendiente |
 
 #### Detalle de bloques pendientes
 
-##### B3 — Página de Templates
-- [ ] Grid de plantillas estilo v1 (glassmorphism cards, referencia VISUAL_IDENTITY.md)
-- [ ] Al clicar plantilla → modal/popover con preview en zoom
-- [ ] Botón "Use template" que abre la creation bar con esa plantilla preseleccionada
-- [ ] Mantener ruta `/templates`
+##### B3 — Página de Templates ✅
+- [x] Grid de 10 plantillas glassmorphism (lg:grid-cols-3), scroll arreglado
+- [x] Schematics CSS enriquecidos: líneas, cajas de fórmulas, tablas, imágenes simuladas
+- [x] Click → modal con preview proporcional (aspect-[4/3]) + DocumentCreationBar preseleccionada
+- [x] Ruta `/templates` mantenida
 
 ##### B2 — Home dashboard (polish visual)
 - [ ] Añadir blobs animados al fondo (igual que landing — animate-blob1/2/3)
 - [ ] Grid sutil de fondo (igual que AppBackground)
-- [ ] El contenido (barra + recientes) ya está implementado en B4
-- [ ] Añadir acceso rápido a plantillas populares (opcional)
+- [x] Barra + recientes ya implementados (B4)
+- [x] Acceso rápido a plantillas populares (3 cards + "View all" → /templates)
 
 ##### B7 — Modo guest
 - [ ] Solución técnica: Supabase anonymous auth (propuesta del equipo)
@@ -71,6 +71,13 @@ _Prioridad: 🔴 Alta — implementar antes de F2-M5 y F2-M6_
 - [ ] Al superar límite → modal de registro con propuesta de valor
 - [ ] Recuperar documento guest si el usuario se registra inmediatamente
 - [ ] Implementar en landing (creation bar) y home
+
+#### Notas de implementación adicionales (sesión 2026-03-22)
+- `LandingInteractive` en `app-web/app/components/` — client component con estado compartido barra+cards
+- `DocumentCreationBar`: layout 2 filas (textarea arriba, botonera abajo), specs con estado "aplicado" (Apply/deselect), popovers via `createPortal` (z-9999, sin clipping)
+- `selectedTemplateId` + `onTemplateChange` props para sincronización bidireccional barra↔cards
+- Redirects corregidos: login/callback/landing → `/home` (antes `/documents`)
+- Google OAuth: pendiente configuración en Supabase Dashboard (deuda técnica 🔴)
 
 #### Notas de implementación (B4 completado)
 - `DocumentCreationBar` en `app-web/app/_components/` (fuera de `(app)` para ser usable en landing)

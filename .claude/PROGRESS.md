@@ -4,6 +4,56 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-22 — F2-M2b: B3 completo + pulido DocumentCreationBar + fixes UX
+
+### ✅ Completado
+
+**B3 — Página de Templates**
+- Grid de 10 cards glassmorphism (lg:grid-cols-3) con scroll corregido (`h-full` en lugar de `flex-1 overflow-hidden`)
+- Schematics CSS enriquecidos: más líneas de texto, cuadrados simulando imágenes, cajas de fórmulas, tablas de datos, tags pills
+- Click en card → modal con preview proporcional (aspect-[4/3], tamaño `w-44` centrado) + DocumentCreationBar preseleccionada
+- Schematic del modal ya no se deforma (mismo ratio que las cards)
+
+**DocumentCreationBar — rediseño UX**
+- Layout 2 filas: textarea arriba (ancho completo, hasta 160px), botonera debajo [attach][template][specs] — spacer — [Build now]
+- Specs con estado "aplicado": botón neutro → click abre popover → botón Apply confirma (queda en indigo) → click de nuevo deselecciona. Sin Apply = `specs: null`
+- Popovers via `createPortal` (document.body, z-9999) — ya no quedan solapados por overflow-hidden ni modales
+- `selectedTemplateId` prop + `onTemplateChange` callback para sincronización bidireccional con cards padre
+
+**Landing page**
+- Sección "Popular templates" con 3 cards interactivas (2-col, 3-col, lecture notes)
+- Click en card: selecciona plantilla en la barra + scroll suave hacia arriba
+- Card muestra badge "Selected" y feedback; al cambiar plantilla en la barra, card se deselecciona
+- Subtítulo sección "How it works" paso 01 actualizado: menciona adjuntos y opciones de ajuste
+
+**Home page**
+- Sección "Popular templates" idéntica a landing (antes de Recent documents)
+- Sincronización bidireccional: cards ↔ barra de creación
+- "View all" → /templates; scroll a barra al seleccionar card
+- Corregido `h-full flex flex-col` para scroll correcto
+
+**Auth fixes**
+- Login email + auth callback + landing redirect → `/home` (antes `/documents`)
+- "or continue with" divider: flex layout, ya no se solapa con la línea
+
+### Decisiones técnicas
+- `LandingInteractive`: client component unificado (barra + cards) para compartir estado sin prop-drilling entre server components
+- `createPortal` para popovers de DocumentCreationBar: mismo patrón que sidebar color picker
+- `specs: null` cuando no se aplican ajustes (antes siempre se enviaban los defaults)
+
+### Problemas encontrados
+- Google OAuth: `Unsupported provider` — provider no habilitado en Supabase Dashboard → **pendiente, añadido a deuda técnica 🔴**
+- Modal preview deformado: aspect-[16/5] → corregido a aspect-[4/3]
+- Scroll roto en templates/home: `flex-1` sin flex parent con altura definida → corregido a `h-full`
+- Popover solapado por overflow-hidden → resuelto con createPortal
+
+### Próximos pasos
+- **B2**: añadir blobs animados al fondo del Home (animate-blob1/2/3) + grid sutil — es el único bloque pendiente antes de B7
+- **B7**: modo guest con Supabase anonymous auth
+- **Google OAuth**: configurar en Supabase Dashboard + Google Cloud Console
+
+---
+
 ## Sesión 2026-03-20 — F2-M4 completo: subida de archivos como contexto IA
 
 ### ✅ Completado
