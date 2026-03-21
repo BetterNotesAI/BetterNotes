@@ -2,33 +2,11 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { TemplateSelector, type TemplateMeta } from './_components/TemplateSelector';
-import { SpecsModal } from './_components/SpecsModal';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
-import { DocumentSpecs, LocalAttachment } from './_types';
+import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
-
-// Static template list (matches what the backend serves)
-const TEMPLATES: TemplateMeta[] = [
-  { id: '2cols_portrait', displayName: '2-Column Cheat Sheet', description: 'Compact portrait sheet with 2 columns for formulas, definitions, and key results.', isPro: false },
-  { id: 'landscape_3col_maths', displayName: '3-Column Landscape', description: 'A4 landscape with 3 columns — dense math reference sheets and formula summaries.', isPro: false },
-  { id: 'cornell', displayName: 'Cornell Notes', description: 'Classic Cornell format with cue keywords in the left margin and a summary box.', isPro: false },
-  { id: 'problem_solving', displayName: 'Problem Solving Worksheet', description: 'Structured problem/given/solution blocks with boxed answers for STEM practice.', isPro: false },
-  { id: 'zettelkasten', displayName: 'Zettelkasten Cards', description: 'Knowledge cards with cross-references and tags in Zettelkasten style.', isPro: false },
-  { id: 'study_form', displayName: 'Study Form (High Density)', description: '3-column ultra-compact A4 with formula boxes, constant tables, and property lists.', isPro: false },
-  { id: 'lecture_notes', displayName: 'Lecture Notes', description: 'Multi-page structured notes with objectives, examples, and a summary box.', isPro: false },
-  { id: 'academic_paper', displayName: 'Academic Paper', description: 'Two-column AMS/Physical Review style paper with abstract, theorems, and bibliography.', isPro: true },
-  { id: 'lab_report', displayName: 'Lab Report', description: 'Technical report with experimental setup, data tables with uncertainties, and error analysis.', isPro: true },
-  { id: 'data_analysis', displayName: 'Data Analysis Report', description: 'Statistics or ML report with Python code listings, results tables, and math.', isPro: true },
-];
-
-interface SpecsStep {
-  id: string;
-  displayName: string;
-  description: string;
-}
 
 const ONBOARDING_STEPS = [
   {
@@ -98,12 +76,6 @@ export default function DocumentsPage() {
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [specsStep, setSpecsStep] = useState<SpecsStep | null>(null);
-
-  // Attachment state
-  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
-  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Initial load: read active folder from localStorage (set by sidebar) + load folders for card menu
   useEffect(() => {
@@ -181,7 +153,6 @@ export default function DocumentsPage() {
     if (!res.ok) {
       setDocuments(previousDocs);
     } else if (filterStarred) {
-      // Reload to remove de-starred items from filtered view
       loadDocuments();
     }
   }
@@ -209,79 +180,58 @@ export default function DocumentsPage() {
     loadDocuments();
   }
 
-  // --- Attachment handlers ---
-
-  async function handleAddAttachment(file: File) {
-    if (attachments.length >= 3) return;
-    setIsUploadingAttachment(true);
-    setUploadError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/attachments/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setUploadError(data?.error ?? 'Upload failed');
-        return;
-      }
-      setAttachments((prev) => [...prev, {
-        name: data.name,
-        mimeType: data.mimeType,
-        sizeBytes: data.sizeBytes,
-        storagePath: data.storagePath,
-      }]);
-    } catch {
-      setUploadError('Upload failed. Please try again.');
-    } finally {
-      setIsUploadingAttachment(false);
-    }
-  }
-
-  function handleRemoveAttachment(index: number) {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  }
-
   // --- New document modal handlers ---
 
   function handleCloseModal() {
     setShowNewDocModal(false);
-    setSpecsStep(null);
-    setAttachments([]);
-    setUploadError(null);
+    setCreateError(null);
   }
 
-  function handleChooseTemplate(templateId: string) {
-    const template = TEMPLATES.find((t) => t.id === templateId);
-    if (!template) return;
-    setSpecsStep({
-      id: template.id,
-      displayName: template.displayName,
-      description: template.description,
-    });
-  }
-
-  async function handleConfirmWithSpecs(templateId: string, specs: DocumentSpecs) {
+  async function handleCreate(data: CreateDocumentInput) {
     setIsCreating(true);
     setCreateError(null);
     try {
+      // 1. Upload files to get storagePaths
+      const uploadedAttachments: {
+        name: string;
+        mimeType: string;
+        sizeBytes: number;
+        storagePath: string;
+      }[] = [];
+
+      for (const file of data.files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/attachments/upload', { method: 'POST', body: formData });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setCreateError(d?.error ?? 'Upload failed');
+          setIsCreating(false);
+          return;
+        }
+        uploadedAttachments.push({
+          name: d.name,
+          mimeType: d.mimeType,
+          sizeBytes: d.sizeBytes,
+          storagePath: d.storagePath,
+        });
+      }
+
+      // 2. Create document
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template_id: templateId,
-          specs,
-          attachments: specs.attachments ?? [],
+          template_id: data.templateId,
+          attachments: uploadedAttachments,
         }),
       });
-      const data = await resp.json().catch(() => ({}));
+      const docData = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        setCreateError(data?.error ?? 'Failed to create document. Please try again.');
+        setCreateError(docData?.error ?? 'Failed to create document. Please try again.');
         return;
       }
-      router.push(`/documents/${data.document.id}`);
+      router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
     } catch {
       setCreateError('Something went wrong. Please try again.');
     } finally {
@@ -294,6 +244,7 @@ export default function DocumentsPage() {
       <Suspense fallback={null}>
         <NewDocumentWatcher onTrigger={() => setShowNewDocModal(true)} />
       </Suspense>
+
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
         <h1 className="text-xl font-semibold">My Documents</h1>
@@ -309,7 +260,7 @@ export default function DocumentsPage() {
         setShowArchived={setShowArchived}
       />
 
-      {/* Documents list — full width */}
+      {/* Documents list */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-8">
           {isLoadingDocs ? (
@@ -317,7 +268,6 @@ export default function DocumentsPage() {
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
           ) : documents.length === 0 ? (
-            /* Empty state — onboarding if no filters active, else a simple message */
             filterStarred || showArchived || activeFolderId ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
@@ -380,53 +330,28 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* New Document modal — 2-step flow */}
+      {/* New document modal */}
       {showNewDocModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-black/60 border border-white/20 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col backdrop-blur-xl">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
-              <h2 className="text-lg font-semibold text-white">New Document</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl">
+            {/* Close button above bar */}
+            <div className="flex justify-end mb-3">
               <button
                 onClick={handleCloseModal}
-                className="text-white/40 hover:text-white/80 transition-colors"
+                className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/10 text-white/60 hover:bg-white/15 hover:text-white transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-
-            {specsStep === null ? (
-              /* Step 1 — Template selector */
-              <div className="flex-1 overflow-y-auto">
-                <TemplateSelector
-                  templates={TEMPLATES}
-                  onChoose={handleChooseTemplate}
-                  isLoading={isCreating}
-                />
-              </div>
-            ) : (
-              /* Step 2 — Specs modal */
-              <div className="flex-1 overflow-y-auto">
-                {createError && (
-                  <p className="mx-6 mt-4 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
-                    {createError}
-                  </p>
-                )}
-                <SpecsModal
-                  template={specsStep}
-                  onConfirm={(specs) => handleConfirmWithSpecs(specsStep.id, specs)}
-                  onBack={() => { setSpecsStep(null); setCreateError(null); }}
-                  isLoading={isCreating}
-                  attachments={attachments}
-                  onAddAttachment={handleAddAttachment}
-                  onRemoveAttachment={handleRemoveAttachment}
-                  isUploadingAttachment={isUploadingAttachment}
-                  uploadError={uploadError}
-                />
-              </div>
-            )}
+            <DocumentCreationBar
+              onSubmit={handleCreate}
+              isLoading={isCreating}
+              error={createError}
+              placeholder="Describe the document you want to create..."
+              autoFocus
+            />
           </div>
         </div>
       )}

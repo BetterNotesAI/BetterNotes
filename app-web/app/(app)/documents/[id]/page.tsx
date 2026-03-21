@@ -1,7 +1,7 @@
 'use client';
 
-import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
@@ -32,6 +32,31 @@ function getLoadingLabel(phase: GenerationPhase): string | undefined {
   if (phase === 'compiling') return 'Compiling LaTeX...';
   if (phase === 'uploading') return 'Finalizing PDF...';
   return undefined;
+}
+
+function InitialPromptSender({
+  isDraft,
+  isDocReady,
+  onSend,
+}: {
+  isDraft: boolean;
+  isDocReady: boolean;
+  onSend: (msg: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const sentRef = useRef(false);
+
+  useEffect(() => {
+    if (!isDraft || !isDocReady || sentRef.current) return;
+    const prompt = searchParams.get('prompt');
+    if (!prompt) return;
+    sentRef.current = true;
+    router.replace(window.location.pathname, { scroll: false });
+    onSend(prompt);
+  }, [isDraft, isDocReady, searchParams, router, onSend]);
+
+  return null;
 }
 
 export default function DocumentWorkspacePage() {
@@ -276,6 +301,13 @@ export default function DocumentWorkspacePage() {
 
   return (
     <div className="h-full flex flex-col bg-transparent overflow-hidden">
+      <Suspense fallback={null}>
+        <InitialPromptSender
+          isDraft={isDraft}
+          isDocReady={!isLoading && !!docData}
+          onSend={handleSend}
+        />
+      </Suspense>
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">

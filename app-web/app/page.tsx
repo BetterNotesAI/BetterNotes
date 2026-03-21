@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import Background from './components/Background'
+import { LandingCreationBar } from './components/LandingCreationBar'
 
 export default async function LandingPage() {
   const supabase = await createClient()
@@ -72,21 +73,18 @@ export default async function LandingPage() {
           Choose a template, describe your content, and get a print-ready academic PDF in seconds — powered by AI.
         </p>
 
-        {/* CTAs */}
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link
-            href="/signup"
-            className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-neutral-950 hover:bg-white/90 transition-colors"
-          >
-            Get started free →
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-sm text-white/85 hover:bg-white/15 backdrop-blur transition-colors"
-          >
+        {/* Creation bar */}
+        <div className="mt-8 max-w-3xl mx-auto">
+          <LandingCreationBar />
+        </div>
+
+        {/* Secondary CTA */}
+        <p className="mt-4 text-xs text-white/40">
+          Already have an account?{' '}
+          <Link href="/login" className="text-white/60 hover:text-white underline underline-offset-2 transition-colors">
             Sign in
           </Link>
-        </div>
+        </p>
       </section>
 
       {/* Features / Steps */}
