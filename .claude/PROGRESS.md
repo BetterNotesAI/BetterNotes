@@ -4,6 +4,58 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-20 — F2-M4 completo: subida de archivos como contexto IA
+
+### ✅ Completado
+
+**UI — Componentes de subida**
+- `AttachmentDropzone.tsx`: zona drag & drop en modal de specs (crear documento). Soporta PDF, imágenes (jpg/png/webp), DOCX. Límite 5MB por archivo, máximo 3 archivos por generación.
+- `WorkspaceAttachmentsPanel.tsx`: panel colapsable en workspace (sobre el chat). Muestra adjuntos del documento actual con botones de eliminar.
+
+**Backend — Endpoints completados**
+- `POST /api/attachments/upload`: manejo multipart/form-data, guarda en bucket `document-attachments`, devuelve metadata (id, url, type, size)
+- `GET/POST/DELETE /api/documents/[id]/attachments`: listar, crear referencias, eliminar adjuntos por documento
+- `chat/route.ts`: incorpora automáticamente adjuntos del documento en cada mensaje a OpenAI (visión para imágenes, texto extraído para PDFs/DOCX)
+- `compile/route.ts + app-api compile-only`: imágenes se pasan a pdflatex via `graphicx` package con `float` y `[H]` placement (garantiza posición)
+- `openai.provider.ts`: instrucciones actualizadas — soporte para `content` array (text + image_url), extrapolación de PDFs via pdf-parse, DOCX via mammoth
+
+**Fixes en esta sesión**
+- `ChatPanel`: layout roto con h-full overflow → flex-1 min-h-0 wrapper en columna derecha con overflow-hidden
+- `WorkspaceAttachmentsPanel`: no solapamiento con barras superiores (z-index + padding correcto)
+- `chat/route.ts`: ahora incluye adjuntos de DB además de los que pasa el cliente en el payload
+- Version selector eliminado de la UI (badge estático que quedó muerto en M4)
+- Ctrl+scroll zoom: window listener con passive:false + getBoundingClientRect check para viewport
+- Favicon: actualizado a `/brand/logo.png` vía metadata `icons` en `layout.tsx`
+- Page reload post-compilar: isLoading solo bloquea en carga inicial (docData=null), no en operaciones posteriores
+- Rename inline en workspace: doble-click en título del header → input editable
+- Menú 3 puntos en home: z-index fix (top-full en lugar de bottom-full incorrecta) + opción Rename en DocumentCard
+- PDF download: fetch blob + `URL.createObjectURL` para forzar Save-As dialog en navegador
+- "Move to folder": siempre visible en menú, con hint cuando no hay carpetas
+
+**Commits rama v2 (sesión 2026-03-20)**
+- feat(F2-M4): workspace attachments panel
+- fix: compile version_number+status, figure placement, ctrl+scroll zoom
+- fix: no full-page reload after generate/compile + working ctrl+scroll zoom
+- fix: ctrl+scroll zoom via window listener + favicon from logo.png
+- feat: inline rename in workspace + fix card menu z-index + Rename option
+- fix: proper PDF download via blob + folder option always visible
+
+### 🧠 Decisiones tomadas
+- Adjuntos como contexto automático (sin selector extra en chat) — simplifica UX, reduce clicks
+- AttachmentDropzone en modal de specs vs WorkspaceAttachmentsPanel panel — separación clara entre "subida para generación" (specs) y "gestión posterior" (workspace)
+- Imágenes via `graphicx + float + [H]` — placement determinístico sin saltos de página
+- Límites de archivo y cantidad — 5MB/archivo, 3 máximo evita timeouts de OpenAI + pdflatex
+- Panel colapsable por defecto (no siempre visible) — menos distracción cuando no hay adjuntos
+
+### ⚠️ Deuda técnica introducida
+- AttachmentDropzone: no validación en tiempo real de formato (solo en upload, backend valida después) — mejorable con file type checks en onChange
+- WorkspaceAttachmentsPanel: no lazy loading de previews — si hay muchos archivos, renderizado pesado (no probado a escala)
+- Chat: adjuntos incluidos en cada mensaje aún si el usuario no especificó (contexto "siempre llevado") — podría ser inesperado en algunos flujos
+
+### ✅ F2-M4 CERRADO — Archivos como contexto funcional en chat y LaTeX
+
+---
+
 ## Sesión 2026-03-19 (3) — F2-M3 completo: organización de documentos
 
 ### ✅ Completado
@@ -341,7 +393,7 @@ Ver TASKS.md — 5 categorías con prioridades 🔴🟡🟢:
 - Auth via @supabase/ssr (no el antiguo supabase.ts monolitico de v1)
 - RLS con SECURITY DEFINER owns_document() para evitar la recursion que causaba problemas en v1
 - Plantillas almacenadas en tabla `templates` de Supabase (no archivos .tex estaticos)
-- AI abstraida detras de interface AIProvider (soportara Anthropic en el futuro sin refactor)
+- AI abstraída detras de interface AIProvider (soportara Anthropic en el futuro sin refactor)
 
 ### Proximos pasos (M3)
 1. Disenar las plantillas iniciales (campos: preamble, style_guide, structure_template, structure_example)
@@ -387,4 +439,3 @@ Ver TASKS.md — 5 categorías con prioridades 🔴🟡🟢:
 4. **ESPERAR aprobación antes de implementar**
 
 ---
-
