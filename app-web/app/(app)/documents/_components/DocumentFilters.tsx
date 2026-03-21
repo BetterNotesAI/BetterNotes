@@ -1,6 +1,15 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'date_desc', label: 'Newest first' },
+  { value: 'date_asc',  label: 'Oldest first' },
+  { value: 'title_asc', label: 'A → Z' },
+  { value: 'template',  label: 'By template' },
+];
 
 interface DocumentFiltersProps {
   sortBy: SortOption;
@@ -19,28 +28,65 @@ export function DocumentFilters({
   showArchived,
   setShowArchived,
 }: DocumentFiltersProps) {
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sortOpen) return;
+    function handler(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [sortOpen]);
+
+  const currentLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? 'Sort';
+
   return (
     <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-white/10 bg-white/[0.02] backdrop-blur">
-      {/* Sort select */}
-      <div className="relative">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortOption)}
-          style={{ colorScheme: 'dark' }}
-          className="appearance-none bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/25
-            text-indigo-200/80 text-xs font-medium rounded-xl pl-3 pr-7 py-1.5 outline-none cursor-pointer
-            focus:border-indigo-400/50 transition-colors"
+
+      {/* Custom sort dropdown */}
+      <div ref={sortRef} className="relative">
+        <button
+          onClick={() => setSortOpen(o => !o)}
+          className="flex items-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/25
+            text-indigo-200/80 text-xs font-medium rounded-xl pl-3 pr-2.5 py-1.5 transition-colors"
         >
-          <option value="date_desc">Newest first</option>
-          <option value="date_asc">Oldest first</option>
-          <option value="title_asc">A &#8594; Z</option>
-          <option value="template">By template</option>
-        </select>
-        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-indigo-300/50">
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          {currentLabel}
+          <svg
+            className={`w-3 h-3 text-indigo-300/50 transition-transform duration-150 ${sortOpen ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
-        </span>
+        </button>
+
+        {sortOpen && (
+          <div className="absolute top-full mt-1 left-0 z-50 min-w-[130px] rounded-xl border border-white/15
+            bg-neutral-900/95 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 overflow-hidden">
+            {SORT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
+                className={`flex items-center w-full px-3 py-1.5 text-xs transition-colors ${
+                  sortBy === opt.value
+                    ? 'text-indigo-300 bg-indigo-500/15'
+                    : 'text-white/70 hover:text-white hover:bg-white/8'
+                }`}
+              >
+                {sortBy === opt.value && (
+                  <svg className="w-3 h-3 mr-1.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+                {sortBy !== opt.value && <span className="w-3 mr-1.5 shrink-0" />}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Starred toggle */}
