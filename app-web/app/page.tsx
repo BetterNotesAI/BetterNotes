@@ -8,7 +8,7 @@ import { LandingInteractive } from './components/LandingInteractive'
 export default async function LandingPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/documents')
+  if (user) redirect('/home')
 
   return (
     <main className="relative min-h-screen text-white">
