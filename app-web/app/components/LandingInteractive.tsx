@@ -58,7 +58,7 @@ export function LandingInteractive() {
       if (!user) {
         const { error: anonError } = await supabase.auth.signInAnonymously();
         if (anonError) {
-          setCreateError(`Session error: ${anonError.message}`);
+          setCreateError('Could not start a session. Please try again.');
           setIsCreating(false);
           return;
         }

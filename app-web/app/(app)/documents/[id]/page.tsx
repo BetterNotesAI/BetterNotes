@@ -107,8 +107,7 @@ export default function DocumentWorkspacePage() {
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [guestMessagesUsed, setGuestMessagesUsed] = useState(0);
-  const [guestMessagesLimit, setGuestMessagesLimit] = useState(3);
+
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
   const [zoom, setZoom] = useState(100);
@@ -196,8 +195,6 @@ export default function DocumentWorkspacePage() {
         if (resp.ok) {
           const data = await resp.json();
           setIsGuest(data.is_guest ?? false);
-          setGuestMessagesUsed(data.messages_used ?? 0);
-          setGuestMessagesLimit(data.messages_limit ?? 3);
         }
       } catch {
         // Non-fatal
@@ -285,14 +282,6 @@ export default function DocumentWorkspacePage() {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
-        // Refresh guest status after a successful generation
-        if (isGuest) {
-          const r = await fetch('/api/guest-status').catch(() => null);
-          if (r?.ok) {
-            const d = await r.json().catch(() => ({}));
-            setGuestMessagesUsed(d.messages_used ?? guestMessagesUsed);
-          }
-        }
       } catch (err: unknown) {
         if (isGuestLimitError(err)) {
           setShowGuestModal(true);
@@ -306,14 +295,6 @@ export default function DocumentWorkspacePage() {
       setIsChatGenerating(true);
       try {
         await sendMessage(content);
-        // Refresh guest status after a successful message
-        if (isGuest) {
-          const r = await fetch('/api/guest-status').catch(() => null);
-          if (r?.ok) {
-            const d = await r.json().catch(() => ({}));
-            setGuestMessagesUsed(d.messages_used ?? guestMessagesUsed);
-          }
-        }
       } catch (err: unknown) {
         if (isGuestLimitError(err)) {
           setShowGuestModal(true);
@@ -447,22 +428,6 @@ export default function DocumentWorkspacePage() {
         </div>
       )}
 
-      {/* Guest banner */}
-      {isGuest && (
-        <div className="flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
-          <p className="text-xs text-amber-400">
-            You&apos;re using BetterNotes as a guest
-            {' '}&mdash;{' '}
-            <span className="font-medium">{guestMessagesUsed}/{guestMessagesLimit} messages used</span>
-          </p>
-          <button
-            onClick={() => setShowGuestModal(true)}
-            className="text-xs text-amber-300 hover:text-amber-200 font-medium transition-colors ml-3 shrink-0 whitespace-nowrap"
-          >
-            Save your work &rarr;
-          </button>
-        </div>
-      )}
 
       {/* Usage banner — shown when ≤5 generations remain on free plan */}
       {usagePlan === 'free' && usageRemaining !== null && usageRemaining <= 5 && (
