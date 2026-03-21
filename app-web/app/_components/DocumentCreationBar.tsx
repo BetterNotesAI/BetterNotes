@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface CreateDocumentInput {
   prompt: string;
@@ -53,9 +54,12 @@ export function DocumentCreationBar({
   // Specs are only "active" after the user explicitly clicks Apply
   const [specsApplied, setSpecsApplied] = useState(false);
 
-  const barRef      = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const barRef         = useRef<HTMLDivElement>(null);
+  const textareaRef    = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const templateBtnRef = useRef<HTMLButtonElement>(null);
+  const specsBtnRef    = useRef<HTMLButtonElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
 
   const selectedTemplate = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
   const label = submitLabel ?? 'Build now';
@@ -64,13 +68,16 @@ export function DocumentCreationBar({
     if (autoFocus && textareaRef.current) textareaRef.current.focus();
   }, [autoFocus]);
 
-  // Close panels on outside click
+  // Close panels on outside click (ignore clicks inside the portal popovers)
   useEffect(() => {
     if (!openPanel) return;
     function handleMouseDown(e: MouseEvent) {
-      if (barRef.current && !barRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inBar = barRef.current?.contains(target);
+      const inPortal = (target as Element)?.closest?.('[data-creation-popover]');
+      if (!inBar && !inPortal) {
         setOpenPanel(null);
-        // Closing specs popover without accepting → not applied
+        setPopoverPos(null);
       }
     }
     document.addEventListener('mousedown', handleMouseDown);
@@ -112,9 +119,25 @@ export function DocumentCreationBar({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function calcPos(btnRef: React.RefObject<HTMLButtonElement | null>, align: 'left' | 'right') {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const gap = 8;
+    const base = { top: rect.top - gap };
+    return align === 'left'
+      ? { ...base, left: rect.left }
+      : { ...base, right: window.innerWidth - rect.right };
+  }
+
   // Template panel: simple toggle
   function toggleTemplate() {
-    setOpenPanel((prev) => (prev === 'template' ? null : 'template'));
+    if (openPanel === 'template') {
+      setOpenPanel(null);
+      setPopoverPos(null);
+    } else {
+      setPopoverPos(calcPos(templateBtnRef, 'left'));
+      setOpenPanel('template');
+    }
   }
 
   // Specs button:
@@ -124,31 +147,40 @@ export function DocumentCreationBar({
     if (specsApplied) {
       setSpecsApplied(false);
       setOpenPanel(null);
+      setPopoverPos(null);
+    } else if (openPanel === 'specs') {
+      setOpenPanel(null);
+      setPopoverPos(null);
     } else {
-      setOpenPanel((prev) => (prev === 'specs' ? null : 'specs'));
+      setPopoverPos(calcPos(specsBtnRef, 'right'));
+      setOpenPanel('specs');
     }
   }
 
   function applySpecs() {
     setSpecsApplied(true);
     setOpenPanel(null);
+    setPopoverPos(null);
   }
 
   const canSubmit     = prompt.trim().length > 0 && !isLoading;
   const specsActive   = specsApplied || openPanel === 'specs';
 
-  return (
-    <div ref={barRef} className="relative">
-      {/* Template popover */}
-      {openPanel === 'template' && (
-        <div className="absolute bottom-full mb-2 left-0 right-0 z-50 rounded-2xl border border-white/15 bg-neutral-900/95 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.5)] p-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-52 overflow-y-auto">
+  // Portal popovers
+  const templatePopover = openPanel === 'template' && popoverPos && typeof window !== 'undefined'
+    ? createPortal(
+        <div
+          data-creation-popover
+          style={{ position: 'fixed', top: popoverPos.top, left: popoverPos.left, zIndex: 9999, transform: 'translateY(-100%)' }}
+          className="w-72 rounded-2xl border border-white/15 bg-neutral-900/95 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] p-3"
+        >
+          <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
             {TEMPLATES.map((t) => {
               const isSelected = t.id === templateId;
               return (
                 <button
                   key={t.id}
-                  onClick={() => { setTemplateId(t.id); setOpenPanel(null); }}
+                  onClick={() => { setTemplateId(t.id); setOpenPanel(null); setPopoverPos(null); }}
                   className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
                     isSelected
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
@@ -168,12 +200,18 @@ export function DocumentCreationBar({
               );
             })}
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
 
-      {/* Specs popover */}
-      {openPanel === 'specs' && (
-        <div className="absolute bottom-full mb-2 right-0 z-50 w-64 rounded-2xl border border-white/15 bg-neutral-900/95 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.5)] p-4">
+  const specsPopover = openPanel === 'specs' && popoverPos && typeof window !== 'undefined'
+    ? createPortal(
+        <div
+          data-creation-popover
+          style={{ position: 'fixed', top: popoverPos.top, right: popoverPos.right, zIndex: 9999, transform: 'translateY(-100%)' }}
+          className="w-64 rounded-2xl border border-white/15 bg-neutral-900/95 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] p-4"
+        >
           {/* Pages */}
           <div className="mb-4">
             <p className="text-xs font-medium text-white/60 mb-2">Pages</p>
@@ -251,14 +289,21 @@ export function DocumentCreationBar({
           <button
             onClick={applySpecs}
             className="w-full bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400
-              text-white text-xs font-semibold py-2 rounded-xl shadow-[0_2px_8px_rgba(99,102,241,0.35)]
-              transition-all"
+              text-white text-xs font-semibold py-2 rounded-xl shadow-[0_2px_8px_rgba(99,102,241,0.35)] transition-all"
           >
             Apply
           </button>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
 
+  return (
+    <>
+      {templatePopover}
+      {specsPopover}
+
+      <div ref={barRef}>
       {/* Main bar — two rows */}
       <div
         className={`rounded-2xl border backdrop-blur-xl shadow-[0_4px_32px_rgba(0,0,0,0.3)] transition-colors ${
@@ -316,6 +361,7 @@ export function DocumentCreationBar({
 
           {/* Template button */}
           <button
+            ref={templateBtnRef}
             onClick={toggleTemplate}
             title="Choose template"
             className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] ${
@@ -333,6 +379,7 @@ export function DocumentCreationBar({
 
           {/* Specs button */}
           <button
+            ref={specsBtnRef}
             onClick={toggleSpecs}
             title={specsApplied ? 'Specs applied — click to clear' : 'Document specs'}
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
@@ -406,6 +453,7 @@ export function DocumentCreationBar({
           {error}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
