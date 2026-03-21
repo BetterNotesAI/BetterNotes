@@ -245,12 +245,14 @@ export default function TemplatesPage() {
 
             {/* Preview thumbnail */}
             <div className="px-5 pt-4 pb-0">
-              <div
-                className="aspect-[4/3] rounded-xl overflow-hidden border border-white/10"
-                style={{ background: `linear-gradient(135deg, ${selected.accent}18, ${selected.accent}06)` }}
-              >
-                <div className="w-full h-full p-4">
-                  {selected.schematic}
+              <div className="flex justify-center">
+                <div
+                  className="w-44 aspect-[4/3] rounded-xl overflow-hidden border border-white/10 shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${selected.accent}18, ${selected.accent}06)` }}
+                >
+                  <div className="w-full h-full p-3">
+                    {selected.schematic}
+                  </div>
                 </div>
               </div>
               <p className="mt-3 text-xs text-white/55 leading-relaxed">{selected.description}</p>
