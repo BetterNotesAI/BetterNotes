@@ -17,6 +17,7 @@ interface Props {
   placeholder?: string;
   autoFocus?: boolean;
   submitLabel?: string;
+  initialTemplateId?: string;
 }
 
 const TEMPLATES = [
@@ -40,9 +41,10 @@ export function DocumentCreationBar({
   placeholder = 'Describe the document you want to create...',
   autoFocus = false,
   submitLabel,
+  initialTemplateId,
 }: Props) {
   const [prompt, setPrompt] = useState('');
-  const [templateId, setTemplateId] = useState('2cols_portrait');
+  const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
   const [pages, setPages] = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
   const [language, setLanguage] = useState('auto');
