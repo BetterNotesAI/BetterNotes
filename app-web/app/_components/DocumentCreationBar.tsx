@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 export interface CreateDocumentInput {
   prompt: string;
   templateId: string;
-  specs: { pages: number; density: 'compact' | 'balanced' | 'spacious'; language: string };
+  specs: { pages: number; density: 'compact' | 'balanced' | 'spacious'; language: string } | null;
   files: File[];
 }
 
@@ -21,16 +21,16 @@ interface Props {
 }
 
 const TEMPLATES = [
-  { id: '2cols_portrait', displayName: '2-Col Cheat Sheet', isPro: false },
-  { id: 'landscape_3col_maths', displayName: '3-Col Landscape', isPro: false },
-  { id: 'cornell', displayName: 'Cornell Notes', isPro: false },
-  { id: 'problem_solving', displayName: 'Problem Solving', isPro: false },
-  { id: 'zettelkasten', displayName: 'Zettelkasten', isPro: false },
-  { id: 'study_form', displayName: 'Study Form', isPro: false },
-  { id: 'lecture_notes', displayName: 'Lecture Notes', isPro: false },
-  { id: 'academic_paper', displayName: 'Academic Paper', isPro: true },
-  { id: 'lab_report', displayName: 'Lab Report', isPro: true },
-  { id: 'data_analysis', displayName: 'Data Analysis', isPro: true },
+  { id: '2cols_portrait',       displayName: '2-Col Cheat Sheet', isPro: false },
+  { id: 'landscape_3col_maths', displayName: '3-Col Landscape',   isPro: false },
+  { id: 'cornell',              displayName: 'Cornell Notes',      isPro: false },
+  { id: 'problem_solving',      displayName: 'Problem Solving',    isPro: false },
+  { id: 'zettelkasten',         displayName: 'Zettelkasten',       isPro: false },
+  { id: 'study_form',           displayName: 'Study Form',         isPro: false },
+  { id: 'lecture_notes',        displayName: 'Lecture Notes',      isPro: false },
+  { id: 'academic_paper',       displayName: 'Academic Paper',     isPro: true  },
+  { id: 'lab_report',           displayName: 'Lab Report',         isPro: true  },
+  { id: 'data_analysis',        displayName: 'Data Analysis',      isPro: true  },
 ];
 
 export function DocumentCreationBar({
@@ -43,38 +43,36 @@ export function DocumentCreationBar({
   submitLabel,
   initialTemplateId,
 }: Props) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
-  const [pages, setPages] = useState(2);
+  const [pages, setPages]     = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
   const [language, setLanguage] = useState('auto');
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles]     = useState<File[]>([]);
   const [openPanel, setOpenPanel] = useState<'template' | 'specs' | null>(null);
+  // Specs are only "active" after the user explicitly clicks Apply
+  const [specsApplied, setSpecsApplied] = useState(false);
 
-  const barRef = useRef<HTMLDivElement>(null);
+  const barRef      = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedTemplate = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
   const label = submitLabel ?? 'Build now';
 
-  // Auto-focus on mount
   useEffect(() => {
-    if (autoFocus && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    if (autoFocus && textareaRef.current) textareaRef.current.focus();
   }, [autoFocus]);
 
   // Close panels on outside click
   useEffect(() => {
     if (!openPanel) return;
-
     function handleMouseDown(e: MouseEvent) {
       if (barRef.current && !barRef.current.contains(e.target as Node)) {
         setOpenPanel(null);
+        // Closing specs popover without accepting → not applied
       }
     }
-
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [openPanel]);
@@ -96,13 +94,17 @@ export function DocumentCreationBar({
 
   function handleSubmit() {
     if (!prompt.trim() || isLoading) return;
-    onSubmit({ prompt: prompt.trim(), templateId, specs: { pages, density, language }, files });
+    onSubmit({
+      prompt: prompt.trim(),
+      templateId,
+      specs: specsApplied ? { pages, density, language } : null,
+      files,
+    });
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []);
     setFiles((prev) => [...prev, ...selected]);
-    // Reset input so the same file can be re-added after removal
     e.target.value = '';
   }
 
@@ -110,11 +112,30 @@ export function DocumentCreationBar({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function togglePanel(panel: 'template' | 'specs') {
-    setOpenPanel((prev) => (prev === panel ? null : panel));
+  // Template panel: simple toggle
+  function toggleTemplate() {
+    setOpenPanel((prev) => (prev === 'template' ? null : 'template'));
   }
 
-  const canSubmit = prompt.trim().length > 0 && !isLoading;
+  // Specs button:
+  //   - if already applied → deselect (clear applied, close panel)
+  //   - if not applied → open/close popover
+  function toggleSpecs() {
+    if (specsApplied) {
+      setSpecsApplied(false);
+      setOpenPanel(null);
+    } else {
+      setOpenPanel((prev) => (prev === 'specs' ? null : 'specs'));
+    }
+  }
+
+  function applySpecs() {
+    setSpecsApplied(true);
+    setOpenPanel(null);
+  }
+
+  const canSubmit     = prompt.trim().length > 0 && !isLoading;
+  const specsActive   = specsApplied || openPanel === 'specs';
 
   return (
     <div ref={barRef} className="relative">
@@ -135,9 +156,7 @@ export function DocumentCreationBar({
                   }`}
                 >
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    {isSelected && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                    )}
+                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
                     <span className="leading-snug">{t.displayName}</span>
                   </div>
                   {t.isPro && (
@@ -192,7 +211,7 @@ export function DocumentCreationBar({
                   onClick={() => setDensity(d)}
                   className={`flex-1 text-xs py-1.5 rounded-lg border capitalize transition-all ${
                     density === d
-                      ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                      ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40'
                       : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
                   }`}
                 >
@@ -203,22 +222,22 @@ export function DocumentCreationBar({
           </div>
 
           {/* Language */}
-          <div>
+          <div className="mb-4">
             <p className="text-xs font-medium text-white/60 mb-2">Language</p>
             <div className="flex flex-wrap gap-1">
               {[
-                { value: 'auto', label: 'Auto' },
-                { value: 'en', label: 'English' },
-                { value: 'es', label: 'Español' },
-                { value: 'fr', label: 'Français' },
-                { value: 'de', label: 'Deutsch' },
+                { value: 'auto', label: 'Auto'     },
+                { value: 'en',   label: 'English'  },
+                { value: 'es',   label: 'Español'  },
+                { value: 'fr',   label: 'Français' },
+                { value: 'de',   label: 'Deutsch'  },
               ].map((lang) => (
                 <button
                   key={lang.value}
                   onClick={() => setLanguage(lang.value)}
                   className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
                     language === lang.value
-                      ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                      ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40'
                       : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
                   }`}
                 >
@@ -227,20 +246,46 @@ export function DocumentCreationBar({
               ))}
             </div>
           </div>
+
+          {/* Apply button */}
+          <button
+            onClick={applySpecs}
+            className="w-full bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400
+              text-white text-xs font-semibold py-2 rounded-xl shadow-[0_2px_8px_rgba(99,102,241,0.35)]
+              transition-all"
+          >
+            Apply
+          </button>
         </div>
       )}
 
-      {/* Main bar */}
+      {/* Main bar — two rows */}
       <div
-        className={`flex items-end gap-0 rounded-2xl border backdrop-blur-xl shadow-[0_4px_32px_rgba(0,0,0,0.3)] transition-colors ${
+        className={`rounded-2xl border backdrop-blur-xl shadow-[0_4px_32px_rgba(0,0,0,0.3)] transition-colors ${
           openPanel
             ? 'border-indigo-500/40 bg-white/[0.09]'
             : 'border-white/15 bg-white/[0.07]'
         }`}
       >
-        {/* Left buttons */}
-        <div className="px-2 py-2 flex items-center gap-0.5 shrink-0">
-          {/* Attach button — hidden in landing mode */}
+        {/* Row 1: textarea */}
+        <div className="px-4 pt-3 pb-2">
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={handleTextareaInput}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            rows={1}
+            className="w-full bg-transparent text-white/90 text-sm placeholder-white/30 resize-none focus:outline-none min-h-[36px] max-h-[160px] leading-snug"
+          />
+        </div>
+
+        {/* Separator */}
+        <div className="h-px bg-white/10 mx-3" />
+
+        {/* Row 2: actions */}
+        <div className="flex items-center gap-0.5 px-2 py-2">
+          {/* Attach button — app mode only */}
           {mode === 'app' && (
             <>
               <input
@@ -271,9 +316,9 @@ export function DocumentCreationBar({
 
           {/* Template button */}
           <button
-            onClick={() => togglePanel('template')}
+            onClick={toggleTemplate}
             title="Choose template"
-            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[140px] ${
+            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] ${
               openPanel === 'template'
                 ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
                 : 'text-white/60 hover:bg-white/10 hover:text-white/80'
@@ -288,10 +333,10 @@ export function DocumentCreationBar({
 
           {/* Specs button */}
           <button
-            onClick={() => togglePanel('specs')}
-            title="Document specs"
+            onClick={toggleSpecs}
+            title={specsApplied ? 'Specs applied — click to clear' : 'Document specs'}
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
-              openPanel === 'specs'
+              specsActive
                 ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
                 : 'text-white/50 hover:bg-white/10 hover:text-white/80'
             }`}
@@ -302,24 +347,11 @@ export function DocumentCreationBar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
-        </div>
 
-        {/* Divider */}
-        <div className="w-px h-5 bg-white/15 self-center mx-1 shrink-0" />
+          {/* Spacer */}
+          <div className="flex-1" />
 
-        {/* Prompt textarea */}
-        <textarea
-          ref={textareaRef}
-          value={prompt}
-          onChange={handleTextareaInput}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          rows={1}
-          className="flex-1 bg-transparent text-white/90 text-sm placeholder-white/30 px-3 py-3 resize-none focus:outline-none min-h-[44px] max-h-[120px] leading-snug"
-        />
-
-        {/* Submit button */}
-        <div className="px-2 py-2 shrink-0">
+          {/* Submit button */}
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
