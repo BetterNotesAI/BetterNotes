@@ -67,7 +67,7 @@ const TEMPLATES: Template[] = [
     isPro: false,
     category: 'Notes',
     accent: '#22c55e',
-    schematic: <ThreeColSchematic dense />,
+    schematic: <StudyFormSchematic />,
   },
   {
     id: 'lecture_notes',
@@ -85,7 +85,7 @@ const TEMPLATES: Template[] = [
     isPro: true,
     category: 'Academic',
     accent: '#eab308',
-    schematic: <TwoColSchematic header />,
+    schematic: <AcademicPaperSchematic />,
   },
   {
     id: 'lab_report',
@@ -142,7 +142,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-transparent text-white">
+    <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
         <h1 className="text-xl font-semibold">Templates</h1>
@@ -279,21 +279,74 @@ export default function TemplatesPage() {
 
 /* ── Schematic previews ─────────────────────────────────── */
 
-function Line({ w = 'full', opacity = 40 }: { w?: string; opacity?: number }) {
-  return <div className={`h-1 rounded-full bg-white/[${opacity / 100}] w-${w} mb-1`} />;
+function Ln({ w, bold }: { w: number; bold?: boolean }) {
+  return (
+    <div
+      className={`h-[2px] rounded-full mb-[3px] ${bold ? 'bg-white/35' : 'bg-white/15'}`}
+      style={{ width: `${w}%` }}
+    />
+  );
 }
 
-function TwoColSchematic({ header = false }: { header?: boolean }) {
+function Img({ w = 100, h = 14 }: { w?: number; h?: number }) {
+  return (
+    <div
+      className="rounded bg-white/10 border border-white/15 mb-[3px] flex items-center justify-center"
+      style={{ width: `${w}%`, height: `${h}px` }}
+    >
+      <svg className="w-3 h-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" />
+      </svg>
+    </div>
+  );
+}
+
+function Box({ children, accent }: { children: React.ReactNode; accent?: string }) {
+  return (
+    <div
+      className="border border-white/20 rounded p-1 mb-1"
+      style={accent ? { borderColor: `${accent}50`, background: `${accent}08` } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TwoColSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1">
-      {header && <div className="h-1.5 rounded bg-white/20 w-3/4 mb-1 mx-auto" />}
-      <div className="flex-1 flex gap-1.5">
+      {/* Title */}
+      <Ln w={55} bold />
+      <div className="flex-1 flex gap-2">
         {[0, 1].map(col => (
-          <div key={col} className="flex-1 flex flex-col gap-0.5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className={`h-0.5 rounded-full bg-white/${i % 3 === 0 ? '25' : '12'}`}
-                style={{ width: `${60 + Math.sin(i + col) * 30}%` }} />
-            ))}
+          <div key={col} className="flex-1 flex flex-col">
+            {/* Section header */}
+            <Ln w={70} bold />
+            <Ln w={90} />
+            <Ln w={75} />
+            <Ln w={85} />
+            {/* Formula box */}
+            <Box>
+              <Ln w={80} bold />
+              <Ln w={60} />
+            </Box>
+            <Ln w={95} />
+            <Ln w={70} />
+            {/* Second section */}
+            <Ln w={65} bold />
+            <Ln w={88} />
+            <Ln w={72} />
+            <Ln w={95} />
+            <Ln w={80} />
+            {/* Another formula box */}
+            <Box>
+              <Ln w={75} bold />
+              <Ln w={55} />
+              <Ln w={65} />
+            </Box>
+            <Ln w={90} />
+            <Ln w={60} />
           </div>
         ))}
       </div>
@@ -301,17 +354,37 @@ function TwoColSchematic({ header = false }: { header?: boolean }) {
   );
 }
 
-function ThreeColSchematic({ dense = false }: { dense?: boolean }) {
+function ThreeColSchematic() {
   return (
-    <div className="w-full h-full flex gap-1">
-      {[0, 1, 2].map(col => (
-        <div key={col} className="flex-1 flex flex-col gap-0.5">
-          {Array.from({ length: dense ? 12 : 8 }).map((_, i) => (
-            <div key={i} className={`h-0.5 rounded-full bg-white/${i % 3 === 0 ? '25' : '10'}`}
-              style={{ width: `${55 + Math.sin(i + col * 2) * 35}%` }} />
-          ))}
-        </div>
-      ))}
+    <div className="w-full h-full flex flex-col gap-1">
+      <Ln w={40} bold />
+      <div className="flex-1 flex gap-1.5">
+        {[0, 1, 2].map(col => (
+          <div key={col} className="flex-1 flex flex-col">
+            <Ln w={80} bold />
+            <Ln w={90} />
+            <Ln w={70} />
+            <Ln w={85} />
+            <Box>
+              <Ln w={75} bold />
+              <Ln w={60} />
+            </Box>
+            <Ln w={95} />
+            <Ln w={65} />
+            <Ln w={88} />
+            <Ln w={72} bold />
+            <Ln w={90} />
+            <Ln w={80} />
+            <Ln w={68} />
+            <Box>
+              <Ln w={85} />
+              <Ln w={55} />
+            </Box>
+            <Ln w={75} />
+            <Ln w={95} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -319,27 +392,43 @@ function ThreeColSchematic({ dense = false }: { dense?: boolean }) {
 function CornellSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1">
+      {/* Title row */}
+      <Ln w={50} bold />
       <div className="flex-1 flex gap-1.5">
-        <div className="w-1/3 flex flex-col gap-0.5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-0.5 rounded-full bg-white/20"
-              style={{ width: `${50 + Math.sin(i) * 40}%` }} />
-          ))}
+        {/* Cue column */}
+        <div className="w-[28%] flex flex-col pr-1 border-r border-white/15">
+          <Ln w={85} bold />
+          <Ln w={70} />
+          <Ln w={90} />
+          <Ln w={60} />
+          <Ln w={80} bold />
+          <Ln w={75} />
+          <Ln w={65} />
+          <Ln w={85} bold />
+          <Ln w={70} />
+          <Ln w={90} />
+          <Ln w={60} />
         </div>
-        <div className="w-px bg-white/15" />
-        <div className="flex-1 flex flex-col gap-0.5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-0.5 rounded-full bg-white/12"
-              style={{ width: `${65 + Math.sin(i + 1) * 25}%` }} />
-          ))}
+        {/* Notes column */}
+        <div className="flex-1 flex flex-col">
+          <Ln w={95} />
+          <Ln w={80} />
+          <Ln w={88} />
+          <Ln w={72} />
+          <Ln w={90} />
+          <Img w={85} h={18} />
+          <Ln w={75} />
+          <Ln w={88} />
+          <Ln w={65} />
+          <Ln w={92} />
+          <Ln w={78} />
         </div>
       </div>
-      <div className="h-px bg-white/15" />
-      <div className="h-3 flex flex-col gap-0.5 justify-center">
-        {[0, 1].map(i => (
-          <div key={i} className="h-0.5 rounded-full bg-white/15"
-            style={{ width: `${40 + i * 20}%` }} />
-        ))}
+      {/* Summary box */}
+      <div className="border-t border-white/20 pt-1">
+        <Ln w={30} bold />
+        <Ln w={88} />
+        <Ln w={72} />
       </div>
     </div>
   );
@@ -349,12 +438,29 @@ function ProblemSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1.5">
       {[0, 1, 2].map(block => (
-        <div key={block} className="flex-1 border border-white/15 rounded p-1 flex flex-col gap-0.5">
-          <div className="h-0.5 rounded-full bg-white/30 w-1/3" />
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="h-0.5 rounded-full bg-white/12"
-              style={{ width: `${55 + i * 20}%` }} />
-          ))}
+        <div key={block} className="flex-1 border border-white/20 rounded p-1.5 flex flex-col gap-0.5">
+          {/* Problem label + text */}
+          <Ln w={30} bold />
+          <Ln w={92} />
+          <Ln w={78} />
+          {/* Given / find row */}
+          <div className="flex gap-1 mt-0.5">
+            <div className="flex-1">
+              <Ln w={50} bold />
+              <Ln w={80} />
+              <Ln w={65} />
+            </div>
+            <div className="flex-1">
+              <Ln w={45} bold />
+              <Ln w={70} />
+            </div>
+          </div>
+          {/* Solution / answer box */}
+          <div className="mt-0.5 border border-white/25 rounded p-0.5 bg-white/[0.03]">
+            <Ln w={35} bold />
+            <Ln w={88} />
+            <Ln w={55} />
+          </div>
         </div>
       ))}
     </div>
@@ -363,16 +469,61 @@ function ProblemSchematic() {
 
 function ZettelSchematic() {
   return (
-    <div className="w-full h-full grid grid-cols-2 gap-1">
-      {[0, 1, 2, 3].map(card => (
-        <div key={card} className="border border-white/15 rounded p-1 flex flex-col gap-0.5">
-          <div className="h-0.5 rounded-full bg-white/30 w-2/3" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-0.5 rounded-full bg-white/12"
-              style={{ width: `${50 + Math.sin(i + card) * 35}%` }} />
-          ))}
-        </div>
-      ))}
+    <div className="w-full h-full flex flex-col gap-1.5">
+      <Ln w={45} bold />
+      <div className="flex-1 grid grid-cols-2 gap-1.5">
+        {[0, 1, 2, 3].map(card => (
+          <div key={card} className="border border-white/20 rounded p-1.5 flex flex-col gap-0.5">
+            {/* Card ID + title */}
+            <div className="flex items-center gap-1 mb-0.5">
+              <div className="w-3 h-3 rounded bg-white/20 shrink-0" />
+              <Ln w={75} bold />
+            </div>
+            <Ln w={90} />
+            <Ln w={72} />
+            <Ln w={85} />
+            <Ln w={60} />
+            {/* Tags */}
+            <div className="flex gap-0.5 mt-0.5">
+              {[28, 22, 30].map(tw => (
+                <div key={tw} className="h-2 rounded-full bg-white/15" style={{ width: `${tw}%` }} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StudyFormSchematic() {
+  return (
+    <div className="w-full h-full flex flex-col gap-1">
+      <Ln w={45} bold />
+      <div className="flex-1 flex gap-1.5">
+        {[0, 1, 2].map(col => (
+          <div key={col} className="flex-1 flex flex-col">
+            <Ln w={80} bold />
+            <Box>
+              <Ln w={85} bold />
+              <Ln w={70} />
+              <Ln w={60} />
+            </Box>
+            <Ln w={95} />
+            <Ln w={72} />
+            <Ln w={85} />
+            <Box>
+              <Ln w={65} bold />
+              <Ln w={80} />
+              <Ln w={75} />
+              <Ln w={55} />
+            </Box>
+            <Ln w={90} />
+            <Ln w={68} />
+            <Ln w={88} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -380,15 +531,75 @@ function ZettelSchematic() {
 function LectureSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1">
-      <div className="h-1.5 rounded bg-white/25 w-1/2" />
-      <div className="flex-1 flex flex-col gap-0.5">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className={`h-0.5 rounded-full ${i === 2 || i === 5 ? 'bg-white/25 w-2/5' : 'bg-white/12'}`}
-            style={{ width: i === 2 || i === 5 ? '40%' : `${60 + Math.sin(i) * 30}%` }} />
-        ))}
+      {/* Title + meta */}
+      <Ln w={55} bold />
+      <Ln w={35} />
+      {/* Objectives box */}
+      <Box>
+        <Ln w={40} bold />
+        <Ln w={82} />
+        <Ln w={75} />
+      </Box>
+      {/* Section 1 */}
+      <Ln w={48} bold />
+      <Ln w={90} />
+      <Ln w={78} />
+      <Ln w={85} />
+      <Img w={75} h={20} />
+      <Ln w={65} />
+      <Ln w={88} />
+      {/* Section 2 */}
+      <Ln w={52} bold />
+      <Ln w={92} />
+      <Ln w={72} />
+      <Ln w={80} />
+      <Ln w={68} />
+      {/* Summary box */}
+      <div className="border-t border-white/20 pt-1 mt-0.5">
+        <Ln w={30} bold />
+        <Ln w={88} />
+        <Ln w={70} />
       </div>
-      <div className="border-t border-white/15 pt-1">
-        <div className="h-0.5 rounded-full bg-white/15 w-4/5" />
+    </div>
+  );
+}
+
+function AcademicPaperSchematic() {
+  return (
+    <div className="w-full h-full flex flex-col gap-1">
+      {/* Title + authors */}
+      <Ln w={65} bold />
+      <Ln w={45} />
+      {/* Abstract box */}
+      <Box>
+        <Ln w={30} bold />
+        <Ln w={95} />
+        <Ln w={88} />
+        <Ln w={72} />
+      </Box>
+      {/* Two-col body */}
+      <div className="flex-1 flex gap-2">
+        {[0, 1].map(col => (
+          <div key={col} className="flex-1 flex flex-col">
+            <Ln w={55} bold />
+            <Ln w={90} />
+            <Ln w={78} />
+            <Ln w={85} />
+            {/* Equation */}
+            <Box>
+              <Ln w={70} bold />
+            </Box>
+            <Ln w={92} />
+            <Ln w={68} />
+            <Ln w={80} />
+            <Ln w={88} bold />
+            <Ln w={75} />
+            <Ln w={90} />
+            {col === 0 && <Img w={90} h={16} />}
+            <Ln w={65} />
+            <Ln w={82} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -397,22 +608,43 @@ function LectureSchematic() {
 function LabSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1">
-      <div className="h-0.5 rounded-full bg-white/25 w-1/2 mx-auto" />
-      <div className="flex-1 flex flex-col gap-0.5">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-0.5 rounded-full bg-white/12"
-            style={{ width: `${70 + Math.sin(i) * 20}%` }} />
-        ))}
-      </div>
-      <div className="border border-white/15 rounded p-0.5 flex gap-0.5">
-        {[0, 1, 2].map(col => (
-          <div key={col} className="flex-1 flex flex-col gap-0.5">
-            {[0, 1, 2].map(row => (
-              <div key={row} className="h-0.5 rounded-full bg-white/15" />
+      {/* Title */}
+      <Ln w={55} bold />
+      <Ln w={40} />
+      {/* Introduction */}
+      <Ln w={38} bold />
+      <Ln w={90} />
+      <Ln w={78} />
+      <Ln w={85} />
+      {/* Setup diagram placeholder */}
+      <Img w={100} h={22} />
+      {/* Data table */}
+      <Ln w={30} bold />
+      <div className="border border-white/20 rounded overflow-hidden">
+        {/* Header row */}
+        <div className="flex border-b border-white/20 bg-white/[0.05]">
+          {[35, 22, 22, 21].map((w, i) => (
+            <div key={i} className="h-2.5 border-r border-white/10 last:border-0 flex items-center px-1"
+              style={{ width: `${w}%` }}>
+              <div className="h-1 rounded-full bg-white/30 w-full" />
+            </div>
+          ))}
+        </div>
+        {[0, 1, 2].map(row => (
+          <div key={row} className="flex border-b border-white/10 last:border-0">
+            {[35, 22, 22, 21].map((w, i) => (
+              <div key={i} className="h-2.5 border-r border-white/8 last:border-0 flex items-center px-1"
+                style={{ width: `${w}%` }}>
+                <div className="h-1 rounded-full bg-white/15 w-full" />
+              </div>
             ))}
           </div>
         ))}
       </div>
+      {/* Analysis */}
+      <Ln w={35} bold />
+      <Ln w={88} />
+      <Ln w={72} />
     </div>
   );
 }
@@ -420,17 +652,49 @@ function LabSchematic() {
 function DataSchematic() {
   return (
     <div className="w-full h-full flex flex-col gap-1">
-      <div className="flex-1 border border-white/10 rounded bg-white/5 p-1 font-mono">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-0.5 rounded-full bg-white/20 mb-0.5"
-            style={{ width: `${40 + i * 12}%` }} />
+      {/* Title */}
+      <Ln w={50} bold />
+      {/* Code block */}
+      <div className="border border-white/15 rounded bg-white/[0.04] p-1 font-mono">
+        <Ln w={55} bold />
+        <Ln w={72} />
+        <Ln w={48} />
+        <Ln w={65} />
+      </div>
+      {/* Chart */}
+      <Ln w={35} bold />
+      <div className="flex items-end gap-0.5 h-10 border border-white/15 rounded px-1 pb-1 bg-white/[0.02]">
+        {[45, 65, 50, 80, 60, 90, 55, 75, 40, 70].map((h, i) => (
+          <div key={i} className="flex-1 rounded-t bg-white/25" style={{ height: `${h}%` }} />
         ))}
       </div>
-      <div className="flex gap-1 h-4">
-        {[3, 5, 4, 6, 3, 5, 4].map((h, i) => (
-          <div key={i} className="flex-1 rounded-t bg-white/20 self-end" style={{ height: `${h * 14}%` }} />
+      {/* Results table */}
+      <Ln w={35} bold />
+      <div className="border border-white/20 rounded overflow-hidden">
+        <div className="flex bg-white/[0.05] border-b border-white/20">
+          {[45, 28, 27].map((w, i) => (
+            <div key={i} className="h-2.5 border-r border-white/10 last:border-0 flex items-center px-1"
+              style={{ width: `${w}%` }}>
+              <div className="h-1 rounded-full bg-white/30 w-full" />
+            </div>
+          ))}
+        </div>
+        {[0, 1, 2].map(row => (
+          <div key={row} className="flex border-b border-white/10 last:border-0">
+            {[45, 28, 27].map((w, i) => (
+              <div key={i} className="h-2.5 border-r border-white/8 last:border-0 flex items-center px-1"
+                style={{ width: `${w}%` }}>
+                <div className="h-1 rounded-full bg-white/15" style={{ width: `${55 + i * 15}%` }} />
+              </div>
+            ))}
+          </div>
         ))}
       </div>
+      {/* Math */}
+      <Box>
+        <Ln w={70} bold />
+        <Ln w={55} />
+      </Box>
     </div>
   );
 }
