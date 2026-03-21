@@ -19,6 +19,8 @@ interface Props {
   autoFocus?: boolean;
   submitLabel?: string;
   initialTemplateId?: string;
+  /** Controlled: when this changes, the internal templateId updates */
+  selectedTemplateId?: string;
 }
 
 const TEMPLATES = [
@@ -43,6 +45,7 @@ export function DocumentCreationBar({
   autoFocus = false,
   submitLabel,
   initialTemplateId,
+  selectedTemplateId,
 }: Props) {
   const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
@@ -67,6 +70,10 @@ export function DocumentCreationBar({
   useEffect(() => {
     if (autoFocus && textareaRef.current) textareaRef.current.focus();
   }, [autoFocus]);
+
+  useEffect(() => {
+    if (selectedTemplateId) setTemplateId(selectedTemplateId);
+  }, [selectedTemplateId]);
 
   // Close panels on outside click (ignore clicks inside the portal popovers)
   useEffect(() => {
