@@ -31,7 +31,7 @@ export async function POST(
 
   // Check guest limits before any expensive work (runs before the paid-plan quota check)
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
-    user_id: user.id,
+    p_user_id: user.id,
   });
   if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_message_limit') {
     return NextResponse.json({ error: guestCheck.reason }, { status: 402 });

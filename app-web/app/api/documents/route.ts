@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
   // Check guest limits before creating the document
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
-    user_id: user.id,
+    p_user_id: user.id,
   });
   if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_doc_limit') {
     return NextResponse.json({ error: 'guest_doc_limit' }, { status: 402 });
