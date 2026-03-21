@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
@@ -12,8 +12,34 @@ interface RecentDocument {
   status: string;
 }
 
+const FEATURED_TEMPLATES = [
+  {
+    id: '2cols_portrait',
+    name: '2-Column Cheat Sheet',
+    desc: 'Compact portrait layout with 2 columns for formulas, definitions and key results.',
+    accent: '#6366f1',
+    linkColor: 'text-indigo-400 group-hover:text-indigo-300',
+  },
+  {
+    id: 'landscape_3col_maths',
+    name: '3-Column Landscape',
+    desc: 'A4 landscape with 3 dense columns — ideal for math reference sheets.',
+    accent: '#8b5cf6',
+    linkColor: 'text-violet-400 group-hover:text-violet-300',
+  },
+  {
+    id: 'lecture_notes',
+    name: 'Lecture Notes',
+    desc: 'Multi-page structured notes with objectives, sections and a summary box.',
+    accent: '#3b82f6',
+    linkColor: 'text-blue-400 group-hover:text-blue-300',
+  },
+] as const;
+
 export default function HomePage() {
   const router = useRouter();
+  const barRef = useRef<HTMLDivElement>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('2cols_portrait');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDocument[]>([]);
@@ -27,16 +53,17 @@ export default function HomePage() {
       .finally(() => setIsLoadingDocs(false));
   }, []);
 
+  function handleTemplateCardClick(templateId: string) {
+    setSelectedTemplateId(templateId);
+    barRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   async function handleCreate(data: CreateDocumentInput) {
     setIsCreating(true);
     setCreateError(null);
     try {
-      // 1. Upload files to get storagePaths
       const uploadedAttachments: {
-        name: string;
-        mimeType: string;
-        sizeBytes: number;
-        storagePath: string;
+        name: string; mimeType: string; sizeBytes: number; storagePath: string;
       }[] = [];
 
       for (const file of data.files) {
@@ -44,33 +71,17 @@ export default function HomePage() {
         formData.append('file', file);
         const res = await fetch('/api/attachments/upload', { method: 'POST', body: formData });
         const d = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setCreateError(d?.error ?? 'Upload failed');
-          setIsCreating(false);
-          return;
-        }
-        uploadedAttachments.push({
-          name: d.name,
-          mimeType: d.mimeType,
-          sizeBytes: d.sizeBytes,
-          storagePath: d.storagePath,
-        });
+        if (!res.ok) { setCreateError(d?.error ?? 'Upload failed'); setIsCreating(false); return; }
+        uploadedAttachments.push({ name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes, storagePath: d.storagePath });
       }
 
-      // 2. Create document
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_id: data.templateId,
-          attachments: uploadedAttachments,
-        }),
+        body: JSON.stringify({ template_id: data.templateId, attachments: uploadedAttachments }),
       });
       const docData = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        setCreateError(docData?.error ?? 'Failed to create document');
-        return;
-      }
+      if (!resp.ok) { setCreateError(docData?.error ?? 'Failed to create document'); return; }
       router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
     } catch {
       setCreateError('Something went wrong. Please try again.');
@@ -80,7 +91,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-transparent text-white">
+    <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
         <h1 className="text-xl font-semibold">Home</h1>
@@ -101,13 +112,64 @@ export default function HomePage() {
           </p>
 
           {/* Creation bar */}
-          <DocumentCreationBar
-            onSubmit={handleCreate}
-            isLoading={isCreating}
-            error={createError}
-            placeholder="Describe the document you want to create..."
-            autoFocus
-          />
+          <div ref={barRef}>
+            <DocumentCreationBar
+              onSubmit={handleCreate}
+              isLoading={isCreating}
+              error={createError}
+              placeholder="Describe the document you want to create..."
+              autoFocus
+              selectedTemplateId={selectedTemplateId}
+            />
+          </div>
+
+          {/* Popular templates */}
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-white/60">Popular templates</h3>
+              <button
+                onClick={() => router.push('/templates')}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                View all
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {FEATURED_TEMPLATES.map((t) => {
+                const isActive = selectedTemplateId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => handleTemplateCardClick(t.id)}
+                    className={`group rounded-2xl border backdrop-blur p-3 text-left transition-all
+                      hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] ${
+                      isActive
+                        ? 'bg-white/[0.10] border-white/30'
+                        : 'bg-white/[0.04] border-white/12 hover:bg-white/[0.08] hover:border-white/20'
+                    }`}
+                  >
+                    {/* Schematic */}
+                    <div
+                      className={`aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
+                        isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
+                      }`}
+                      style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
+                    >
+                      <div className="w-full h-full p-2 group-hover:scale-[1.02] transition-transform duration-300">
+                        {t.id === '2cols_portrait' && <TwoColSchematic />}
+                        {t.id === 'landscape_3col_maths' && <ThreeColSchematic />}
+                        {t.id === 'lecture_notes' && <LectureSchematic />}
+                      </div>
+                    </div>
+                    <p className="text-xs font-semibold text-white/85 leading-snug mb-1">{t.name}</p>
+                    <p className={`text-[10px] transition-colors ${t.linkColor}`}>
+                      {isActive ? '✓ Selected' : 'Select →'}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Recent documents */}
           {!isLoadingDocs && recentDocs.length > 0 && (
@@ -140,9 +202,7 @@ export default function HomePage() {
                       </p>
                       <p className="text-xs text-white/40 mt-0.5">
                         {new Date(doc.created_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
+                          month: 'short', day: 'numeric', year: 'numeric',
                         })}
                       </p>
                     </div>
@@ -155,6 +215,84 @@ export default function HomePage() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Schematic previews ── */
+
+function SLn({ w, bold }: { w: number; bold?: boolean }) {
+  return (
+    <div className={`h-[2px] rounded-full mb-[3px] ${bold ? 'bg-white/35' : 'bg-white/15'}`}
+      style={{ width: `${w}%` }} />
+  );
+}
+function SBox({ children }: { children: React.ReactNode }) {
+  return <div className="border border-white/20 rounded p-1 mb-1">{children}</div>;
+}
+function SImg() {
+  return (
+    <div className="rounded bg-white/10 border border-white/15 mb-[3px] flex items-center justify-center"
+      style={{ width: '85%', height: '14px' }}>
+      <svg className="w-2.5 h-2.5 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" />
+      </svg>
+    </div>
+  );
+}
+
+function TwoColSchematic() {
+  return (
+    <div className="w-full h-full flex flex-col gap-0.5">
+      <SLn w={55} bold />
+      <div className="flex-1 flex gap-1.5">
+        {[0, 1].map((col) => (
+          <div key={col} className="flex-1 flex flex-col">
+            <SLn w={70} bold /><SLn w={90} /><SLn w={75} /><SLn w={85} />
+            <SBox><SLn w={80} bold /><SLn w={60} /></SBox>
+            <SLn w={95} /><SLn w={70} />
+            <SLn w={65} bold /><SLn w={88} /><SLn w={72} />
+            <SBox><SLn w={75} bold /><SLn w={55} /></SBox>
+            <SLn w={90} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThreeColSchematic() {
+  return (
+    <div className="w-full h-full flex flex-col gap-0.5">
+      <SLn w={40} bold />
+      <div className="flex-1 flex gap-1">
+        {[0, 1, 2].map((col) => (
+          <div key={col} className="flex-1 flex flex-col">
+            <SLn w={80} bold /><SLn w={90} /><SLn w={70} /><SLn w={85} />
+            <SBox><SLn w={75} bold /><SLn w={60} /></SBox>
+            <SLn w={95} /><SLn w={65} /><SLn w={88} />
+            <SLn w={72} bold /><SLn w={90} />
+            <SBox><SLn w={85} /><SLn w={55} /></SBox>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LectureSchematic() {
+  return (
+    <div className="w-full h-full flex flex-col gap-0.5">
+      <SLn w={55} bold /><SLn w={35} />
+      <SBox><SLn w={40} bold /><SLn w={82} /><SLn w={75} /></SBox>
+      <SLn w={48} bold /><SLn w={90} /><SLn w={78} /><SLn w={85} />
+      <SImg />
+      <SLn w={65} />
+      <SLn w={52} bold /><SLn w={92} /><SLn w={72} /><SLn w={80} />
+      <div className="border-t border-white/20 pt-0.5 mt-0.5">
+        <SLn w={30} bold /><SLn w={88} /><SLn w={70} />
       </div>
     </div>
   );

@@ -108,6 +108,7 @@ _Implementar después de F2-M2b_
 
 | Severidad | Descripción | Estado |
 |-----------|-------------|--------|
+| 🔴 Alta | **Google OAuth**: habilitar provider en Supabase Dashboard + configurar OAuth credentials en Google Cloud Console | Pendiente |
 | 🟡 Media | Chat consume cuota por intento, no por PDF — decisión de producto pendiente | Pendiente |
 | 🟡 Media | Race condition al crear Stripe customer con dos clicks rápidos | Mitigación parcial |
 | 🟡 Media | app-api (Railway) requiere redeploy manual — B5 changes no se autodeploy con git push | Pendiente |
