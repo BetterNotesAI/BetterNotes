@@ -175,13 +175,10 @@ export default function SignupPage() {
             </button>
           </form>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/15" />
-            </div>
-            <div className="relative flex justify-center text-xs text-white/40">
-              <span className="px-2 bg-transparent">or continue with</span>
-            </div>
+          <div className="flex items-center gap-3 text-xs text-white/40">
+            <div className="flex-1 border-t border-white/15" />
+            <span>or continue with</span>
+            <div className="flex-1 border-t border-white/15" />
           </div>
 
           <button
