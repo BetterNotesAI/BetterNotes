@@ -33,8 +33,8 @@ export async function POST(
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
     p_user_id: user.id,
   });
-  if (guestCheck && !guestCheck.allowed && guestCheck.reason === 'guest_message_limit') {
-    return NextResponse.json({ error: guestCheck.reason }, { status: 402 });
+  if (guestCheck && guestCheck.messages_used >= guestCheck.messages_limit) {
+    return NextResponse.json({ error: 'guest_message_limit' }, { status: 402 });
   }
 
   // Check and increment usage limit before any expensive work
