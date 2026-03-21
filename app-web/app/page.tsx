@@ -98,8 +98,8 @@ export default async function LandingPage() {
           {[
             {
               step: '01',
-              title: 'Choose a template',
-              desc: 'Pick from 10+ academic templates — cheat sheets, Cornell notes, lab reports, and more.',
+              title: 'Choose a template & set up',
+              desc: 'Pick from 10+ academic templates, attach PDFs or images as context, and optionally tune pages, density, and language.',
               color: 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400',
             },
             {
