@@ -41,4 +41,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-22 (sincronizado con TASKS.md)*
+*Última actualización: 2026-03-22 — Sesión cerrada. Próxima sesión: F2-M5 — Auth refinements + Google OAuth.*

@@ -4,6 +4,31 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-22 — Planificación completa y setup del proyecto
+
+**Completado:**
+- Revisión completa del nuevo plan de producto (nuevo_plan.pdf)
+- Reestructuración total de TASKS.md: Fases 2-7 con milestones y tareas atómicas
+- Investigación de gpai.app: arquitectura del visor interactivo (patrón Typora sobre LaTeX)
+- Decisión técnica: visor interactivo = KaTeX + inline editing, sin block editor externo
+- Creación de guías: DEV_LOCAL.md y DEV_WORKFLOW.md
+- Skills actualizados: session-start y session-end con flujo de ramas por sesión
+- Estrategia de ramas: session/YYYY-MM-DD-descripcion → merge a main al cierre
+- Rama `legacy` creada (snapshot v1), `v2` mergeada a `main`
+- Resolución de problema Vercel (trial Pro expirado → nuevo proyecto personal)
+- Eliminación de MIGRATION_SUMMARY.txt
+
+**Decisiones tomadas:**
+- Visor interactivo reemplaza modos PDF/LaTeX/PDF+LaTeX en workspace (ocultos, no eliminados)
+- Templates: PNG encima del esquemático CSS como fallback
+- pdflatex backend sin cambios — PDF final sigue compilando en Express
+- Workflow: cada sesión trabaja en rama propia, merge a main con confirmación del usuario
+
+**Pendiente para próxima sesión:** F2-M5 — Auth refinements + Google OAuth
+**Bloqueantes:** ninguno (Vercel resuelto)
+
+---
+
 ## Sesión 2026-03-21
 
 ### Completado
