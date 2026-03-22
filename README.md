@@ -3,7 +3,7 @@
 AI-powered note-taking app that turns raw notes into clean LaTeX documents and PDFs.
 Students write a prompt, pick a template, and get a formatted formula sheet, summary, or cheat-sheet in seconds.
 
-**Live app:**  https://www.better-notes.ai
+**Live app:** https://www.better-notes.ai
 
 ---
 
