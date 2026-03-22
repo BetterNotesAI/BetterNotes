@@ -1,6 +1,6 @@
 # Tasks — BetterNotes v2
 
-_Última actualización: 2026-03-22_
+_Última actualización: 2026-03-21_
 
 ---
 
@@ -31,6 +31,7 @@ _Última actualización: 2026-03-22_
 | F2-M2b | Navegación, UX y flujo del producto | ✅ COMPLETADO | Sidebar, Home dashboard, landing bar, chat IA, modo guest |
 | F2-M5 | Mejoras de UX y pulido | ⏳ Pendiente | Mobile responsive, onboarding, perfil |
 | F2-M6 | Infraestructura y calidad | ⏳ Pendiente | Tests E2E, Sentry, caché PDFs |
+| **PRÓXIMA SESIÓN** | Revisar nuevo plan de producto | 🔴 PRIORITARIO | Comparar con TASKS actual, reestructurar milestones antes de continuar implementación |
 
 ---
 
