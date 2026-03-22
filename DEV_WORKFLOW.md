@@ -61,6 +61,24 @@ Por eso es importante abrir y cerrar cada sesión con los prompts correctos.
 
 ---
 
+## Estrategia de ramas
+
+El proyecto usa tres tipos de ramas:
+
+| Rama | Propósito |
+|------|-----------|
+| `main` | Código estable. Solo recibe merges de ramas de sesión al cierre. |
+| `session/YYYY-MM-DD-descripcion` | Rama de trabajo de cada sesión. Se crea al inicio y se mergea a main al cierre. |
+| `legacy` | Snapshot del código v1 anterior a la reescritura. Solo lectura. |
+
+**Nunca se trabaja directamente en `main`.**
+
+Ejemplo de nombre de rama: `session/2026-03-22-f2m5-auth`
+
+La descripción es siempre el milestone o tarea principal de la sesión, en minúsculas y con guiones.
+
+---
+
 ## Inicio de sesión
 
 Usa este prompt al abrir Claude Code:
@@ -73,8 +91,9 @@ Lo que ocurre por dentro:
 1. Claude lanza un subproceso con el rol de Director
 2. El Director lee `STATUS.md`, `TASKS.md` y `PROGRESS.md`
 3. Identifica el milestone activo y la siguiente tarea pendiente
-4. Devuelve un resumen al Claude principal
-5. Claude te lo presenta y espera tu confirmación
+4. **Crea la rama de sesión** desde `main` actualizado: `session/YYYY-MM-DD-descripcion`
+5. Devuelve un resumen al Claude principal
+6. Claude te lo presenta junto con el nombre de la rama y espera tu confirmación
 
 Tú decides si seguir con la tarea propuesta o ajustar el rumbo antes de empezar.
 
@@ -82,7 +101,7 @@ Tú decides si seguir con la tarea propuesta o ajustar el rumbo antes de empezar
 
 ## Durante la sesión
 
-Trabaja de forma natural. Algunos prompts útiles:
+Todo el trabajo ocurre en la rama de sesión. Trabaja de forma natural. Algunos prompts útiles:
 
 **Para empezar una tarea concreta:**
 ```
@@ -120,14 +139,13 @@ Cerramos sesión. Actualiza el estado del proyecto, marca las tareas completadas
 ```
 
 Lo que ocurre por dentro:
-1. Claude lanza el subproceso de Director/Planner
-2. Marca las tareas completadas en `TASKS.md`
-3. Añade una entrada en `PROGRESS.md` con lo que se hizo
-4. Actualiza `STATUS.md` con el siguiente milestone y bloqueantes
-5. Hace commit y push de los archivos de `.claude/status/` a GitHub
+1. Claude actualiza `TASKS.md`, `PROGRESS.md` y `STATUS.md`
+2. Commitea todos los cambios en la rama de sesión y hace push
+3. **Te presenta un resumen de lo que se va a mergear y pide tu confirmación**
+4. Si confirmas → mergea la rama de sesión a `main` con `--no-ff` y hace push
+5. Si no confirmas → la rama queda en remote para retomarla en la próxima sesión
 
-Así la próxima sesión arranca con el contexto exacto de dónde quedaste,
-aunque haya pasado días o semanas.
+Así `main` siempre contiene código revisado y aprobado por ti.
 
 ---
 
@@ -135,11 +153,14 @@ aunque haya pasado días o semanas.
 
 ```
 1. Abrir Claude Code en el proyecto
-2. Prompt de inicio → Claude (vía Director) presenta el estado
-3. Tú confirmas la tarea → Claude empieza a trabajar
-4. Iterar: código → pruebas locales → correcciones
-5. Confirmar que todo funciona
-6. Prompt de cierre → Claude actualiza estado y hace commit
+2. Prompt de inicio → Claude crea rama session/YYYY-MM-DD-descripcion desde main
+3. Claude presenta el estado y la siguiente tarea
+4. Tú confirmas → Claude trabaja en la rama de sesión
+5. Iterar: código → pruebas locales → correcciones
+6. Confirmar que todo funciona
+7. Prompt de cierre → Claude actualiza estado y commitea en la rama
+8. Claude presenta resumen del merge → tú confirmas
+9. Claude mergea session/... → main y hace push
 ```
 
 ---

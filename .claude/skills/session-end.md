@@ -40,6 +40,7 @@ Añadir entrada solo si hubo progreso real (no si la sesión fue solo de revisi�
 ---
 ## Sesión YYYY-MM-DD — [resumen en 1 línea]
 
+**Rama:** session/YYYY-MM-DD-descripcion
 **Completado:** [lista de milestones/tareas cerradas]
 **Decisiones tomadas:** [lista o "ninguna"]
 **Pendiente para próxima sesión:** [primera tarea según TASKS.md]
@@ -48,10 +49,10 @@ Añadir entrada solo si hubo progreso real (no si la sesión fue solo de revisi�
 
 ### Paso 5 — Actualizar STATUS.md
 Actualizar los campos:
-- `Tarea en curso` → primera tarea pendiente del siguiente milestone
+- `Milestone activo` → primera tarea pendiente del siguiente milestone
 - `Último milestone completado` → si aplica
 - `Bloqueantes` → actualizar si hay nuevos o se resolvieron
-- `Última actualización` → fecha y hora actual con nota de sesión cerrada
+- Eliminar la línea `Rama de sesión activa` (se añadirá en la próxima sesión)
 
 Formato de última línea:
 ```
@@ -61,24 +62,50 @@ Formato de última línea:
 ### Paso 6 — Actualizar PROJECT.md si hubo decisiones nuevas
 Si el usuario confirmó nuevas decisiones durante la sesión que no estén ya en PROJECT.md, añadirlas a la tabla de decisiones confirmadas.
 
-### Paso 7 — Commit y push de los cambios de status
-Solo commitear archivos de `.claude/status/` que hayan cambiado:
+### Paso 7 — Commit de todos los cambios en la rama de sesión
+Obtener el nombre de la rama actual:
 ```bash
-git diff --name-only .claude/status/
+git branch --show-current
 ```
-Si hay cambios:
+
+Commitear todo el trabajo de la sesión:
 ```bash
-git add .claude/status/STATUS.md .claude/status/TASKS.md .claude/status/PROGRESS.md .claude/status/PROJECT.md
-git commit -m "chore: actualizar estado al cierre de sesión YYYY-MM-DD"
+git add -A
+git status
+git commit -m "feat: [descripción de lo trabajado en la sesión] — sesión YYYY-MM-DD"
+git push origin session/YYYY-MM-DD-descripcion
+```
+
+### Paso 8 — Pedir confirmación al usuario antes del merge
+Presentar al usuario un resumen de lo que se va a mergear:
+
+```
+✅ Trabajo de la sesión commiteado en: session/YYYY-MM-DD-descripcion
+
+Cambios listos para mergear a main:
+- [lista resumida de archivos o features modificados]
+
+¿Confirmas el merge a main?
+```
+
+**Esperar respuesta del usuario. No hacer el merge sin confirmación explícita.**
+
+### Paso 9 — Merge a main (solo si el usuario confirma)
+```bash
+git checkout main
+git merge session/YYYY-MM-DD-descripcion --no-ff -m "merge: session/YYYY-MM-DD-descripcion"
 git push origin main
 ```
 
-### Paso 8 — Confirmar al usuario
+El flag `--no-ff` preserva la rama de sesión como un merge commit visible en el historial.
+
+### Paso 10 — Confirmar al usuario
 Mensaje de cierre:
 ```
 Estado del proyecto actualizado y sincronizado.
 
 📍 Quedamos en: [nombre del siguiente milestone/tarea]
+🌿 Mergeado: session/YYYY-MM-DD-descripcion → main
 🔒 Archivos actualizados: [lista de los que cambiaron]
 
 ¡Hasta la próxima!
@@ -87,7 +114,9 @@ Estado del proyecto actualizado y sincronizado.
 ---
 
 ## Reglas
-- Si no hubo progreso en la sesión (solo consultas), solo actualizar la línea de `Ultima actualizacion` en STATUS.md
+- **Nunca hacer el merge sin confirmación explícita del usuario**
+- Si no hubo progreso en la sesión (solo consultas), solo actualizar STATUS.md y no crear merge commit
 - No crear entradas vacías en PROGRESS.md
 - Si hay tareas a medias (started pero no completadas), dejarlas como `[ ]` con una nota en STATUS.md
-- Siempre hacer push para que el estado quede respaldado en GitHub
+- Siempre hacer push de la rama de sesión antes de proponer el merge
+- Si el usuario rechaza el merge, dejar la rama de sesión en remote para la próxima sesión
