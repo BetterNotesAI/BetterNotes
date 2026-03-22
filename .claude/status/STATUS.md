@@ -7,21 +7,25 @@
 
 ## Estado actual
 
-**Fase:** 2 — Rediseño y mejoras
-**Milestone activo:** — (pendiente revisión del plan de producto)
+**Fase:** 2 — Cierre y refinamiento
+**Milestone activo:** F2-M5 — Auth refinements + Google OAuth + deuda técnica
 **Último milestone completado:** F2-M2b — Navegación, UX y flujo del producto
 **Bloqueantes:** 🔴 Google OAuth pendiente de configurar en Supabase Dashboard
 
-## Próxima acción — PRIORITARIA
+## Plan reestructurado — 2026-03-22
 
-🔴 **Revisar nuevo plan de producto** antes de continuar con F2-M5 o F2-M6.
-Comparar con TASKS.md actual y reestructurar milestones si es necesario.
+Plan de producto revisado completamente. Nuevas fases y milestones en TASKS.md.
+Feature estratégica central: **Visor Interactivo (Fase 3)** — patrón Typora sobre LaTeX,
+workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales ocultos.
 
-## Próximas tareas planificadas (F2-M5, sujetas a revisión del plan)
+## Próximas tareas
 
-1. Mobile responsive funcional en teléfono 🔴
-2. Landing page mejorada con ejemplo real de PDF
-3. Onboarding interactivo para nuevos usuarios
+**F2-M5** (siguiente):
+1. Google OAuth en Supabase + Google Cloud
+2. "Log in" rename, Forgot Password, logo en auth
+3. Fix Stripe race condition + autodeploy Railway
+
+**Después:** F2-M6 (sidebar nueva + All Documents), F2-M7 (templates revamp)
 
 ---
 

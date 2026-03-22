@@ -50,5 +50,5 @@ yarn-error.log*
 *.fdb_latexmk
 *.synctex.gz
 
-# MCP
-.mcp.json
+# claude settings
+settings.local.json
