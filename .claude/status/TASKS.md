@@ -32,7 +32,7 @@ _Prioridad: 🔴 Alta_
 
 - [ ] F2-M5.1 — Configurar Google OAuth en Supabase Dashboard + Google Cloud Console · ~1h
 - [ ] F2-M5.2 — Renombrar "Sign in" → "Log in" en todos los puntos de entrada (login, signup, navbar, modales guest) · ~30min
-- [ ] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
+- [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [ ] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, reset-password) · ~30min
 - [ ] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint o RPC atómica) · ~1h
 - [ ] F2-M5.6 — Configurar autodeploy de app-api en Railway con git push · ~1h
