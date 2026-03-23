@@ -1,5 +1,5 @@
 # Skill: session-start
-**Cuándo usar:** Al inicio de cada sesión. El director la ejecuta en respuesta a cualquier mensaje de arranque.
+**Cuándo usar:** Al inicio de cada sesión. El director la ejecuta en respuesta a cualquier mensaje de arranque del usuario (generalmente con el primer mensaje del usuario basta).
 
 ---
 
@@ -20,6 +20,7 @@ tail -20 .claude/status/LESSONS.md 2>/dev/null
 
 ### Paso 2 — Identificar la siguiente tarea
 Del TASKS.md y STATUS.md, extraer:
+- Fase actual del proyecto
 - Milestone activo y su estado
 - Primera tarea pendiente no bloqueada
 - Bloqueantes activos si los hay
@@ -40,10 +41,30 @@ Formato del mensaje de bienvenida:
 ¿Confirmamos que seguimos con esta tarea, o quieres ajustar algo?
 ```
 
-### Paso 4 — Esperar confirmación
-No proponer el plan detallado hasta que el usuario confirme.
-
-### Paso 5 — Actualizar STATUS.md
+### Paso 4 — Crear rama de desarrollo para la sesión
+Antes de presentarse al usuario, crear una rama de trabajo:
 ```bash
-# Actualizar línea "Tarea en curso" con la sesión activa
+# Asegurarse de estar en main y al día
+git checkout main
+# Crear rama con fecha de sesión (añadir -2, -3 si ya existe)
+git checkout -b session/YYYY-MM-DD
+```
+Nombre de la rama: `session/YYYY-MM-DD` (ejemplo: `session/2026-03-22`).
+Si ya existe una rama con esa fecha, usar `session/YYYY-MM-DD-2`, etc.
+
+Todo el trabajo de la sesión (código, status, commits intermedios) se hace en esta rama.
+
+### Paso 5 — Esperar confirmación del usuario
+No proponer el plan detallado hasta que el usuario confirme.
+Una vez confirmado, ejecutar el protocolo de la skill `task-complete` o proceder
+con la ejecución según corresponda.
+
+---
+
+## Actualizar STATUS.md al arrancar
+Tras leer el estado, actualizar STATUS.md con la sesión activa:
+```
+Sesión activa desde: [fecha y hora]
+Rama de sesión: session/YYYY-MM-DD
+Tarea en curso: [nombre de la tarea]
 ```

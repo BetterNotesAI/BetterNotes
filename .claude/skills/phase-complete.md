@@ -1,6 +1,6 @@
 # Skill: phase-complete
 **Cuándo usar:** Cuando todos los milestones de una fase están completos.
-Se ejecuta después del último milestone-complete de la fase.
+Se ejecuta después del último milestone-complete de la fase. Cuando se completa una fase.
 
 ---
 
@@ -23,7 +23,7 @@ El director lanza al reporter con el contexto completo de la fase:
 
 El reporter genera:
 - Briefing de texto extendido para el usuario
-- HTML en `.claude/reports/fase-XX-nombre-COMPLETA.html`
+- HTML en `.claude/reports/FX-nombre.html`
   El HTML incluye: línea de tiempo visual, cards por milestone con
   enlace a sus reportes individuales, lecciones de LESSONS.md, y
   vista global del proyecto.
@@ -48,18 +48,19 @@ Mayor aprendizaje: [una línea]
 **STATUS.md** — actualizar con nueva fase activa.
 
 ### Paso 4 — Commit de cierre de fase
-```bash
-# Tipo: feat, scope: nombre de la fase
-# Ejemplo:
-git commit -m "feat(fase-2): complete phase 2 — redesign and UX improvements"
+Ejecutar skill `github-sync` con tipo `fase` y título descriptivo:
+```
+feat(Fase-X): complete phase X — [nombre de la fase]
 ```
 
 ### Paso 5 — Presentar al usuario
 ```
 [📊 REPORTER] Fase X completada.
+
 [briefing extendido]
 
 [🎯 DIRECTOR] La siguiente fase es: Fase X+1 — [nombre]
 [Descripción de lo que viene]
+
 ¿Arrancamos?
 ```

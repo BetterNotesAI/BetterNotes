@@ -70,16 +70,36 @@ Si hay cambios:
 ```bash
 git add .claude/status/STATUS.md .claude/status/TASKS.md .claude/status/PROGRESS.md .claude/status/PROJECT.md
 git commit -m "chore: actualizar estado al cierre de sesión YYYY-MM-DD"
-git push origin main
+```
+El commit queda en la rama de sesión (`session/YYYY-MM-DD`). No hacer push.
+
+### Paso 8 — Proponer merge a main y eliminar la rama de sesión
+Preguntar al usuario si quiere hacer el merge:
+```
+¿Hacemos merge de session/YYYY-MM-DD a main?
+
+Responde sí/no.
 ```
 
-### Paso 8 — Confirmar al usuario
+**Si el usuario confirma:**
+```bash
+git checkout main
+git merge session/YYYY-MM-DD --no-ff -m "chore: merge sesión YYYY-MM-DD → main"
+git branch -d session/YYYY-MM-DD
+```
+La eliminación de la rama es automática tras el merge. No preguntar por separado si eliminar — siempre se elimina después de mergear.
+
+**Si el usuario rechaza:**
+- Dejar la rama tal cual. Informarle que puede hacer el merge manualmente cuando quiera, y que tras el merge debe eliminar la rama con `git branch -d session/YYYY-MM-DD`.
+
+### Paso 9 — Confirmar al usuario
 Mensaje de cierre:
 ```
 Estado del proyecto actualizado y sincronizado.
 
 📍 Quedamos en: [nombre del siguiente milestone/tarea]
 🔒 Archivos actualizados: [lista de los que cambiaron]
+🌿 Rama: [merged a main y eliminada / pendiente de merge manual]
 
 ¡Hasta la próxima!
 ```
@@ -90,4 +110,4 @@ Estado del proyecto actualizado y sincronizado.
 - Si no hubo progreso en la sesión (solo consultas), solo actualizar la línea de `Ultima actualizacion` en STATUS.md
 - No crear entradas vacías en PROGRESS.md
 - Si hay tareas a medias (started pero no completadas), dejarlas como `[ ]` con una nota en STATUS.md
-- Siempre hacer push para que el estado quede respaldado en GitHub
+- Nunca hacer `git push` — el push lo hace el usuario manualmente

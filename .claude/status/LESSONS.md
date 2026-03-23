@@ -154,3 +154,16 @@ Cambios en `app-api/` no triggerean redeploy automático en la configuración ac
 Verificar y corregir la configuración de watch paths en Railway para `app-api/`.
 Mientras tanto: redeploy manual desde el dashboard de Railway tras cada cambio en app-api.
 Tarea pendiente en deuda técnica 🟡.
+
+---
+
+## 2026-03-23 — director - Protocolo de inicio de sesión: rama y formato de respuesta
+
+**Descubierto por:** director
+**Contexto:**
+
+**Lección:**
+El director debe crear `session/YYYY-MM-DD` antes de delegar trabajo a cualquier agente. Los resúmenes de tarea/milestone los genera el agente `reporter`. El director los recibe y los muestra al usuario, pero no los redacta él mismo.
+
+**Acción a tomar:** Al inicio de cada sesión: `git checkout main && git checkout -b session/YYYY-MM-DD`. Al cerrar cada tarea/milestone: invocar `reporter` antes de presentar el resumen al usuario.
+

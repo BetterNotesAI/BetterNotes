@@ -1,9 +1,11 @@
 # Skill: github-sync
-**Cuándo usar:** Al completar un milestone. Parte del protocolo milestone-complete.
+**Cuándo usar:** Al completar un milestone o fase. Ejecutada por el director como parte de `milestone-complete` o `phase-complete`.
+
+**Nota:** Esta skill solo hace commit. El push a origin lo realiza el usuario manualmente.
 
 ---
 
-## Protocolo de commit y push
+## Protocolo de commit
 
 ### Paso 1 — Verificar estado
 ```bash
@@ -13,6 +15,7 @@ git diff --stat HEAD 2>/dev/null
 
 ### Paso 2 — Staging
 ```bash
+# Añadir todos los cambios del milestone (revisar antes de hacer add -A)
 git add .
 git status
 ```
@@ -24,6 +27,8 @@ git status
 <tipo>(<scope>): <título imperativo, < 72 chars>
 
 <cuerpo: qué se hizo y por qué>
+
+<footer: referencias si aplica>
 ```
 
 **Tipos para BetterNotes:**
@@ -48,20 +53,21 @@ Limits: 1 document, max 3 messages. Shows registration modal on limit.
 Guest document recoverable if user registers immediately.
 ```
 
-### Paso 4 — Commit y push
+### Paso 4 — Commit
 ```bash
 git commit -m "[mensaje]"
-git push origin [rama-activa]
 ```
 
-### Paso 5 — Confirmar
+### Paso 5 — Confirmar al director
 ```bash
 git log --oneline -3
 ```
+Reportar el hash del commit al director para que lo incluya en el briefing al usuario.
 
 ---
 
 ## Si el push falla
 - Verificar remote: `git remote -v`
 - Si hay conflictos: escalar al director, no resolver automáticamente
-- La rama activa del proyecto es `v2` — verificar antes de hacer push
+- El push a origin lo realiza el usuario manualmente cuando lo considere oportuno.
+- No ejecutar `git push` en ningún caso desde esta skill.
