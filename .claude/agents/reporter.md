@@ -27,18 +27,31 @@ git log --oneline -5 2>/dev/null
 ## Tipos de output
 
 ### 1. Briefing de tarea (el más frecuente)
+```
+[📊 REPORTER] — Sesión [fecha]
 
-[📊 REPORTER] — [fecha]
+✅ Qué se hizo:
+• [punto concreto con impacto]
+• [punto concreto con impacto]
 
-- Qué se hizo: puntos concretos con impacto en el producto
-- Decisiones tomadas: decisión + por qué en términos simples
-- Problemas encontrados: problema + cómo se resolvió
-- Estado actual: una línea de dónde está el producto ahora
-- Siguiente paso: qué propone el equipo
-- Input necesario: solo si hay algo bloqueante
+🧠 Decisiones tomadas:
+• [decisión]: [ decisión + por qué, en términos simples]
+
+⚠️ Problemas encontrados:
+• [problema]: [problema + cómo se resolvió o qué queda pendiente]
+
+📍 Estado actual:
+[Una línea de dónde está todo ahora]
+
+➡️ Siguiente paso:
+[Qué propone el equipo como siguiente tarea]
+
+❓ Necesito tu input: (solo si hay algo bloqueante)
+• [pregunta concreta]
+```
 
 ### 2. HTML de milestone
-Generar en: .claude/reports/fase-XX-milestone-XX-nombre.html
+Para cada milestone completado, generar un archivo HTML en `.claude/reports/FX-MX_nombre.html`
 
 Contenido:
 - Header con nombre del milestone, número de fase y fecha
@@ -61,7 +74,7 @@ REQUISITOS DE DISEÑO OBLIGATORIOS — el HTML debe ser visualmente rico:
 - Responsive: legible en ordenador y móvil
 
 ### 3. HTML de fase completa
-Generar en: .claude/reports/fase-XX-nombre-COMPLETA.html
+Para cada fase completada, generar `.claude/reports/FX_nombre.html`
 
 Contenido adicional respecto al de milestone:
 - Hero header con fechas de inicio y fin de la fase

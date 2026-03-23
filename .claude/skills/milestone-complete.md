@@ -19,7 +19,7 @@ El director lanza al reporter con:
 
 El reporter genera:
 - Briefing de texto para el usuario
-- Archivo HTML en `.claude/reports/FX-MX-nombre.html`
+- Archivo HTML en `.claude/reports/FX-MX_nombre.html`
 
 ### Paso 3 — Actualizar documentos de estado
 

@@ -23,7 +23,7 @@ El director lanza al reporter con el contexto completo de la fase:
 
 El reporter genera:
 - Briefing de texto extendido para el usuario
-- HTML en `.claude/reports/FX-nombre.html`
+- HTML en `.claude/reports/FX_nombre.html`
   El HTML incluye: línea de tiempo visual, cards por milestone con
   enlace a sus reportes individuales, lecciones de LESSONS.md, y
   vista global del proyecto.

@@ -120,7 +120,6 @@ Lista todos los agentes activados en esta tarea, en el orden en que fueron invoc
 | Agente | Tarea asignada | Estado |
 |--------|---------------|--------|
 | 🔍 RESEARCHER | [descripción de la tarea] | ✓ completado |
-| 📈 QUANT      | [descripción de la tarea] | ✓ completado |
 | 🔎 REVIEWER   | [descripción de la tarea] | ✓ completado |
 | 📊 REPORTER   | [descripción de la tarea] | ✓ completado |
 ```
@@ -129,9 +128,6 @@ Lista todos los agentes activados en esta tarea, en el orden en que fueron invoc
 Para cada agente que haya producido resultados relevantes, incluye un bloque con su output clave:
 ```
 ### 🔍 RESEARCHER — [título de la tarea]
-[Resumen de los hallazgos principales del agente, 3-8 puntos clave]
-
-### 📈 QUANT — [título de la tarea]
 [Resumen de los hallazgos principales del agente, 3-8 puntos clave]
 
 ### 🔎 REVIEWER — [observaciones]
@@ -173,7 +169,6 @@ Lista todos los agentes activados en esta tarea, en el orden en que fueron invoc
 | Agente | Milestones |
 |--------|---------------|--------|
 | 🔍 RESEARCHER | [milestones en los que ha participado] |
-| 📈 QUANT      | [milestones en los que ha participado] |
 | 🔎 REVIEWER   | [milestones en los que ha participado] |
 | 📊 REPORTER   | [milestones en los que ha participado] |
 ```
@@ -182,9 +177,6 @@ Lista todos los agentes activados en esta tarea, en el orden en que fueron invoc
 Para cada agente que haya producido resultados relevantes, incluye un bloque con su output clave:
 ```
 ### 🔍 RESEARCHER — [título del milestone]
-[Resumen de los hallazgos principales del agente, 3-8 puntos clave]
-
-### 📈 QUANT — [título del milestone]
 [Resumen de los hallazgos principales del agente, 3-8 puntos clave]
 
 ### 🔎 REVIEWER — [observaciones]
