@@ -4,6 +4,26 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-23 — F2-M5.3 Forgot Password + Reset Password
+
+**Completado:**
+- F2-M5.3: flujo completo de reset de contraseña
+  - `/forgot-password` — formulario email + estado success, llama a `resetPasswordForEmail`
+  - `/reset-password` — formulario nueva password + confirm, valida coincidencia y min 8 chars, llama a `updateUser`
+  - `/auth/callback` — si falla el exchange con `next=/reset-password`, redirige a `/forgot-password?error=link_expired`
+  - Login: link "Forgot password?" aparece solo tras el primer intento fallido
+  - Middleware: `/forgot-password` y `/reset-password` añadidos a `isAuthRoute`
+- Rama `feat/f2-m5.3-forgot-password` mergeada a `main`
+
+**Decisiones tomadas:**
+- "Forgot password?" oculto inicialmente — aparece tras el primer error de login (UX más limpia)
+- `redirectTo` apunta a `/auth/callback?next=/reset-password`, no directamente a `/reset-password`
+
+**Pendiente para próxima sesión:** F2-M5.4 (logo en auth) o F2-M5.1 (Google OAuth si hay acceso a paneles)
+**Bloqueantes:** 🔴 Google OAuth requiere acceso a Supabase Dashboard + Google Cloud Console
+
+---
+
 ## Sesión 2026-03-22 — Planificación completa y setup del proyecto
 
 **Completado:**
