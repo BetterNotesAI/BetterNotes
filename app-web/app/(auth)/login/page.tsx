@@ -70,6 +70,14 @@ export default function LoginPage() {
       {/* Animated background */}
       <Background />
 
+      {/* Logo header */}
+      <header className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-5">
+        <Link href="/" className="flex items-center gap-2.5">
+          <Image src="/brand/logo.png" alt="BetterNotes" width={36} height={36} className="h-9 w-9 object-contain" />
+          <span className="font-semibold tracking-tight text-sm text-white">BetterNotes</span>
+        </Link>
+      </header>
+
       <div className="relative z-10 w-full max-w-sm space-y-6">
         <div>
           <Link
@@ -92,10 +100,6 @@ export default function LoginPage() {
             Back to home
           </Link>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Image src="/brand/logo.png" alt="BetterNotes" width={36} height={36} className="h-9 w-9 object-contain" />
-              <span className="font-semibold tracking-tight text-sm text-white">BetterNotes</span>
-            </div>
             <h1 className="text-2xl font-bold text-white">Welcome back</h1>
             <p className="text-sm text-white/60 mt-1">Log in to BetterNotes</p>
           </div>
