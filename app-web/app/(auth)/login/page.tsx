@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [hasFailedOnce, setHasFailedOnce] = useState(false)
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -36,6 +37,7 @@ export default function LoginPage() {
 
     if (error) {
       setError(humanizeAuthError(error.message))
+      setHasFailedOnce(true)
       setLoading(false)
       return
     }
@@ -118,12 +120,14 @@ export default function LoginPage() {
                 <label htmlFor="password" className="text-sm text-white/80">
                   Password
                 </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-white/50 hover:text-white/80 transition-colors"
-                >
-                  Forgot password?
-                </Link>
+                {hasFailedOnce && (
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-white/50 hover:text-white/80 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
               </div>
               <input
                 id="password"
