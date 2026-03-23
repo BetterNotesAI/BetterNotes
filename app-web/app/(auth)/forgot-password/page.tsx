@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Background from '@/app/components/Background'
@@ -40,6 +41,10 @@ function ForgotPasswordForm() {
       <div className="relative min-h-screen flex items-center justify-center px-4">
         <Background />
         <div className="relative z-10 w-full max-w-sm text-center space-y-4">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Image src="/brand/logo.png" alt="BetterNotes" width={36} height={36} className="h-9 w-9 object-contain" />
+            <span className="font-semibold tracking-tight text-sm text-white">BetterNotes</span>
+          </div>
           <div className="w-12 h-12 bg-indigo-500/20 border border-indigo-400/20 rounded-full flex items-center justify-center mx-auto">
             <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -84,6 +89,10 @@ function ForgotPasswordForm() {
             Back to login
           </Link>
           <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Image src="/brand/logo.png" alt="BetterNotes" width={36} height={36} className="h-9 w-9 object-contain" />
+              <span className="font-semibold tracking-tight text-sm text-white">BetterNotes</span>
+            </div>
             <h1 className="text-2xl font-bold text-white">Forgot your password?</h1>
             <p className="text-sm text-white/60 mt-1">We&apos;ll send you a reset link</p>
           </div>
