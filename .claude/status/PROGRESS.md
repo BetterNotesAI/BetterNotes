@@ -4,6 +4,24 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-23 — F2-M5.4 Logo BetterNotes en páginas de auth
+
+**Completado:**
+- F2-M5.4: logo BetterNotes reposicionado en las 4 páginas de auth
+  - Páginas afectadas: login, signup, forgot-password, reset-password
+  - El logo se movió de dentro de la tarjeta (card) a un header centrado en la parte superior de la página
+  - Diseño consistente con el header de la landing: logo + nombre de la app, centrado y fuera de cualquier contenedor de formulario
+  - Rama `feat/f2-m5.4-auth-logo` mergeada a `main`, pendiente push a origin
+
+**Decisiones tomadas:**
+- Header de auth: logo encima de la tarjeta, no dentro — coherencia visual con landing
+- Las 4 páginas del flujo de auth comparten el mismo patrón de layout (header externo + card centrada)
+
+**Pendiente para próxima sesión:** F2-M5.5 (race condition Stripe) o F2-M5.1 (Google OAuth si hay acceso a paneles)
+**Bloqueantes:** 🔴 Google OAuth requiere acceso a Supabase Dashboard + Google Cloud Console
+
+---
+
 ## Sesión 2026-03-23 — F2-M5.3 Forgot Password + Reset Password
 
 **Completado:**
