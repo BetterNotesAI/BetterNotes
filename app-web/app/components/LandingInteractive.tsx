@@ -103,7 +103,7 @@ export function LandingInteractive() {
       <p className="mt-4 text-xs text-white/40">
         Already have an account?{' '}
         <a href="/login" className="text-white/60 hover:text-white underline underline-offset-2 transition-colors">
-          Sign in
+          Log in
         </a>
       </p>
 

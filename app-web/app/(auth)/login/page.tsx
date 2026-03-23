@@ -11,7 +11,7 @@ function humanizeAuthError(message: string): string {
     return 'Incorrect email or password'
   }
   if (message.includes('Email not confirmed')) {
-    return 'Please verify your email before signing in'
+    return 'Please verify your email before logging in'
   }
   if (message.includes('User already registered')) {
     return 'An account with this email already exists'
@@ -90,7 +90,7 @@ export default function LoginPage() {
           </Link>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-            <p className="text-sm text-white/60 mt-1">Sign in to BetterNotes</p>
+            <p className="text-sm text-white/60 mt-1">Log in to BetterNotes</p>
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-neutral-950 font-semibold rounded-xl transition-colors"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Logging in...' : 'Log in'}
             </button>
           </form>
 

@@ -11,7 +11,7 @@ export interface GuestSignupModalProps {
 
 function humanizeError(message: string): string {
   if (message.includes('User already registered') || message.includes('already been registered')) {
-    return 'An account with this email already exists. Sign in instead.';
+    return 'An account with this email already exists. Log in instead.';
   }
   if (message.includes('Password should be')) {
     return 'Password must be at least 6 characters.';
@@ -199,11 +199,11 @@ export function GuestSignupModal({ isOpen, onClose }: GuestSignupModalProps) {
           </button>
         </form>
 
-        {/* Sign in link */}
+        {/* Log in link */}
         <p className="text-center text-xs text-white/45 mt-4">
           Already have an account?{' '}
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
-            Sign in
+            Log in
           </Link>
         </p>
       </div>
