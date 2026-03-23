@@ -22,6 +22,7 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 - [x] F2-M5.2 — "Sign in" → "Log in" rename (sesión anterior)
 - [x] F2-M5.3 — Forgot Password + Reset Password flow
+- [x] F2-M5.3 bugfix — useSearchParams() envuelto en Suspense en forgot-password/page.tsx (fix Vercel build error)
 
 ## Próximas tareas
 
@@ -48,4 +49,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-23 — Sesión cerrada. Próxima sesión: F2-M5.4 (logo auth) o F2-M5.1 (Google OAuth si hay acceso a paneles).*
+*Última actualización: 2026-03-23 — Sesión cerrada. Bugfix F2-M5.3: useSearchParams Suspense en Vercel. Próxima sesión: F2-M5.4 (logo auth) o F2-M5.1 (Google OAuth si hay acceso a paneles).*
