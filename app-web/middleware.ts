@@ -10,7 +10,11 @@ export async function middleware(request: NextRequest) {
     path.startsWith('/settings') ||
     path.startsWith('/templates') ||
     path.startsWith('/pricing')
-  const isAuthRoute = path === '/login' || path === '/signup'
+  const isAuthRoute =
+    path === '/login' ||
+    path === '/signup' ||
+    path === '/forgot-password' ||
+    path === '/reset-password'
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
