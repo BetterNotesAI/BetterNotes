@@ -159,3 +159,4 @@ All files are idempotent — safe to run on an existing database.
 - `app-web/lib/api/` contains all Supabase client calls, split by domain (chats, projects, files, etc.). Import from `@/lib/api` (barrel file).
 - LaTeX templates live in two places: `app-api/templates/` (used for generation) and `app-web/public/templates/` (served for download). Keep them in sync.
 - Never commit `.env` or `.env.local` files — they are gitignored.
+
