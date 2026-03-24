@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { template_id, title, attachments } = body as {
+  const { template_id, title, attachments, folder_id } = body as {
     template_id?: string;
     title?: string;
+    folder_id?: string | null;
     attachments?: Array<{
       storagePath: string;
       name: string;
@@ -110,14 +111,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'guest_doc_limit' }, { status: 402 });
   }
 
+  const insertPayload: Record<string, unknown> = {
+    user_id: user.id,
+    template_id,
+    title: title?.trim() || 'Untitled Document',
+    status: 'draft',
+  };
+  if (folder_id) insertPayload.folder_id = folder_id;
+
   const { data: doc, error } = await supabase
     .from('documents')
-    .insert({
-      user_id: user.id,
-      template_id,
-      title: title?.trim() || 'Untitled Document',
-      status: 'draft',
-    })
+    .insert(insertPayload)
     .select('id, title, template_id, status, created_at')
     .single();
 

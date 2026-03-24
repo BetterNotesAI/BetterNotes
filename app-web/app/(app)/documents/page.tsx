@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
+import { FolderSectionMenu } from './_components/FolderSectionMenu';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
@@ -76,6 +77,8 @@ export default function DocumentsPage() {
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Folder pre-selected when opening modal via "New document here"
+  const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
 
   // Initial load: read active folder from localStorage (set by sidebar) + load folders for card menu
   useEffect(() => {
@@ -215,11 +218,48 @@ export default function DocumentsPage() {
     loadDocuments();
   }
 
+  // --- Folder action handlers (F2-M6.6) ---
+
+  async function handleRenameFolder(folderId: string, newName: string) {
+    const previousFolders = folders;
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderId ? { ...f, name: newName } : f))
+    );
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!res.ok) {
+      setFolders(previousFolders);
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
+  async function handleDeleteFolder(folderId: string) {
+    const previousFolders = folders;
+    setFolders((prev) => prev.filter((f) => f.id !== folderId));
+    const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      setFolders(previousFolders);
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+      loadDocuments();
+    }
+  }
+
+  function handleCreateDocInFolder(folderId: string) {
+    setPendingFolderId(folderId);
+    setShowNewDocModal(true);
+  }
+
   // --- New document modal handlers ---
 
   function handleCloseModal() {
     setShowNewDocModal(false);
     setCreateError(null);
+    setPendingFolderId(null);
   }
 
   async function handleCreate(data: CreateDocumentInput) {
@@ -259,6 +299,7 @@ export default function DocumentsPage() {
         body: JSON.stringify({
           template_id: data.templateId,
           attachments: uploadedAttachments,
+          ...(pendingFolderId ? { folder_id: pendingFolderId } : {}),
         }),
       });
       const docData = await resp.json().catch(() => ({}));
@@ -390,20 +431,30 @@ export default function DocumentsPage() {
               {/* F2-M6.4 — Folder sections: alphabetically */}
               {groupedView.folderGroups.map(({ folderId: groupFolderId, folderName, folderColor, docs }) => (
                 <section key={groupFolderId}>
-                  <button
-                    onClick={() => setActiveFolderId(groupFolderId)}
-                    className="flex items-center gap-2 mb-4 group"
-                    title={`View folder: ${folderName}`}
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: folderColor ?? '#6366f1' }}
+                  <div className="flex items-center gap-2 mb-4 group">
+                    <button
+                      onClick={() => setActiveFolderId(groupFolderId)}
+                      className="flex items-center gap-2 min-w-0"
+                      title={`View folder: ${folderName}`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: folderColor ?? '#6366f1' }}
+                      />
+                      <h2 className="text-xs font-semibold text-white/60 uppercase tracking-wider hover:text-white/80 transition-colors">
+                        {folderName}
+                      </h2>
+                      <span className="text-[10px] text-white/30 font-medium">{docs.length}</span>
+                    </button>
+                    {/* F2-M6.6 — 3-dots menu for folder section */}
+                    <FolderSectionMenu
+                      folderName={folderName}
+                      folderColor={folderColor}
+                      onCreateDocumentInside={() => handleCreateDocInFolder(groupFolderId)}
+                      onRename={(newName) => handleRenameFolder(groupFolderId, newName)}
+                      onDelete={() => handleDeleteFolder(groupFolderId)}
                     />
-                    <h2 className="text-xs font-semibold text-white/60 uppercase tracking-wider group-hover:text-white/80 transition-colors">
-                      {folderName}
-                    </h2>
-                    <span className="text-[10px] text-white/30 font-medium">{docs.length}</span>
-                  </button>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {docs.map((doc) => (
                       <DocumentCard

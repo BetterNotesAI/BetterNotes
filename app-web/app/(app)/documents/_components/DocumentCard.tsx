@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 
 export interface DocumentItem {
@@ -12,6 +13,59 @@ export interface DocumentItem {
   folder_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Confirmation modal ──────────────────────────────────────────────────────
+function ConfirmDeleteModal({
+  title,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  // Close on Escape
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onCancel]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm bg-neutral-900 border border-white/15 rounded-2xl p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-sm font-semibold text-white mb-1">Delete document?</h3>
+        <p className="text-xs text-white/50 mb-5 leading-relaxed">
+          <span className="text-white/70 font-medium">&quot;{title}&quot;</span> will be permanently deleted.
+          This cannot be undone.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs text-white/60 hover:text-white/80 rounded-lg hover:bg-white/8 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 interface FolderOption {
@@ -71,6 +125,7 @@ export function DocumentCard({
   const [renameValue, setRenameValue] = useState(doc.title);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -148,8 +203,7 @@ export function DocumentCard({
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
     setMenuOpen(false);
-    if (!confirm('Delete this document? This cannot be undone.')) return;
-    onDelete();
+    setShowDeleteConfirm(true);
   }
 
   return (
@@ -245,7 +299,7 @@ export function DocumentCard({
 
             {menuOpen && (
               <div
-                className="absolute right-0 top-full mt-1 w-44 rounded-xl border border-white/20
+                className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-white/20
                   bg-black/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 z-50"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -264,6 +318,28 @@ export function DocumentCard({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                   </svg>
                   Rename
+                </button>
+
+                {/* Star / Unstar */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onStar(!doc.is_starred);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/70
+                    hover:bg-white/10 hover:text-white transition-colors text-left"
+                >
+                  {doc.is_starred ? (
+                    <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    </svg>
+                  )}
+                  {doc.is_starred ? 'Remove from starred' : 'Add to starred'}
                 </button>
                 <div className="h-px bg-white/10 my-0.5" />
 
@@ -349,6 +425,18 @@ export function DocumentCard({
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal — rendered via portal */}
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title={doc.title}
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            onDelete();
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }

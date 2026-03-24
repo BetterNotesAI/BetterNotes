@@ -72,8 +72,8 @@ _Prioridad: 🔴 Alta_
 
 - [x] F2-M6.3 — Carpeta "Starred" siempre visible arriba con los marcados como favoritos (estado vacío si ninguno) · ~1h
 - [x] F2-M6.4 — Orden: carpetas alfabéticamente arriba, ficheros sueltos abajo · ~30min
-- [ ] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar · ~1h30min
-- [ ] F2-M6.6 — Menú 3-dots en carpetas: crear documento dentro, rename, mover, eliminar · ~1h
+- [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar · ~1h30min
+- [x] F2-M6.6 — Menú 3-dots en carpetas: crear documento dentro, rename, mover, eliminar · ~1h
 - [ ] F2-M6.7 — Vista de carpeta abierta: ficheros internos con miniaturas + breadcrumb · ~1h30min
 
 _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documents tiene Starred, orden correcto, menús 3-dots completos y vista de carpeta con miniaturas._

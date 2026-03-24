@@ -43,8 +43,8 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 - [x] F2-M6.2 — 5 páginas placeholder (/cheat-sheets, /problem-solver, /exams, /search, /my-studies)
 - [x] F2-M6.3 — Carpeta Starred siempre visible arriba en All Documents
 - [x] F2-M6.4 — Carpetas alfabéticamente arriba, ficheros sueltos abajo
-- [ ] F2-M6.5 — Menú 3-dots en ficheros
-- [ ] F2-M6.6 — Menú 3-dots en carpetas
+- [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar con modal
+- [x] F2-M6.6 — Menú 3-dots en carpetas: crear doc dentro, rename (modal), eliminar con modal
 - [ ] F2-M6.7 — Vista carpeta con miniaturas + breadcrumb
 
 **Después:** F2-M7 (templates revamp)
@@ -64,4 +64,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-24 — F2-M6 en curso. Sidebar nueva con secciones Resources/Projects/Recents + badges Soon. 5 páginas placeholder creadas. All Documents con Starred arriba + ordenación carpetas/ficheros implementada. Próximo: menús 3-dots en ficheros y carpetas (F2-M6.5 + F2-M6.6).*
+*Última actualización: 2026-03-24 — F2-M6.5 y F2-M6.6 completados. Menús 3-dots en ficheros (rename, star/unstar, mover a carpeta, eliminar con modal) y en secciones de carpeta (crear doc dentro, rename con modal, eliminar con modal). FolderSectionMenu usa createPortal para evitar clipping. API POST /api/documents acepta folder_id. Próximo: F2-M6.7 vista de carpeta.*
