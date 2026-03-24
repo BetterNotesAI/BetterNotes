@@ -4,6 +4,41 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-24 — F2-M5.5 fix Stripe + F2-M5.6 railway.json + F2-M6 sidebar y All Documents revamp
+
+**Completado:**
+- F2-M5.5: fix race condition Stripe customer en producción
+  - UNIQUE constraint en profiles.stripe_customer_id
+  - RPC get_or_reserve_stripe_customer (reserva atómica del customer_id en el primer checkout)
+  - RPC set_stripe_customer_id (escritura definitiva tras webhook de Stripe)
+  - Migración aplicada manualmente en Supabase Dashboard — en producción
+- F2-M5.6: railway.json creado en app-api/ con Root Directory y Watch Paths configurados
+  - Activación pendiente por crédito trial ($4.86 restantes)
+- F2-M6.1: sidebar nueva con secciones Resources / Projects / Recents, separadores y badges "Soon"
+- F2-M6.2: 5 páginas placeholder en inglés (/cheat-sheets, /problem-solver, /exams, /search, /my-studies)
+- F2-M6.3: carpeta Starred siempre visible arriba en All Documents (vacía si ninguno marcado)
+- F2-M6.4: carpetas ordenadas alfabéticamente arriba, ficheros sueltos abajo
+- F2-M6.5: menú 3-dots en ficheros (rename, star/unstar, mover a carpeta, eliminar con modal de confirmación)
+- F2-M6.6: menú 3-dots en carpetas (crear doc dentro, rename con modal, eliminar con modal)
+- Fixes de UX: navegación All Documents, highlight carpeta activa, transiciones sin flash, 3-dots alineado
+- Todo mergeado a main
+
+**Decisiones tomadas:**
+- FolderSectionMenu usa createPortal (z-9999) para evitar clipping en la sidebar
+- API POST /api/documents extendida para aceptar folder_id (creación directa dentro de carpeta)
+- Páginas placeholder en inglés (alineado con el idioma base de la app)
+- railway.json no se activa hasta upgrade del plan Railway
+
+**Problemas encontrados:**
+- 3-dots en carpetas tenia clipping por overflow hidden del contenedor sidebar — resuelto con createPortal
+- Transiciones de navegacion generaban flash visual — resuelto ajustando los estados de carga
+
+**Lecciones capturadas:** no
+
+**Siguiente:** F2-M6.7 — Vista de carpeta abierta con ficheros internos en miniaturas + breadcrumb
+
+---
+
 ## Sesión 2026-03-23 — F2-M5.4 Logo BetterNotes en páginas de auth
 
 **Completado:**

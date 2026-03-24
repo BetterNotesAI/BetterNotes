@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-24_
+_Última actualización: 2026-03-24 (cierre de sesión)_
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -34,7 +34,7 @@ _Prioridad: 🔴 Alta_
 - [x] F2-M5.2 — Renombrar "Sign in" → "Log in" en todos los puntos de entrada (login, signup, navbar, modales guest) · ~30min
 - [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [x] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, forgot-password, reset-password) · ~30min
-- [x] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint o RPC atómica) · ~1h
+- [x] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint en profiles.stripe_customer_id + RPCs get_or_reserve_stripe_customer y set_stripe_customer_id + migración aplicada en Supabase Dashboard) · ~1h — EN PRODUCCIÓN
 - [ ] F2-M5.6 — Configurar autodeploy de app-api en Railway con git push · ~1h
   > **BLOQUEADO por coste**: El plan trial de Railway tiene $4.86 restantes. Configurar
   > Root Directory (`app-api`) y Watch Paths (`app-api/**`) en el Dashboard consume crédito
@@ -46,7 +46,7 @@ _Criterio de aceptación: Google OAuth funciona en producción, textos de auth c
 ---
 
 ### F2-M6 — Nueva sidebar + All Documents revamp
-_Prioridad: 🔴 Alta_
+_Prioridad: 🔴 Alta — PARCIALMENTE COMPLETADO (F2-M6.1 a F2-M6.6 mergeados a main 2026-03-24)_
 
 **Sidebar — nueva estructura:**
 
@@ -66,15 +66,18 @@ _Prioridad: 🔴 Alta_
   ———— Recents ————
   [lista documentos recientes]
   ```
-- [x] F2-M6.2 — Crear páginas placeholder para los 5 items nuevos (/cheat-sheets, /problem-solver, /exams, /search, /my-studies) · ~30min
+- [x] F2-M6.2 — Crear páginas placeholder para los 5 items nuevos (/cheat-sheets, /problem-solver, /exams, /search, /my-studies) en inglés · ~30min
 
 **All Documents revamp:**
 
 - [x] F2-M6.3 — Carpeta "Starred" siempre visible arriba con los marcados como favoritos (estado vacío si ninguno) · ~1h
 - [x] F2-M6.4 — Orden: carpetas alfabéticamente arriba, ficheros sueltos abajo · ~30min
-- [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar · ~1h30min
-- [x] F2-M6.6 — Menú 3-dots en carpetas: crear documento dentro, rename, mover, eliminar · ~1h
-- [ ] F2-M6.7 — Vista de carpeta abierta: ficheros internos con miniaturas + breadcrumb · ~1h30min
+- [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar con modal · ~1h30min
+- [x] F2-M6.6 — Menú 3-dots en carpetas: crear documento dentro, rename con modal, eliminar con modal · ~1h
+  > Fixes de UX incluidos: navegación All Documents, highlight carpeta activa, transiciones sin flash,
+  > 3-dots siempre visible y correctamente alineado. FolderSectionMenu usa createPortal (z-9999).
+  > API POST /api/documents acepta folder_id.
+- [ ] F2-M6.7 — Vista de carpeta abierta: ficheros internos con miniaturas + breadcrumb · ~1h30min — **PRÓXIMO**
 
 _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documents tiene Starred, orden correcto, menús 3-dots completos y vista de carpeta con miniaturas._
 
