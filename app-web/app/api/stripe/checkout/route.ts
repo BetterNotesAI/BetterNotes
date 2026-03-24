@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
 });
+
+function getSupabaseAdmin() {
+  return createSupabaseAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -34,22 +42,56 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ??
     'http://localhost:3000';
 
-  // Look up existing stripe_customer_id from subscriptions table
-  const { data: existingSub } = await supabase
-    .from('subscriptions')
-    .select('stripe_customer_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  // ─── Obtener o crear Stripe customer de forma atómica ──────────────────────
+  // get_or_reserve_stripe_customer usa SELECT FOR UPDATE sobre profiles para
+  // serializar requests concurrentes del mismo usuario. Si dos requests llegan
+  // en paralelo, la segunda espera a que la primera termine su transacción antes
+  // de continuar, evitando la creación de clientes duplicados en Stripe.
+  const supabaseAdmin = getSupabaseAdmin();
 
-  let stripeCustomerId = existingSub?.stripe_customer_id as string | undefined;
+  const { data: existingCustomerId, error: rpcReadError } = await supabaseAdmin.rpc(
+    'get_or_reserve_stripe_customer',
+    { p_user_id: user.id }
+  );
+
+  if (rpcReadError) {
+    console.error('[stripe/checkout] get_or_reserve_stripe_customer error:', rpcReadError);
+    return NextResponse.json({ error: 'Failed to retrieve customer information' }, { status: 500 });
+  }
+
+  let stripeCustomerId = existingCustomerId as string | null;
 
   if (!stripeCustomerId) {
-    // Create a new Stripe customer
+    // No hay customer todavía — crear uno en Stripe
     const customer = await stripe.customers.create({
       email: user.email,
       metadata: { supabase_user_id: user.id },
     });
-    stripeCustomerId = customer.id;
+
+    // Persistir de forma idempotente en profiles. Si una request paralela ya
+    // creó y guardó un customer_id mientras esta request esperaba, set_stripe_customer_id
+    // devuelve el valor ganador (el primero en escribir) sin sobreescribir.
+    const { data: finalCustomerId, error: rpcWriteError } = await supabaseAdmin.rpc(
+      'set_stripe_customer_id',
+      { p_user_id: user.id, p_customer_id: customer.id }
+    );
+
+    if (rpcWriteError) {
+      console.error('[stripe/checkout] set_stripe_customer_id error:', rpcWriteError);
+      // No es fatal — usar el customer recién creado igualmente. El webhook
+      // sincronizará subscriptions con el customer correcto al completar el pago.
+      stripeCustomerId = customer.id;
+    } else {
+      stripeCustomerId = finalCustomerId as string;
+
+      // Si el customer ganador difiere del que acabamos de crear, el nuestro es
+      // un duplicado — eliminarlo en Stripe para mantener limpia la cuenta.
+      if (stripeCustomerId !== customer.id) {
+        stripe.customers.del(customer.id).catch((err) => {
+          console.warn('[stripe/checkout] Failed to delete duplicate Stripe customer:', err);
+        });
+      }
+    }
   }
 
   let session: Stripe.Checkout.Session;

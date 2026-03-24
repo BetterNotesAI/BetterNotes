@@ -78,6 +78,14 @@ export async function POST(req: NextRequest) {
           { onConflict: 'user_id' }
         );
 
+        // Update plan and, idempotently, stripe_customer_id in profiles.
+        // Using set_stripe_customer_id RPC: only writes if not already set,
+        // avoiding overwriting a valid customer_id with a potential duplicate.
+        await supabaseAdmin.rpc('set_stripe_customer_id', {
+          p_user_id: supabaseUserId,
+          p_customer_id: stripeCustomerId,
+        });
+
         await supabaseAdmin
           .from('profiles')
           .update({ plan: 'pro' })
