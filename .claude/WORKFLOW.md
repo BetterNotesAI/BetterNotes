@@ -4,12 +4,6 @@ Este documento describe el sistema de agentes, skills y procedimientos operativo
 
 ---
 
-## Prompts Recomendados
-
-Inicia sesión. Ejecuta el protocolo session-start
-
----
-
 ## Arquitectura general
 
 El sistema funciona como un equipo de especialistas coordinados por un **director**. Cada agente tiene un rol acotado y herramientas específicas. El director es el único punto de entrada: recibe las instrucciones del usuario, decide qué agentes invocar y en qué orden, y consolida los resultados.

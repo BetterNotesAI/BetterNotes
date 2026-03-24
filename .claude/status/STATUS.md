@@ -64,4 +64,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-24 — F2-M6.7 completado: breadcrumb "My Documents > FolderName" en header, header enriquecido en vista carpeta (nombre, color dot, count, 3-dots menu, botón "New document"), empty state mejorado con icono + CTA, fix handleDeleteFolder resetea activeFolderId si se borra la carpeta activa. F2-M6 COMPLETO. Próximo: F2-M7 templates revamp.*
+*Última actualización: 2026-03-24 — F2-M6.7 completado con fixes adicionales de UX: carpetas en grid (como doc cards), botón "New document" unificado en header, dropdowns flip upward cuando no hay espacio debajo, DocumentCard 3-dots migrado a createPortal (z-index fix), carpetas colapsadas en All Documents. F2-M6 COMPLETO. Próximo: F2-M7 templates revamp.*

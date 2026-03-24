@@ -78,6 +78,9 @@ _Prioridad: 🔴 Alta — COMPLETADO (F2-M6.1 a F2-M6.7 completados 2026-03-24)_
   > 3-dots siempre visible y correctamente alineado. FolderSectionMenu usa createPortal (z-9999).
   > API POST /api/documents acepta folder_id.
 - [x] F2-M6.7 — Vista de carpeta abierta: breadcrumb + header enriquecido + empty state mejorado · completado 2026-03-24
+  > Fixes adicionales: carpetas en grid card en All Documents, botón "New document" unificado en header,
+  > dropdowns flip upward (DocumentCard + FolderSectionMenu), DocumentCard menu a createPortal (z-9998),
+  > carpetas colapsadas en vista All Documents (click abre folder-filtered view).
 
 _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documents tiene Starred, orden correcto, menús 3-dots completos y vista de carpeta con miniaturas._
 
