@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-23_
+_Última actualización: 2026-03-24_
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -35,7 +35,7 @@ _Prioridad: 🔴 Alta_
 - [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [x] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, forgot-password, reset-password) · ~30min
 - [x] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint o RPC atómica) · ~1h
-- [ ] F2-M5.6 — Configurar autodeploy de app-api en Railway con git push · ~1h
+- [x] F2-M5.6 — Configurar autodeploy de app-api en Railway con git push · ~1h
 
 _Criterio de aceptación: Google OAuth funciona en producción, textos de auth consistentes, flujo de reset operativo, app-api se despliega automáticamente._
 

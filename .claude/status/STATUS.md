@@ -25,12 +25,18 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 - [x] F2-M5.3 bugfix — useSearchParams() envuelto en Suspense en forgot-password/page.tsx (fix Vercel build error)
 - [x] F2-M5.4 — Logo BetterNotes reposicionado en header externo en las 4 páginas de auth (login, signup, forgot-password, reset-password)
 - [x] F2-M5.5 — Fix race condition Stripe customer con doble click (UNIQUE constraint + RPCs atómicas)
+- [x] F2-M5.6 — railway.json creado en app-api/ + instrucciones Railway Dashboard documentadas
 
 ## Próximas tareas
 
 **F2-M5** (pendientes):
 1. 🔴 Google OAuth — requiere acceso a Supabase Dashboard + Google Cloud Console
-2. F2-M5.6 — Autodeploy app-api en Railway
+
+**F2-M5.6 — ACCION MANUAL REQUERIDA:** Configurar en Railway Dashboard:
+  - Settings > Source > Root Directory = `app-api`
+  - Settings > Source > Watch Paths = `app-api/**`
+  - Settings > Source > Branch = `main`
+  - Verificar que autodeploy esta habilitado
 
 **Después:** F2-M6 (sidebar nueva + All Documents), F2-M7 (templates revamp)
 
@@ -49,4 +55,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-24 — F2-M5.5 completado: fix race condition Stripe customer. UNIQUE constraint en profiles.stripe_customer_id, RPCs get_or_reserve_stripe_customer y set_stripe_customer_id, detección y borrado de customer duplicado en checkout. Migración 20260324000001 pendiente de aplicar en Supabase Dashboard. Merge en main, pendiente push a origin. Próxima sesión: F2-M5.6 (autodeploy Railway) o F2-M5.1 (Google OAuth).*
+*Última actualización: 2026-03-24 — F2-M5.6 completado: railway.json creado en app-api/. Instrucciones de configuración del Railway Dashboard documentadas. Acción manual pendiente del usuario en el Dashboard. F2-M5.1 (Google OAuth) es la siguiente tarea pendiente en F2-M5.*
