@@ -27,6 +27,55 @@ const PRESET_COLORS = [
   '#3b82f6', '#94a3b8',
 ];
 
+// ── Section divider component ────────────────────────────────────────────────
+function SectionDivider({ label, collapsed }: { label: string; collapsed: boolean }) {
+  if (collapsed) {
+    return <div className="my-2 mx-2 h-px bg-white/10" />;
+  }
+  return (
+    <div className="flex items-center gap-2 px-2 pt-4 pb-1.5">
+      <div className="flex-1 h-px bg-white/10" />
+      <span className="text-[10px] font-semibold text-white/30 uppercase tracking-widest whitespace-nowrap">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-white/10" />
+    </div>
+  );
+}
+
+// ── Placeholder nav item ─────────────────────────────────────────────────────
+function PlaceholderNavItem({
+  href,
+  icon,
+  label,
+  collapsed,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  collapsed: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      title={collapsed ? `${label} (Coming soon)` : undefined}
+      className={`flex items-center gap-3 rounded-xl transition-colors duration-150 opacity-50 hover:opacity-70 ${
+        collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+      } text-white/40 hover:bg-white/5 hover:text-white/60`}
+    >
+      {icon}
+      {!collapsed && (
+        <span className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="text-sm truncate">{label}</span>
+          <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/40 uppercase tracking-wide leading-none">
+            Soon
+          </span>
+        </span>
+      )}
+    </Link>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -257,10 +306,10 @@ export function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
 
-          {/* New Document CTA */}
+          {/* New Project CTA */}
           <Link
             href="/documents?new=1"
-            title={collapsed ? 'New Document' : undefined}
+            title={collapsed ? 'New Project' : undefined}
             className={`flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
               bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400
               text-white shadow-[0_2px_12px_rgba(99,102,241,0.35)] hover:shadow-[0_2px_16px_rgba(99,102,241,0.5)] ${
@@ -268,7 +317,7 @@ export function Sidebar() {
             }`}
           >
             <PlusIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">New Document</span>}
+            {!collapsed && <span className="text-sm truncate">New Project</span>}
           </Link>
 
           {/* Home */}
@@ -286,6 +335,38 @@ export function Sidebar() {
             <HomeIcon className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="text-sm truncate">Home</span>}
           </Link>
+
+          {/* ── Resources section ── */}
+          <SectionDivider label="Resources" collapsed={collapsed} />
+
+          <PlaceholderNavItem
+            href="/cheat-sheets"
+            icon={<CheatSheetIcon className="w-4 h-4 shrink-0" />}
+            label="Cheat Sheets"
+            collapsed={collapsed}
+          />
+          <PlaceholderNavItem
+            href="/problem-solver"
+            icon={<ProblemSolverIcon className="w-4 h-4 shrink-0" />}
+            label="Problem Solver"
+            collapsed={collapsed}
+          />
+          <PlaceholderNavItem
+            href="/exams"
+            icon={<ExamsIcon className="w-4 h-4 shrink-0" />}
+            label="Exams"
+            collapsed={collapsed}
+          />
+
+          {/* ── Projects section ── */}
+          <SectionDivider label="Projects" collapsed={collapsed} />
+
+          <PlaceholderNavItem
+            href="/search"
+            icon={<SearchIcon className="w-4 h-4 shrink-0" />}
+            label="Search"
+            collapsed={collapsed}
+          />
 
           {/* All Documents */}
           {collapsed ? (
@@ -460,6 +541,13 @@ export function Sidebar() {
             </div>
           )}
 
+          <PlaceholderNavItem
+            href="/my-studies"
+            icon={<MyStudiesIcon className="w-4 h-4 shrink-0" />}
+            label="My Studies"
+            collapsed={collapsed}
+          />
+
           {/* Templates */}
           <Link
             href="/templates"
@@ -476,13 +564,11 @@ export function Sidebar() {
             {!collapsed && <span className="text-sm truncate">Templates</span>}
           </Link>
 
-          {/* Recent documents */}
-          {!collapsed && recentDocs.length > 0 && (
-            <div className="mt-4">
-              <p className="px-3 py-1.5 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
-                Recent
-              </p>
-              {recentDocs.map(doc => (
+          {/* ── Recents section ── */}
+          {recentDocs.length > 0 && (
+            <>
+              <SectionDivider label="Recents" collapsed={collapsed} />
+              {!collapsed && recentDocs.map(doc => (
                 <Link
                   key={doc.id}
                   href={`/documents/${doc.id}`}
@@ -496,7 +582,7 @@ export function Sidebar() {
                   <span className="truncate">{doc.title || 'Untitled'}</span>
                 </Link>
               ))}
-            </div>
+            </>
           )}
         </nav>
 
@@ -658,6 +744,42 @@ function TrashIcon() {
   return (
     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  );
+}
+// ── Placeholder feature icons ────────────────────────────────────────────────
+function CheatSheetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5M3.75 5.25h16.5a.75.75 0 01.75.75v12a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V6a.75.75 0 01.75-.75z" />
+    </svg>
+  );
+}
+function ProblemSolverIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+    </svg>
+  );
+}
+function ExamsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803 7.5 7.5 0 0015.803 15.803z" />
+    </svg>
+  );
+}
+function MyStudiesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
     </svg>
   );
 }
