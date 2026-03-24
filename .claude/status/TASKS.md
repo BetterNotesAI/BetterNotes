@@ -34,7 +34,7 @@ _Prioridad: 🔴 Alta_
 - [x] F2-M5.2 — Renombrar "Sign in" → "Log in" en todos los puntos de entrada (login, signup, navbar, modales guest) · ~30min
 - [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [x] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, forgot-password, reset-password) · ~30min
-- [ ] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint o RPC atómica) · ~1h
+- [x] F2-M5.5 — Fix race condition Stripe customer en doble click (UNIQUE constraint o RPC atómica) · ~1h
 - [ ] F2-M5.6 — Configurar autodeploy de app-api en Railway con git push · ~1h
 
 _Criterio de aceptación: Google OAuth funciona en producción, textos de auth consistentes, flujo de reset operativo, app-api se despliega automáticamente._
@@ -290,7 +290,7 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 |-----------|-------------|-----------|
 | 🔴 Alta | Google OAuth pendiente en Supabase + Google Cloud | F2-M5.1 |
 | 🟡 Media | Chat consume cuota por intento, no por PDF generado | Decisión de producto pendiente |
-| 🟡 Media | Race condition Stripe customer con doble click | F2-M5.5 |
+| ✅ Resuelto | Race condition Stripe customer con doble click | F2-M5.5 |
 | 🟡 Media | app-api requiere redeploy manual en Railway | F2-M5.6 |
 | 🟢 Baja | Plantillas hardcodeadas en app-api | Se resuelve en F2-M7 |
 | 🟢 Baja | Exportar .tex además del PDF | Pendiente |
