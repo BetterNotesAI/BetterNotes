@@ -176,8 +176,15 @@ export function FolderSectionMenu({
     }
     const rect = buttonRef.current?.getBoundingClientRect();
     if (rect) {
-      // Position below-left of the button, using viewport coords via portal
-      setMenuPos({ top: rect.bottom + 4, left: rect.right - 192 });
+      // Estimated menu height (3 items): ~110px
+      const menuHeight = 110;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpward = spaceBelow < menuHeight + 8;
+      setMenuPos(
+        openUpward
+          ? { top: rect.top - menuHeight - 4, left: rect.right - 192 }
+          : { top: rect.bottom + 4, left: rect.right - 192 }
+      );
     }
     setMenuOpen(true);
   }

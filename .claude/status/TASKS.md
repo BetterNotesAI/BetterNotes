@@ -46,7 +46,7 @@ _Criterio de aceptación: Google OAuth funciona en producción, textos de auth c
 ---
 
 ### F2-M6 — Nueva sidebar + All Documents revamp
-_Prioridad: 🔴 Alta — PARCIALMENTE COMPLETADO (F2-M6.1 a F2-M6.6 mergeados a main 2026-03-24)_
+_Prioridad: 🔴 Alta — COMPLETADO (F2-M6.1 a F2-M6.7 completados 2026-03-24)_
 
 **Sidebar — nueva estructura:**
 
@@ -77,7 +77,7 @@ _Prioridad: 🔴 Alta — PARCIALMENTE COMPLETADO (F2-M6.1 a F2-M6.6 mergeados a
   > Fixes de UX incluidos: navegación All Documents, highlight carpeta activa, transiciones sin flash,
   > 3-dots siempre visible y correctamente alineado. FolderSectionMenu usa createPortal (z-9999).
   > API POST /api/documents acepta folder_id.
-- [ ] F2-M6.7 — Vista de carpeta abierta: ficheros internos con miniaturas + breadcrumb · ~1h30min — **PRÓXIMO**
+- [x] F2-M6.7 — Vista de carpeta abierta: breadcrumb + header enriquecido + empty state mejorado · completado 2026-03-24
 
 _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documents tiene Starred, orden correcto, menús 3-dots completos y vista de carpeta con miniaturas._
 

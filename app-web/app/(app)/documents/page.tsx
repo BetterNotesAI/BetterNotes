@@ -264,6 +264,10 @@ export default function DocumentsPage() {
       setFolders(previousFolders);
     } else {
       window.dispatchEvent(new Event('folders:updated'));
+      // If we're currently viewing the deleted folder, go back to All Documents
+      if (activeFolderId === folderId) {
+        setActiveFolderId(null);
+      }
       loadDocuments();
     }
   }
@@ -342,7 +346,64 @@ export default function DocumentsPage() {
 
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
-        <h1 className="text-xl font-semibold">My Documents</h1>
+        {activeFolderId ? (
+          /* Breadcrumb when inside a folder */
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
+                className="text-white/50 hover:text-white/80 transition-colors text-sm font-medium shrink-0"
+              >
+                My Documents
+              </button>
+              <svg className="w-3.5 h-3.5 text-white/25 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              {(() => {
+                const activeFolder = folders.find((f) => f.id === activeFolderId);
+                return (
+                  <div className="flex items-center gap-2 min-w-0">
+                    {activeFolder?.color && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: activeFolder.color }}
+                      />
+                    )}
+                    <h1 className="text-xl font-semibold truncate">
+                      {activeFolder?.name ?? 'Folder'}
+                    </h1>
+                  </div>
+                );
+              })()}
+            </div>
+            <button
+              onClick={() => handleCreateDocInFolder(activeFolderId)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                bg-white/10 hover:bg-white/15 text-white/70 hover:text-white
+                text-xs font-medium transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              New document
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">My Documents</h1>
+            <button
+              onClick={() => setShowNewDocModal(true)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                bg-white/10 hover:bg-white/15 text-white/70 hover:text-white
+                text-xs font-medium transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              New document
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filters bar */}
@@ -363,17 +424,54 @@ export default function DocumentsPage() {
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
           ) : documents.length === 0 && !groupedView ? (
-            /* Folder-filtered view — empty */
+            /* Empty states */
             activeFolderId ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-white/40 text-sm mb-3">No documents in this folder yet.</p>
-                <button
-                  onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
-                >
-                  Back to all documents
-                </button>
-              </div>
+              /* Folder-filtered view — empty: show header + empty state */
+              (() => {
+                const activeFolder = folders.find((f) => f.id === activeFolderId);
+                return (
+                  <div className="space-y-6">
+                    {/* Folder header row */}
+                    <div className="flex items-center gap-3 min-w-0 group">
+                      {activeFolder?.color && (
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: activeFolder.color }}
+                        />
+                      )}
+                      <h2 className="text-base font-semibold text-white truncate">
+                        {activeFolder?.name ?? 'Folder'}
+                      </h2>
+                      <span className="text-xs text-white/30 font-medium shrink-0">0 documents</span>
+                      {activeFolder && (
+                        <FolderSectionMenu
+                          folderName={activeFolder.name}
+                          folderColor={activeFolder.color}
+                          onCreateDocumentInside={() => handleCreateDocInFolder(activeFolderId!)}
+                          onRename={(newName) => handleRenameFolder(activeFolderId!, newName)}
+                          onDelete={() => handleDeleteFolder(activeFolderId!)}
+                        />
+                      )}
+                    </div>
+                    {/* Empty state */}
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-white/8 border border-white/12 flex items-center justify-center mb-4">
+                        <svg className="w-6 h-6 text-white/25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                      </div>
+                      <p className="text-white/40 text-sm mb-1">This folder is empty</p>
+                      <p className="text-white/25 text-xs mb-4">Create a document here or move existing ones into this folder</p>
+                      <button
+                        onClick={() => handleCreateDocInFolder(activeFolderId!)}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+                      >
+                        Create first document
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             ) : filterStarred || showArchived ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
@@ -456,50 +554,56 @@ export default function DocumentsPage() {
                 )}
               </section>
 
-              {/* F2-M6.4 — Folder sections: alphabetically */}
-              {groupedView.folderGroups.map(({ folderId: groupFolderId, folderName, folderColor, docs }) => (
-                <section key={groupFolderId}>
-                  <div className="flex items-center gap-2 mb-4 group">
-                    <button
-                      onClick={() => setActiveFolderId(groupFolderId)}
-                      className="flex items-center gap-2 min-w-0"
-                      title={`View folder: ${folderName}`}
-                    >
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: folderColor ?? '#6366f1' }}
-                      />
-                      <h2 className="text-xs font-semibold text-white/60 uppercase tracking-wider hover:text-white/80 transition-colors">
-                        {folderName}
-                      </h2>
-                      <span className="text-[10px] text-white/30 font-medium">{docs.length}</span>
-                    </button>
-                    {/* F2-M6.6 — 3-dots menu for folder section */}
-                    <FolderSectionMenu
-                      folderName={folderName}
-                      folderColor={folderColor}
-                      onCreateDocumentInside={() => handleCreateDocInFolder(groupFolderId)}
-                      onRename={(newName) => handleRenameFolder(groupFolderId, newName)}
-                      onDelete={() => handleDeleteFolder(groupFolderId)}
-                    />
+              {/* F2-M6.4 — Folder sections: alphabetically, in a grid (like document cards) */}
+              {groupedView.folderGroups.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <svg className="w-4 h-4 text-white/30 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                    </svg>
+                    <h2 className="text-xs font-semibold text-white/60 uppercase tracking-wider">Folders</h2>
+                    <span className="text-[10px] text-white/30 font-medium">{groupedView.folderGroups.length}</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {docs.map((doc) => (
-                      <DocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        onRename={(newTitle) => handleRename(doc.id, newTitle)}
-                        onStar={(isStarred) => handleStar(doc.id, isStarred)}
-                        onArchive={(archive) => handleArchive(doc.id, archive)}
-                        onDelete={() => handleDelete(doc.id)}
-                        onNavigate={() => router.push(`/documents/${doc.id}`)}
-                        folders={folders}
-                        onMoveToFolder={(targetFolderId) => handleMoveToFolder(doc.id, targetFolderId)}
-                      />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {groupedView.folderGroups.map(({ folderId: groupFolderId, folderName, folderColor }) => (
+                      <div
+                        key={groupFolderId}
+                        className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl
+                          border border-white/10 bg-white/[0.04] hover:bg-white/[0.07]
+                          transition-colors cursor-pointer group"
+                        onClick={() => setActiveFolderId(groupFolderId)}
+                        title={`Open folder: ${folderName}`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: folderColor ?? '#6366f1' }}
+                          />
+                          <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                          </svg>
+                          <h2 className="text-sm font-medium text-white/80 truncate">
+                            {folderName}
+                          </h2>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {/* F2-M6.6 — 3-dots menu for folder section */}
+                          <FolderSectionMenu
+                            folderName={folderName}
+                            folderColor={folderColor}
+                            onCreateDocumentInside={() => handleCreateDocInFolder(groupFolderId)}
+                            onRename={(newName) => handleRenameFolder(groupFolderId, newName)}
+                            onDelete={() => handleDeleteFolder(groupFolderId)}
+                          />
+                          <svg className="w-4 h-4 text-white/25 group-hover:text-white/50 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </section>
-              ))}
+              )}
 
               {/* F2-M6.4 — Loose files (no folder) */}
               {groupedView.looseDocs.length > 0 && (
@@ -569,22 +673,55 @@ export default function DocumentsPage() {
               )}
             </div>
           ) : (
-            /* ── Folder-filtered flat view ── */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {documents.map((doc) => (
-                <DocumentCard
-                  key={doc.id}
-                  doc={doc}
-                  onRename={(newTitle) => handleRename(doc.id, newTitle)}
-                  onStar={(isStarred) => handleStar(doc.id, isStarred)}
-                  onArchive={(archive) => handleArchive(doc.id, archive)}
-                  onDelete={() => handleDelete(doc.id)}
-                  onNavigate={() => router.push(`/documents/${doc.id}`)}
-                  folders={folders}
-                  onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
-                />
-              ))}
-            </div>
+            /* ── Folder-filtered view ── */
+            (() => {
+              const activeFolder = folders.find((f) => f.id === activeFolderId);
+              return (
+                <div className="space-y-6">
+                  {/* Folder header row */}
+                  <div className="flex items-center gap-3 min-w-0 group">
+                    {activeFolder?.color && (
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: activeFolder.color }}
+                      />
+                    )}
+                    <h2 className="text-base font-semibold text-white truncate">
+                      {activeFolder?.name ?? 'Folder'}
+                    </h2>
+                    <span className="text-xs text-white/30 font-medium shrink-0">
+                      {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+                    </span>
+                    {activeFolder && (
+                      <FolderSectionMenu
+                        folderName={activeFolder.name}
+                        folderColor={activeFolder.color}
+                        onCreateDocumentInside={() => handleCreateDocInFolder(activeFolderId!)}
+                        onRename={(newName) => handleRenameFolder(activeFolderId!, newName)}
+                        onDelete={() => handleDeleteFolder(activeFolderId!)}
+                      />
+                    )}
+                  </div>
+
+                  {/* Documents grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {documents.map((doc) => (
+                      <DocumentCard
+                        key={doc.id}
+                        doc={doc}
+                        onRename={(newTitle) => handleRename(doc.id, newTitle)}
+                        onStar={(isStarred) => handleStar(doc.id, isStarred)}
+                        onArchive={(archive) => handleArchive(doc.id, archive)}
+                        onDelete={() => handleDelete(doc.id)}
+                        onNavigate={() => router.push(`/documents/${doc.id}`)}
+                        folders={folders}
+                        onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>

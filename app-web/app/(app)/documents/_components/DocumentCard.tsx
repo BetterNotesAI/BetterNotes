@@ -124,11 +124,13 @@ export function DocumentCard({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(doc.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const statusInfo = STATUS_LABELS[doc.status] ?? { label: doc.status, color: 'text-gray-500' };
 
@@ -140,12 +142,17 @@ export function DocumentCard({
     }
   }, [isRenaming]);
 
-  // Close menu on outside click
+  // Close menu on outside click (works with portal-based menu)
   useEffect(() => {
     if (!menuOpen) return;
     function handler(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedButton = menuButtonRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedButton && !clickedMenu) {
         setMenuOpen(false);
+        setMenuPos(null);
+        setShowFolderSubmenu(false);
       }
     }
     document.addEventListener('mousedown', handler);
@@ -182,10 +189,25 @@ export function DocumentCard({
 
   function handleMenuToggle(e: React.MouseEvent) {
     e.stopPropagation();
-    setMenuOpen((o) => {
-      if (o) setShowFolderSubmenu(false);
-      return !o;
-    });
+    if (menuOpen) {
+      setMenuOpen(false);
+      setMenuPos(null);
+      setShowFolderSubmenu(false);
+      return;
+    }
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      // Estimated menu height (base items, no submenu): ~220px
+      const menuHeight = 220;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpward = spaceBelow < menuHeight + 8;
+      setMenuPos(
+        openUpward
+          ? { top: rect.top - menuHeight - 4, left: rect.right - 192 }
+          : { top: rect.bottom + 4, left: rect.right - 192 }
+      );
+    }
+    setMenuOpen(true);
   }
 
   function handleMoveToFolder(folderId: string | null) {
@@ -284,8 +306,9 @@ export function DocumentCard({
           </span>
 
           {/* Three-dot menu — always visible */}
-          <div className="relative -mr-1 flex items-center" ref={menuRef}>
+          <div className="-mr-1 flex items-center">
             <button
+              ref={menuButtonRef}
               onClick={handleMenuToggle}
               className="text-white/30 hover:text-white/80 transition-colors p-0.5 rounded"
               aria-label="More actions"
@@ -296,10 +319,12 @@ export function DocumentCard({
               </svg>
             </button>
 
-            {menuOpen && (
+            {menuOpen && menuPos && typeof window !== 'undefined' && createPortal(
               <div
-                className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-white/20
-                  bg-black/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 z-50"
+                ref={menuRef}
+                style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9998 }}
+                className="w-48 rounded-xl border border-white/20
+                  bg-black/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Rename */}
@@ -419,7 +444,8 @@ export function DocumentCard({
                   </svg>
                   Delete
                 </button>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         </div>

@@ -8,8 +8,8 @@
 ## Estado actual
 
 **Fase:** 2 — Cierre y refinamiento
-**Milestone activo:** F2-M6.7 — Vista de carpeta con miniaturas + breadcrumb
-**Último milestone completado:** F2-M6 parcial (F2-M6.1 a F2-M6.6 mergeados a main — falta F2-M6.7)
+**Milestone activo:** F2-M7 — Templates revamp
+**Último milestone completado:** F2-M6 COMPLETO (F2-M6.1 a F2-M6.7 completados — 2026-03-24)
 **Bloqueantes:** F2-M5.1 Google OAuth (requiere Supabase Dashboard + Google Cloud Console) | F2-M5.6 Railway autodeploy (bloqueado por crédito trial $4.86)
 
 ## Plan reestructurado — 2026-03-22
@@ -45,9 +45,9 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 - [x] F2-M6.4 — Carpetas alfabéticamente arriba, ficheros sueltos abajo
 - [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar con modal
 - [x] F2-M6.6 — Menú 3-dots en carpetas: crear doc dentro, rename (modal), eliminar con modal
-- [ ] F2-M6.7 — Vista carpeta con miniaturas + breadcrumb (PRÓXIMO)
+- [x] F2-M6.7 — Vista carpeta con breadcrumb + header enriquecido + empty state mejorado
 
-**Después:** F2-M7 (templates revamp)
+**Después:** F2-M7 (templates revamp) — PRÓXIMO
 
 ---
 
@@ -64,4 +64,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-24 — Sesión de cierre. F2-M5.5 completado y en producción (UNIQUE constraint + RPCs atómicas Stripe). F2-M5.6 railway.json creado, activación bloqueada por trial. F2-M6.1 a F2-M6.6 completados y mergeados a main: sidebar nueva, 5 placeholders, Starred, orden carpetas/ficheros, menús 3-dots en ficheros y carpetas con todos los flujos. Fixes de UX: navegación, highlight carpeta activa, transiciones sin flash, 3-dots alineado. Próximo: F2-M6.7 vista de carpeta con miniaturas + breadcrumb.*
+*Última actualización: 2026-03-24 — F2-M6.7 completado: breadcrumb "My Documents > FolderName" en header, header enriquecido en vista carpeta (nombre, color dot, count, 3-dots menu, botón "New document"), empty state mejorado con icono + CTA, fix handleDeleteFolder resetea activeFolderId si se borra la carpeta activa. F2-M6 COMPLETO. Próximo: F2-M7 templates revamp.*
