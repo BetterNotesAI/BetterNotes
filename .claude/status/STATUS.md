@@ -8,9 +8,9 @@
 ## Estado actual
 
 **Fase:** 2 — Cierre y refinamiento
-**Milestone activo:** F2-M5 — Auth refinements + Google OAuth + deuda técnica
-**Último milestone completado:** F2-M2b — Navegación, UX y flujo del producto
-**Bloqueantes:** 🔴 Google OAuth pendiente de configurar en Supabase Dashboard
+**Milestone activo:** F2-M6 — Nueva sidebar + All Documents revamp
+**Último milestone completado:** F2-M5 (parcial — Google OAuth bloqueado, Railway bloqueado por trial)
+**Bloqueantes:** 🔴 Google OAuth pendiente (Supabase + Google Cloud Console) | 🟡 Railway autodeploy bloqueado por crédito trial ($4.86)
 
 ## Plan reestructurado — 2026-03-22
 
@@ -38,7 +38,16 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
   - Settings > Source > Branch = `main`
   - Verificar que autodeploy esta habilitado
 
-**Después:** F2-M6 (sidebar nueva + All Documents), F2-M7 (templates revamp)
+**F2-M6** (en curso — rama `f2-m6-sidebar-all-documents`):
+- [x] F2-M6.1 — Sidebar nueva estructura con separadores y badges Soon
+- [x] F2-M6.2 — 5 páginas placeholder (/cheat-sheets, /problem-solver, /exams, /search, /my-studies)
+- [x] F2-M6.3 — Carpeta Starred siempre visible arriba en All Documents
+- [x] F2-M6.4 — Carpetas alfabéticamente arriba, ficheros sueltos abajo
+- [ ] F2-M6.5 — Menú 3-dots en ficheros
+- [ ] F2-M6.6 — Menú 3-dots en carpetas
+- [ ] F2-M6.7 — Vista carpeta con miniaturas + breadcrumb
+
+**Después:** F2-M7 (templates revamp)
 
 ---
 
@@ -55,4 +64,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-24 — F2-M5.6 completado: railway.json creado en app-api/. Instrucciones de configuración del Railway Dashboard documentadas. Acción manual pendiente del usuario en el Dashboard. F2-M5.1 (Google OAuth) es la siguiente tarea pendiente en F2-M5.*
+*Última actualización: 2026-03-24 — F2-M6 en curso. Sidebar nueva con secciones Resources/Projects/Recents + badges Soon. 5 páginas placeholder creadas. All Documents con Starred arriba + ordenación carpetas/ficheros implementada. Próximo: menús 3-dots en ficheros y carpetas (F2-M6.5 + F2-M6.6).*

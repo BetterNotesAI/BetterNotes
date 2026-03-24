@@ -50,7 +50,7 @@ _Prioridad: 🔴 Alta_
 
 **Sidebar — nueva estructura:**
 
-- [ ] F2-M6.1 — Reestructurar sidebar con nueva jerarquía y separadores de sección · ~1h
+- [x] F2-M6.1 — Reestructurar sidebar con nueva jerarquía y separadores de sección · ~1h
   ```
   + New Project
   Home
@@ -66,12 +66,12 @@ _Prioridad: 🔴 Alta_
   ———— Recents ————
   [lista documentos recientes]
   ```
-- [ ] F2-M6.2 — Crear páginas placeholder para los 5 items nuevos (/cheat-sheets, /problem-solver, /exams, /search, /my-studies) · ~30min
+- [x] F2-M6.2 — Crear páginas placeholder para los 5 items nuevos (/cheat-sheets, /problem-solver, /exams, /search, /my-studies) · ~30min
 
 **All Documents revamp:**
 
-- [ ] F2-M6.3 — Carpeta "Starred" siempre visible arriba con los marcados como favoritos (estado vacío si ninguno) · ~1h
-- [ ] F2-M6.4 — Orden: carpetas alfabéticamente arriba, ficheros sueltos abajo · ~30min
+- [x] F2-M6.3 — Carpeta "Starred" siempre visible arriba con los marcados como favoritos (estado vacío si ninguno) · ~1h
+- [x] F2-M6.4 — Orden: carpetas alfabéticamente arriba, ficheros sueltos abajo · ~30min
 - [ ] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar · ~1h30min
 - [ ] F2-M6.6 — Menú 3-dots en carpetas: crear documento dentro, rename, mover, eliminar · ~1h
 - [ ] F2-M6.7 — Vista de carpeta abierta: ficheros internos con miniaturas + breadcrumb · ~1h30min
