@@ -85,6 +85,7 @@ export function Sidebar() {
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
   const [docsExpanded, setDocsExpanded] = useState(true);
+  const [activeFolderIdInSidebar, setActiveFolderIdInSidebar] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -115,6 +116,9 @@ export function Sidebar() {
       if (!userToggled) setCollapsed(true);
     } else {
       setUserToggled(false);
+    }
+    if (!pathname.startsWith('/documents')) {
+      setActiveFolderIdInSidebar(null);
     }
   }, [pathname, userToggled]);
 
@@ -150,6 +154,22 @@ export function Sidebar() {
     window.addEventListener('folders:updated', loadFolders);
     return () => window.removeEventListener('folders:updated', loadFolders);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    function onActivate(e: Event) {
+      const folderId = (e as CustomEvent<{ folderId: string }>).detail.folderId;
+      setActiveFolderIdInSidebar(folderId);
+    }
+    function onReset() {
+      setActiveFolderIdInSidebar(null);
+    }
+    window.addEventListener('folder:activate', onActivate);
+    window.addEventListener('folder:reset', onReset);
+    return () => {
+      window.removeEventListener('folder:activate', onActivate);
+      window.removeEventListener('folder:reset', onReset);
+    };
   }, []);
 
   useEffect(() => {
@@ -390,10 +410,26 @@ export function Sidebar() {
                     : 'text-white/60 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Link href="/documents" className="flex items-center gap-3 flex-1 min-w-0">
+                <button
+                  onClick={() => {
+                    if (activeFolderIdInSidebar) {
+                      // Inside a folder: reset filter + expand, stay on /documents
+                      window.dispatchEvent(new Event('folder:reset'));
+                      setDocsExpanded(true);
+                    } else if (pathname === '/documents') {
+                      // Already on all docs, no folder: toggle
+                      setDocsExpanded(e => !e);
+                    } else {
+                      // On different page: navigate + expand
+                      setDocsExpanded(true);
+                      router.push('/documents');
+                    }
+                  }}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                >
                   <DocumentsIcon className="w-4 h-4 shrink-0" />
                   <span className="text-sm truncate">All Documents</span>
-                </Link>
+                </button>
                 <button
                   onClick={() => setDocsExpanded(e => !e)}
                   className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
@@ -469,7 +505,7 @@ export function Sidebar() {
                       /* Normal folder row */
                       <div
                         key={folder.id}
-                        className="group flex items-center gap-2 w-full pl-9 pr-2 py-1.5 rounded-xl transition-colors duration-150 text-white/50 hover:bg-white/5 hover:text-white/80"
+                        className={`group flex items-center gap-2 w-full pl-9 pr-2 py-1.5 rounded-xl transition-colors duration-150 ${activeFolderIdInSidebar === folder.id ? 'bg-white/10 text-white' : 'text-white/50 hover:bg-white/5 hover:text-white/80'}`}
                         onMouseLeave={() => {
                           if (deletingFolderId === folder.id) setDeletingFolderId(null);
                         }}

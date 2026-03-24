@@ -283,12 +283,11 @@ export function DocumentCard({
             {formatDate(doc.updated_at)}
           </span>
 
-          {/* Three-dot menu — visible on hover */}
-          <div className="relative" ref={menuRef}>
+          {/* Three-dot menu — always visible */}
+          <div className="relative -mr-1 flex items-center" ref={menuRef}>
             <button
               onClick={handleMenuToggle}
-              className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white/80
-                transition-all p-0.5 rounded"
+              className="text-white/30 hover:text-white/80 transition-colors p-0.5 rounded"
               aria-label="More actions"
               title="More actions"
             >

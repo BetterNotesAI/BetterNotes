@@ -32,14 +32,14 @@ export default function ProblemSolverPage() {
             {/* Heading */}
             <h2 className="text-2xl font-bold text-white mb-2">Problem Solver</h2>
             <p className="text-white/55 text-sm mb-4 max-w-sm">
-              Proximamente — resuelve problemas paso a paso con ayuda de IA, y genera
-              hojas de practica personalizadas.
+              Coming soon — solve problems step by step with AI assistance, and generate
+              personalized practice sheets.
             </p>
 
             {/* Coming soon badge */}
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/8 border border-white/15 text-white/50">
               <span className="w-1.5 h-1.5 rounded-full bg-orange-400/70" />
-              Proximamente
+              Coming Soon
             </span>
           </div>
         </div>

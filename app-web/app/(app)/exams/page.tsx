@@ -32,14 +32,14 @@ export default function ExamsPage() {
             {/* Heading */}
             <h2 className="text-2xl font-bold text-white mb-2">Exams</h2>
             <p className="text-white/55 text-sm mb-4 max-w-sm">
-              Proximamente — genera examenes de practica a partir de tus apuntes y
-              evalua tu nivel de preparacion antes de cada examen.
+              Coming soon — generate practice exams from your notes and assess your
+              level of preparation before each test.
             </p>
 
             {/* Coming soon badge */}
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/8 border border-white/15 text-white/50">
               <span className="w-1.5 h-1.5 rounded-full bg-yellow-400/70" />
-              Proximamente
+              Coming Soon
             </span>
           </div>
         </div>

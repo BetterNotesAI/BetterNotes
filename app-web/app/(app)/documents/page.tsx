@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
@@ -63,12 +63,21 @@ export default function DocumentsPage() {
   // Documents state
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const silentNextLoad = useRef(false);
+  const documentsRef = useRef<DocumentItem[]>([]);
+  documentsRef.current = documents;
 
   // Filter / sort state
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
   const [filterStarred, setFilterStarred] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  // Initialize from localStorage so there's only one loadDocuments call on mount
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const pending = localStorage.getItem('bn_active_folder');
+    if (pending) { localStorage.removeItem('bn_active_folder'); return pending; }
+    return null;
+  });
 
   // Folders for DocumentCard "move to folder" menu
   const [folders, setFolders] = useState<{ id: string; name: string; color: string | null }[]>([]);
@@ -80,14 +89,8 @@ export default function DocumentsPage() {
   // Folder pre-selected when opening modal via "New document here"
   const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
 
-  // Initial load: read active folder from localStorage (set by sidebar) + load folders for card menu
+  // Initial load: load folders for card menu + register sidebar events
   useEffect(() => {
-    const pendingFolder = localStorage.getItem('bn_active_folder');
-    if (pendingFolder) {
-      setActiveFolderId(pendingFolder);
-      localStorage.removeItem('bn_active_folder');
-    }
-
     fetch('/api/folders')
       .then((r) => r.ok ? r.json() : { folders: [] })
       .then((data) => setFolders(data.folders ?? []))
@@ -96,11 +99,25 @@ export default function DocumentsPage() {
     // Handle sidebar folder click when already on /documents (no remount)
     function handleFolderActivate(e: Event) {
       const folderId = (e as CustomEvent<{ folderId: string }>).detail.folderId;
+      setIsLoadingDocs(true); // Show spinner immediately in same render batch
       setActiveFolderId(folderId);
       localStorage.removeItem('bn_active_folder');
     }
+    // Handle sidebar "All Documents" click — reset folder filter
+    function handleFolderReset() {
+      if (documentsRef.current.length > 0) {
+        silentNextLoad.current = true; // Has docs: smooth silent transition
+      } else {
+        setIsLoadingDocs(true); // Empty folder: show spinner immediately to avoid empty grouped view flash
+      }
+      setActiveFolderId(null);
+    }
     window.addEventListener('folder:activate', handleFolderActivate);
-    return () => window.removeEventListener('folder:activate', handleFolderActivate);
+    window.addEventListener('folder:reset', handleFolderReset);
+    return () => {
+      window.removeEventListener('folder:activate', handleFolderActivate);
+      window.removeEventListener('folder:reset', handleFolderReset);
+    };
   }, []);
 
   // Re-fetch documents whenever filters change
@@ -145,7 +162,9 @@ export default function DocumentsPage() {
   }, [activeFolderId, filterStarred, documents, folders]);
 
   async function loadDocuments() {
-    setIsLoadingDocs(true);
+    const silent = silentNextLoad.current;
+    silentNextLoad.current = false;
+    if (!silent) setIsLoadingDocs(true);
     try {
       const params = new URLSearchParams();
       params.set('sort', sortBy);
@@ -345,14 +364,23 @@ export default function DocumentsPage() {
             </div>
           ) : documents.length === 0 && !groupedView ? (
             /* Folder-filtered view — empty */
-            filterStarred || showArchived || activeFolderId ? (
+            activeFolderId ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <p className="text-white/40 text-sm mb-3">No documents in this folder yet.</p>
+                <button
+                  onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
+                >
+                  Back to all documents
+                </button>
+              </div>
+            ) : filterStarred || showArchived ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
                 <button
                   onClick={() => {
                     setFilterStarred(false);
                     setShowArchived(false);
-                    setActiveFolderId(null);
                   }}
                   className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
                 >
