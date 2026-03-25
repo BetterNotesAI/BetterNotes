@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export interface CreateDocumentInput {
   prompt: string;
@@ -50,6 +50,7 @@ export function DocumentCreationBar({
   onTemplateChange,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
   const [pages, setPages]     = useState(2);
@@ -226,12 +227,14 @@ export function DocumentCreationBar({
               );
             })}
           </div>
-          <button
-            onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push('/templates'); }}
-            className="mt-2 w-full text-center text-xs text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
-          >
-            View all templates →
-          </button>
+          {pathname !== '/templates' && (
+            <button
+              onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push('/templates'); }}
+              className="mt-2 w-full text-center text-xs text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              View all templates →
+            </button>
+          )}
         </div>,
         document.body
       )
