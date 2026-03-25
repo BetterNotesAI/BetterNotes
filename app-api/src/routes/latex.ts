@@ -1,9 +1,43 @@
 import { Router, Request, Response } from 'express';
+import OpenAI from 'openai';
 import { AIProvider, AttachmentInput } from '../lib/ai/types';
-import { getTemplateOrThrow } from '../lib/templates';
+import { getTemplateOrThrow, TEMPLATE_DEFINITIONS } from '../lib/templates';
 import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
 import { trimHugeLog } from '../lib/errors';
 import { processAttachments } from '../lib/attachments';
+
+// Descriptions used by the AI to pick the best template automatically.
+const TEMPLATE_DESCRIPTIONS: Record<string, string> = {
+  '2cols_portrait':       'Two-column portrait cheat sheet — best for formulas, definitions, key concepts, quick reference cards',
+  'landscape_3col_maths': 'Three-column landscape — best for dense math reference sheets, large formula collections, calculus/algebra summaries',
+  'study_form':           'Three-column portrait study form — best for vocabulary lists, term definitions, Q&A pairs, grammar tables',
+  'lecture_notes':        'Multi-page structured lecture notes — best for long notes, class summaries, biology/history/law topics, anything needing prose sections',
+};
+
+async function pickTemplate(prompt: string): Promise<string> {
+  const fallback = '2cols_portrait';
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const ids = Object.keys(TEMPLATE_DESCRIPTIONS);
+    const list = ids.map((id) => `- ${id}: ${TEMPLATE_DESCRIPTIONS[id]}`).join('\n');
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 20,
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a template selector. Given a document request, reply with ONLY the template id that best fits.\nAvailable templates:\n${list}\n\nReply with exactly one id and nothing else.`,
+        },
+        { role: 'user', content: prompt },
+      ],
+    });
+    const chosen = resp.choices[0]?.message?.content?.trim() ?? '';
+    return ids.includes(chosen) ? chosen : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export interface LatexRouterOptions {
   aiProvider: AIProvider;
@@ -35,7 +69,12 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         return;
       }
 
-      const template = getTemplateOrThrow(templateId);
+      // Auto mode: let AI pick the best template from the active set
+      const resolvedTemplateId = templateId === 'auto'
+        ? await pickTemplate(prompt)
+        : templateId;
+
+      const template = getTemplateOrThrow(resolvedTemplateId);
 
       // Step 1: Download and process attachments (extract text from PDFs/DOCX, encode images)
       const processedFiles = await processAttachments(files ?? []);
@@ -51,7 +90,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
       // Step 2: Generate LaTeX via AI
       const generated = await aiProvider.generateLatex({
         prompt,
-        templateId,
+        templateId: resolvedTemplateId,
         preamble: template.preamble,
         styleGuide: template.styleGuide,
         structureTemplate: template.structureTemplate,
@@ -125,6 +164,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         'Content-Type': 'application/pdf',
         'Content-Length': String(pdfBuffer!.length),
         'X-Latex-Length': String(Buffer.byteLength(finalLatex, 'utf8')),
+        'X-Betternotes-Template': resolvedTemplateId,
       });
       // Encode latex in a separate response field by sending JSON when client wants it.
       // The standard path: return PDF binary. Caller gets latex via X-Betternotes-Latex header (base64).

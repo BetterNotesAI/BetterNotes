@@ -122,7 +122,7 @@ export function DocumentCreationBar({
     if (!prompt.trim() || isLoading) return;
     onSubmit({
       prompt: prompt.trim(),
-      templateId: templateId ?? '2cols_portrait',
+      templateId: templateId ?? 'auto',
       specs: specsApplied ? { pages, density, language } : null,
       files,
     });
