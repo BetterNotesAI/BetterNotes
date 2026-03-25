@@ -40,7 +40,9 @@ const FEATURED_TEMPLATES = [
 export default function HomePage() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('2cols_portrait');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    () => (typeof window !== 'undefined' ? localStorage.getItem('lastTemplateId') ?? '2cols_portrait' : '2cols_portrait')
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDocument[]>([]);
