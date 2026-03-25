@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 interface Template {
@@ -114,13 +115,20 @@ export default function TemplatesPage() {
               >
                 {/* Schematic preview */}
                 <div
-                  className="aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
+                  className="relative aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
                     border border-white/8 bg-black/20 group-hover:border-white/15 transition-colors"
                   style={{ background: `linear-gradient(135deg, ${template.accent}12, transparent)` }}
                 >
                   <div className="w-full h-full p-3 scale-100 group-hover:scale-[1.03] transition-transform duration-300">
                     {template.schematic}
                   </div>
+                  <Image
+                    src={`/templates/thumbnails/${template.id}.png`}
+                    alt={template.displayName}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                  />
                 </div>
 
                 {/* Info */}
@@ -196,12 +204,19 @@ export default function TemplatesPage() {
             <div className="px-5 pt-4 pb-0">
               <div className="flex justify-center">
                 <div
-                  className="w-44 aspect-[4/3] rounded-xl overflow-hidden border border-white/10 shrink-0"
+                  className="relative w-44 aspect-[4/3] rounded-xl overflow-hidden border border-white/10 shrink-0"
                   style={{ background: `linear-gradient(135deg, ${selected.accent}18, ${selected.accent}06)` }}
                 >
                   <div className="w-full h-full p-3">
                     {selected.schematic}
                   </div>
+                  <Image
+                    src={`/templates/thumbnails/${selected.id}.png`}
+                    alt={selected.displayName}
+                    fill
+                    className="object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                  />
                 </div>
               </div>
               <p className="mt-3 text-xs text-white/55 leading-relaxed">{selected.description}</p>
