@@ -158,19 +158,40 @@ export default function TemplatesPage() {
             Choose a starting point for your document. All templates are AI-filled based on your description.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TEMPLATES.map(template => (
+            {TEMPLATES.map(template => {
+              const isSelected = selected?.id === template.id;
+              return (
               <button
                 key={template.id}
                 onClick={() => { setSelected(template); setCreateError(null); }}
-                className="group relative rounded-2xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08]
+                className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
                   backdrop-blur p-4 text-left transition-all duration-200
-                  hover:border-white/25 hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+                  hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+                style={{
+                  borderColor: isSelected ? template.accent + 'cc' : 'rgba(255,255,255,0.15)',
+                  boxShadow: isSelected ? `0 0 0 1px ${template.accent}66, 0 4px_24px rgba(0,0,0,0.3)` : undefined,
+                }}
               >
+                {/* Selected check */}
+                {isSelected && (
+                  <div
+                    className="absolute top-3 right-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+                    style={{ background: template.accent }}
+                  >
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+
                 {/* Schematic preview */}
                 <div
                   className="relative aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
-                    border border-white/8 bg-black/20 group-hover:border-white/15 transition-colors"
-                  style={{ background: `linear-gradient(135deg, ${template.accent}12, transparent)` }}
+                    border bg-black/20 group-hover:border-white/15 transition-colors"
+                  style={{
+                    borderColor: isSelected ? template.accent + '55' : 'rgba(255,255,255,0.08)',
+                    background: `linear-gradient(135deg, ${template.accent}12, transparent)`,
+                  }}
                 >
                   <div className="w-full h-full p-3 scale-100 group-hover:scale-[1.03] transition-transform duration-300">
                     {template.schematic}
@@ -206,7 +227,8 @@ export default function TemplatesPage() {
                   </span>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
