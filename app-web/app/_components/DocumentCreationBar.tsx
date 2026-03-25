@@ -51,10 +51,7 @@ export function DocumentCreationBar({
 }: Props) {
   const router = useRouter();
   const [prompt, setPrompt]   = useState('');
-  const [templateId, setTemplateId] = useState(
-    initialTemplateId
-    ?? (typeof window !== 'undefined' ? localStorage.getItem('lastTemplateId') ?? '2cols_portrait' : '2cols_portrait')
-  );
+  const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
   const [pages, setPages]     = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
   const [language, setLanguage] = useState('auto');
@@ -81,6 +78,13 @@ export function DocumentCreationBar({
   useEffect(() => {
     if (selectedTemplateId) setTemplateId(selectedTemplateId);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    if (!initialTemplateId && !selectedTemplateId) {
+      const saved = localStorage.getItem('lastTemplateId');
+      if (saved) setTemplateId(saved);
+    }
+  }, [initialTemplateId, selectedTemplateId]);
 
   // Close panels on outside click (ignore clicks inside the portal popovers)
   useEffect(() => {
