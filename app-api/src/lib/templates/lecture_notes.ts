@@ -38,14 +38,14 @@ export const lectureNotes: TemplateDefinition = {
 \\fancyhead[L]{\\small\\textit{\\leftmark}}
 \\fancyhead[R]{\\small\\textit{BetterNotes}}
 \\fancyfoot[C]{\\small\\thepage}
-\\newcounter{example}[section]
-\\renewcommand{\\theexample}{\\thesection.\\arabic{example}}
-\\newenvironment{example}[1][]{%
-  \\refstepcounter{example}%
+\\newcounter{workedex}[section]
+\\renewcommand{\\theworkedex}{\\thesection.\\arabic{workedex}}
+\\newenvironment{workedexample}[1][]{%
+  \\refstepcounter{workedex}%
   \\begin{tcolorbox}[
     enhanced,breakable,
     colback=examplebg,colframe=accent,
-    title=\\textbf{Example \\theexample\\ifx\\relax#1\\relax\\else: #1\\fi},
+    title=\\textbf{Example \\theworkedex\\ifx\\relax#1\\relax\\else: #1\\fi},
     fonttitle=\\bfseries\\small,
     coltitle=white,colbacktitle=accent,
     sharp corners=south,boxrule=0.6pt,
@@ -89,7 +89,7 @@ DOCUMENT STRUCTURE:
 1. Title block: \\title + \\author + \\date + \\maketitle
 2. Learning objectives box using \\begin{keypoint}[Learning Objectives] ... \\end{keypoint}
 3. Multiple sections (\\section{}) covering the topic in depth
-4. Numbered examples using \\begin{example}[Optional Title] ... \\end{example}
+4. Numbered examples using \\begin{workedexample}[Optional Title] ... \\end{workedexample}
 5. Theorems and definitions using the defined environments
 6. Warning/note boxes using \\begin{warning}[Note] ... \\end{warning}
 7. A final Summary section with a \\begin{keypoint}[Summary] ... \\end{keypoint}
@@ -97,11 +97,11 @@ DOCUMENT STRUCTURE:
 CONTENT RULES:
 - Write thorough, educational content — this is for learning, not just reference
 - Each section should have 2-4 paragraphs plus examples
-- Use numbered examples generously (at least 3-5 examples total)
+- Use numbered examples generously (at least 3-5 examples total) with \\begin{workedexample}[Title] ... \\end{workedexample}
 - Include derivations in align* or equation environments
 - Use \\begin{itemize} or \\begin{enumerate} for lists of steps, properties, or rules
 - Use \\begin{definition} for formal definitions and \\begin{theorem} for key results
-- The \\example counter resets at each \\section — Example 1.1, 1.2, 2.1, etc.
+- The workedex counter resets at each \\section — Example 1.1, 1.2, 2.1, etc.
 - NEVER use \\includegraphics — describe figures in text
 - Minimum 3 sections of substantial content
 - End with: \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}`,
@@ -120,13 +120,13 @@ CONTENT RULES:
 % FILL: Introductory paragraph explaining the concept and its importance
 % FILL: \\begin{definition} ... \\end{definition} for the core definition
 % FILL: Key properties or rules as \\begin{itemize}
-% FILL: \\begin{example}[Descriptive Title] worked example with step-by-step solution \\end{example}
+% FILL: \\begin{workedexample}[Descriptive Title] worked example with step-by-step solution \\end{workedexample}
 
 \\section{Second Major Section Title}
 % FILL: Build on the first section — introduce more advanced concepts
 % FILL: \\begin{theorem}[Name] statement \\end{theorem} with \\begin{proof} ... \\end{proof}
 % FILL: Equation development with align* environment
-% FILL: \\begin{example} another worked example \\end{example}
+% FILL: \\begin{workedexample} another worked example \\end{workedexample}
 % FILL: \\begin{warning}[Common Mistake] highlight a frequent error \\end{warning}
 
 \\section{Third Major Section Title}
@@ -169,9 +169,9 @@ Let $A \\in \\mathbb{R}^{n\\times n}$. A scalar $\\lambda \\in \\mathbb{C}$ is a
 The vector $\\mathbf{v}$ is called an \\textbf{eigenvector} associated with $\\lambda$.
 \\end{definition}
 
-\\begin{example}[2x2 Matrix]
+\\begin{workedexample}[2x2 Matrix]
 Let $A = \\begin{pmatrix} 3 & 1 \\\\ 0 & 2 \\end{pmatrix}$. Then $\\lambda_1 = 3$ with $\\mathbf{v}_1 = (1,0)^T$ and $\\lambda_2 = 2$ with $\\mathbf{v}_2 = (-1,1)^T$.
-\\end{example}
+\\end{workedexample}
 
 \\section{The Characteristic Polynomial}
 
@@ -181,9 +181,9 @@ $\\lambda$ is an eigenvalue of $A$ if and only if $\\det(A - \\lambda I) = 0$.
 
 The polynomial $p(\\lambda) = \\det(A - \\lambda I)$ is called the \\textbf{characteristic polynomial} of degree $n$.
 
-\\begin{example}[Finding Eigenvalues]
+\\begin{workedexample}[Finding Eigenvalues]
 For $A = \\begin{pmatrix} 4 & -2 \\\\ 1 & 1 \\end{pmatrix}$: $\\det(A-\\lambda I) = (4-\\lambda)(1-\\lambda)+2 = \\lambda^2 - 5\\lambda + 6 = 0$, giving $\\lambda = 2, 3$.
-\\end{example}
+\\end{workedexample}
 
 \\section{Summary}
 \\begin{keypoint}[Summary]
