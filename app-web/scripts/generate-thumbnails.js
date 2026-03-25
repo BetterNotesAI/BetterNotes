@@ -36,6 +36,12 @@ const ACCENTS = {
   'landscape_3col_maths': '#8b5cf6',
   'study_form':           '#22c55e',
   'lecture_notes':        '#3b82f6',
+  'cornell':              '#f59e0b',
+  'problem_solving':      '#ef4444',
+  'zettelkasten':         '#10b981',
+  'academic_paper':       '#6b7280',
+  'lab_report':           '#14b8a6',
+  'data_analysis':        '#f97316',
 };
 
 // ── primitive drawing helpers ─────────────────────────────────────────────────
@@ -469,6 +475,276 @@ function renderLectureNotes(ctx) {
   ], accent, 9);
 }
 
+function renderCornell(ctx) {
+  const accent = ACCENTS['cornell'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title
+  ctx.fillStyle = accent + '22';
+  ctx.fillRect(PAD, y - 2, colW, 16);
+  line(ctx, PAD + 4, y + 3, colW * 0.48, true);
+  y += 20;
+
+  const cueW = colW * 0.28;
+  const notesX = PAD + cueW + 10;
+  const notesW = colW - cueW - 10;
+
+  // vertical divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD + cueW + 4, y);
+  ctx.lineTo(PAD + cueW + 4, H - 46);
+  ctx.stroke();
+
+  // Cue column
+  drawLines(ctx, PAD, cueW, y, [
+    { pct: 0.85, bold: true }, { pct: 0.70 }, { pct: 0.90 }, { pct: 0.60 },
+    { pct: 0.80, bold: true }, { pct: 0.75 }, { pct: 0.65 },
+    { pct: 0.85, bold: true }, { pct: 0.70 }, { pct: 0.90 }, { pct: 0.60 },
+  ], 10);
+
+  // Notes column
+  drawLines(ctx, notesX, notesW, y, [
+    { pct: 0.95 }, { pct: 0.80 }, { pct: 0.88 }, { pct: 0.72 }, { pct: 0.90 },
+  ], 10);
+  y += 56;
+  imgPlaceholder(ctx, notesX, y, notesW * 0.82, 26);
+  y += 32;
+  drawLines(ctx, notesX, notesW, y, [
+    { pct: 0.75 }, { pct: 0.88 }, { pct: 0.65 }, { pct: 0.92 }, { pct: 0.78 },
+  ], 10);
+
+  // Summary box at bottom
+  divider(ctx, PAD, H - 42, colW);
+  drawBox(ctx, PAD, colW, H - 38, [
+    { pct: 0.28, bold: true }, { pct: 0.88 }, { pct: 0.72 },
+  ], accent, 9);
+}
+
+function renderProblemSolving(ctx) {
+  const accent = ACCENTS['problem_solving'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title
+  ctx.fillStyle = accent + '22';
+  ctx.fillRect(PAD, y - 2, colW, 16);
+  line(ctx, PAD + 4, y + 3, colW * 0.44, true);
+  y += 24;
+
+  for (let i = 0; i < 3; i++) {
+    const blockH = (H - y - PAD - 8) / 3;
+    box(ctx, PAD, y, colW, blockH - 4, accent);
+    let by = y + 6;
+    line(ctx, PAD + 6, by, colW * 0.28, true); by += 10;
+    drawLines(ctx, PAD + 6, colW - 12, by, [{ pct: 0.92 }, { pct: 0.78 }], 9); by += 20;
+
+    const hw = (colW - 18) / 2;
+    line(ctx, PAD + 6, by, hw * 0.50, true); by += 9;
+    drawLines(ctx, PAD + 6, hw, by, [{ pct: 0.80 }, { pct: 0.65 }], 9);
+    line(ctx, PAD + 6 + hw + 6, by - 9, hw * 0.45, true);
+    drawLines(ctx, PAD + 6 + hw + 6, hw, by, [{ pct: 0.70 }], 9);
+    by += 18;
+
+    box(ctx, PAD + 6, by, colW - 12, 20, null);
+    line(ctx, PAD + 10, by + 4, (colW - 20) * 0.32, true);
+    drawLines(ctx, PAD + 10, colW - 20, by + 13, [{ pct: 0.85 }, { pct: 0.55 }], 7);
+
+    y += blockH + 2;
+  }
+}
+
+function renderZettelkasten(ctx) {
+  const accent = ACCENTS['zettelkasten'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title
+  line(ctx, PAD, y, colW * 0.44, true); y += 16;
+
+  const cardW = (colW - 8) / 2;
+  const cardH = (H - y - PAD - 4) / 2;
+
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 2; col++) {
+      const cx = PAD + col * (cardW + 8);
+      const cy = y + row * (cardH + 4);
+      box(ctx, cx, cy, cardW, cardH - 2, accent);
+
+      // card ID dot + title
+      ctx.fillStyle = 'rgba(255,255,255,0.20)';
+      ctx.beginPath();
+      ctx.arc(cx + 8, cy + 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      line(ctx, cx + 16, cy + 5, cardW * 0.72, true);
+
+      let ly = cy + 17;
+      drawLines(ctx, cx + 6, cardW - 12, ly, [
+        { pct: 0.90 }, { pct: 0.72 }, { pct: 0.85 }, { pct: 0.60 },
+      ], 9);
+      ly += 40;
+
+      // tags
+      const tags = [0.26, 0.20, 0.28];
+      let tx = cx + 6;
+      for (const tw of tags) {
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.roundRect(tx, ly, cardW * tw, 6, 3);
+        ctx.fill();
+        tx += cardW * tw + 4;
+      }
+    }
+  }
+}
+
+function renderAcademicPaper(ctx) {
+  const accent = ACCENTS['academic_paper'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title + authors
+  ctx.fillStyle = accent + '22';
+  ctx.fillRect(PAD, y - 2, colW, 16);
+  line(ctx, PAD + 4, y + 3, colW * 0.62, true);
+  y += 20;
+  line(ctx, PAD, y, colW * 0.42); y += 12;
+
+  // Abstract box
+  y = drawBox(ctx, PAD, colW, y, [
+    { pct: 0.28, bold: true }, { pct: 0.95 }, { pct: 0.88 }, { pct: 0.72 },
+  ], accent, 9);
+  y += 6;
+
+  // Two-column body
+  const hw = (colW - 8) / 2;
+  for (let col = 0; col < 2; col++) {
+    const cx = PAD + col * (hw + 8);
+    let cy = y;
+    cy = drawLines(ctx, cx, hw, cy, [
+      { pct: 0.55, bold: true }, { pct: 0.90 }, { pct: 0.78 }, { pct: 0.85 },
+    ], 9);
+    cy += 2;
+    cy = drawBox(ctx, cx, hw, cy, [{ pct: 0.70, bold: true }], accent, 9);
+    cy = drawLines(ctx, cx, hw, cy, [
+      { pct: 0.92 }, { pct: 0.68 }, { pct: 0.80 },
+    ], 9);
+    cy += 2;
+    if (col === 0) imgPlaceholder(ctx, cx, cy, hw * 0.88, 22);
+    else drawLines(ctx, cx, hw, cy, [{ pct: 0.88, bold: true }, { pct: 0.75 }, { pct: 0.90 }], 9);
+  }
+}
+
+function renderLabReport(ctx) {
+  const accent = ACCENTS['lab_report'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title
+  ctx.fillStyle = accent + '22';
+  ctx.fillRect(PAD, y - 2, colW, 16);
+  line(ctx, PAD + 4, y + 3, colW * 0.52, true);
+  y += 20;
+  line(ctx, PAD, y, colW * 0.38); y += 14;
+
+  // Introduction
+  line(ctx, PAD, y, colW * 0.36, true); y += 10;
+  drawLines(ctx, PAD, colW, y, [{ pct: 0.90 }, { pct: 0.78 }, { pct: 0.85 }], 9); y += 32;
+
+  // Setup diagram
+  imgPlaceholder(ctx, PAD, y, colW, 32); y += 38;
+
+  // Data table
+  line(ctx, PAD, y, colW * 0.28, true); y += 10;
+  const cols = [0.35, 0.22, 0.22, 0.21];
+  // header
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(PAD, y, colW, 12);
+  ctx.strokeStyle = BOX_BORDER; ctx.lineWidth = 1;
+  ctx.strokeRect(PAD, y, colW, 12);
+  let hx = PAD;
+  for (const cw of cols) {
+    ctx.fillStyle = LINE_BOLD;
+    ctx.beginPath(); ctx.roundRect(hx + 3, y + 4, colW * cw * 0.6, 3, 1.5); ctx.fill();
+    hx += colW * cw;
+  }
+  y += 12;
+  for (let row = 0; row < 3; row++) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+    ctx.strokeRect(PAD, y, colW, 10);
+    let rx = PAD;
+    for (const cw of cols) {
+      ctx.fillStyle = LINE_NORMAL;
+      ctx.beginPath(); ctx.roundRect(rx + 3, y + 3, colW * cw * 0.55, 3, 1.5); ctx.fill();
+      rx += colW * cw;
+    }
+    y += 10;
+  }
+  y += 8;
+
+  // Analysis
+  line(ctx, PAD, y, colW * 0.33, true); y += 10;
+  drawLines(ctx, PAD, colW, y, [{ pct: 0.88 }, { pct: 0.72 }], 9);
+}
+
+function renderDataAnalysis(ctx) {
+  const accent = ACCENTS['data_analysis'];
+  fillBg(ctx, accent);
+  const PAD = 22;
+  const colW = W - PAD * 2;
+  let y = PAD;
+
+  // Title
+  ctx.fillStyle = accent + '22';
+  ctx.fillRect(PAD, y - 2, colW, 16);
+  line(ctx, PAD + 4, y + 3, colW * 0.50, true);
+  y += 20;
+
+  // Methodology
+  line(ctx, PAD, y, colW * 0.40, true); y += 10;
+  drawLines(ctx, PAD, colW, y, [{ pct: 0.90 }, { pct: 0.76 }, { pct: 0.84 }], 9); y += 32;
+
+  // Chart placeholder (wide)
+  imgPlaceholder(ctx, PAD, y, colW, 40); y += 46;
+
+  // Results — two mini tables side by side
+  const hw = (colW - 8) / 2;
+  for (let col = 0; col < 2; col++) {
+    const cx = PAD + col * (hw + 8);
+    line(ctx, cx, y, hw * 0.45, true);
+    let ty = y + 10;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(cx, ty, hw, 10);
+    ctx.strokeStyle = BOX_BORDER; ctx.lineWidth = 1;
+    ctx.strokeRect(cx, ty, hw, 10);
+    ty += 10;
+    for (let r = 0; r < 3; r++) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeRect(cx, ty, hw, 9);
+      ctx.fillStyle = LINE_NORMAL;
+      ctx.beginPath(); ctx.roundRect(cx + 3, ty + 3, hw * 0.55, 3, 1.5); ctx.fill();
+      ty += 9;
+    }
+  }
+  y += 52;
+
+  // Conclusions
+  line(ctx, PAD, y, colW * 0.38, true); y += 10;
+  drawLines(ctx, PAD, colW, y, [{ pct: 0.88 }, { pct: 0.70 }, { pct: 0.82 }], 9);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 const RENDERERS = {
@@ -476,6 +752,12 @@ const RENDERERS = {
   'landscape_3col_maths': renderLandscape3Col,
   'study_form':           renderStudyForm,
   'lecture_notes':        renderLectureNotes,
+  'cornell':              renderCornell,
+  'problem_solving':      renderProblemSolving,
+  'zettelkasten':         renderZettelkasten,
+  'academic_paper':       renderAcademicPaper,
+  'lab_report':           renderLabReport,
+  'data_analysis':        renderDataAnalysis,
 };
 
 for (const [id, renderFn] of Object.entries(RENDERERS)) {
