@@ -226,14 +226,26 @@ export default function TemplatesPage() {
                 </div>
                 <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
 
-                {/* Category pill */}
-                <div className="mt-2.5">
+                {/* Category pill + sample link */}
+                <div className="mt-2.5 flex items-center justify-between">
                   <span
                     className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
                     style={{ background: `${template.accent}22`, color: template.accent }}
                   >
                     {template.category}
                   </span>
+                  <a
+                    href={`/templates/samples/${template.id}.pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-white/35 hover:text-white/70 transition-colors flex items-center gap-0.5"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Sample
+                  </a>
                 </div>
               </button>
               );
@@ -304,6 +316,20 @@ export default function TemplatesPage() {
                 </div>
               </div>
               <p className="mt-3 text-xs text-white/55 leading-relaxed">{selected.description}</p>
+              {/* Sample PDF link */}
+              <div className="mt-2.5 flex justify-center">
+                <a
+                  href={`/templates/samples/${selected.id}.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Preview sample PDF
+                </a>
+              </div>
             </div>
 
             {/* Creation bar */}
