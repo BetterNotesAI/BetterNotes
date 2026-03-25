@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 export interface CreateDocumentInput {
   prompt: string;
@@ -48,6 +49,7 @@ export function DocumentCreationBar({
   selectedTemplateId,
   onTemplateChange,
 }: Props) {
+  const router = useRouter();
   const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
   const [pages, setPages]     = useState(2);
@@ -65,7 +67,8 @@ export function DocumentCreationBar({
   const specsBtnRef    = useRef<HTMLButtonElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
 
-  const selectedTemplate = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  const selectedTemplate = TEMPLATES.find((t) => t.id === templateId)
+    ?? { id: templateId, displayName: templateId.replace(/_/g, ' '), isPro: false };
   const label = submitLabel ?? 'Build now';
 
   useEffect(() => {
@@ -208,6 +211,12 @@ export function DocumentCreationBar({
               );
             })}
           </div>
+          <button
+            onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push('/templates'); }}
+            className="mt-2 w-full text-center text-xs text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            View all templates →
+          </button>
         </div>,
         document.body
       )
