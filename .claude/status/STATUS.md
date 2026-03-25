@@ -10,8 +10,8 @@
 **Fase:** 2 — Cierre y refinamiento
 **Milestone activo:** F2-M7 — Templates revamp — CASI COMPLETO
 **Progreso F2-M7:** M7.1 ✅ M7.2 ✅ M7.3 ✅ M7.4 ✅ (UI) ⚠️ (lecture_notes.pdf pendiente) M7.5 ✅ Auto-template ✅
-**Último milestone de main:** F2-M6 COMPLETO + fix "Unfiled→Documents" (b24f0a7 — 2026-03-25)
-**Rama activa:** feature/f2-m7-templates-revamp
+**Último milestone de main:** F2-M7 COMPLETO — mergeado a main (2026-03-25)
+**Rama activa:** main
 **Bloqueantes:** F2-M5.1 Google OAuth (requiere Supabase Dashboard + Google Cloud Console) | F2-M5.6 Railway autodeploy (bloqueado por crédito trial $4.86)
 
 ## Plan reestructurado — 2026-03-22
@@ -50,9 +50,8 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
   - Settings > Source > Branch = `main`
   - Verificar que autodeploy esta habilitado
 
-**F2-M7 — PENDIENTE antes de merge:**
+**F2-M7 — pendiente menor:**
 - Regenerar lecture_notes.pdf (reiniciar app-api → ejecutar scripts/generate-sample-pdfs.js solo para lecture_notes)
-- Merge feature/f2-m7-templates-revamp → main + PR
 
 **Después:** F3 — Visor Interactivo (patrón Typora)
 
@@ -74,4 +73,4 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 
 ---
 
-*Última actualización: 2026-03-25 — F2-M7 completado (pendiente lecture_notes.pdf + merge). Features añadidas: thumbnails PNG, sample PDFs con UI, selección visual con borde accent, modo Auto con IA eligiendo plantilla. Próximo: merge F2-M7 → main, luego F3 Visor Interactivo.*
+*Última actualización: 2026-03-25 — F2-M7 mergeado a main. Features: thumbnails PNG, sample PDFs con UI, selección visual con borde accent, modo Auto (IA elige plantilla). Pendiente menor: regenerar lecture_notes.pdf. Próximo: F3 Visor Interactivo.*

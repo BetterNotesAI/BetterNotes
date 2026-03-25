@@ -107,8 +107,7 @@ _Prioridad: 🟡 Media_
 
 _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquemático, PDF de muestra descargable, estado de selección claro._
 
-> **Estado:** COMPLETO (pendiente merge + regenerar lecture_notes.pdf)
-> Rama: feature/f2-m7-templates-revamp
+> **Estado:** COMPLETO — mergeado a main 2026-03-25. Pendiente menor: regenerar lecture_notes.pdf.
 
 ---
 
