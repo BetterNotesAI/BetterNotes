@@ -112,7 +112,11 @@ const TEMPLATES: Template[] = [
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<Template | null>(null);
+  const [selected, setSelected] = useState<Template | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = localStorage.getItem('lastTemplateId');
+    return saved ? (TEMPLATES.find(t => t.id === saved) ?? null) : null;
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);

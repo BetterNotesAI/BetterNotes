@@ -198,7 +198,15 @@ export function DocumentCreationBar({
               return (
                 <button
                   key={t.id}
-                  onClick={() => { setTemplateId(t.id); onTemplateChange?.(t.id); localStorage.setItem('lastTemplateId', t.id); setOpenPanel(null); setPopoverPos(null); }}
+                  onClick={() => {
+                    if (t.id !== templateId) {
+                      setTemplateId(t.id);
+                      onTemplateChange?.(t.id);
+                      localStorage.setItem('lastTemplateId', t.id);
+                    }
+                    setOpenPanel(null);
+                    setPopoverPos(null);
+                  }}
                   className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
                     isSelected
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
