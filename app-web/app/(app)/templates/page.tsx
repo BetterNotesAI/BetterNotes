@@ -113,6 +113,7 @@ const TEMPLATES: Template[] = [
 export default function TemplatesPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<Template | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -163,7 +164,7 @@ export default function TemplatesPage() {
               return (
               <button
                 key={template.id}
-                onClick={() => { setSelected(template); setCreateError(null); }}
+                onClick={() => { setSelected(template); setModalOpen(true); setCreateError(null); }}
                 className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
                   backdrop-blur p-4 text-left transition-all duration-200
                   hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
@@ -234,10 +235,10 @@ export default function TemplatesPage() {
       </div>
 
       {/* Preview modal */}
-      {selected && (
+      {selected && modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}
         >
           <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl
             shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden">
@@ -265,7 +266,7 @@ export default function TemplatesPage() {
                 </div>
               </div>
               <button
-                onClick={() => setSelected(null)}
+                onClick={() => setModalOpen(false)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40
                   hover:text-white/80 hover:bg-white/10 transition-colors"
               >
