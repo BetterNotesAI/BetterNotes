@@ -946,7 +946,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             >
               {folders.length > 0 && (
                 <p className={`text-xs px-0.5 transition-colors ${unfiledDragOver ? 'text-indigo-400/70' : 'text-white/30'}`}>
-                  Unfiled ({unfiledAttachments.length})
+                  Documents ({unfiledAttachments.length})
                 </p>
               )}
               {unfiledAttachments.map((attachment) => (
