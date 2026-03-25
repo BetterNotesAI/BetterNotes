@@ -52,7 +52,7 @@ export function DocumentCreationBar({
   const router = useRouter();
   const pathname = usePathname();
   const [prompt, setPrompt]   = useState('');
-  const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
+  const [templateId, setTemplateId] = useState<string | null>(initialTemplateId ?? null);
   const [pages, setPages]     = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
   const [language, setLanguage] = useState('auto');
@@ -68,8 +68,8 @@ export function DocumentCreationBar({
   const specsBtnRef    = useRef<HTMLButtonElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
 
-  const selectedTemplate = TEMPLATES.find((t) => t.id === templateId)
-    ?? { id: templateId, displayName: templateId.replace(/_/g, ' '), isPro: false };
+  const selectedTemplate = templateId ? (TEMPLATES.find((t) => t.id === templateId)
+    ?? { id: templateId, displayName: templateId.replace(/_/g, ' '), isPro: false }) : null;
   const label = submitLabel ?? 'Build now';
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export function DocumentCreationBar({
   useEffect(() => {
     if (!initialTemplateId && !selectedTemplateId) {
       const saved = localStorage.getItem('lastTemplateId');
-      if (saved) setTemplateId(saved);
+      setTemplateId(saved ?? null);
     }
   }, [initialTemplateId, selectedTemplateId]);
 
@@ -122,7 +122,7 @@ export function DocumentCreationBar({
     if (!prompt.trim() || isLoading) return;
     onSubmit({
       prompt: prompt.trim(),
-      templateId,
+      templateId: templateId ?? '2cols_portrait',
       specs: specsApplied ? { pages, density, language } : null,
       files,
     });
@@ -200,11 +200,11 @@ export function DocumentCreationBar({
                 <button
                   key={t.id}
                   onClick={() => {
-                    if (t.id !== templateId) {
-                      setTemplateId(t.id);
-                      onTemplateChange?.(t.id);
-                      localStorage.setItem('lastTemplateId', t.id);
-                    }
+                    const next = t.id === templateId ? null : t.id;
+                    setTemplateId(next);
+                    onTemplateChange?.(next ?? '');
+                    if (next) localStorage.setItem('lastTemplateId', next);
+                    else localStorage.removeItem('lastTemplateId');
                     setOpenPanel(null);
                     setPopoverPos(null);
                   }}
@@ -402,14 +402,16 @@ export function DocumentCreationBar({
             className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] ${
               openPanel === 'template'
                 ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
-                : 'text-white/60 hover:bg-white/10 hover:text-white/80'
+                : selectedTemplate
+                  ? 'bg-white/8 border border-white/15 text-white/80 hover:bg-white/12'
+                  : 'text-white/40 hover:bg-white/10 hover:text-white/60'
             }`}
           >
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="truncate">{selectedTemplate.displayName}</span>
+            <span className="truncate">{selectedTemplate ? selectedTemplate.displayName : 'Auto'}</span>
           </button>
 
           {/* Specs button */}

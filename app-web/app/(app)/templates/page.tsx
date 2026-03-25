@@ -163,7 +163,7 @@ export default function TemplatesPage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {TEMPLATES.map(template => {
-              const isSelected = selected?.id === template.id;
+              const isSelected = !!activeTemplateId && activeTemplateId === template.id;
               return (
               <button
                 key={template.id}
@@ -314,7 +314,11 @@ export default function TemplatesPage() {
                 isLoading={isCreating}
                 error={createError}
                 initialTemplateId={selected.id}
-                onTemplateChange={(id) => { setActiveTemplateId(id); localStorage.setItem('lastTemplateId', id); }}
+                onTemplateChange={(id) => {
+                  setActiveTemplateId(id || '');
+                  if (id) localStorage.setItem('lastTemplateId', id);
+                  else localStorage.removeItem('lastTemplateId');
+                }}
                 placeholder={`Describe your ${selected.displayName.toLowerCase()}...`}
                 autoFocus
               />
