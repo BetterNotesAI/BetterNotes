@@ -89,12 +89,14 @@ _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documen
 ### F2-M7 — Templates revamp
 _Prioridad: 🟡 Media_
 
-- [ ] F2-M7.1 — Reducir plantillas de 10 a 4 (marcar las demás `is_active = false`, no eliminar) · ~30min
-  - 2-Column Portrait
-  - 3-Column Landscape
-  - 3-Column Portrait
-  - Long Notes (Chapters)
-- [ ] F2-M7.2 — Generar thumbnails PNG para cada una de las 4 plantillas (primera página como imagen) · ~1h
+- [x] F2-M7.1 — Reducir plantillas de 10 a 4 (marcar las demás `is_active = false`, no eliminar) · completado 2026-03-25
+  - 2-Column Portrait → `2cols_portrait`
+  - 3-Column Landscape → `landscape_3col_maths`
+  - 3-Column Portrait → `study_form`
+  - Long Notes (Chapters) → `lecture_notes`
+  > Migración: 20260325000001_f2m7_templates_is_active.sql | Rama: feature/f2-m7-templates-revamp
+- [x] F2-M7.2 — Generar thumbnails PNG para cada una de las 4 plantillas (primera página como imagen) · completado 2026-03-25
+  > 4 PNGs en public/templates/thumbnails/ (480x360 px, ~15KB c/u). Script reproducible en scripts/generate-thumbnails.js. canvas como devDependency.
 - [ ] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · ~30min
 - [ ] F2-M7.4 — PDF de muestra descargable por plantilla (subir a Supabase Storage, abrir en nueva pestaña) · ~1h
 - [ ] F2-M7.5 — Mejorar estado visual de selección: borde de color vistoso + check en esquina superior derecha · ~30min
