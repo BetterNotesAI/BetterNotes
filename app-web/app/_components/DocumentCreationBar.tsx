@@ -403,18 +403,15 @@ export function DocumentCreationBar({
             ref={templateBtnRef}
             onClick={toggleTemplate}
             title="Choose template"
-            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] ${
-              openPanel === 'template'
-                ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
-                : selectedTemplate
-                  ? 'bg-white/8 border border-white/15 text-white/80 hover:bg-white/12'
-                  : 'text-white/40 hover:bg-white/10 hover:text-white/60'
+            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] border ${
+              selectedTemplate
+                ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
+                : openPanel === 'template'
+                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                  : 'border-transparent text-white/40 hover:bg-white/10 hover:text-white/60'
             }`}
           >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            {selectedTemplate && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
             <span className="truncate">{selectedTemplate ? selectedTemplate.displayName : 'Auto'}</span>
           </button>
 
