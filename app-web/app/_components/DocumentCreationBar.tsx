@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, usePathname } from 'next/navigation';
 
 export interface CreateDocumentInput {
   prompt: string;
@@ -25,17 +26,15 @@ interface Props {
   onTemplateChange?: (templateId: string) => void;
 }
 
+// F2-M7.1: Only 4 active templates shown in the creation bar.
+// Inactive templates (cornell, problem_solving, zettelkasten,
+// academic_paper, lab_report, data_analysis) are hidden in the UI
+// and marked is_active = false in the DB — not deleted.
 const TEMPLATES = [
-  { id: '2cols_portrait',       displayName: '2-Col Cheat Sheet', isPro: false },
+  { id: '2cols_portrait',       displayName: '2-Col Portrait',    isPro: false },
   { id: 'landscape_3col_maths', displayName: '3-Col Landscape',   isPro: false },
-  { id: 'cornell',              displayName: 'Cornell Notes',      isPro: false },
-  { id: 'problem_solving',      displayName: 'Problem Solving',    isPro: false },
-  { id: 'zettelkasten',         displayName: 'Zettelkasten',       isPro: false },
-  { id: 'study_form',           displayName: 'Study Form',         isPro: false },
-  { id: 'lecture_notes',        displayName: 'Lecture Notes',      isPro: false },
-  { id: 'academic_paper',       displayName: 'Academic Paper',     isPro: true  },
-  { id: 'lab_report',           displayName: 'Lab Report',         isPro: true  },
-  { id: 'data_analysis',        displayName: 'Data Analysis',      isPro: true  },
+  { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
+  { id: 'lecture_notes',        displayName: 'Long Notes',        isPro: false },
 ];
 
 export function DocumentCreationBar({
@@ -50,8 +49,10 @@ export function DocumentCreationBar({
   selectedTemplateId,
   onTemplateChange,
 }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [prompt, setPrompt]   = useState('');
-  const [templateId, setTemplateId] = useState(initialTemplateId ?? '2cols_portrait');
+  const [templateId, setTemplateId] = useState<string | null>(initialTemplateId ?? null);
   const [pages, setPages]     = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
   const [language, setLanguage] = useState('auto');
@@ -67,7 +68,8 @@ export function DocumentCreationBar({
   const specsBtnRef    = useRef<HTMLButtonElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
 
-  const selectedTemplate = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  const selectedTemplate = templateId ? (TEMPLATES.find((t) => t.id === templateId)
+    ?? { id: templateId, displayName: templateId.replace(/_/g, ' '), isPro: false }) : null;
   const label = submitLabel ?? 'Build now';
 
   useEffect(() => {
@@ -77,6 +79,13 @@ export function DocumentCreationBar({
   useEffect(() => {
     if (selectedTemplateId) setTemplateId(selectedTemplateId);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    if (!initialTemplateId && !selectedTemplateId) {
+      const saved = localStorage.getItem('lastTemplateId');
+      setTemplateId(saved ?? null);
+    }
+  }, [initialTemplateId, selectedTemplateId]);
 
   // Close panels on outside click (ignore clicks inside the portal popovers)
   useEffect(() => {
@@ -113,7 +122,7 @@ export function DocumentCreationBar({
     if (!prompt.trim() || isLoading) return;
     onSubmit({
       prompt: prompt.trim(),
-      templateId,
+      templateId: templateId ?? 'auto',
       specs: specsApplied ? { pages, density, language } : null,
       files,
     });
@@ -139,9 +148,13 @@ export function DocumentCreationBar({
       : { ...base, right: window.innerWidth - rect.right };
   }
 
-  // Template panel: simple toggle
   function toggleTemplate() {
-    if (openPanel === 'template') {
+    if (templateId) {
+      // already selected → deselect immediately, no dropdown
+      setTemplateId(null);
+      onTemplateChange?.('');
+      localStorage.removeItem('lastTemplateId');
+    } else if (openPanel === 'template') {
       setOpenPanel(null);
       setPopoverPos(null);
     } else {
@@ -190,7 +203,15 @@ export function DocumentCreationBar({
               return (
                 <button
                   key={t.id}
-                  onClick={() => { setTemplateId(t.id); onTemplateChange?.(t.id); setOpenPanel(null); setPopoverPos(null); }}
+                  onClick={() => {
+                    const next = t.id === templateId ? null : t.id;
+                    setTemplateId(next);
+                    onTemplateChange?.(next ?? '');
+                    if (next) localStorage.setItem('lastTemplateId', next);
+                    else localStorage.removeItem('lastTemplateId');
+                    setOpenPanel(null);
+                    setPopoverPos(null);
+                  }}
                   className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
                     isSelected
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
@@ -210,6 +231,14 @@ export function DocumentCreationBar({
               );
             })}
           </div>
+          {pathname !== '/templates' && (
+            <button
+              onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push('/templates'); }}
+              className="mt-2 w-full text-center text-xs text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              View all templates →
+            </button>
+          )}
         </div>,
         document.body
       )
@@ -374,17 +403,16 @@ export function DocumentCreationBar({
             ref={templateBtnRef}
             onClick={toggleTemplate}
             title="Choose template"
-            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] ${
-              openPanel === 'template'
-                ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300'
-                : 'text-white/60 hover:bg-white/10 hover:text-white/80'
+            className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] border ${
+              selectedTemplate
+                ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
+                : openPanel === 'template'
+                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                  : 'border-transparent text-white/40 hover:bg-white/10 hover:text-white/60'
             }`}
           >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className="truncate">{selectedTemplate.displayName}</span>
+            {selectedTemplate && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
+            <span className="truncate">{selectedTemplate ? selectedTemplate.displayName : 'Auto'}</span>
           </button>
 
           {/* Specs button */}

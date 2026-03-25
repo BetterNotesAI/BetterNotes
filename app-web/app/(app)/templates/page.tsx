@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 interface Template {
@@ -14,11 +15,13 @@ interface Template {
   schematic: React.ReactNode;
 }
 
+// All available templates. The home page and DocumentCreationBar only show the
+// 4 most popular ones; this page shows all of them.
 const TEMPLATES: Template[] = [
   {
     id: '2cols_portrait',
-    displayName: '2-Column Cheat Sheet',
-    description: 'Compact portrait sheet with 2 columns for formulas, definitions, and key results.',
+    displayName: '2-Column Portrait',
+    description: 'Compact A4 portrait sheet with 2 columns for formulas, definitions, and key results.',
     isPro: false,
     category: 'Notes',
     accent: '#6366f1',
@@ -34,36 +37,9 @@ const TEMPLATES: Template[] = [
     schematic: <ThreeColSchematic />,
   },
   {
-    id: 'cornell',
-    displayName: 'Cornell Notes',
-    description: 'Classic Cornell format with cue keywords in the left margin and a summary box.',
-    isPro: false,
-    category: 'Notes',
-    accent: '#14b8a6',
-    schematic: <CornellSchematic />,
-  },
-  {
-    id: 'problem_solving',
-    displayName: 'Problem Solving',
-    description: 'Structured problem/given/solution blocks with boxed answers for STEM practice.',
-    isPro: false,
-    category: 'Practice',
-    accent: '#f97316',
-    schematic: <ProblemSchematic />,
-  },
-  {
-    id: 'zettelkasten',
-    displayName: 'Zettelkasten Cards',
-    description: 'Knowledge cards with cross-references and tags in Zettelkasten style.',
-    isPro: false,
-    category: 'Notes',
-    accent: '#ec4899',
-    schematic: <ZettelSchematic />,
-  },
-  {
     id: 'study_form',
-    displayName: 'Study Form',
-    description: '3-column ultra-compact A4 with formula boxes, constant tables, and property lists.',
+    displayName: '3-Column Portrait',
+    description: 'Ultra-compact A4 portrait with 3 columns — formula boxes, constant tables, and property lists.',
     isPro: false,
     category: 'Notes',
     accent: '#22c55e',
@@ -71,45 +47,76 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'lecture_notes',
-    displayName: 'Lecture Notes',
-    description: 'Multi-page structured notes with objectives, examples, and a summary box.',
+    displayName: 'Long Notes (Chapters)',
+    description: 'Multi-page structured notes with learning objectives, numbered examples, and a summary box.',
     isPro: false,
     category: 'Notes',
     accent: '#3b82f6',
     schematic: <LectureSchematic />,
   },
   {
+    id: 'cornell',
+    displayName: 'Cornell Notes',
+    description: 'Classic Cornell layout with cue column, notes area and summary box at the bottom.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#f59e0b',
+    schematic: <CornellSchematic />,
+  },
+  {
+    id: 'problem_solving',
+    displayName: 'Problem Solving',
+    description: 'Structured blocks for problem statement, given data, solution steps and final answer.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#ef4444',
+    schematic: <ProblemSchematic />,
+  },
+  {
+    id: 'zettelkasten',
+    displayName: 'Zettelkasten',
+    description: 'Atomic note cards with ID, title, body and tags — ideal for linked knowledge bases.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#10b981',
+    schematic: <ZettelSchematic />,
+  },
+  {
     id: 'academic_paper',
     displayName: 'Academic Paper',
-    description: 'Two-column AMS/Physical Review style paper with abstract, theorems, and bibliography.',
+    description: 'Two-column academic layout with abstract, sections, equations and figure placeholders.',
     isPro: true,
-    category: 'Academic',
-    accent: '#eab308',
+    category: 'Papers',
+    accent: '#6b7280',
     schematic: <AcademicPaperSchematic />,
   },
   {
     id: 'lab_report',
     displayName: 'Lab Report',
-    description: 'Technical report with experimental setup, data tables with uncertainties, and error analysis.',
+    description: 'Lab report structure with introduction, setup diagram, data table and analysis.',
     isPro: true,
-    category: 'Academic',
-    accent: '#f43f5e',
+    category: 'Papers',
+    accent: '#14b8a6',
     schematic: <LabSchematic />,
   },
   {
     id: 'data_analysis',
     displayName: 'Data Analysis',
-    description: 'Statistics or ML report with Python code listings, results tables, and math.',
+    description: 'Data analysis report with methodology, results tables, charts and conclusions.',
     isPro: true,
-    category: 'Academic',
-    accent: '#06b6d4',
+    category: 'Papers',
+    accent: '#f97316',
     schematic: <DataSchematic />,
   },
 ];
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<Template | null>(null);
+  const [activeTemplateId, setActiveTemplateId] = useState<string>(() =>
+    typeof window !== 'undefined' ? (localStorage.getItem('lastTemplateId') ?? '') : ''
+  );
+  const selected = TEMPLATES.find(t => t.id === activeTemplateId) ?? null;
+  const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -155,23 +162,56 @@ export default function TemplatesPage() {
             Choose a starting point for your document. All templates are AI-filled based on your description.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TEMPLATES.map(template => (
+            {TEMPLATES.map(template => {
+              const isSelected = !!activeTemplateId && activeTemplateId === template.id;
+              return (
               <button
                 key={template.id}
-                onClick={() => { setSelected(template); setCreateError(null); }}
-                className="group relative rounded-2xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08]
+                onClick={() => {
+                  setActiveTemplateId(template.id);
+                  localStorage.setItem('lastTemplateId', template.id);
+                  setModalOpen(true);
+                  setCreateError(null);
+                }}
+                className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
                   backdrop-blur p-4 text-left transition-all duration-200
-                  hover:border-white/25 hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+                  hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+                style={{
+                  borderColor: isSelected ? template.accent + 'cc' : 'rgba(255,255,255,0.15)',
+                  boxShadow: isSelected ? `0 0 0 1px ${template.accent}66, 0 4px_24px rgba(0,0,0,0.3)` : undefined,
+                }}
               >
+                {/* Selected check */}
+                {isSelected && (
+                  <div
+                    className="absolute top-3 right-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+                    style={{ background: template.accent }}
+                  >
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+
                 {/* Schematic preview */}
                 <div
-                  className="aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
-                    border border-white/8 bg-black/20 group-hover:border-white/15 transition-colors"
-                  style={{ background: `linear-gradient(135deg, ${template.accent}12, transparent)` }}
+                  className="relative aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
+                    border bg-black/20 group-hover:border-white/15 transition-colors"
+                  style={{
+                    borderColor: isSelected ? template.accent + '55' : 'rgba(255,255,255,0.08)',
+                    background: `linear-gradient(135deg, ${template.accent}12, transparent)`,
+                  }}
                 >
                   <div className="w-full h-full p-3 scale-100 group-hover:scale-[1.03] transition-transform duration-300">
                     {template.schematic}
                   </div>
+                  <Image
+                    src={`/templates/thumbnails/${template.id}.png`}
+                    alt={template.displayName}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                  />
                 </div>
 
                 {/* Info */}
@@ -186,26 +226,39 @@ export default function TemplatesPage() {
                 </div>
                 <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
 
-                {/* Category pill */}
-                <div className="mt-2.5">
+                {/* Category pill + sample link */}
+                <div className="mt-2.5 flex items-center justify-between">
                   <span
                     className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
                     style={{ background: `${template.accent}22`, color: template.accent }}
                   >
                     {template.category}
                   </span>
+                  <a
+                    href={`/templates/samples/${template.id}.pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-white/35 hover:text-white/70 transition-colors flex items-center gap-0.5"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Sample
+                  </a>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Preview modal */}
-      {selected && (
+      {selected && modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}
         >
           <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl
             shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden">
@@ -233,7 +286,7 @@ export default function TemplatesPage() {
                 </div>
               </div>
               <button
-                onClick={() => setSelected(null)}
+                onClick={() => setModalOpen(false)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40
                   hover:text-white/80 hover:bg-white/10 transition-colors"
               >
@@ -247,15 +300,36 @@ export default function TemplatesPage() {
             <div className="px-5 pt-4 pb-0">
               <div className="flex justify-center">
                 <div
-                  className="w-44 aspect-[4/3] rounded-xl overflow-hidden border border-white/10 shrink-0"
+                  className="relative w-44 aspect-[4/3] rounded-xl overflow-hidden border border-white/10 shrink-0"
                   style={{ background: `linear-gradient(135deg, ${selected.accent}18, ${selected.accent}06)` }}
                 >
                   <div className="w-full h-full p-3">
                     {selected.schematic}
                   </div>
+                  <Image
+                    src={`/templates/thumbnails/${selected.id}.png`}
+                    alt={selected.displayName}
+                    fill
+                    className="object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                  />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-white/55 leading-relaxed">{selected.description}</p>
+              {/* Sample PDF link */}
+              <div className="mt-2.5 flex justify-center">
+                <a
+                  href={`/templates/samples/${selected.id}.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Preview sample PDF
+                </a>
+              </div>
+              <p className="mt-2.5 text-xs text-white/55 leading-relaxed">{selected.description}</p>
             </div>
 
             {/* Creation bar */}
@@ -266,6 +340,11 @@ export default function TemplatesPage() {
                 isLoading={isCreating}
                 error={createError}
                 initialTemplateId={selected.id}
+                onTemplateChange={(id) => {
+                  setActiveTemplateId(id || '');
+                  if (id) localStorage.setItem('lastTemplateId', id);
+                  else localStorage.removeItem('lastTemplateId');
+                }}
                 placeholder={`Describe your ${selected.displayName.toLowerCase()}...`}
                 autoFocus
               />

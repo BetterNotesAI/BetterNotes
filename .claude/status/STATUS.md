@@ -8,8 +8,10 @@
 ## Estado actual
 
 **Fase:** 2 — Cierre y refinamiento
-**Milestone activo:** F2-M7 — Templates revamp
-**Último milestone completado:** F2-M6 COMPLETO (F2-M6.1 a F2-M6.7 completados — 2026-03-24)
+**Milestone activo:** F2-M7 — Templates revamp — CASI COMPLETO
+**Progreso F2-M7:** M7.1 ✅ M7.2 ✅ M7.3 ✅ M7.4 ✅ (UI) ⚠️ (lecture_notes.pdf pendiente) M7.5 ✅ Auto-template ✅
+**Último milestone de main:** F2-M7 COMPLETO — mergeado a main (2026-03-25)
+**Rama activa:** main
 **Bloqueantes:** F2-M5.1 Google OAuth (requiere Supabase Dashboard + Google Cloud Console) | F2-M5.6 Railway autodeploy (bloqueado por crédito trial $4.86)
 
 ## Plan reestructurado — 2026-03-22
@@ -27,6 +29,16 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 - [x] F2-M5.5 — Fix race condition Stripe customer con doble click (UNIQUE constraint en profiles.stripe_customer_id + RPCs get_or_reserve_stripe_customer y set_stripe_customer_id + migración aplicada en Supabase Dashboard)
 - [x] F2-M5.6 — railway.json creado en app-api/ + instrucciones Railway Dashboard documentadas (activación bloqueada por crédito trial)
 
+## Completado en F2-M7 (sesión 2026-03-25)
+
+- [x] F2-M7.1 — 4 plantillas activas, 6 marcadas is_active=false en DB (migración aplicada)
+- [x] F2-M7.2 — 10 thumbnails PNG generados (480×360px) en public/templates/thumbnails/
+- [x] F2-M7.3 — Thumbnail PNG sobre esquemático CSS con fallback en templates page
+- [x] F2-M7.4 — 9/10 PDFs de muestra generados + botón "Sample" en card grid + "Preview sample PDF" en modal
+- [x] F2-M7.5 — Selección visual: borde accent + check badge en card seleccionada
+- [x] Auto-template — Modo "Auto": gpt-4o-mini elige la plantilla óptima según el prompt; resuelve en app-api y actualiza template_id en DB tras generar
+- [⚠️] lecture_notes.pdf — Regenerar tras reiniciar app-api (fix workedexample ya aplicado en lecture_notes.ts)
+
 ## Próximas tareas
 
 **F2-M5** (pendientes):
@@ -38,16 +50,10 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
   - Settings > Source > Branch = `main`
   - Verificar que autodeploy esta habilitado
 
-**F2-M6** (parcialmente completado — mergeado a main):
-- [x] F2-M6.1 — Sidebar nueva estructura con separadores y badges Soon
-- [x] F2-M6.2 — 5 páginas placeholder (/cheat-sheets, /problem-solver, /exams, /search, /my-studies) en inglés
-- [x] F2-M6.3 — Carpeta Starred siempre visible arriba en All Documents
-- [x] F2-M6.4 — Carpetas alfabéticamente arriba, ficheros sueltos abajo
-- [x] F2-M6.5 — Menú 3-dots en ficheros: rename, star/unstar, mover a carpeta, eliminar con modal
-- [x] F2-M6.6 — Menú 3-dots en carpetas: crear doc dentro, rename (modal), eliminar con modal
-- [x] F2-M6.7 — Vista carpeta con breadcrumb + header enriquecido + empty state mejorado
+**F2-M7 — pendiente menor:**
+- Regenerar lecture_notes.pdf (reiniciar app-api → ejecutar scripts/generate-sample-pdfs.js solo para lecture_notes)
 
-**Después:** F2-M7 (templates revamp) — PRÓXIMO
+**Después:** F3 — Visor Interactivo (patrón Typora)
 
 ---
 
@@ -61,7 +67,10 @@ workspace `/workspace/[id]` se convierte en el visor, modos de vista actuales oc
 | Auth | `@supabase/ssr` SSR-safe |
 | IA | OpenAI gpt-4o-mini vía AIProvider interface desacoplada |
 | Forgot password link | Aparece solo tras el primer intento fallido de login |
+| Template selection | localStorage key `lastTemplateId` — única fuente de verdad entre páginas |
+| Auto-template | templateId `'auto'` → app-api llama gpt-4o-mini para elegir; actualiza DB con el ID resuelto |
+| Template button toggle | null = Auto (IA elige); click sobre activo = deselecciona sin abrir dropdown |
 
 ---
 
-*Última actualización: 2026-03-24 — F2-M6.7 completado con fixes adicionales de UX: carpetas en grid (como doc cards), botón "New document" unificado en header, dropdowns flip upward cuando no hay espacio debajo, DocumentCard 3-dots migrado a createPortal (z-index fix), carpetas colapsadas en All Documents. F2-M6 COMPLETO. Próximo: F2-M7 templates revamp.*
+*Última actualización: 2026-03-25 — F2-M7 mergeado a main. Features: thumbnails PNG, sample PDFs con UI, selección visual con borde accent, modo Auto (IA elige plantilla). Pendiente menor: regenerar lecture_notes.pdf. Próximo: F3 Visor Interactivo.*

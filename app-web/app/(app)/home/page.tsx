@@ -40,7 +40,9 @@ const FEATURED_TEMPLATES = [
 export default function HomePage() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('2cols_portrait');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    () => (typeof window !== 'undefined' ? localStorage.getItem('lastTemplateId') ?? '' : '')
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDocument[]>([]);
@@ -56,6 +58,7 @@ export default function HomePage() {
 
   function handleTemplateCardClick(templateId: string) {
     setSelectedTemplateId(templateId);
+    localStorage.setItem('lastTemplateId', templateId);
     barRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 

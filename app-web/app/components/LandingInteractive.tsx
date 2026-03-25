@@ -8,8 +8,8 @@ import { createClient } from '@/lib/supabase/client';
 const FEATURED = [
   {
     id: '2cols_portrait',
-    name: '2-Column Cheat Sheet',
-    desc: 'Compact portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
+    name: '2-Column Portrait',
+    desc: 'Compact A4 portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
     accent: '#6366f1',
     category: 'Notes',
     linkColor: 'text-indigo-400 group-hover:text-indigo-300',
@@ -26,8 +26,8 @@ const FEATURED = [
   },
   {
     id: 'lecture_notes',
-    name: 'Lecture Notes',
-    desc: 'Multi-page structured notes with objectives, sections, examples and a summary box. Great for long lectures.',
+    name: 'Long Notes (Chapters)',
+    desc: 'Multi-page structured notes with learning objectives, sections, examples and a summary box.',
     accent: '#3b82f6',
     category: 'Notes',
     linkColor: 'text-blue-400 group-hover:text-blue-300',
@@ -160,11 +160,11 @@ export function LandingInteractive() {
         </div>
 
         <p className="text-center mt-6 text-xs text-white/40">
-          And{' '}
+          Also available:{' '}
           <a href="/signup" className="text-white/60 hover:text-white underline underline-offset-2 transition-colors">
-            7 more templates
+            3-Column Portrait
           </a>
-          {' '}including Cornell Notes, Lab Reports, Academic Papers and more.
+          {' '}— ultra-compact A4 with formula boxes and constant tables.
         </p>
       </section>
     </>

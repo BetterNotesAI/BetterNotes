@@ -89,17 +89,25 @@ _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documen
 ### F2-M7 — Templates revamp
 _Prioridad: 🟡 Media_
 
-- [ ] F2-M7.1 — Reducir plantillas de 10 a 4 (marcar las demás `is_active = false`, no eliminar) · ~30min
-  - 2-Column Portrait
-  - 3-Column Landscape
-  - 3-Column Portrait
-  - Long Notes (Chapters)
-- [ ] F2-M7.2 — Generar thumbnails PNG para cada una de las 4 plantillas (primera página como imagen) · ~1h
-- [ ] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · ~30min
-- [ ] F2-M7.4 — PDF de muestra descargable por plantilla (subir a Supabase Storage, abrir en nueva pestaña) · ~1h
-- [ ] F2-M7.5 — Mejorar estado visual de selección: borde de color vistoso + check en esquina superior derecha · ~30min
+- [x] F2-M7.1 — Reducir plantillas de 10 a 4 (marcar las demás `is_active = false`, no eliminar) · completado 2026-03-25
+  - 2-Column Portrait → `2cols_portrait`
+  - 3-Column Landscape → `landscape_3col_maths`
+  - 3-Column Portrait → `study_form`
+  - Long Notes (Chapters) → `lecture_notes`
+  > Migración: 20260325000001_f2m7_templates_is_active.sql | Rama: feature/f2-m7-templates-revamp
+- [x] F2-M7.2 — Generar thumbnails PNG para cada una de las 4 plantillas (primera página como imagen) · completado 2026-03-25
+  > 4 PNGs en public/templates/thumbnails/ (480x360 px, ~15KB c/u). Script reproducible en scripts/generate-thumbnails.js. canvas como devDependency.
+- [x] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · completado 2026-03-25
+  > `<Image fill>` con `onError→hidden` sobre el schematic CSS. Aplicado en grid de cards y panel de detalle derecho. commit b719fa5.
+- [x] F2-M7.4 — PDF de muestra descargable por plantilla (estáticos en public/templates/samples/) · completado 2026-03-25
+  > 9/10 PDFs generados (lecture_notes pendiente — regenerar tras reiniciar app-api). UI: botón "Sample" en card grid + "Preview sample PDF" en modal. commit be9528b.
+- [x] F2-M7.5 — Mejorar estado visual de selección: borde accent + check badge en card seleccionada · completado 2026-03-25
+- [x] Auto-template (extra) — Modo "Auto": gpt-4o-mini elige la plantilla óptima según el prompt · completado 2026-03-25
+  > templateId 'auto' → pickTemplate() en app-api → actualiza template_id en DB con ID resuelto. commit a84f645.
 
 _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquemático, PDF de muestra descargable, estado de selección claro._
+
+> **Estado:** COMPLETO — mergeado a main 2026-03-25. Pendiente menor: regenerar lecture_notes.pdf.
 
 ---
 

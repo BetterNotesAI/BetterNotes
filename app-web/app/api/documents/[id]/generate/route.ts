@@ -132,6 +132,13 @@ export async function POST(
     latexSource = latexB64
       ? Buffer.from(latexB64, 'base64').toString('utf8')
       : '';
+
+    // If auto mode: update template_id in DB with the resolved template
+    const resolvedTemplate = apiResp.headers.get('x-betternotes-template');
+    if (resolvedTemplate && doc.template_id === 'auto') {
+      await supabase.from('documents').update({ template_id: resolvedTemplate }).eq('id', documentId);
+      doc.template_id = resolvedTemplate;
+    }
   } catch (fetchErr: any) {
     await supabase.from('documents').update({ status: 'error' }).eq('id', documentId);
     return NextResponse.json({ error: `Failed to reach app-api: ${fetchErr.message}` }, { status: 502 });
