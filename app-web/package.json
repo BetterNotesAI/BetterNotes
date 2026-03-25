@@ -24,6 +24,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.0",
+    "canvas": "^3.2.2",
     "eslint": "^9",
     "eslint-config-next": "^15.0.0",
     "postcss": "^8",
