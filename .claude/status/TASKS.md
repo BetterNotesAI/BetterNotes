@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-24 (cierre de sesión)_
+_Última actualización: 2026-03-25 (cierre de sesión)_
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
