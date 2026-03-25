@@ -164,7 +164,12 @@ export default function TemplatesPage() {
               return (
               <button
                 key={template.id}
-                onClick={() => { setSelected(template); setModalOpen(true); setCreateError(null); }}
+                onClick={() => {
+                  setSelected(template);
+                  setModalOpen(true);
+                  setCreateError(null);
+                  localStorage.setItem('lastTemplateId', template.id);
+                }}
                 className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
                   backdrop-blur p-4 text-left transition-all duration-200
                   hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
