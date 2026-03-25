@@ -25,17 +25,15 @@ interface Props {
   onTemplateChange?: (templateId: string) => void;
 }
 
+// F2-M7.1: Only 4 active templates shown in the creation bar.
+// Inactive templates (cornell, problem_solving, zettelkasten,
+// academic_paper, lab_report, data_analysis) are hidden in the UI
+// and marked is_active = false in the DB — not deleted.
 const TEMPLATES = [
-  { id: '2cols_portrait',       displayName: '2-Col Cheat Sheet', isPro: false },
+  { id: '2cols_portrait',       displayName: '2-Col Portrait',    isPro: false },
   { id: 'landscape_3col_maths', displayName: '3-Col Landscape',   isPro: false },
-  { id: 'cornell',              displayName: 'Cornell Notes',      isPro: false },
-  { id: 'problem_solving',      displayName: 'Problem Solving',    isPro: false },
-  { id: 'zettelkasten',         displayName: 'Zettelkasten',       isPro: false },
-  { id: 'study_form',           displayName: 'Study Form',         isPro: false },
-  { id: 'lecture_notes',        displayName: 'Lecture Notes',      isPro: false },
-  { id: 'academic_paper',       displayName: 'Academic Paper',     isPro: true  },
-  { id: 'lab_report',           displayName: 'Lab Report',         isPro: true  },
-  { id: 'data_analysis',        displayName: 'Data Analysis',      isPro: true  },
+  { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
+  { id: 'lecture_notes',        displayName: 'Long Notes',        isPro: false },
 ];
 
 export function DocumentCreationBar({

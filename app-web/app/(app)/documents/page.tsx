@@ -13,7 +13,7 @@ const ONBOARDING_STEPS = [
   {
     step: '1',
     title: 'Choose a template',
-    desc: '10 academic templates — cheat sheets, notes, problem sets',
+    desc: '4 templates — cheat sheets, notes, and multi-page documents',
     icon: (
       <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}

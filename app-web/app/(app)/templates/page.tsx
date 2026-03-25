@@ -14,11 +14,14 @@ interface Template {
   schematic: React.ReactNode;
 }
 
+// F2-M7.1: Only 4 active templates. Inactive ones (cornell, problem_solving,
+// zettelkasten, academic_paper, lab_report, data_analysis) are hidden in the UI
+// and marked is_active = false in the DB — not deleted.
 const TEMPLATES: Template[] = [
   {
     id: '2cols_portrait',
-    displayName: '2-Column Cheat Sheet',
-    description: 'Compact portrait sheet with 2 columns for formulas, definitions, and key results.',
+    displayName: '2-Column Portrait',
+    description: 'Compact A4 portrait sheet with 2 columns for formulas, definitions, and key results.',
     isPro: false,
     category: 'Notes',
     accent: '#6366f1',
@@ -34,36 +37,9 @@ const TEMPLATES: Template[] = [
     schematic: <ThreeColSchematic />,
   },
   {
-    id: 'cornell',
-    displayName: 'Cornell Notes',
-    description: 'Classic Cornell format with cue keywords in the left margin and a summary box.',
-    isPro: false,
-    category: 'Notes',
-    accent: '#14b8a6',
-    schematic: <CornellSchematic />,
-  },
-  {
-    id: 'problem_solving',
-    displayName: 'Problem Solving',
-    description: 'Structured problem/given/solution blocks with boxed answers for STEM practice.',
-    isPro: false,
-    category: 'Practice',
-    accent: '#f97316',
-    schematic: <ProblemSchematic />,
-  },
-  {
-    id: 'zettelkasten',
-    displayName: 'Zettelkasten Cards',
-    description: 'Knowledge cards with cross-references and tags in Zettelkasten style.',
-    isPro: false,
-    category: 'Notes',
-    accent: '#ec4899',
-    schematic: <ZettelSchematic />,
-  },
-  {
     id: 'study_form',
-    displayName: 'Study Form',
-    description: '3-column ultra-compact A4 with formula boxes, constant tables, and property lists.',
+    displayName: '3-Column Portrait',
+    description: 'Ultra-compact A4 portrait with 3 columns — formula boxes, constant tables, and property lists.',
     isPro: false,
     category: 'Notes',
     accent: '#22c55e',
@@ -71,39 +47,12 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'lecture_notes',
-    displayName: 'Lecture Notes',
-    description: 'Multi-page structured notes with objectives, examples, and a summary box.',
+    displayName: 'Long Notes (Chapters)',
+    description: 'Multi-page structured notes with learning objectives, numbered examples, and a summary box.',
     isPro: false,
     category: 'Notes',
     accent: '#3b82f6',
     schematic: <LectureSchematic />,
-  },
-  {
-    id: 'academic_paper',
-    displayName: 'Academic Paper',
-    description: 'Two-column AMS/Physical Review style paper with abstract, theorems, and bibliography.',
-    isPro: true,
-    category: 'Academic',
-    accent: '#eab308',
-    schematic: <AcademicPaperSchematic />,
-  },
-  {
-    id: 'lab_report',
-    displayName: 'Lab Report',
-    description: 'Technical report with experimental setup, data tables with uncertainties, and error analysis.',
-    isPro: true,
-    category: 'Academic',
-    accent: '#f43f5e',
-    schematic: <LabSchematic />,
-  },
-  {
-    id: 'data_analysis',
-    displayName: 'Data Analysis',
-    description: 'Statistics or ML report with Python code listings, results tables, and math.',
-    isPro: true,
-    category: 'Academic',
-    accent: '#06b6d4',
-    schematic: <DataSchematic />,
   },
 ];
 
