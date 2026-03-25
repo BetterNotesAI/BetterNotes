@@ -148,9 +148,13 @@ export function DocumentCreationBar({
       : { ...base, right: window.innerWidth - rect.right };
   }
 
-  // Template panel: simple toggle
   function toggleTemplate() {
-    if (openPanel === 'template') {
+    if (templateId) {
+      // already selected → deselect immediately, no dropdown
+      setTemplateId(null);
+      onTemplateChange?.('');
+      localStorage.removeItem('lastTemplateId');
+    } else if (openPanel === 'template') {
       setOpenPanel(null);
       setPopoverPos(null);
     } else {
