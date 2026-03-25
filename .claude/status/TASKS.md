@@ -99,12 +99,16 @@ _Prioridad: 🟡 Media_
   > 4 PNGs en public/templates/thumbnails/ (480x360 px, ~15KB c/u). Script reproducible en scripts/generate-thumbnails.js. canvas como devDependency.
 - [x] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · completado 2026-03-25
   > `<Image fill>` con `onError→hidden` sobre el schematic CSS. Aplicado en grid de cards y panel de detalle derecho. commit b719fa5.
-- [~] F2-M7.4 — PDF de muestra descargable por plantilla (estáticos en public/templates/samples/) · parcial 2026-03-25
-  > 9/10 PDFs generados. lecture_notes pendiente (fix workedexample aplicado, regenerar tras reiniciar app-api).
-  > UI del botón "Preview sample" pendiente (se implementa junto con M7.5 o en sesión siguiente).
-- [ ] F2-M7.5 — Mejorar estado visual de selección: borde de color vistoso + check en esquina superior derecha · ~30min
+- [x] F2-M7.4 — PDF de muestra descargable por plantilla (estáticos en public/templates/samples/) · completado 2026-03-25
+  > 9/10 PDFs generados (lecture_notes pendiente — regenerar tras reiniciar app-api). UI: botón "Sample" en card grid + "Preview sample PDF" en modal. commit be9528b.
+- [x] F2-M7.5 — Mejorar estado visual de selección: borde accent + check badge en card seleccionada · completado 2026-03-25
+- [x] Auto-template (extra) — Modo "Auto": gpt-4o-mini elige la plantilla óptima según el prompt · completado 2026-03-25
+  > templateId 'auto' → pickTemplate() en app-api → actualiza template_id en DB con ID resuelto. commit a84f645.
 
 _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquemático, PDF de muestra descargable, estado de selección claro._
+
+> **Estado:** COMPLETO (pendiente merge + regenerar lecture_notes.pdf)
+> Rama: feature/f2-m7-templates-revamp
 
 ---
 
