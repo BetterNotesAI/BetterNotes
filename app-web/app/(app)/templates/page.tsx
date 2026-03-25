@@ -15,9 +15,8 @@ interface Template {
   schematic: React.ReactNode;
 }
 
-// F2-M7.1: Only 4 active templates. Inactive ones (cornell, problem_solving,
-// zettelkasten, academic_paper, lab_report, data_analysis) are hidden in the UI
-// and marked is_active = false in the DB — not deleted.
+// All available templates. The home page and DocumentCreationBar only show the
+// 4 most popular ones; this page shows all of them.
 const TEMPLATES: Template[] = [
   {
     id: '2cols_portrait',
@@ -54,6 +53,60 @@ const TEMPLATES: Template[] = [
     category: 'Notes',
     accent: '#3b82f6',
     schematic: <LectureSchematic />,
+  },
+  {
+    id: 'cornell',
+    displayName: 'Cornell Notes',
+    description: 'Classic Cornell layout with cue column, notes area and summary box at the bottom.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#f59e0b',
+    schematic: <CornellSchematic />,
+  },
+  {
+    id: 'problem_solving',
+    displayName: 'Problem Solving',
+    description: 'Structured blocks for problem statement, given data, solution steps and final answer.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#ef4444',
+    schematic: <ProblemSchematic />,
+  },
+  {
+    id: 'zettelkasten',
+    displayName: 'Zettelkasten',
+    description: 'Atomic note cards with ID, title, body and tags — ideal for linked knowledge bases.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#10b981',
+    schematic: <ZettelSchematic />,
+  },
+  {
+    id: 'academic_paper',
+    displayName: 'Academic Paper',
+    description: 'Two-column academic layout with abstract, sections, equations and figure placeholders.',
+    isPro: false,
+    category: 'Papers',
+    accent: '#6b7280',
+    schematic: <AcademicPaperSchematic />,
+  },
+  {
+    id: 'lab_report',
+    displayName: 'Lab Report',
+    description: 'Lab report structure with introduction, setup diagram, data table and analysis.',
+    isPro: false,
+    category: 'Papers',
+    accent: '#14b8a6',
+    schematic: <LabSchematic />,
+  },
+  {
+    id: 'data_analysis',
+    displayName: 'Data Analysis',
+    description: 'Data analysis report with methodology, results tables, charts and conclusions.',
+    isPro: false,
+    category: 'Papers',
+    accent: '#f97316',
+    schematic: <DataSchematic />,
   },
 ];
 
