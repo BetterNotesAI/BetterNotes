@@ -9,8 +9,9 @@
 
 **Fase:** 2 — Cierre y refinamiento
 **Milestone activo:** F2-M7 — Templates revamp
-**Último milestone completado:** F2-M7.2 completado (rama feature/f2-m7-templates-revamp — 2026-03-25)
-**Último milestone de main:** F2-M6 COMPLETO (F2-M6.1 a F2-M6.7 completados — 2026-03-24)
+**Último milestone completado:** F2-M7.4 parcial (rama feature/f2-m7-templates-revamp — 2026-03-25)
+**Progreso F2-M7:** M7.1 ✅ M7.2 ✅ M7.3 ✅ M7.4 ⚠️ M7.5 en curso | Pendiente: lecture_notes.pdf (app-api restart), UI botón sample PDF, M7.5
+**Último milestone de main:** F2-M6 COMPLETO + fix "Unfiled→Documents" (b24f0a7 — 2026-03-25)
 **Bloqueantes:** F2-M5.1 Google OAuth (requiere Supabase Dashboard + Google Cloud Console) | F2-M5.6 Railway autodeploy (bloqueado por crédito trial $4.86)
 
 ## Plan reestructurado — 2026-03-22

@@ -97,8 +97,11 @@ _Prioridad: 🟡 Media_
   > Migración: 20260325000001_f2m7_templates_is_active.sql | Rama: feature/f2-m7-templates-revamp
 - [x] F2-M7.2 — Generar thumbnails PNG para cada una de las 4 plantillas (primera página como imagen) · completado 2026-03-25
   > 4 PNGs en public/templates/thumbnails/ (480x360 px, ~15KB c/u). Script reproducible en scripts/generate-thumbnails.js. canvas como devDependency.
-- [ ] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · ~30min
-- [ ] F2-M7.4 — PDF de muestra descargable por plantilla (subir a Supabase Storage, abrir en nueva pestaña) · ~1h
+- [x] F2-M7.3 — Mostrar thumbnail PNG encima del esquemático CSS existente (PNG como capa superior, esquemático como fallback si PNG no carga o no existe) · completado 2026-03-25
+  > `<Image fill>` con `onError→hidden` sobre el schematic CSS. Aplicado en grid de cards y panel de detalle derecho. commit b719fa5.
+- [~] F2-M7.4 — PDF de muestra descargable por plantilla (estáticos en public/templates/samples/) · parcial 2026-03-25
+  > 9/10 PDFs generados. lecture_notes pendiente (fix workedexample aplicado, regenerar tras reiniciar app-api).
+  > UI del botón "Preview sample" pendiente (se implementa junto con M7.5 o en sesión siguiente).
 - [ ] F2-M7.5 — Mejorar estado visual de selección: borde de color vistoso + check en esquina superior derecha · ~30min
 
 _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquemático, PDF de muestra descargable, estado de selección claro._
