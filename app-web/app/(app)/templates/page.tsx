@@ -113,7 +113,7 @@ const TEMPLATES: Template[] = [
 export default function TemplatesPage() {
   const router = useRouter();
   const [activeTemplateId, setActiveTemplateId] = useState<string>(() =>
-    typeof window !== 'undefined' ? (localStorage.getItem('lastTemplateId') ?? '2cols_portrait') : '2cols_portrait'
+    typeof window !== 'undefined' ? (localStorage.getItem('lastTemplateId') ?? '') : ''
   );
   const selected = TEMPLATES.find(t => t.id === activeTemplateId) ?? null;
   const [modalOpen, setModalOpen] = useState(false);
