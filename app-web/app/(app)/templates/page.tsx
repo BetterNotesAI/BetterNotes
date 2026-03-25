@@ -315,7 +315,6 @@ export default function TemplatesPage() {
                   />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-white/55 leading-relaxed">{selected.description}</p>
               {/* Sample PDF link */}
               <div className="mt-2.5 flex justify-center">
                 <a
@@ -330,6 +329,7 @@ export default function TemplatesPage() {
                   Preview sample PDF
                 </a>
               </div>
+              <p className="mt-2.5 text-xs text-white/55 leading-relaxed">{selected.description}</p>
             </div>
 
             {/* Creation bar */}
