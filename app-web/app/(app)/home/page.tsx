@@ -58,6 +58,7 @@ export default function HomePage() {
 
   function handleTemplateCardClick(templateId: string) {
     setSelectedTemplateId(templateId);
+    localStorage.setItem('lastTemplateId', templateId);
     barRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 

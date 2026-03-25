@@ -112,11 +112,10 @@ const TEMPLATES: Template[] = [
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<Template | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const saved = localStorage.getItem('lastTemplateId');
-    return saved ? (TEMPLATES.find(t => t.id === saved) ?? null) : null;
-  });
+  const [activeTemplateId, setActiveTemplateId] = useState<string>(() =>
+    typeof window !== 'undefined' ? (localStorage.getItem('lastTemplateId') ?? '2cols_portrait') : '2cols_portrait'
+  );
+  const selected = TEMPLATES.find(t => t.id === activeTemplateId) ?? null;
   const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -169,10 +168,10 @@ export default function TemplatesPage() {
               <button
                 key={template.id}
                 onClick={() => {
-                  setSelected(template);
+                  setActiveTemplateId(template.id);
+                  localStorage.setItem('lastTemplateId', template.id);
                   setModalOpen(true);
                   setCreateError(null);
-                  localStorage.setItem('lastTemplateId', template.id);
                 }}
                 className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
                   backdrop-blur p-4 text-left transition-all duration-200
@@ -315,6 +314,7 @@ export default function TemplatesPage() {
                 isLoading={isCreating}
                 error={createError}
                 initialTemplateId={selected.id}
+                onTemplateChange={(id) => { setActiveTemplateId(id); localStorage.setItem('lastTemplateId', id); }}
                 placeholder={`Describe your ${selected.displayName.toLowerCase()}...`}
                 autoFocus
               />
