@@ -93,8 +93,6 @@ export default function LatexViewer({
     return blocks.slice(start, start + blocksPerPage);
   }, [blocks, page, blocksPerPage]);
 
-  const layoutClass = getLayoutClass(templateId);
-
   if (!latexSource.trim()) {
     return (
       <div className="text-gray-400 italic text-sm p-4">
@@ -155,15 +153,10 @@ export default function LatexViewer({
 
       {/* ── Content area ── */}
       <div className="flex-1 overflow-auto">
-        <div
-          style={{ fontSize: `${zoom}%` }}
-          className={`px-6 py-5 font-sans text-gray-900 ${layoutClass}`}
-        >
-          {pageBlocks.map((block) => (
-            <LatexBlock key={block.id} block={block} />
-          ))}
+        <div style={{ fontSize: `${zoom}%` }} className="px-6 py-5 font-sans text-gray-900">
+          <BlockRegionRenderer blocks={pageBlocks} />
           {pageBlocks.length === 0 && (
-            <div className="text-gray-400 italic text-sm col-span-full">
+            <div className="text-gray-400 italic text-sm">
               Parser returned no blocks. Check the LaTeX source.
             </div>
           )}
@@ -171,4 +164,44 @@ export default function LatexViewer({
       </div>
     </div>
   );
+}
+
+/**
+ * Renders blocks respecting col-start / col-end markers.
+ * Blocks outside multicols are full-width; blocks inside use CSS columns.
+ */
+function BlockRegionRenderer({ blocks }: { blocks: import('@/lib/latex-parser').Block[] }) {
+  const regions: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < blocks.length) {
+    const block = blocks[i];
+
+    if (block.type === 'col-start') {
+      const colCount = parseInt(block.latex_source) || 2;
+      const inner: React.ReactNode[] = [];
+      i++;
+      while (i < blocks.length && blocks[i].type !== 'col-end') {
+        inner.push(<LatexBlock key={blocks[i].id} block={blocks[i]} />);
+        i++;
+      }
+      regions.push(
+        <div
+          key={block.id}
+          style={{ columnCount: colCount, columnGap: '1.5rem' }}
+          className="w-full"
+        >
+          {inner}
+        </div>
+      );
+      i++; // skip col-end
+    } else if (block.type !== 'col-end') {
+      regions.push(<LatexBlock key={block.id} block={block} />);
+      i++;
+    } else {
+      i++;
+    }
+  }
+
+  return <>{regions}</>;
 }

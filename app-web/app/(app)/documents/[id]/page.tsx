@@ -14,7 +14,7 @@ import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
 import LatexViewer from '@/components/viewer/LatexViewer';
 
-type ViewerTab = 'pdf' | 'latex' | 'split';
+type ViewerTab = 'interactive' | 'pdf' | 'latex' | 'split';
 
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
@@ -110,7 +110,7 @@ export default function DocumentWorkspacePage() {
   const [isGuest, setIsGuest] = useState(false);
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
-  const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
+  const [viewerTab, setViewerTab] = useState<ViewerTab>('interactive');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -463,24 +463,34 @@ export default function DocumentWorkspacePage() {
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         }`}>
 
-          {/* Unified tab + controls bar — hidden when LatexViewer is active (F3-M2.5) */}
-          <div className={`flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0 ${latexContent ? 'hidden' : ''}`}>
-            {/* F3-M2.5 — PDF / LaTeX / Split tabs hidden in UI (code intact as fallback) */}
-            <div className="hidden">
-              {(['pdf', 'latex', 'split'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setViewerTab(tab)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
-                    viewerTab === tab
-                      ? 'bg-white/20 text-white'
-                      : 'text-white/60 hover:text-white/80 hover:bg-white/10'
-                  }`}
-                >
-                  {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
-                </button>
-              ))}
-            </div>
+          {/* Tab + controls bar */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
+            {/* Viewer tabs — Interactive shown only when latexContent exists */}
+            {latexContent && (
+              <button
+                onClick={() => setViewerTab('interactive')}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                  viewerTab === 'interactive'
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/60 hover:text-white/80 hover:bg-white/10'
+                }`}
+              >
+                Interactive
+              </button>
+            )}
+            {(['pdf', 'latex', 'split'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setViewerTab(tab)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                  viewerTab === tab
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/60 hover:text-white/80 hover:bg-white/10'
+                }`}
+              >
+                {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
+              </button>
+            ))}
 
             {/* Spacer */}
             <div className="flex-1" />
@@ -557,18 +567,23 @@ export default function DocumentWorkspacePage() {
           {/* Viewer body */}
           <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden">
 
-            {/* F3-M2.6 — Interactive LaTeX viewer (primary view) */}
-            {latexContent ? (
-              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white">
+            {/* Interactive viewer (F3-M2.6) */}
+            {viewerTab === 'interactive' && latexContent && (
+              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto">
                 <LatexViewer
                   latexSource={latexContent}
                   templateId={docData.template_id}
-                  className="flex-1"
                 />
               </div>
-            ) : (
-              /* Fallback: when no latex content yet, show PDF viewer or draft empty state */
-              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+            )}
+
+            {/* PDF pane */}
+            {(viewerTab === 'pdf' || viewerTab === 'split') && (
+              <div
+                ref={pdfPaneRef}
+                style={viewerTab === 'split' ? { width: `${splitRatio * 100}%` } : undefined}
+                className={`flex flex-col min-h-0 min-w-0 ${viewerTab === 'split' ? '' : 'flex-1'}`}
+              >
                 <PdfViewer
                   url={activePdfUrl}
                   isLoading={showGenerating && !activePdfUrl}
@@ -580,31 +595,16 @@ export default function DocumentWorkspacePage() {
               </div>
             )}
 
-            {/* Legacy views (hidden — code intact as fallback per F3-M2.5) */}
-            <div className="hidden">
-              {/* PDF pane */}
-              <div
-                ref={pdfPaneRef}
-                style={viewerTab === 'split' ? { width: `${splitRatio * 100}%` } : undefined}
-                className={`flex flex-col min-h-0 min-w-0 ${
-                  viewerTab === 'split' ? '' : 'flex-1'
-                }`}
-              >
-                <PdfViewer
-                  url={activePdfUrl}
-                  isLoading={showGenerating && !activePdfUrl}
-                  loadingLabel={loadingLabel}
-                  zoom={zoom}
-                  currentPage={currentPage}
-                  onTotalPages={setTotalPages}
-                />
-              </div>
-              {/* Resizer */}
+            {/* Resizer (split only) */}
+            {viewerTab === 'split' && (
               <div
                 onMouseDown={handleResizerMouseDown}
                 className="w-1 bg-white/10 hover:bg-indigo-400/60 cursor-col-resize transition-colors flex-shrink-0"
               />
-              {/* LaTeX pane */}
+            )}
+
+            {/* LaTeX pane */}
+            {(viewerTab === 'latex' || viewerTab === 'split') && (
               <div
                 style={viewerTab === 'split' ? { width: `${(1 - splitRatio) * 100}%` } : undefined}
                 className={`flex flex-col min-h-0 min-w-0 ${viewerTab !== 'split' ? 'flex-1' : ''}`}
@@ -621,7 +621,21 @@ export default function DocumentWorkspacePage() {
                   </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* Fallback: draft with no content yet */}
+            {viewerTab === 'interactive' && !latexContent && (
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <PdfViewer
+                  url={activePdfUrl}
+                  isLoading={showGenerating && !activePdfUrl}
+                  loadingLabel={loadingLabel}
+                  zoom={zoom}
+                  currentPage={currentPage}
+                  onTotalPages={setTotalPages}
+                />
+              </div>
+            )}
 
           </div>
         </div>

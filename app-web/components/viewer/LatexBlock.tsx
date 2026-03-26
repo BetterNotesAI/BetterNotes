@@ -114,7 +114,7 @@ function renderLatexCommands(text: string): string {
     .replace(/\\textcolor\{[^}]*\}\{([^}]*)\}/g, '$1')
     // \text{...}
     .replace(/\\text\{([^}]*)\}/g, '$1')
-    // \\ → line break
+    // \\ → line break (trailing \\ already stripped in parser before reaching here)
     .replace(/\\\\/g, '<br/>')
     // \hfill → spacer
     .replace(/\\hfill/g, ' ')
@@ -261,6 +261,23 @@ export default function LatexBlock({ block }: LatexBlockProps) {
 
     case 'table':
       return renderTable(block.latex_source);
+
+    case 'hr':
+      return <hr className="my-2 border-gray-400" style={{ breakBefore: 'avoid' }} />;
+
+    case 'box':
+      return (
+        <div
+          style={{ breakInside: 'avoid' }}
+          className="my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm"
+        >
+          <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
+        </div>
+      );
+
+    case 'col-start':
+    case 'col-end':
+      return null;
 
     default:
       return null;

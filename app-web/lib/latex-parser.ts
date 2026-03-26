@@ -18,7 +18,11 @@ export type BlockType =
   | 'formula-inline'
   | 'table'
   | 'list'
-  | 'paragraph';
+  | 'paragraph'
+  | 'hr'
+  | 'box'
+  | 'col-start'
+  | 'col-end';
 
 export interface Block {
   id: string;
@@ -168,6 +172,27 @@ function extractBracedArg(text: string, pos: number): { content: string; end: nu
 }
 
 /**
+ * Replace \MyBox{content} with a ___box___...___endbox___ marker.
+ * Uses balanced-brace extraction to handle nested {} inside content.
+ */
+function preprocessMyBox(text: string): string {
+  const cmd = '\\MyBox';
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    const idx = text.indexOf(cmd, i);
+    if (idx === -1) { result += text.slice(i); break; }
+    result += text.slice(i, idx);
+    const afterCmd = idx + cmd.length;
+    const arg = extractBracedArg(text, afterCmd);
+    if (!arg) { result += cmd; i = afterCmd; continue; }
+    result += `\n___box___${arg.content}___endbox___\n`;
+    i = arg.end;
+  }
+  return result;
+}
+
+/**
  * Replace \formulabox{label}{formula} with $$formula$$.
  * Uses balanced-brace extraction to handle nested {} inside the formula.
  */
@@ -204,9 +229,12 @@ function tokenizeTextChunk(text: string, blocks: Block[]): void {
   // Pre-process custom template commands before tokenizing
   // \sectionbar{title} → \section{title}
   text = text.replace(/\\sectionbar\{([^}]*)\}/g, '\\section{$1}');
+  // \MyBox{content} → ___box___content___endbox___ marker
+  text = preprocessMyBox(text);
   // \formulabox{label}{formula} → $$formula$$
-  // Uses balanced-brace extraction because formula may contain nested {} (e.g. \mathbf{B})
   text = preprocessFormulabox(text);
+  // \HR → ___hr___ marker (horizontal rule separator)
+  text = text.replace(/\\HR\b/g, '\n___hr___\n');
 
   // First split by section commands
   const parts: Array<{ content: string; isSection: boolean }> = [];
@@ -236,49 +264,83 @@ function tokenizeTextChunk(text: string, blocks: Block[]): void {
       continue;
     }
 
-    // Split non-section text by display math
-    const mathSegments = splitDisplayMath(part.content);
-    for (const seg of mathSegments) {
-      if (seg.isMath) {
-        // Extract inner content from $$...$$ or \[...\]
-        let inner = seg.content;
-        if (inner.startsWith('$$')) {
-          inner = inner.slice(2, -2);
-        } else if (inner.startsWith('\\[')) {
-          inner = inner.slice(2, -2);
-        }
-        blocks.push({
-          id: makeId('formula-block'),
-          type: 'formula-block',
-          latex_source: inner.trim(),
-        });
-      } else {
-        // Plain text — trim and skip if empty
-        const trimmed = seg.content
-          .replace(/\\maketitle/g, '')
-          .replace(/\\pagestyle\{[^}]*\}/g, '')
-          .replace(/\\pagenumbering\{[^}]*\}/g, '')
-          .replace(/\\newpage/g, '')
-          .replace(/\\clearpage/g, '')
-          .replace(/\\vspace\{[^}]*\}/g, '')
-          .replace(/\\hfill/g, ' ')
-          .replace(/\\HR\b/g, '')
-          .replace(/\\\\$/gm, '')
-          .trim();
-
-        if (!trimmed) continue;
-
-        // Check if it's just whitespace/comments
-        const meaningful = trimmed.replace(/%[^\n]*/g, '').trim();
-        if (!meaningful) continue;
-
-        const type: BlockType = hasInlineMath(trimmed) ? 'formula-inline' : 'paragraph';
-        blocks.push({
-          id: makeId(type),
-          type,
-          latex_source: trimmed,
-        });
+    // Split by ___hr___ markers first, then by ___box___ markers, then by display math
+    const hrParts = part.content.split('___hr___');
+    for (let hIdx = 0; hIdx < hrParts.length; hIdx++) {
+      if (hIdx > 0) {
+        blocks.push({ id: makeId('hr'), type: 'hr', latex_source: '' });
       }
+
+      // Split by ___box___...___endbox___ markers
+      const boxRe = /___box___([\s\S]*?)___endbox___/g;
+      let boxLast = 0;
+      let boxMatch: RegExpExecArray | null;
+      const hrPart = hrParts[hIdx];
+      boxRe.lastIndex = 0;
+      while ((boxMatch = boxRe.exec(hrPart)) !== null) {
+        if (boxMatch.index > boxLast) {
+          processTextSegment(hrPart.slice(boxLast, boxMatch.index), blocks);
+        }
+        blocks.push({ id: makeId('box'), type: 'box', latex_source: boxMatch[1].trim() });
+        boxLast = boxMatch.index + boxMatch[0].length;
+      }
+      if (boxLast < hrPart.length) {
+        processTextSegment(hrPart.slice(boxLast), blocks);
+      }
+    }
+  }
+}
+
+function processTextSegment(text: string, blocks: Block[]): void {
+  const mathSegments = splitDisplayMath(text);
+  for (const seg of mathSegments) {
+    if (seg.isMath) {
+      let inner = seg.content;
+      if (inner.startsWith('$$')) inner = inner.slice(2, -2);
+      else if (inner.startsWith('\\[')) inner = inner.slice(2, -2);
+      blocks.push({ id: makeId('formula-block'), type: 'formula-block', latex_source: inner.trim() });
+    } else {
+      const trimmed = seg.content
+        .replace(/\\maketitle/g, '')
+        .replace(/\\pagestyle\{[^}]*\}/g, '')
+        .replace(/\\pagenumbering\{[^}]*\}/g, '')
+        .replace(/\\newpage/g, '')
+        .replace(/\\clearpage/g, '')
+        .replace(/\\vspace\{[^}]*\}/g, '')
+        .replace(/\\hfill/g, ' ')
+        .replace(/\\HR\b/g, '')
+        .replace(/\\\\[ \t]*$/gm, '')  // strip trailing \\ (LaTeX line-break artifact)
+        // Remove font-size commands used as standalone lines (e.g. \footnotesize)
+        .replace(/^\\(?:footnotesize|scriptsize|small|normalsize|large|Large|LARGE|huge|Huge)\s*$/gm, '')
+        .trim();
+
+      if (!trimmed) continue;
+      const meaningful = trimmed.replace(/%[^\n]*/g, '').trim();
+      if (!meaningful) continue;
+
+      // Strip orphaned braces left after LaTeX command removal (e.g. from title groups)
+      const cleaned = trimmed.replace(/^\{([\s\S]*)\}$/, '$1').trim();
+      if (!cleaned) continue;
+
+      // Detect title-like lines: original text used \Large, \huge, \bfseries as document title
+      const isTitle = /\\(?:Large|LARGE|huge|Huge|bfseries)/.test(trimmed);
+      if (isTitle) {
+        // Extract meaningful text: strip all LaTeX commands, keep text and \hfill→space
+        const titleText = cleaned
+          .replace(/\\(?:Large|LARGE|huge|Huge|large|bfseries|mdseries|normalsize|small|scriptsize|footnotesize)\b/g, '')
+          .replace(/\\hfill/g, ' — ')
+          .replace(/\\[a-zA-Z]+\*?(?:\{[^}]*\})?/g, '')
+          .replace(/[{}]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (titleText) {
+          blocks.push({ id: makeId('section'), type: 'section', latex_source: titleText, level: 1 });
+        }
+        continue;
+      }
+
+      const type: BlockType = hasInlineMath(cleaned) ? 'formula-inline' : 'paragraph';
+      blocks.push({ id: makeId(type), type, latex_source: cleaned });
     }
   }
 }
@@ -346,11 +408,15 @@ export function parseLatex(latex: string): Block[] {
         latex_source: extracted.full,
       });
     } else if (env === 'multicols' || env === 'multicols*') {
-      // Strip optional {N} column-count argument at the start of inner content
+      // Strip optional {N} column-count argument and capture column count
+      const colMatch = extracted.inner.match(/^\s*\{(\d+)\}/);
+      const colCount = colMatch ? colMatch[1] : '2';
       const innerContent = extracted.inner.replace(/^\s*\{[^}]*\}/, '');
-      // Recurse into multicols content — flatten to linear blocks
+      // Emit col-start marker, recurse, emit col-end marker
+      blocks.push({ id: makeId('col-start'), type: 'col-start', latex_source: colCount });
       const innerBlocks = parseLatex(innerContent);
       blocks.push(...innerBlocks);
+      blocks.push({ id: makeId('col-end'), type: 'col-end', latex_source: '' });
     } else {
       // theorem-like, tcolorbox, workedexample, keypoint, warning — treat as paragraph
       // that may contain math inside
@@ -361,7 +427,9 @@ export function parseLatex(latex: string): Block[] {
     remaining = remaining.slice(extracted.end);
   }
 
-  return blocks.filter(b => b.latex_source.trim().length > 0);
+  return blocks.filter(b =>
+    b.latex_source.trim().length > 0 || b.type === 'hr' || b.type === 'col-end'
+  );
 }
 
 /**
@@ -371,5 +439,7 @@ export function parseLatex(latex: string): Block[] {
 function parseLatexFragment(fragment: string): Block[] {
   const blocks: Block[] = [];
   tokenizeTextChunk(fragment, blocks);
-  return blocks.filter(b => b.latex_source.trim().length > 0);
+  return blocks.filter(b =>
+    b.latex_source.trim().length > 0 || b.type === 'hr' || b.type === 'col-end'
+  );
 }
