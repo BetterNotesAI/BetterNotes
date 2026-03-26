@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 (session-end) — F3-M1 completado. F3-M2 en progreso (pendiente: `\\` saltos de linea). Activo: F3-M2 Renderizado base._
+_Última actualización: 2026-03-26 (sesion 2) — UI/UX stars+carpetas completado. FolderSectionMenu: Change color, Download PDFs (basico), Archive folder. Backlog nuevo: ZIP real, subcarpetas, vista archivadas. F3-M2 sigue en progreso (pendiente: `\\` saltos de linea)._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -83,6 +83,16 @@ _Prioridad: 🔴 Alta — COMPLETADO (F2-M6.1 a F2-M6.7 completados 2026-03-24)_
   > carpetas colapsadas en vista All Documents (click abre folder-filtered view).
 
 _Criterio de aceptación: Sidebar muestra nueva estructura completa. All Documents tiene Starred, orden correcto, menús 3-dots completos y vista de carpeta con miniaturas._
+
+**Mejoras adicionales (2026-03-26 sesion 2) — COMPLETADAS:**
+
+- [x] Star hover preview: hover sobre estrella marcada muestra icono outline (preview "quitar estrella") antes de confirmar — en documentos y carpetas
+- [x] Carpetas starred se muestran en seccion "Starred" con el mismo formato card que en Folders. Desaparecen de la seccion Folders cuando estan starred.
+- [x] Estrella en folder cards siempre visible (no solo al hover)
+- [x] Alineacion horizontal en folder cards corregida: dot + icono + nombre + tres puntos + estrella + chevron
+- [x] FolderSectionMenu — Change color: picker con 10 colores predefinidos, checkmark en color activo. PATCH /api/folders/[id]
+- [x] FolderSectionMenu — Download PDFs: descarga PDFs de todos los documentos de la carpeta. GET /api/folders/[id]/download. Basico — sin ZIP ni progress.
+- [x] FolderSectionMenu — Archive folder: archiva la carpeta (archived_at), la saca del listado. PATCH /api/folders/[id]. Migracion SQL: 20260326000003_folders_archived_at.sql aplicada en Supabase.
 
 ---
 
@@ -309,6 +319,17 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 
 ---
 
+## Backlog UI/UX — pendientes identificados en sesión 2026-03-26 (sesion 2)
+
+| Prioridad | Tarea | Notas |
+|-----------|-------|-------|
+| 🟡 Media | **Bug — Download PDFs de carpeta no funciona**: el boton "Download PDFs" en el menu de carpetas no descarga ningun fichero. Endpoint implementado: GET /api/folders/[id]/download. Causa desconocida, pendiente de investigar. | Bug introducido en sesion 2026-03-26 sesion 2. No bloquea otras features. |
+| 🟡 Media | Mejorar Download PDFs de carpeta: ZIP real + progress indicator | Una vez resuelto el bug anterior. Actualmente descarga archivos individualmente. |
+| 🟡 Media | Subcarpetas: New folder here + Move to | No implementado. Opciones en menu como "disabled/Soon". |
+| 🟢 Baja | Archive folder: vista de carpetas archivadas + opcion de restaurar | Archive funciona (archived_at), pero no hay UI para ver ni restaurar las archivadas. |
+
+---
+
 ## Deuda técnica conocida
 
 | Severidad | Descripción | Milestone |
@@ -320,6 +341,8 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 | 🟢 Baja | Plantillas hardcodeadas en app-api | Se resuelve en F2-M7 |
 | 🟢 Baja | Exportar .tex además del PDF | Pendiente |
 | 🟢 Baja | `onTrigger` en NewDocumentWatcher debería estar en useCallback | Pendiente |
+| 🟡 Media | **Bug** — Download PDFs de carpeta no descarga ningun fichero (boton en FolderSectionMenu) | Backlog UI/UX 2026-03-26 — pendiente investigar causa |
+| 🟢 Baja | Download PDFs de carpeta: mejorar a ZIP real + progress indicator (tras fix del bug) | Backlog UI/UX 2026-03-26 |
 
 ---
 

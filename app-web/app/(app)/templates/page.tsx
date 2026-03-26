@@ -119,6 +119,8 @@ export default function TemplatesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
+  const pdfPreviewTemplate = TEMPLATES.find(t => t.id === pdfPreviewId) ?? null;
 
   async function handleCreate(data: CreateDocumentInput) {
     setIsCreating(true);
@@ -165,16 +167,26 @@ export default function TemplatesPage() {
             {TEMPLATES.map(template => {
               const isSelected = !!activeTemplateId && activeTemplateId === template.id;
               return (
-              <button
+              <div
                 key={template.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setActiveTemplateId(template.id);
                   localStorage.setItem('lastTemplateId', template.id);
                   setModalOpen(true);
                   setCreateError(null);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setActiveTemplateId(template.id);
+                    localStorage.setItem('lastTemplateId', template.id);
+                    setModalOpen(true);
+                    setCreateError(null);
+                  }
+                }}
                 className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
-                  backdrop-blur p-4 text-left transition-all duration-200
+                  backdrop-blur p-4 text-left transition-all duration-200 cursor-pointer
                   hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
                 style={{
                   borderColor: isSelected ? template.accent + 'cc' : 'rgba(255,255,255,0.15)',
@@ -226,7 +238,7 @@ export default function TemplatesPage() {
                 </div>
                 <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
 
-                {/* Category pill + sample link */}
+                {/* Category pill + eye button */}
                 <div className="mt-2.5 flex items-center justify-between">
                   <span
                     className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
@@ -234,25 +246,95 @@ export default function TemplatesPage() {
                   >
                     {template.category}
                   </span>
-                  <a
-                    href={`/templates/samples/${template.id}.pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[10px] text-white/35 hover:text-white/70 transition-colors flex items-center gap-0.5"
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPdfPreviewId(template.id);
+                    }}
+                    title="Preview sample PDF"
+                    className="text-white/35 hover:text-white/70 transition-colors flex items-center gap-1 text-[10px]"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Sample
-                  </a>
+                  </button>
                 </div>
-              </button>
+              </div>
               );
             })}
           </div>
         </div>
       </div>
+
+      {/* PDF preview modal */}
+      {pdfPreviewTemplate && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setPdfPreviewId(null); }}
+        >
+          <div className="w-full max-w-4xl h-[85vh] rounded-2xl border border-white/15 bg-neutral-950/98 backdrop-blur-xl
+            shadow-[0_24px_80px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center border shrink-0"
+                  style={{ background: `${pdfPreviewTemplate.accent}20`, borderColor: `${pdfPreviewTemplate.accent}40` }}
+                >
+                  <svg className="w-3.5 h-3.5" style={{ color: pdfPreviewTemplate.accent }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-white">{pdfPreviewTemplate.displayName}</h2>
+                    {pdfPreviewTemplate.isPro && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md
+                        bg-yellow-400/15 border border-yellow-400/30 text-yellow-300/90">Pro</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-white/40">Sample PDF preview</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/templates/samples/${pdfPreviewTemplate.id}.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70
+                    px-2.5 py-1.5 rounded-lg hover:bg-white/8 transition-colors border border-white/10 hover:border-white/20"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                  Open in new tab
+                </a>
+                <button
+                  onClick={() => setPdfPreviewId(null)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40
+                    hover:text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* PDF iframe */}
+            <div className="flex-1 overflow-hidden bg-neutral-900">
+              <iframe
+                src={`/templates/samples/${pdfPreviewTemplate.id}.pdf`}
+                className="w-full h-full border-0"
+                title={`${pdfPreviewTemplate.displayName} sample PDF`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview modal */}
       {selected && modalOpen && (
@@ -317,17 +399,16 @@ export default function TemplatesPage() {
               </div>
               {/* Sample PDF link */}
               <div className="mt-2.5 flex justify-center">
-                <a
-                  href={`/templates/samples/${selected.id}.pdf`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => setPdfPreviewId(selected.id)}
                   className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   Preview sample PDF
-                </a>
+                </button>
               </div>
               <p className="mt-2.5 text-xs text-white/55 leading-relaxed">{selected.description}</p>
             </div>

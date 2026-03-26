@@ -71,12 +71,15 @@ export default function DocumentWorkspacePage() {
     document: docData,
     pdfSignedUrl,
     latexContent,
+    versions,
+    activeVersionId,
     isLoading,
     isGenerating,
     generationPhase,
     error: wsError,
     generate,
     reload: reloadDocument,
+    switchVersion,
   } = useDocumentWorkspace(documentId);
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
@@ -111,6 +114,8 @@ export default function DocumentWorkspacePage() {
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('interactive');
+  const searchParamsDoc = useSearchParams();
+  const [showHistory, setShowHistory] = useState(() => searchParamsDoc.get('history') === '1');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -492,6 +497,19 @@ export default function DocumentWorkspacePage() {
               </button>
             ))}
 
+            {/* History button */}
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                showHistory
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/60 hover:text-white/80 hover:bg-white/10'
+              }`}
+              title="Version history"
+            >
+              History
+            </button>
+
             {/* Spacer */}
             <div className="flex-1" />
 
@@ -565,7 +583,7 @@ export default function DocumentWorkspacePage() {
           )}
 
           {/* Viewer body */}
-          <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden">
+          <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative">
 
             {/* Interactive viewer (F3-M2.6) */}
             {viewerTab === 'interactive' && latexContent && (
@@ -634,6 +652,76 @@ export default function DocumentWorkspacePage() {
                   currentPage={currentPage}
                   onTotalPages={setTotalPages}
                 />
+              </div>
+            )}
+
+            {/* Version History panel — slides in from the right over the viewer */}
+            {showHistory && (
+              <div className="absolute top-0 right-0 h-full w-72 flex flex-col bg-neutral-950/95 border-l border-white/15 backdrop-blur-xl z-30 shadow-2xl">
+                {/* Panel header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-white/80">Version History</span>
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(false)}
+                    className="text-white/30 hover:text-white/70 transition-colors p-0.5 rounded hover:bg-white/8"
+                    aria-label="Close history"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Version list */}
+                <div className="flex-1 overflow-y-auto py-2">
+                  {versions.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-white/30">
+                      No versions yet
+                    </div>
+                  ) : (
+                    versions.map((v) => {
+                      const isActive = v.id === activeVersionId;
+                      const promptText =
+                        !v.prompt_used || v.prompt_used === '[duplicated]'
+                          ? 'Initial version'
+                          : v.prompt_used.length > 60
+                          ? v.prompt_used.slice(0, 60) + '…'
+                          : v.prompt_used;
+                      const dateLabel = new Date(v.created_at).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => switchVersion(v.id)}
+                          className={`w-full text-left px-4 py-3 transition-colors border-b border-white/5 last:border-0 ${
+                            isActive
+                              ? 'bg-indigo-500/15 hover:bg-indigo-500/20'
+                              : 'hover:bg-white/8'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-xs font-semibold ${isActive ? 'text-indigo-300' : 'text-white/80'}`}>
+                              v{v.version_number}
+                            </span>
+                            {isActive && (
+                              <span className="text-[10px] font-medium text-indigo-400 bg-indigo-500/20 px-1.5 py-0.5 rounded-full">
+                                active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-white/40 mb-1 leading-snug">{dateLabel}</p>
+                          <p className="text-[11px] text-white/55 leading-snug line-clamp-2">{promptText}</p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 

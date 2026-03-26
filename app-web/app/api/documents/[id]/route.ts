@@ -36,12 +36,23 @@ export async function GET(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
+  // Get user plan to apply version visibility limit
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('plan')
+    .eq('id', user.id)
+    .maybeSingle();
+  const userPlan = profile?.plan ?? 'free';
+  const versionLimit = userPlan === 'pro' ? undefined : 3;
+
   // Load version metadata list (no PDF URLs — caller fetches individually when needed)
-  const { data: versions } = await supabase
+  let versionsQuery = supabase
     .from('document_versions')
     .select('id, version_number, created_at, prompt_used, compile_status')
     .eq('document_id', documentId)
     .order('version_number', { ascending: false });
+  if (versionLimit) versionsQuery = versionsQuery.limit(versionLimit);
+  const { data: versions } = await versionsQuery;
 
   let pdfSignedUrl: string | null = null;
   let latexContent: string | null = null;
