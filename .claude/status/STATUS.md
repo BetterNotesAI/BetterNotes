@@ -8,12 +8,12 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo
-**Milestone activo:** F3-M3 — Interactividad (patrón Typora)
-**Tarea activa:** F3-M3.1 — Hover sobre bloque → borde sutil resaltado
-**Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26)
+**Milestone activo:** F3-M2 — Renderizado base (EN PROGRESO)
+**Tarea activa:** F3-M2 — Pendiente: renderizado de saltos de linea (`\\`) en parrafos
+**Último hito cerrado:** F3-M1 — Arquitectura + PoC ✅ (2026-03-26)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** session/2026-03-26
-**Bloqueantes:** ninguno
+**Bloqueantes:** ninguno (pendiente menor: `\\` en parrafos para F3-M2)
 
 ---
 
@@ -44,7 +44,7 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 **Milestones F3:**
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
-- [ ] F3-M2 — Renderizado base ← ACTIVO
+- [ ] F3-M2 — Renderizado base ← ACTIVO (pendiente: renderizado `\\` en parrafos)
 - [ ] F3-M3 — Interactividad (patrón Typora)
 - [ ] F3-M4 — Chat contextual
 - [ ] F3-M5 — Publish to My Studies + polish
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 — F3-M2 cerrado. Milestone completo: LatexViewer con multicolumna, toolbar pagination/zoom, toggles PDF/LaTeX ocultos, visor integrado en workspace. Activo: F3-M3 Interactividad.*
+*Última actualización: 2026-03-26 (session-end) — F3-M1 completado. F3-M2 en progreso: LatexViewer integrado en /documents/[id] con tab "Interactive", layout CSS columns, toolbar pagination/zoom, titulo, separadores HR, MyBox. Pendiente: renderizado saltos de linea (`\\`) en parrafos.*

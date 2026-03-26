@@ -4,6 +4,43 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-26 (session-end) — F3-M1 completado + F3-M2 visor integrado (en progreso)
+
+**Completado:**
+- F2-M5.1: Google OAuth verificado en producción — registro y login con Google funcionan (confirmado al inicio de sesion)
+- Fase 2 cerrada oficialmente: todos los milestones completados. HTML de cierre generado: .claude/reports/F2_cierre.html
+- F3-M1.1: Decision parser manual (regex + split en lib/latex-parser.ts) — sin librerias externas
+- F3-M1.2: KaTeX validado — compatible con los 4 templates, macros custom \dd, \real, \cplex declaradas
+- F3-M1.3: Decision on-the-fly desde document_versions.latex_source — sin tabla document_blocks
+- F3-M1.4: PoC funcional — pipeline LaTeX→bloques→KaTeX verificado, pagina /viewer-poc operativa
+- F3-M1 COMPLETADO — gate para F3-M2 desbloqueado
+- F3-M2: Visor integrado en /documents/[id] con tab "Interactive", layout CSS columns segun template, toolbar pagination/zoom, titulo, separadores HR, MyBox renderizado. Sub-milestones M2.1-M2.7 completados.
+
+**Pendiente (F3-M2 no cerrado):**
+- Renderizado de saltos de linea (`\\`) en bloques de texto/parrafos — sin resolver, se deja para proxima sesion
+- lecture_notes.pdf en public/templates/samples/ — el usuario lo anadira cuando pueda
+
+**Decisiones tomadas:**
+- Parser LaTeX manual (regex + split) — cero dependencias, <2kb, interfaz Block estable para futura migracion
+- Datos del visor on-the-fly desde document_versions — sin nueva tabla en DB
+- KaTeX con macros custom en frontend para los 4 templates
+- F3-M2 se deja abierto (pendiente `\\`) — no se declara completo hasta resolver
+
+**Tareas opcionales identificadas (no en plan, a debatir):**
+- Mejorar menu 3-dots de documentos con opciones adicionales
+- Boton "Crear carpeta" en All Documents
+- Mejorar vista previa de templates al hacer click
+- Otras mejoras UI secundarias
+
+**Problemas encontrados:**
+- Renderizado de `\\` en parrafos: el parser/LatexBlock no mapea doble backslash a salto de linea — queda para F3-M2 proxima sesion
+
+**Lecciones capturadas:** no
+
+**Siguiente:** Resolver `\\` en parrafos para cerrar F3-M2, luego iniciar F3-M3 (Interactividad — patron Typora)
+
+---
+
 ## Sesión 2026-03-26 — CIERRE FASE 2 + F2-M5.1 Google OAuth verificado en producción
 
 **Completado:**

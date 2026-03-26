@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 — F3-M1 completado. Activo: F3-M2 Renderizado base._
+_Última actualización: 2026-03-26 (session-end) — F3-M1 completado. F3-M2 en progreso (pendiente: `\\` saltos de linea). Activo: F3-M2 Renderizado base._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -151,7 +151,7 @@ _Estado: ✅ COMPLETADO — todos los sub-milestones verificados. Gate para F3-M
 
 ---
 
-### F3-M2 — Renderizado base ✅ COMPLETADO (2026-03-26)
+### F3-M2 — Renderizado base (EN PROGRESO)
 _Prerrequisito: F3-M1 completado_
 
 - [x] F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates · Completada: lib/latex-parser.ts (validado en F3-M1, reutilizado sin cambios)
@@ -159,11 +159,13 @@ _Prerrequisito: F3-M1 completado_
 - [x] F3-M2.3 — Layout multi-columna según plantilla activa (CSS grid) · Completada: LatexViewer recibe `templateId`, aplica grid-cols-1/2/3 según template
 - [x] F3-M2.4 — Toolbar superior: navegación de páginas virtuales + zoom · Completada: toolbar con prev/next y presets 75/100/125/150% integrado en LatexViewer
 - [x] F3-M2.5 — Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace · Completada: envueltos en `<div className="hidden">`, código intacto
-- [x] F3-M2.6 — Workspace muestra LatexViewer como vista principal · Completada: documents/[id]/page.tsx carga latexContent + template_id desde hook existente
+- [x] F3-M2.6 — Workspace muestra LatexViewer como vista principal · Completada: documents/[id]/page.tsx carga latexContent + template_id desde hook existente, tab "Interactive", layout CSS columns, titulo, separadores HR, MyBox visibles
 - [x] F3-M2.7 — Botón "Descargar PDF" siempre visible · Verificado: ya existía en el header, visible cuando activePdfUrl está disponible (coexiste con el visor)
+- [ ] F3-M2.8 — Renderizado correcto de saltos de linea (`\\`) en bloques de texto/parrafos · PENDIENTE (bloqueante para cierre de M2)
+  > El parser/LatexBlock no procesa `\\` como salto de linea en parrafos normales. Falta mapear `\\` → `<br/>` o equivalente en el renderizado de texto.
 
-_Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto y fórmulas renderizadas._
-_Estado: ✅ COMPLETADO — TypeScript limpio, 0 errores. Gate para F3-M3 desbloqueado._
+_Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto, fórmulas renderizadas y saltos de linea correctos en parrafos._
+_Estado: EN PROGRESO — visor integrado y funcional excepto por renderizado de `\\`._
 
 ---
 
