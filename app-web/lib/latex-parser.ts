@@ -149,6 +149,49 @@ function hasInlineMath(text: string): boolean {
   return /(?<!\$)\$(?!\$)[\s\S]*?(?<!\$)\$(?!\$)/.test(text);
 }
 
+// ─── balanced-brace extractor ────────────────────────────────────────────────
+
+/** Extract the content of the next balanced {...} starting at `pos`. */
+function extractBracedArg(text: string, pos: number): { content: string; end: number } | null {
+  if (text[pos] !== '{') return null;
+  let depth = 0;
+  let i = pos;
+  while (i < text.length) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) return { content: text.slice(pos + 1, i), end: i + 1 };
+    }
+    i++;
+  }
+  return null;
+}
+
+/**
+ * Replace \formulabox{label}{formula} with $$formula$$.
+ * Uses balanced-brace extraction to handle nested {} inside the formula.
+ */
+function preprocessFormulabox(text: string): string {
+  const cmd = '\\formulabox';
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    const idx = text.indexOf(cmd, i);
+    if (idx === -1) { result += text.slice(i); break; }
+    result += text.slice(i, idx);
+    const afterCmd = idx + cmd.length;
+    // Extract first arg {label}
+    const arg1 = extractBracedArg(text, afterCmd);
+    if (!arg1) { result += cmd; i = afterCmd; continue; }
+    // Extract second arg {formula}
+    const arg2 = extractBracedArg(text, arg1.end);
+    if (!arg2) { result += cmd; i = afterCmd; continue; }
+    result += `\n$$${arg2.content}$$\n`;
+    i = arg2.end;
+  }
+  return result;
+}
+
 // ─── main text-chunk tokenizer ────────────────────────────────────────────────
 
 /**
@@ -158,6 +201,13 @@ function hasInlineMath(text: string): boolean {
  *  - paragraphs (with inline math if present)
  */
 function tokenizeTextChunk(text: string, blocks: Block[]): void {
+  // Pre-process custom template commands before tokenizing
+  // \sectionbar{title} → \section{title}
+  text = text.replace(/\\sectionbar\{([^}]*)\}/g, '\\section{$1}');
+  // \formulabox{label}{formula} → $$formula$$
+  // Uses balanced-brace extraction because formula may contain nested {} (e.g. \mathbf{B})
+  text = preprocessFormulabox(text);
+
   // First split by section commands
   const parts: Array<{ content: string; isSection: boolean }> = [];
   let last = 0;
@@ -296,8 +346,10 @@ export function parseLatex(latex: string): Block[] {
         latex_source: extracted.full,
       });
     } else if (env === 'multicols' || env === 'multicols*') {
+      // Strip optional {N} column-count argument at the start of inner content
+      const innerContent = extracted.inner.replace(/^\s*\{[^}]*\}/, '');
       // Recurse into multicols content — flatten to linear blocks
-      const innerBlocks = parseLatex(extracted.inner);
+      const innerBlocks = parseLatex(innerContent);
       blocks.push(...innerBlocks);
     } else {
       // theorem-like, tcolorbox, workedexample, keypoint, warning — treat as paragraph

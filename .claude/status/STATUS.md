@@ -8,9 +8,9 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo
-**Milestone activo:** F3-M1 — Arquitectura + PoC (todos los sub-milestones completados)
-**Tarea activa:** F3-M1 listo para cierre formal → siguiente: F3-M2 Renderizado base
-**Último hito cerrado:** F3-M1.4 — PoC pipeline LaTeX → KaTeX verificado (2026-03-26)
+**Milestone activo:** F3-M2 — Renderizado base
+**Tarea activa:** F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates
+**Último hito cerrado:** F3-M1 — Arquitectura + PoC ✅ (2026-03-26)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** session/2026-03-26
 **Bloqueantes:** ninguno
@@ -44,7 +44,7 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 **Milestones F3:**
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
-- [ ] F3-M2 — Renderizado base
+- [ ] F3-M2 — Renderizado base ← ACTIVO
 - [ ] F3-M3 — Interactividad (patrón Typora)
 - [ ] F3-M4 — Chat contextual
 - [ ] F3-M5 — Publish to My Studies + polish
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 — F3-M1 completo. Pipeline LaTeX→KaTeX verificado. Activo: F3-M2 Renderizado base.*
+*Última actualización: 2026-03-26 — F3-M1 cerrado formalmente. Milestone completo: parser + KaTeX + PoC 4 templates. Activo: F3-M2 Renderizado base.*

@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 — F3-M1.1 cerrada. Activo: F3-M1.2._
+_Última actualización: 2026-03-26 — F3-M1 completado. Activo: F3-M2 Renderizado base._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -125,7 +125,7 @@ _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquem�
 
 ---
 
-### F3-M1 — Arquitectura + PoC *(gate obligatorio antes de F3-M2)*
+### F3-M1 — Arquitectura + PoC ✅ COMPLETADO (2026-03-26)
 _Prioridad: 🔴 Alta_
 
 - [x] F3-M1.1 — Investigar y decidir estrategia de parsing LaTeX → bloques tipados · Completada: 2026-03-26
@@ -144,8 +144,10 @@ _Prioridad: 🔴 Alta_
   > Archivos: lib/latex-parser.ts, components/viewer/LatexBlock.tsx, components/viewer/LatexViewer.tsx
   > Página de prueba: app/(app)/viewer-poc/page.tsx → http://localhost:3000/viewer-poc
   > Los 4 templates cubiertos con samples hardcodeados. TypeScript limpio. 0 errores lint.
+  > Fixes aplicados: espaciado inline math, {N} de multicols, \formulabox con braces anidadas, \sectionbar.
 
 _Criterio de aceptación: Decisión técnica documentada aquí. PoC renderiza al menos 2 plantillas correctamente._
+_Estado: ✅ COMPLETADO — todos los sub-milestones verificados. Gate para F3-M2 desbloqueado._
 
 ---
 

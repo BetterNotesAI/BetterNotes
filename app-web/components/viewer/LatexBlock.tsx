@@ -123,7 +123,7 @@ function renderLatexCommands(text: string): string {
     // Remove leftover \command[...]{...} or \command{...} (no args captured above)
     .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?(?:\{[^}]*\})?/g, '');
 
-  return out.trim();
+  return out;
 }
 
 // ─── list renderer ────────────────────────────────────────────────────────────

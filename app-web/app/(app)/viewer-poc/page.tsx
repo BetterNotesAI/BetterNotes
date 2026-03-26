@@ -263,7 +263,7 @@ export default function ViewerPocPage() {
         </div>
 
         {/* Right: rendered viewer */}
-        <div className="w-1/2 overflow-auto bg-white">
+        <div className="w-1/2 overflow-auto bg-white text-gray-900">
           <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
             RENDERED OUTPUT (KaTeX)
           </div>
