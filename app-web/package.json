@@ -12,6 +12,7 @@
     "@react-pdf-viewer/core": "^3.12.0",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.49.0",
+    "katex": "^0.16.42",
     "next": "^15.0.0",
     "pdfjs-dist": "^3.11.174",
     "react": "^19.0.0",
@@ -20,6 +21,7 @@
     "stripe": "^20.4.1"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

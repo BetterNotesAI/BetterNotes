@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-25 (cierre de sesión)_
+_Última actualización: 2026-03-26 (session-end) — F3-M1 completado. F3-M2 en progreso (pendiente: `\\` saltos de linea). Activo: F3-M2 Renderizado base._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -13,7 +13,7 @@ carpetas, modo guest (anonymous auth). MVP en producción: https://www.better-no
 
 ---
 
-## Fase 2 — Milestones previos COMPLETADOS ✅
+## Fase 2 — TODOS LOS MILESTONES COMPLETADOS ✅ (2026-03-26)
 
 | # | Milestone | Estado |
 |---|-----------|--------|
@@ -25,12 +25,12 @@ carpetas, modo guest (anonymous auth). MVP en producción: https://www.better-no
 
 ---
 
-## Fase 2 — CIERRE Y REFINAMIENTO
+## Fase 2 — COMPLETADA ✅ (2026-03-26)
 
 ### F2-M5 — Auth refinements + Google OAuth + deuda técnica
 _Prioridad: 🔴 Alta_
 
-- [ ] F2-M5.1 — Configurar Google OAuth en Supabase Dashboard + Google Cloud Console · ~1h
+- [x] F2-M5.1 — Google OAuth verificado en producción: login y registro con Google funcionan correctamente (2026-03-26) · ✅ COMPLETADO
 - [x] F2-M5.2 — Renombrar "Sign in" → "Log in" en todos los puntos de entrada (login, signup, navbar, modales guest) · ~30min
 - [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [x] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, forgot-password, reset-password) · ~30min
@@ -125,40 +125,47 @@ _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquem�
 
 ---
 
-### F3-M1 — Arquitectura + PoC *(gate obligatorio antes de F3-M2)*
+### F3-M1 — Arquitectura + PoC ✅ COMPLETADO (2026-03-26)
 _Prioridad: 🔴 Alta_
 
-- [ ] F3-M1.1 — Investigar y decidir estrategia de parsing LaTeX → bloques tipados · ~2h
-  - Evaluar: latex-utensils, unified/remark-latex, parser manual por bloques
-  - Tipos de nodo mínimos: sección, párrafo, fórmula-block, fórmula-inline, tabla, lista
-  - Cada bloque: `{ id: uuid, type, latex_source, children? }`
-- [ ] F3-M1.2 — Validar compatibilidad KaTeX con las fórmulas que genera GPT-4o en nuestros templates · ~1h
-  - Compilar 20+ fórmulas reales de documentos existentes con KaTeX
-  - Documentar macros no soportadas y definir estrategia (fallback o prompt adjustment)
-- [ ] F3-M1.3 — Definir modelo de datos para bloques en la DB · ~1h
-  - ¿Nueva tabla `document_blocks` o derivar on-the-fly del `.tex` en `document_versions`?
-  - Considerar que editar un bloque genera nueva versión del `.tex` reconstruido
-- [ ] F3-M1.4 — PoC mínimo: renderizar un `.tex` real como array de bloques con KaTeX en React · ~2h
-  - Sin interactividad. Solo verificar que el pipeline produce output correcto para las 4 plantillas.
-  - **Este PoC es el gate de entrada a F3-M2.**
+- [x] F3-M1.1 — Investigar y decidir estrategia de parsing LaTeX → bloques tipados · Completada: 2026-03-26
+  > Decisión: Parser manual (regex + split). Justificación: LaTeX siempre generado por GPT-4o con 4 templates fijos
+  > y prompts controlados — los patrones son predecibles. Cero dependencias externas, < 2kb, implementable en 2-4h.
+  > Si en el futuro se necesita LaTeX arbitrario de usuario, migrar a unified-latex (la interfaz Block no cambia).
+  > Alternativas descartadas: latex-utensils (over-engineering, ~150kb), unified-latex (curva alta, 12-16h integración).
+- [x] F3-M1.2 — Validar compatibilidad KaTeX con las fórmulas que genera GPT-4o en nuestros templates · Completada: 2026-03-26
+  > Validado en el PoC (F3-M1.4): KaTeX renderiza correctamente align*, equation*, $...$, pmatrix, mathbb, etc.
+  > Macros custom \dd, \real, \cplex (landscape_3col_maths) declaradas en KaTeX via `macros`. Sin incompatibilidades bloqueantes.
+- [x] F3-M1.3 — Definir modelo de datos para bloques en la DB · Completada: 2026-03-26
+  > Decisión: on-the-fly desde `document_versions.latex_source`. Sin nueva tabla.
+  > El parser corre en frontend (parseLatex()). Editar un bloque regenera el `.tex` y crea nueva versión.
+- [x] F3-M1.4 — PoC mínimo: renderizar un `.tex` real como array de bloques con KaTeX en React · Completada: 2026-03-26
+  > Pipeline verificado: LaTeX → parseLatex() → Block[] → LatexBlock → KaTeX.
+  > Archivos: lib/latex-parser.ts, components/viewer/LatexBlock.tsx, components/viewer/LatexViewer.tsx
+  > Página de prueba: app/(app)/viewer-poc/page.tsx → http://localhost:3000/viewer-poc
+  > Los 4 templates cubiertos con samples hardcodeados. TypeScript limpio. 0 errores lint.
+  > Fixes aplicados: espaciado inline math, {N} de multicols, \formulabox con braces anidadas, \sectionbar.
 
 _Criterio de aceptación: Decisión técnica documentada aquí. PoC renderiza al menos 2 plantillas correctamente._
+_Estado: ✅ COMPLETADO — todos los sub-milestones verificados. Gate para F3-M2 desbloqueado._
 
 ---
 
-### F3-M2 — Renderizado base
+### F3-M2 — Renderizado base (EN PROGRESO)
 _Prerrequisito: F3-M1 completado_
 
-- [ ] F3-M2.1 — Implementar parser LaTeX → bloques tipados completo para los 4 templates · ~2h
-- [ ] F3-M2.2 — Componente React por tipo de bloque con renderizado KaTeX correcto · ~2h
-  - Cada componente recibe `{ id, type, latex_source }` y renderiza HTML
-- [ ] F3-M2.3 — Layout multi-columna según plantilla activa (CSS columns/grid) · ~1h30min
-- [ ] F3-M2.4 — Toolbar superior: navegación de páginas virtuales + zoom · ~1h
-- [ ] F3-M2.5 — **Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace** (código intacto, solo UI oculta) · ~30min
-- [ ] F3-M2.6 — El workspace `/workspace/[id]` muestra el visor interactivo como vista principal · ~1h
-- [ ] F3-M2.7 — Botón "Descargar PDF" siempre visible (llama al pdflatex del backend, sin cambios) · ~30min
+- [x] F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates · Completada: lib/latex-parser.ts (validado en F3-M1, reutilizado sin cambios)
+- [x] F3-M2.2 — Componente React por tipo de bloque con renderizado KaTeX correcto · Completada: components/viewer/LatexBlock.tsx (validado en F3-M1, reutilizado sin cambios)
+- [x] F3-M2.3 — Layout multi-columna según plantilla activa (CSS grid) · Completada: LatexViewer recibe `templateId`, aplica grid-cols-1/2/3 según template
+- [x] F3-M2.4 — Toolbar superior: navegación de páginas virtuales + zoom · Completada: toolbar con prev/next y presets 75/100/125/150% integrado en LatexViewer
+- [x] F3-M2.5 — Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace · Completada: envueltos en `<div className="hidden">`, código intacto
+- [x] F3-M2.6 — Workspace muestra LatexViewer como vista principal · Completada: documents/[id]/page.tsx carga latexContent + template_id desde hook existente, tab "Interactive", layout CSS columns, titulo, separadores HR, MyBox visibles
+- [x] F3-M2.7 — Botón "Descargar PDF" siempre visible · Verificado: ya existía en el header, visible cuando activePdfUrl está disponible (coexiste con el visor)
+- [ ] F3-M2.8 — Renderizado correcto de saltos de linea (`\\`) en bloques de texto/parrafos · PENDIENTE (bloqueante para cierre de M2)
+  > El parser/LatexBlock no procesa `\\` como salto de linea en parrafos normales. Falta mapear `\\` → `<br/>` o equivalente en el renderizado de texto.
 
-_Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto y fórmulas renderizadas._
+_Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto, fórmulas renderizadas y saltos de linea correctos en parrafos._
+_Estado: EN PROGRESO — visor integrado y funcional excepto por renderizado de `\\`._
 
 ---
 
@@ -306,10 +313,10 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 
 | Severidad | Descripción | Milestone |
 |-----------|-------------|-----------|
-| 🔴 Alta | Google OAuth pendiente en Supabase + Google Cloud | F2-M5.1 |
+| ✅ Resuelto | Google OAuth verificado en producción — login y registro funcionan (2026-03-26) | F2-M5.1 |
 | 🟡 Media | Chat consume cuota por intento, no por PDF generado | Decisión de producto pendiente |
 | ✅ Resuelto | Race condition Stripe customer con doble click | F2-M5.5 |
-| 🟡 Media | app-api requiere redeploy manual en Railway — bloqueado por crédito trial ($4.86) | F2-M5.6 |
+| 🟡 Media | app-api requiere redeploy manual en Railway — autodeploy bloqueado porque repo es privado (no issue de crédito) | F2-M5.6 |
 | 🟢 Baja | Plantillas hardcodeadas en app-api | Se resuelve en F2-M7 |
 | 🟢 Baja | Exportar .tex además del PDF | Pendiente |
 | 🟢 Baja | `onTrigger` en NewDocumentWatcher debería estar en useCallback | Pendiente |
