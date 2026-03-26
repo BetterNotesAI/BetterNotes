@@ -8,9 +8,9 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo
-**Milestone activo:** F3-M2 — Renderizado base
-**Tarea activa:** F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates
-**Último hito cerrado:** F3-M1 — Arquitectura + PoC ✅ (2026-03-26)
+**Milestone activo:** F3-M3 — Interactividad (patrón Typora)
+**Tarea activa:** F3-M3.1 — Hover sobre bloque → borde sutil resaltado
+**Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** session/2026-03-26
 **Bloqueantes:** ninguno
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 — F3-M1 cerrado formalmente. Milestone completo: parser + KaTeX + PoC 4 templates. Activo: F3-M2 Renderizado base.*
+*Última actualización: 2026-03-26 — F3-M2 cerrado. Milestone completo: LatexViewer con multicolumna, toolbar pagination/zoom, toggles PDF/LaTeX ocultos, visor integrado en workspace. Activo: F3-M3 Interactividad.*

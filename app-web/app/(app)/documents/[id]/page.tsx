@@ -12,6 +12,7 @@ import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWork
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
+import LatexViewer from '@/components/viewer/LatexViewer';
 
 type ViewerTab = 'pdf' | 'latex' | 'split';
 
@@ -462,22 +463,24 @@ export default function DocumentWorkspacePage() {
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         }`}>
 
-          {/* Unified tab + controls bar */}
-          <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
-            {/* Tabs left */}
-            {(['pdf', 'latex', 'split'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setViewerTab(tab)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
-                  viewerTab === tab
-                    ? 'bg-white/20 text-white'
-                    : 'text-white/60 hover:text-white/80 hover:bg-white/10'
-                }`}
-              >
-                {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
-              </button>
-            ))}
+          {/* Unified tab + controls bar — hidden when LatexViewer is active (F3-M2.5) */}
+          <div className={`flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0 ${latexContent ? 'hidden' : ''}`}>
+            {/* F3-M2.5 — PDF / LaTeX / Split tabs hidden in UI (code intact as fallback) */}
+            <div className="hidden">
+              {(['pdf', 'latex', 'split'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setViewerTab(tab)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                    viewerTab === tab
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/60 hover:text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  {tab === 'pdf' ? 'PDF' : tab === 'latex' ? 'LaTeX' : 'Split'}
+                </button>
+              ))}
+            </div>
 
             {/* Spacer */}
             <div className="flex-1" />
@@ -553,8 +556,33 @@ export default function DocumentWorkspacePage() {
 
           {/* Viewer body */}
           <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden">
-            {/* PDF pane — shown in pdf and split modes */}
-            {(viewerTab === 'pdf' || viewerTab === 'split') && (
+
+            {/* F3-M2.6 — Interactive LaTeX viewer (primary view) */}
+            {latexContent ? (
+              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white">
+                <LatexViewer
+                  latexSource={latexContent}
+                  templateId={docData.template_id}
+                  className="flex-1"
+                />
+              </div>
+            ) : (
+              /* Fallback: when no latex content yet, show PDF viewer or draft empty state */
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <PdfViewer
+                  url={activePdfUrl}
+                  isLoading={showGenerating && !activePdfUrl}
+                  loadingLabel={loadingLabel}
+                  zoom={zoom}
+                  currentPage={currentPage}
+                  onTotalPages={setTotalPages}
+                />
+              </div>
+            )}
+
+            {/* Legacy views (hidden — code intact as fallback per F3-M2.5) */}
+            <div className="hidden">
+              {/* PDF pane */}
               <div
                 ref={pdfPaneRef}
                 style={viewerTab === 'split' ? { width: `${splitRatio * 100}%` } : undefined}
@@ -571,18 +599,12 @@ export default function DocumentWorkspacePage() {
                   onTotalPages={setTotalPages}
                 />
               </div>
-            )}
-
-            {/* Resizer — only visible in split mode */}
-            {viewerTab === 'split' && (
+              {/* Resizer */}
               <div
                 onMouseDown={handleResizerMouseDown}
                 className="w-1 bg-white/10 hover:bg-indigo-400/60 cursor-col-resize transition-colors flex-shrink-0"
               />
-            )}
-
-            {/* LaTeX pane — shown in latex and split modes */}
-            {(viewerTab === 'latex' || viewerTab === 'split') && (
+              {/* LaTeX pane */}
               <div
                 style={viewerTab === 'split' ? { width: `${(1 - splitRatio) * 100}%` } : undefined}
                 className={`flex flex-col min-h-0 min-w-0 ${viewerTab !== 'split' ? 'flex-1' : ''}`}
@@ -599,7 +621,8 @@ export default function DocumentWorkspacePage() {
                   </div>
                 )}
               </div>
-            )}
+            </div>
+
           </div>
         </div>
 

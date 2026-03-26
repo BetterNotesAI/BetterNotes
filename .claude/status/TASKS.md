@@ -151,19 +151,19 @@ _Estado: ✅ COMPLETADO — todos los sub-milestones verificados. Gate para F3-M
 
 ---
 
-### F3-M2 — Renderizado base
+### F3-M2 — Renderizado base ✅ COMPLETADO (2026-03-26)
 _Prerrequisito: F3-M1 completado_
 
-- [ ] F3-M2.1 — Implementar parser LaTeX → bloques tipados completo para los 4 templates · ~2h
-- [ ] F3-M2.2 — Componente React por tipo de bloque con renderizado KaTeX correcto · ~2h
-  - Cada componente recibe `{ id, type, latex_source }` y renderiza HTML
-- [ ] F3-M2.3 — Layout multi-columna según plantilla activa (CSS columns/grid) · ~1h30min
-- [ ] F3-M2.4 — Toolbar superior: navegación de páginas virtuales + zoom · ~1h
-- [ ] F3-M2.5 — **Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace** (código intacto, solo UI oculta) · ~30min
-- [ ] F3-M2.6 — El workspace `/workspace/[id]` muestra el visor interactivo como vista principal · ~1h
-- [ ] F3-M2.7 — Botón "Descargar PDF" siempre visible (llama al pdflatex del backend, sin cambios) · ~30min
+- [x] F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates · Completada: lib/latex-parser.ts (validado en F3-M1, reutilizado sin cambios)
+- [x] F3-M2.2 — Componente React por tipo de bloque con renderizado KaTeX correcto · Completada: components/viewer/LatexBlock.tsx (validado en F3-M1, reutilizado sin cambios)
+- [x] F3-M2.3 — Layout multi-columna según plantilla activa (CSS grid) · Completada: LatexViewer recibe `templateId`, aplica grid-cols-1/2/3 según template
+- [x] F3-M2.4 — Toolbar superior: navegación de páginas virtuales + zoom · Completada: toolbar con prev/next y presets 75/100/125/150% integrado en LatexViewer
+- [x] F3-M2.5 — Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace · Completada: envueltos en `<div className="hidden">`, código intacto
+- [x] F3-M2.6 — Workspace muestra LatexViewer como vista principal · Completada: documents/[id]/page.tsx carga latexContent + template_id desde hook existente
+- [x] F3-M2.7 — Botón "Descargar PDF" siempre visible · Verificado: ya existía en el header, visible cuando activePdfUrl está disponible (coexiste con el visor)
 
 _Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto y fórmulas renderizadas._
+_Estado: ✅ COMPLETADO — TypeScript limpio, 0 errores. Gate para F3-M3 desbloqueado._
 
 ---
 
