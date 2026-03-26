@@ -4,6 +4,25 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesión 2026-03-26 — CIERRE FASE 2 + F2-M5.1 Google OAuth verificado en producción
+
+**Completado:**
+- F2-M5.1: Google OAuth verificado en producción — registro y login con Google funcionan correctamente en https://www.better-notes.ai
+- Fase 2 cerrada oficialmente: todos los milestones completados (F2-M1 a F2-M7 + F2-M2b + F2-M5)
+- STATUS.md actualizado: Fase 3 activa
+- TASKS.md actualizado: F2 cerrada, deuda técnica de Google OAuth marcada resuelta
+- HTML de cierre de fase generado: .claude/reports/F2_cierre.html
+
+**Decisiones tomadas:**
+- F2-M5.6 (autodeploy Railway) queda en deuda técnica abierta — no bloquea el cierre de Fase 2 ni el inicio de Fase 3
+- Fase 3 inicia con F3-M1: Arquitectura + PoC del visor interactivo (gate obligatorio)
+
+**Lecciones capturadas:** no
+
+**Siguiente:** F3-M1 — Investigar estrategia de parsing LaTeX → bloques tipados, validar KaTeX, definir modelo de datos, PoC mínimo
+
+---
+
 ## Sesión 2026-03-24 — F2-M5.5 fix Stripe + F2-M5.6 railway.json + F2-M6 sidebar y All Documents revamp
 
 **Completado:**

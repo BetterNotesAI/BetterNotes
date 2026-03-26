@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-25 (cierre de sesión)_
+_Última actualización: 2026-03-26 — Fase 2 CERRADA. Inicio Fase 3._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -13,7 +13,7 @@ carpetas, modo guest (anonymous auth). MVP en producción: https://www.better-no
 
 ---
 
-## Fase 2 — Milestones previos COMPLETADOS ✅
+## Fase 2 — TODOS LOS MILESTONES COMPLETADOS ✅ (2026-03-26)
 
 | # | Milestone | Estado |
 |---|-----------|--------|
@@ -25,12 +25,12 @@ carpetas, modo guest (anonymous auth). MVP en producción: https://www.better-no
 
 ---
 
-## Fase 2 — CIERRE Y REFINAMIENTO
+## Fase 2 — COMPLETADA ✅ (2026-03-26)
 
 ### F2-M5 — Auth refinements + Google OAuth + deuda técnica
 _Prioridad: 🔴 Alta_
 
-- [ ] F2-M5.1 — Configurar Google OAuth en Supabase Dashboard + Google Cloud Console · ~1h
+- [x] F2-M5.1 — Google OAuth verificado en producción: login y registro con Google funcionan correctamente (2026-03-26) · ✅ COMPLETADO
 - [x] F2-M5.2 — Renombrar "Sign in" → "Log in" en todos los puntos de entrada (login, signup, navbar, modales guest) · ~30min
 - [x] F2-M5.3 — Añadir "Forgot password?" con flujo de reset completo (resetPasswordForEmail + página /reset-password) · ~1h
 - [x] F2-M5.4 — Poner logo BetterNotes en páginas de auth (login, signup, forgot-password, reset-password) · ~30min
@@ -306,10 +306,10 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 
 | Severidad | Descripción | Milestone |
 |-----------|-------------|-----------|
-| 🔴 Alta | Google OAuth pendiente en Supabase + Google Cloud | F2-M5.1 |
+| ✅ Resuelto | Google OAuth verificado en producción — login y registro funcionan (2026-03-26) | F2-M5.1 |
 | 🟡 Media | Chat consume cuota por intento, no por PDF generado | Decisión de producto pendiente |
 | ✅ Resuelto | Race condition Stripe customer con doble click | F2-M5.5 |
-| 🟡 Media | app-api requiere redeploy manual en Railway — bloqueado por crédito trial ($4.86) | F2-M5.6 |
+| 🟡 Media | app-api requiere redeploy manual en Railway — autodeploy bloqueado porque repo es privado (no issue de crédito) | F2-M5.6 |
 | 🟢 Baja | Plantillas hardcodeadas en app-api | Se resuelve en F2-M7 |
 | 🟢 Baja | Exportar .tex además del PDF | Pendiente |
 | 🟢 Baja | `onTrigger` en NewDocumentWatcher debería estar en useCallback | Pendiente |

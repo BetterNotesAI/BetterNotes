@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterNotes — Cierre Fase 2</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #18181f;
+      --surface2: #22222c;
+      --border: #2e2e3a;
+      --accent: #7c6aff;
+      --accent2: #a78bfa;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --text: #e8e8f0;
+      --muted: #8888a0;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      padding: 0;
+    }
+
+    /* HEADER */
+    .hero {
+      background: linear-gradient(135deg, #1a1030 0%, #0f0f1a 50%, #0d1a1a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 40px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -100px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(124,106,255,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(124,106,255,0.15);
+      border: 1px solid rgba(124,106,255,0.4);
+      color: var(--accent2);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero-sub {
+      color: var(--muted);
+      font-size: 17px;
+      max-width: 500px;
+      margin: 0 auto 32px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .hero-meta-item {
+      text-align: center;
+    }
+    .hero-meta-item .val {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--accent2);
+      display: block;
+    }
+    .hero-meta-item .lbl {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* LAYOUT */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 24px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section { margin-bottom: 56px; }
+
+    /* TIMELINE */
+    .timeline {
+      position: relative;
+      padding-left: 28px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 9px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent), var(--border));
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 32px;
+    }
+    .timeline-item:last-child { margin-bottom: 0; }
+    .timeline-dot {
+      position: absolute;
+      left: -23px; top: 6px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+    .timeline-dot.done { background: var(--green); box-shadow: 0 0 0 2px var(--green); }
+    .timeline-date {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .timeline-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .timeline-desc {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* MILESTONE CARDS */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card-badge {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(34,197,94,0.12);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,0.3);
+      margin-top: 2px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-id {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .card-body {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .card-body ul {
+      padding-left: 16px;
+      margin-top: 6px;
+    }
+    .card-body li { margin-bottom: 3px; }
+
+    /* DECISIONS TABLE */
+    .decisions-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .decisions-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .decisions-table td {
+      font-size: 13px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .decisions-table tr:last-child td { border-bottom: none; }
+    .decisions-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .decisions-table td:first-child { font-weight: 600; color: var(--text); width: 35%; }
+    .decisions-table td:last-child { color: var(--muted); }
+
+    /* LESSONS */
+    .lesson {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+    .lesson-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .lesson-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background: rgba(124,106,255,0.12);
+      color: var(--accent2);
+      border: 1px solid rgba(124,106,255,0.3);
+    }
+    .lesson-body { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+    /* STATE SUMMARY */
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .state-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      text-align: center;
+    }
+    .state-card .val {
+      font-size: 32px;
+      font-weight: 800;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .state-card .val.green { color: var(--green); }
+    .state-card .val.purple { color: var(--accent2); }
+    .state-card .val.yellow { color: var(--yellow); }
+    .state-card .lbl { font-size: 13px; color: var(--muted); }
+
+    /* NEXT SECTION */
+    .next-box {
+      background: linear-gradient(135deg, rgba(124,106,255,0.08), rgba(124,106,255,0.03));
+      border: 1px solid rgba(124,106,255,0.3);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+    }
+    .next-box h3 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .next-box p {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .next-milestones {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .next-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      background: rgba(124,106,255,0.12);
+      border: 1px solid rgba(124,106,255,0.3);
+      color: var(--accent2);
+      border-radius: 100px;
+    }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-badge">Informe de Fase</div>
+    <h1>BetterNotes — Fase 2 Cerrada</h1>
+    <p class="hero-sub">Cierre y refinamiento del producto. Del MVP a una aplicación pulida, organizada y lista para el visor interactivo.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="val">8</span>
+        <span class="lbl">Milestones completados</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="val">30+</span>
+        <span class="lbl">Sub-tareas entregadas</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="val">5</span>
+        <span class="lbl">Días de trabajo</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="val">2026-03-26</span>
+        <span class="lbl">Fecha de cierre</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- TIMELINE -->
+    <section>
+      <div class="section-title">Timeline — Fase 2</div>
+      <div class="timeline">
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-18 (Fase 1 → Fase 2)</div>
+          <div class="timeline-label">F2-M1 — Diagnóstico visual + propuesta de diseño</div>
+          <div class="timeline-desc">Auditoría completa del estado visual del MVP. Propuesta de rediseño documentada y aprobada.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-18 — 2026-03-19</div>
+          <div class="timeline-label">F2-M2 — Rediseño visual y estructura de navegación</div>
+          <div class="timeline-desc">Sistema de color, tipografía, espaciado y componentes UI rediseñados. Navegación reestructurada.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-20</div>
+          <div class="timeline-label">F2-M3 — Organización de documentos</div>
+          <div class="timeline-desc">Carpetas, drag-and-drop, rename inline, colores de carpeta. All Documents con navegación por carpetas.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-20</div>
+          <div class="timeline-label">F2-M4 — Subida de archivos como contexto IA</div>
+          <div class="timeline-desc">Adjuntos (PDF, imágenes, texto) subidos a Supabase Storage. Chat y generate los reciben como contexto automático sin UI extra.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-21</div>
+          <div class="timeline-label">F2-M2b — Navegación, UX y flujo del producto</div>
+          <div class="timeline-desc">DocumentCreationBar fuera de (app)/, prompt vía ?prompt= URL param, InitialPromptSender, flujo landing → workspace pulido.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-22 — 2026-03-24</div>
+          <div class="timeline-label">F2-M5 — Auth refinements + Google OAuth</div>
+          <div class="timeline-desc">Rename Sign in → Log in, Forgot Password + Reset Password flow, logo en páginas de auth, fix race condition Stripe, Google OAuth configurado y verificado en producción.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-24</div>
+          <div class="timeline-label">F2-M6 — Nueva sidebar + All Documents revamp</div>
+          <div class="timeline-desc">Sidebar con secciones Resources / Projects / Recents. All Documents con Starred, orden correcto, menús 3-dots completos, vistas de carpeta con breadcrumb.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot done"></div>
+          <div class="timeline-date">2026-03-25</div>
+          <div class="timeline-label">F2-M7 — Templates revamp</div>
+          <div class="timeline-desc">4 plantillas activas (de 10), thumbnails PNG, PDFs de muestra, selección visual con borde + check badge, modo Auto con gpt-4o-mini.</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- MILESTONE CARDS -->
+    <section>
+      <div class="section-title">Logros por Milestone</div>
+      <div class="cards-grid">
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M1</div>
+              <div class="card-title">Diagnóstico visual</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            Auditoría completa del estado visual del MVP v1 → v2. Propuesta de rediseño documentada: sistema de color, tipografía, espaciado, componentes y navegación.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M2</div>
+              <div class="card-title">Rediseño visual</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            Nuevo sistema de diseño aplicado a toda la app. Componentes UI rediseñados, paleta de color consistente, tipografía jerárquica clara, navegación reestructurada.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M3</div>
+              <div class="card-title">Organización de documentos</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            Sistema completo de carpetas:
+            <ul>
+              <li>Crear / rename / eliminar / colorear carpetas</li>
+              <li>Drag-and-drop para mover documentos</li>
+              <li>Navegación por carpetas en sidebar</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M4</div>
+              <div class="card-title">Archivos como contexto IA</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            Upload de adjuntos (PDF, imágenes, texto) a Supabase Storage. El chat y la generación los reciben automáticamente como contexto. Sin UI extra requerida.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M2b</div>
+              <div class="card-title">Navegación y UX del producto</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            DocumentCreationBar en app/_components/ (landing + app). Prompt vía ?prompt= URL param. InitialPromptSender auto-envía en workspace. Flujo landing → workspace sin fricción.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M5</div>
+              <div class="card-title">Auth refinements + Google OAuth</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            <ul>
+              <li>Sign in → Log in en toda la app</li>
+              <li>Forgot Password + Reset Password</li>
+              <li>Logo BetterNotes en páginas de auth</li>
+              <li>Fix race condition Stripe (UNIQUE + RPCs atómicas)</li>
+              <li>Google OAuth verificado en producción</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M6</div>
+              <div class="card-title">Sidebar + All Documents revamp</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            Nueva sidebar con secciones (Resources / Projects / Recents). All Documents: carpeta Starred, orden alfabético, menús 3-dots en ficheros y carpetas, vista de carpeta con breadcrumb y header.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-id">F2-M7</div>
+              <div class="card-title">Templates revamp</div>
+            </div>
+            <div class="card-badge">Done</div>
+          </div>
+          <div class="card-body">
+            4 plantillas activas (6 desactivadas, no eliminadas). Thumbnails PNG 480×360px. PDFs de muestra descargables. Selección visual clara. Modo Auto: gpt-4o-mini elige la plantilla óptima.
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PRODUCT STATE -->
+    <section>
+      <div class="section-title">Estado del Producto al Cerrar Fase 2</div>
+      <div class="state-grid">
+        <div class="state-card">
+          <span class="val green">4</span>
+          <span class="lbl">Templates activas en producción</span>
+        </div>
+        <div class="state-card">
+          <span class="val green">3</span>
+          <span class="lbl">Proveedores de auth (email, anon, Google)</span>
+        </div>
+        <div class="state-card">
+          <span class="val purple">GPT-4o</span>
+          <span class="lbl">Motor IA principal (AIProvider desacoplado)</span>
+        </div>
+        <div class="state-card">
+          <span class="val green">0</span>
+          <span class="lbl">Bloqueantes activos</span>
+        </div>
+        <div class="state-card">
+          <span class="val purple">Vercel + Railway</span>
+          <span class="lbl">Stack de deployment en producción</span>
+        </div>
+        <div class="state-card">
+          <span class="val yellow">1</span>
+          <span class="lbl">Deuda técnica media abierta (Railway autodeploy)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- STRATEGIC DECISIONS -->
+    <section>
+      <div class="section-title">Decisiones Estratégicas Más Importantes</div>
+      <table class="decisions-table">
+        <thead>
+          <tr>
+            <th>Decisión</th>
+            <th>Valor fijado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Visor interactivo (Fase 3)</td>
+            <td>Patrón Typora sobre LaTeX existente — sin block editor externo. KaTeX en frontend. pdflatex en backend sin cambios.</td>
+          </tr>
+          <tr>
+            <td>Workspace</td>
+            <td>/workspace/[id] se convierte en el visor interactivo. Modos PDF/LaTeX ocultos en UI, código intacto como fallback.</td>
+          </tr>
+          <tr>
+            <td>Componentes compartidos</td>
+            <td>Landing + app comparten componentes en app/_components/ (fuera del routing de App Router).</td>
+          </tr>
+          <tr>
+            <td>Popovers / dropdowns</td>
+            <td>Siempre createPortal al body con z-index:9999 si hay riesgo de clipping por overflow:hidden.</td>
+          </tr>
+          <tr>
+            <td>Prompt al workspace</td>
+            <td>Vía ?prompt= URL param — no localStorage. InitialPromptSender lo consume y lo auto-envía.</td>
+          </tr>
+          <tr>
+            <td>Auto-template</td>
+            <td>templateId 'auto' → app-api llama gpt-4o-mini para elegir la plantilla óptima; actualiza DB con el ID resuelto.</td>
+          </tr>
+          <tr>
+            <td>Fix Stripe race condition</td>
+            <td>UNIQUE constraint en profiles.stripe_customer_id + RPCs get_or_reserve_stripe_customer y set_stripe_customer_id. Atómico, sin duplicados.</td>
+          </tr>
+          <tr>
+            <td>Forgot password UX</td>
+            <td>Link "Forgot password?" aparece solo tras el primer intento fallido — UX más limpia sin distracción inicial.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- LESSONS -->
+    <section>
+      <div class="section-title">Lecciones Relevantes de Fase 2</div>
+
+      <div class="lesson">
+        <div class="lesson-tag">frontend</div>
+        <div class="lesson-title">Popovers dentro de overflow:hidden se clipean</div>
+        <div class="lesson-body">Los popovers y dropdowns dentro de contenedores con overflow:hidden o transform CSS deben renderizarse con createPortal al body (z-9999). Descubierto en DocumentCreationBar (F2-M2b) y generalizado en FolderSectionMenu y DocumentCard (F2-M6).</div>
+      </div>
+
+      <div class="lesson">
+        <div class="lesson-tag">arquitectura</div>
+        <div class="lesson-title">Componentes compartidos landing/app fuera de (app)/</div>
+        <div class="lesson-body">Next.js App Router no permite importar componentes de (app)/ desde la landing sin errores de hidratación. Los componentes usados en ambos contextos van en app/_components/. Aplicado al hacer DocumentCreationBar compartida.</div>
+      </div>
+
+      <div class="lesson">
+        <div class="lesson-tag">arquitectura</div>
+        <div class="lesson-title">Prompt al workspace vía URL param, no localStorage</div>
+        <div class="lesson-body">localStorage genera problemas de sincronización entre tabs y persistencia no deseada al navegar hacia atrás. ?prompt= como URL param es limpio, predecible y desaparece tras ser consumido por InitialPromptSender.</div>
+      </div>
+
+      <div class="lesson">
+        <div class="lesson-tag">devops</div>
+        <div class="lesson-title">app-api en Railway no se autodespliega con repos privados</div>
+        <div class="lesson-body">Railway necesita acceso explícito al repo privado para webhooks de push. railway.json está creado y commiteado; activar autodeploy conectando el repo privado en el Railway Dashboard cuando sea oportuno.</div>
+      </div>
+
+      <div class="lesson">
+        <div class="lesson-tag">pagos</div>
+        <div class="lesson-title">Race condition en creación de Stripe customer</div>
+        <div class="lesson-body">Dos clicks rápidos en "Upgrade" podían crear dos customers duplicados en Stripe. Solución definitiva: UNIQUE constraint en profiles.stripe_customer_id + RPC atómica get_or_reserve_stripe_customer. Migración aplicada en producción.</div>
+      </div>
+
+    </section>
+
+    <!-- NEXT PHASE -->
+    <section>
+      <div class="section-title">Siguiente — Fase 3: Visor Interactivo</div>
+      <div class="next-box">
+        <h3>Fase 3 — Visor Interactivo (patrón Typora)</h3>
+        <p>Feature estratégica central del roadmap. El workspace /workspace/[id] se convierte en un visor interactivo donde el usuario puede editar fragmentos LaTeX directamente, con re-render KaTeX inmediato. Sin block editor externo — patrón Typora construido sobre el LaTeX generado por IA.</p>
+        <div class="next-milestones">
+          <span class="next-pill">F3-M1 Arquitectura + PoC (gate)</span>
+          <span class="next-pill">F3-M2 Renderizado base</span>
+          <span class="next-pill">F3-M3 Interactividad</span>
+          <span class="next-pill">F3-M4 Chat contextual</span>
+          <span class="next-pill">F3-M5 Publish + polish</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    Generado por <strong>BetterNotes Director</strong> — 2026-03-26
+    &nbsp;|&nbsp;
+    Proyecto: <strong>BetterNotes v2</strong> (better-notes.ai)
+  </div>
+
+</body>
+</html>
