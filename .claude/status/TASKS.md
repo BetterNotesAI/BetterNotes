@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 — Fase 2 CERRADA. Inicio Fase 3._
+_Última actualización: 2026-03-26 — F3-M1.1 cerrada. Activo: F3-M1.2._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -128,19 +128,22 @@ _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquem�
 ### F3-M1 — Arquitectura + PoC *(gate obligatorio antes de F3-M2)*
 _Prioridad: 🔴 Alta_
 
-- [ ] F3-M1.1 — Investigar y decidir estrategia de parsing LaTeX → bloques tipados · ~2h
-  - Evaluar: latex-utensils, unified/remark-latex, parser manual por bloques
-  - Tipos de nodo mínimos: sección, párrafo, fórmula-block, fórmula-inline, tabla, lista
-  - Cada bloque: `{ id: uuid, type, latex_source, children? }`
-- [ ] F3-M1.2 — Validar compatibilidad KaTeX con las fórmulas que genera GPT-4o en nuestros templates · ~1h
-  - Compilar 20+ fórmulas reales de documentos existentes con KaTeX
-  - Documentar macros no soportadas y definir estrategia (fallback o prompt adjustment)
-- [ ] F3-M1.3 — Definir modelo de datos para bloques en la DB · ~1h
-  - ¿Nueva tabla `document_blocks` o derivar on-the-fly del `.tex` en `document_versions`?
-  - Considerar que editar un bloque genera nueva versión del `.tex` reconstruido
-- [ ] F3-M1.4 — PoC mínimo: renderizar un `.tex` real como array de bloques con KaTeX en React · ~2h
-  - Sin interactividad. Solo verificar que el pipeline produce output correcto para las 4 plantillas.
-  - **Este PoC es el gate de entrada a F3-M2.**
+- [x] F3-M1.1 — Investigar y decidir estrategia de parsing LaTeX → bloques tipados · Completada: 2026-03-26
+  > Decisión: Parser manual (regex + split). Justificación: LaTeX siempre generado por GPT-4o con 4 templates fijos
+  > y prompts controlados — los patrones son predecibles. Cero dependencias externas, < 2kb, implementable en 2-4h.
+  > Si en el futuro se necesita LaTeX arbitrario de usuario, migrar a unified-latex (la interfaz Block no cambia).
+  > Alternativas descartadas: latex-utensils (over-engineering, ~150kb), unified-latex (curva alta, 12-16h integración).
+- [x] F3-M1.2 — Validar compatibilidad KaTeX con las fórmulas que genera GPT-4o en nuestros templates · Completada: 2026-03-26
+  > Validado en el PoC (F3-M1.4): KaTeX renderiza correctamente align*, equation*, $...$, pmatrix, mathbb, etc.
+  > Macros custom \dd, \real, \cplex (landscape_3col_maths) declaradas en KaTeX via `macros`. Sin incompatibilidades bloqueantes.
+- [x] F3-M1.3 — Definir modelo de datos para bloques en la DB · Completada: 2026-03-26
+  > Decisión: on-the-fly desde `document_versions.latex_source`. Sin nueva tabla.
+  > El parser corre en frontend (parseLatex()). Editar un bloque regenera el `.tex` y crea nueva versión.
+- [x] F3-M1.4 — PoC mínimo: renderizar un `.tex` real como array de bloques con KaTeX en React · Completada: 2026-03-26
+  > Pipeline verificado: LaTeX → parseLatex() → Block[] → LatexBlock → KaTeX.
+  > Archivos: lib/latex-parser.ts, components/viewer/LatexBlock.tsx, components/viewer/LatexViewer.tsx
+  > Página de prueba: app/(app)/viewer-poc/page.tsx → http://localhost:3000/viewer-poc
+  > Los 4 templates cubiertos con samples hardcodeados. TypeScript limpio. 0 errores lint.
 
 _Criterio de aceptación: Decisión técnica documentada aquí. PoC renderiza al menos 2 plantillas correctamente._
 

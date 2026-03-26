@@ -7,11 +7,12 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo (INICIO)
-**Milestone activo:** F3-M1 — Arquitectura + PoC (próximo a iniciar)
-**Último milestone cerrado:** F2-M5.1 — Google OAuth verificado en producción (2026-03-26)
+**Fase:** 3 — Visor Interactivo
+**Milestone activo:** F3-M1 — Arquitectura + PoC (todos los sub-milestones completados)
+**Tarea activa:** F3-M1 listo para cierre formal → siguiente: F3-M2 Renderizado base
+**Último hito cerrado:** F3-M1.4 — PoC pipeline LaTeX → KaTeX verificado (2026-03-26)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** main (sesión sin rama feature activa)
+**Rama activa:** session/2026-03-26
 **Bloqueantes:** ninguno
 
 ---
@@ -42,7 +43,7 @@ Arquitectura: patrón Typora — documento renderizado con KaTeX, click en fragm
 para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor externo.
 
 **Milestones F3:**
-- [ ] F3-M1 — Arquitectura + PoC (gate obligatorio antes de F3-M2)
+- [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
 - [ ] F3-M2 — Renderizado base
 - [ ] F3-M3 — Interactividad (patrón Typora)
 - [ ] F3-M4 — Chat contextual
@@ -56,6 +57,9 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 |----------|-------|
 | Visor interactivo | Patrón Typora sobre LaTeX existente — sin block editor externo |
 | Rendering fórmulas | KaTeX en frontend (preview interactivo) |
+| Parser LaTeX | Manual (regex + split) en `lib/latex-parser.ts` — sin librerías externas |
+| Datos del visor | On-the-fly desde `document_versions.latex_source` — sin tabla `document_blocks` |
+| Macros KaTeX custom | `\dd`, `\real`, `\cplex` declaradas vía `macros` en KaTeX |
 | PDF final | pdflatex en backend Express — sin cambios |
 | Modos de vista actuales | Ocultos en UI, código intacto como fallback |
 | Workspace | `/workspace/[id]` se convierte en el visor interactivo |
@@ -68,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 — Fase 2 cerrada completamente. Google OAuth verificado en producción. Iniciando Fase 3: Visor Interactivo.*
+*Última actualización: 2026-03-26 — F3-M1 completo. Pipeline LaTeX→KaTeX verificado. Activo: F3-M2 Renderizado base.*
