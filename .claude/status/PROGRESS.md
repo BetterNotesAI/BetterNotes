@@ -24,7 +24,7 @@ _Las sesiones más recientes aparecen primero._
 - La descarga de PDFs se hace de forma individual por ahora — ZIP real y progress indicator van al backlog
 
 **Problemas encontrados:**
-- Download PDFs es funcional pero basico: descarga archivos individualmente sin ZIP real ni indicador de progreso. Queda en backlog para mejorar.
+- Download PDFs: no descarga archivos individualmente sin ZIP real ni indicador de progreso. Queda en backlog para mejorar.
 
 **Lecciones capturadas:** no
 
