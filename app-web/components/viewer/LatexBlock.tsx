@@ -114,14 +114,21 @@ function renderLatexCommands(text: string): string {
     .replace(/\\textcolor\{[^}]*\}\{([^}]*)\}/g, '$1')
     // \text{...}
     .replace(/\\text\{([^}]*)\}/g, '$1')
-    // \\ → line break (trailing \\ already stripped in parser before reaching here)
+    // ___newline___ marker → line break (produced by parser from \\ at end of line)
+    .replace(/___newline___/g, '<br/>')
+    // \\ → line break (any remaining explicit line breaks)
     .replace(/\\\\/g, '<br/>')
     // \hfill → spacer
     .replace(/\\hfill/g, ' ')
-    // \footnotesize, \scriptsize, etc. → ignore
+    // \footnotesize, \scriptsize, etc. → ignore (these are standalone font-size commands)
     .replace(/\\(?:footnotesize|scriptsize|small|large|Large|LARGE|huge|Huge|normalsize)\b/g, '')
-    // Remove leftover \command[...]{...} or \command{...} (no args captured above)
-    .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?(?:\{[^}]*\})?/g, '');
+    // Known layout/spacing commands with one {arg} that should be dropped entirely
+    .replace(/\\(?:vspace|hspace|vspace\*|hspace\*|label|ref|cite|pageref|index)\*?(?:\[[^\]]*\])?\{[^}]*\}/g, '')
+    // Remove bare \command (no args) for remaining unknown commands — preserve argument text
+    // by only stripping the command token and optional [...] arg, keeping the {} content
+    .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^}]*)\}/g, '$1')
+    // Remove any truly bare \command tokens with no argument
+    .replace(/\\[a-zA-Z]+\*?\b/g, '');
 
   return out;
 }

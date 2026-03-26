@@ -4,6 +4,24 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-03-26 (sesion 3) — F3-M2 completado: fix `\\`, catch-all regex, hydration error
+
+**Completado:**
+- F3-M2.8 — Fix renderizado `\\` → `<br/>` en parrafos: modificados `latex-parser.ts` y `LatexBlock.tsx` para tratar `\\` como salto de linea en bloques de texto/parrafo
+- Fix catch-all regex en `LatexBlock.tsx` que eliminaba texto visible de comandos LaTeX desconocidos — ahora el texto raw se muestra como fallback en lugar de suprimirse
+- Fix hydration error en `home/page.tsx`: uso de `localStorage` en `useState` inicial → patron seguro con `useEffect` post-montaje
+
+**Milestone cerrado:** F3-M2 — Renderizado base ✅
+
+**Pendiente para próxima sesión:**
+- KaTeX/LaTeX rendering issues: algunas ecuaciones no se renderizan correctamente — investigar en el contexto de F3-M3
+
+**Lecciones capturadas:** no
+
+**Siguiente:** F3-M3 — Interactividad (patrón Typora) — prereqs desbloqueados. Antes de arrancar: investigar KaTeX rendering issues pendientes.
+
+---
+
 ## Sesion 2026-03-26 (session 2) — UI/UX stars + carpetas + FolderSectionMenu (Change color, Download, Archive)
 
 **Completado:**

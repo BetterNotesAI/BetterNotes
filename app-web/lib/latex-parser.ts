@@ -309,7 +309,7 @@ function processTextSegment(text: string, blocks: Block[]): void {
         .replace(/\\vspace\{[^}]*\}/g, '')
         .replace(/\\hfill/g, ' ')
         .replace(/\\HR\b/g, '')
-        .replace(/\\\\[ \t]*$/gm, '')  // strip trailing \\ (LaTeX line-break artifact)
+        .replace(/\\\\[ \t]*$/gm, '___newline___')  // convert \\ line-break to marker
         // Remove font-size commands used as standalone lines (e.g. \footnotesize)
         .replace(/^\\(?:footnotesize|scriptsize|small|normalsize|large|Large|LARGE|huge|Huge)\s*$/gm, '')
         .trim();

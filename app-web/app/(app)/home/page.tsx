@@ -24,14 +24,18 @@ const FEATURED_IDS = ['2cols_portrait', 'landscape_3col_maths', 'lecture_notes']
 export default function HomePage() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
-    () => (typeof window !== 'undefined' ? localStorage.getItem('lastTemplateId') ?? '' : '')
-  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+
+  // Restore last selected template after hydration to avoid server/client mismatch
+  useEffect(() => {
+    const saved = localStorage.getItem('lastTemplateId');
+    if (saved) setSelectedTemplateId(saved);
+  }, []);
 
   useEffect(() => {
     fetch('/api/documents?sort=date_desc')

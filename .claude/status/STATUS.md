@@ -8,12 +8,12 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M2 — Renderizado base (EN PROGRESO — pendiente: `\\` en parrafos)
-**Tarea activa:** UI/UX — Stars + carpetas + FolderSectionMenu (Change color, Download, Archive)
-**Último hito cerrado:** F3-M1 — Arquitectura + PoC ✅ (2026-03-26)
+**Milestone activo:** F3-M2 — Renderizado base (COMPLETADO — pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones)
+**Tarea activa:** ninguna — sesión cerrada
+**Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26 sesion 3)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** main
-**Bloqueantes:** ninguno. Pendiente menor en F3-M2: `\\` en parrafos. Bug conocido: Download PDFs de carpeta no descarga ningun fichero (causa desconocida, prioridad media).
+**Bloqueantes:** ninguno. Pendiente para próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues — investigar). Bug conocido: Download PDFs de carpeta no descarga ningun fichero (causa desconocida, prioridad media).
 
 ---
 
@@ -44,7 +44,7 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 **Milestones F3:**
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
-- [ ] F3-M2 — Renderizado base ← ACTIVO (pendiente: renderizado `\\` en parrafos)
+- [x] F3-M2 — Renderizado base — COMPLETADO (2026-03-26 sesion 3) — pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones
 - [ ] F3-M3 — Interactividad (patrón Typora)
 - [ ] F3-M4 — Chat contextual
 - [ ] F3-M5 — Publish to My Studies + polish
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 (sesion 2, cierre) — UI/UX: star hover preview, carpetas starred en seccion Starred, estrella siempre visible en folder cards, alineacion horizontal corregida. FolderSectionMenu: Change color (picker 10 colores), Download PDFs (bug conocido: no descarga), Archive folder (con migracion SQL). Carpetas archivadas visibles en modo Archived. Seccion Starred oculta en modo Archived. Bug registrado en backlog: Download PDFs de carpeta. F3-M2 sigue en progreso: pendiente `\\` en parrafos.*
+*Última actualización: 2026-03-26 (sesion 3, cierre) — F3-M2 completado: fix `\\` → `<br/>` en parrafos (latex-parser.ts + LatexBlock.tsx), fix catch-all regex que eliminaba texto visible de comandos LaTeX desconocidos, fix hydration error en home/page.tsx (localStorage en useState → useEffect). Pendiente próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues).*

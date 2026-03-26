@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterNotes — Cierre Sesion 3 — F3-M2 Completado</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #18181f;
+      --surface2: #22222c;
+      --border: #2e2e3a;
+      --accent: #7c6aff;
+      --accent2: #a78bfa;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --orange: #f97316;
+      --text: #e8e8f0;
+      --muted: #8888a0;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    /* HEADER */
+    .hero {
+      background: linear-gradient(135deg, #0d1a2a 0%, #0f0f1a 50%, #130d2a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 40px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -100px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(124,106,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.35);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(26px, 4.5vw, 44px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+    .hero-sub {
+      color: var(--muted);
+      font-size: 16px;
+      max-width: 520px;
+      margin: 0 auto 32px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 36px;
+      flex-wrap: wrap;
+    }
+    .hero-meta-item { text-align: center; }
+    .hero-meta-item .val {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--accent2);
+      display: block;
+    }
+    .hero-meta-item .lbl {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* LAYOUT */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section { margin-bottom: 52px; }
+
+    /* CARDS */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }
+    .card:last-child { margin-bottom: 0; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .card-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .card-icon.green  { background: rgba(34,197,94,0.12); }
+    .card-icon.orange { background: rgba(249,115,22,0.12); }
+    .card-icon.purple { background: rgba(124,106,255,0.12); }
+    .card-icon.yellow { background: rgba(234,179,8,0.12); }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .card-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* BADGE PILL */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 3px 10px;
+      border-radius: 100px;
+      margin-right: 6px;
+      margin-bottom: 4px;
+    }
+    .badge.green  { background: rgba(34,197,94,0.12);  color: var(--green);  border: 1px solid rgba(34,197,94,0.25); }
+    .badge.yellow { background: rgba(234,179,8,0.12);  color: var(--yellow); border: 1px solid rgba(234,179,8,0.25); }
+    .badge.purple { background: rgba(124,106,255,0.12); color: var(--accent2); border: 1px solid rgba(124,106,255,0.25); }
+    .badge.orange { background: rgba(249,115,22,0.12); color: var(--orange); border: 1px solid rgba(249,115,22,0.25); }
+
+    /* CODE BLOCK */
+    .code-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12.5px;
+      color: #c9b8ff;
+      margin-top: 10px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .code-comment { color: #555566; }
+    .code-green   { color: #86efac; }
+    .code-yellow  { color: #fde68a; }
+
+    /* PROGRESS BARS */
+    .progress-group { margin-bottom: 16px; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .progress-label span:first-child { color: var(--text); font-weight: 600; }
+    .progress-label span:last-child  { color: var(--muted); font-size: 12px; }
+    .progress-bar {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    /* MILESTONE LIST */
+    .milestone-list { list-style: none; }
+    .milestone-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13.5px;
+    }
+    .milestone-list li:last-child { border-bottom: none; }
+    .check {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .check.done   { background: rgba(34,197,94,0.15);  color: var(--green); }
+    .check.pend   { background: rgba(234,179,8,0.15);  color: var(--yellow); }
+
+    /* NEXT STEP */
+    .next-card {
+      background: linear-gradient(135deg, rgba(124,106,255,0.08) 0%, rgba(167,139,250,0.04) 100%);
+      border: 1px solid rgba(124,106,255,0.3);
+      border-radius: var(--radius);
+      padding: 28px 28px;
+    }
+    .next-card h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--accent2);
+      margin-bottom: 8px;
+    }
+    .next-card p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .next-card ul {
+      margin-top: 14px;
+      padding-left: 18px;
+    }
+    .next-card li {
+      color: var(--muted);
+      font-size: 13.5px;
+      margin-bottom: 6px;
+      line-height: 1.6;
+    }
+    .next-card li strong { color: var(--text); }
+
+    /* PENDING CARD */
+    .pending-card {
+      background: rgba(249,115,22,0.06);
+      border: 1px solid rgba(249,115,22,0.25);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+    }
+    .pending-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--orange);
+      margin-bottom: 8px;
+    }
+    .pending-card p {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* TABLE */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    td.muted { color: var(--muted); }
+
+    /* FOOTER */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .footer strong { color: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">Sesion 3 cerrada — 2026-03-26</div>
+  <h1>F3-M2 Renderizado Base — Completado</h1>
+  <p class="hero-sub">Fixes de renderizacion en el visor interactivo: saltos de linea, texto visible en comandos desconocidos, hydration error en home.</p>
+  <div class="hero-meta">
+    <div class="hero-meta-item">
+      <span class="val">3</span>
+      <span class="lbl">Fixes aplicados</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="val">F3-M2</span>
+      <span class="lbl">Milestone cerrado</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="val">F3-M3</span>
+      <span class="lbl">Siguiente milestone</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="val">1</span>
+      <span class="lbl">Pendiente proxima sesion</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- PROGRESO FASE 3 -->
+  <section>
+    <p class="section-title">Progreso Fase 3 — Visor Interactivo</p>
+
+    <div class="progress-group">
+      <div class="progress-label">
+        <span>F3-M1 — Arquitectura + PoC</span>
+        <span>COMPLETADO</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%; background: linear-gradient(90deg,#22c55e,#4ade80);"></div></div>
+    </div>
+
+    <div class="progress-group">
+      <div class="progress-label">
+        <span>F3-M2 — Renderizado base</span>
+        <span>COMPLETADO (sesion 3)</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%; background: linear-gradient(90deg,#22c55e,#4ade80);"></div></div>
+    </div>
+
+    <div class="progress-group">
+      <div class="progress-label">
+        <span>F3-M3 — Interactividad (patron Typora)</span>
+        <span>Pendiente — siguiente</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%;"></div></div>
+    </div>
+
+    <div class="progress-group">
+      <div class="progress-label">
+        <span>F3-M4 — Chat contextual</span>
+        <span>Bloqueado por M3</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%;"></div></div>
+    </div>
+
+    <div class="progress-group">
+      <div class="progress-label">
+        <span>F3-M5 — Publish to My Studies + polish</span>
+        <span>Bloqueado por M4</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%;"></div></div>
+    </div>
+  </section>
+
+  <!-- LO QUE SE HIZO HOY -->
+  <section>
+    <p class="section-title">Completado en sesion 3</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green">&#10003;</div>
+        <div>
+          <div class="card-title">F3-M2.8 — Fix renderizado <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">\\</code> en parrafos</div>
+          <div class="card-meta">latex-parser.ts + LatexBlock.tsx</div>
+        </div>
+      </div>
+      <p>Los bloques de parrafo con saltos de linea <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">\\</code> (doble backslash LaTeX) ahora se renderizan como <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">&lt;br/&gt;</code> en el visor. Cambios aplicados en el parser y en el componente de renderizado de bloques.</p>
+      <div class="code-block"><span class="code-comment">// Antes: \\ era ignorado o causaba artefactos</span>
+<span class="code-comment">// Ahora: texto.split('\\\\') → joined con &lt;br/&gt;</span>
+<span class="code-green">latex-parser.ts</span>  — procesado a nivel de parser
+<span class="code-green">LatexBlock.tsx</span>   — renderizado del fragmento con br</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green">&#10003;</div>
+        <div>
+          <div class="card-title">Fix catch-all regex en LatexBlock.tsx</div>
+          <div class="card-meta">LatexBlock.tsx</div>
+        </div>
+      </div>
+      <p>El regex catch-all que capturaba comandos LaTeX desconocidos eliminaba el texto visible del argumento. Por ejemplo <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">\textbf{algo}</code> desaparecia en lugar de mostrar "algo". Corregido: ahora el texto del argumento se muestra como fallback cuando el comando no es reconocido.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green">&#10003;</div>
+        <div>
+          <div class="card-title">Fix hydration error en home/page.tsx</div>
+          <div class="card-meta">app/(app)/home/page.tsx</div>
+        </div>
+      </div>
+      <p>El uso de <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">localStorage</code> directamente en el inicializador de <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:12px;">useState</code> causaba un mismatch entre el HTML generado en servidor y el renderizado en cliente (hydration error). Migrado al patron seguro: valor inicial neutro en useState + lectura de localStorage en useEffect post-montaje.</p>
+      <div class="code-block"><span class="code-comment">// Antes (causa hydration error):</span>
+<span class="code-yellow">const [val, setVal] = useState(localStorage.getItem('key'))</span>
+
+<span class="code-comment">// Ahora (patron SSR-safe):</span>
+<span class="code-green">const [val, setVal] = useState(null)</span>
+<span class="code-green">useEffect(() =&gt; { setVal(localStorage.getItem('key')) }, [])</span></div>
+    </div>
+  </section>
+
+  <!-- SUBMILESTONES F3-M2 COMPLETOS -->
+  <section>
+    <p class="section-title">Sub-milestones F3-M2 — Estado final</p>
+    <ul class="milestone-list">
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.1</strong> — Parser LaTeX → bloques tipados para los 4 templates (lib/latex-parser.ts)</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.2</strong> — Componente React por tipo de bloque con KaTeX (LatexBlock.tsx)</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.3</strong> — Layout multi-columna segun plantilla activa (CSS grid)</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.4</strong> — Toolbar: navegacion paginas virtuales + zoom (75/100/125/150%)</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.5</strong> — Toggles PDF/PDF+LaTeX/LaTeX ocultos en UI (codigo intacto)</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.6</strong> — Workspace muestra LatexViewer como vista principal en /documents/[id]</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.7</strong> — Boton "Descargar PDF" siempre visible en header</span></li>
+      <li><span class="check done">&#10003;</span><span><strong>F3-M2.8</strong> — Renderizado correcto de saltos de linea (<code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;">\\</code>) en parrafos — <span class="badge green">Cerrado sesion 3</span></span></li>
+    </ul>
+  </section>
+
+  <!-- PENDIENTE PROXIMA SESION -->
+  <section>
+    <p class="section-title">Pendiente para proxima sesion</p>
+
+    <div class="pending-card">
+      <h4>KaTeX / LaTeX rendering issues en ecuaciones</h4>
+      <p>Algunas ecuaciones no se renderizan correctamente en el visor interactivo. El problema exacto esta por diagnosticar: puede ser incompatibilidad de macros, entornos no soportados por KaTeX, o patrones de parsing que el regex no cubre bien. Se abordara al inicio de F3-M3 antes de arrancar la interactividad.</p>
+      <p style="margin-top:10px;"><span class="badge orange">Investigar</span> <span class="badge yellow">Prioridad media</span> <span class="badge purple">Previo a F3-M3</span></p>
+    </div>
+  </section>
+
+  <!-- ARCHIVOS MODIFICADOS -->
+  <section>
+    <p class="section-title">Archivos modificados en sesion 3</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Archivo</th>
+          <th>Cambio</th>
+          <th>Milestone</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code style="font-size:12px;color:var(--accent2);">app-web/lib/latex-parser.ts</code></td>
+          <td class="muted">Fix procesado de <code style="font-size:12px;">\\</code> en parrafos</td>
+          <td><span class="badge green">F3-M2.8</span></td>
+        </tr>
+        <tr>
+          <td><code style="font-size:12px;color:var(--accent2);">app-web/components/viewer/LatexBlock.tsx</code></td>
+          <td class="muted">Fix catch-all regex + renderizado br para saltos de linea</td>
+          <td><span class="badge green">F3-M2.8</span></td>
+        </tr>
+        <tr>
+          <td><code style="font-size:12px;color:var(--accent2);">app-web/app/(app)/home/page.tsx</code></td>
+          <td class="muted">Fix hydration: localStorage en useEffect en lugar de useState</td>
+          <td><span class="badge purple">Fix independiente</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SIGUIENTE MILESTONE -->
+  <section>
+    <p class="section-title">Siguiente milestone</p>
+    <div class="next-card">
+      <h3>F3-M3 — Interactividad (patron Typora)</h3>
+      <p>Con F3-M2 completado, el visor renderiza correctamente los 4 templates. El siguiente paso es convertirlo en un editor interactivo al estilo Typora: hover sobre bloques, click para editar fragmentos inline, re-renderizado KaTeX al confirmar, y menu contextual para referenciar en el chat.</p>
+      <ul>
+        <li><strong>Antes de arrancar:</strong> investigar y resolver los KaTeX/LaTeX rendering issues pendientes</li>
+        <li><strong>F3-M3.1:</strong> Hover sobre bloque → borde sutil resaltado (~30 min)</li>
+        <li><strong>F3-M3.2:</strong> Click en bloque → estado "focused", contenido sigue renderizado (~30 min)</li>
+        <li><strong>F3-M3.3:</strong> Click/doble click → fragmento en modo edicion con LaTeX crudo (~1h30)</li>
+        <li><strong>F3-M3.4:</strong> Enter o click fuera → re-renderiza y persiste cambio (~1h)</li>
+        <li><strong>F3-M3.5:</strong> Seleccion + click derecho → "Referenciar en chat" (~1h)</li>
+        <li><strong>F3-M3.6:</strong> Toolbar de formato: H1/H2, bold, italic, formula, color, boxed (~2h)</li>
+        <li><strong>F3-M3.7:</strong> Auto-deteccion del tipo de bloque para toolbar (~30 min)</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<div class="footer">
+  <strong>BetterNotes v2</strong> &nbsp;|&nbsp; Sesion 3 cerrada el 2026-03-26 &nbsp;|&nbsp; Rama: main &nbsp;|&nbsp; F3-M2 completado &mdash; F3-M3 desbloqueado
+</div>
+
+</body>
+</html>

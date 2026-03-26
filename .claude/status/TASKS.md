@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 (sesion 2) — UI/UX stars+carpetas completado. FolderSectionMenu: Change color, Download PDFs (basico), Archive folder. Backlog nuevo: ZIP real, subcarpetas, vista archivadas. F3-M2 sigue en progreso (pendiente: `\\` saltos de linea)._
+_Última actualización: 2026-03-26 (sesion 3) — F3-M2 completado: fix `\\` → `<br/>` en parrafos, fix catch-all regex LatexBlock, fix hydration home/page.tsx. Pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones (investigar). Siguiente milestone: F3-M3 — Interactividad (patrón Typora)._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -171,11 +171,11 @@ _Prerrequisito: F3-M1 completado_
 - [x] F3-M2.5 — Ocultar toggles PDF / PDF+LaTeX / LaTeX en el workspace · Completada: envueltos en `<div className="hidden">`, código intacto
 - [x] F3-M2.6 — Workspace muestra LatexViewer como vista principal · Completada: documents/[id]/page.tsx carga latexContent + template_id desde hook existente, tab "Interactive", layout CSS columns, titulo, separadores HR, MyBox visibles
 - [x] F3-M2.7 — Botón "Descargar PDF" siempre visible · Verificado: ya existía en el header, visible cuando activePdfUrl está disponible (coexiste con el visor)
-- [ ] F3-M2.8 — Renderizado correcto de saltos de linea (`\\`) en bloques de texto/parrafos · PENDIENTE (bloqueante para cierre de M2)
-  > El parser/LatexBlock no procesa `\\` como salto de linea en parrafos normales. Falta mapear `\\` → `<br/>` o equivalente en el renderizado de texto.
+- [x] F3-M2.8 — Renderizado correcto de saltos de linea (`\\`) en bloques de texto/parrafos · COMPLETADO (2026-03-26 sesion 3)
+  > Fix en latex-parser.ts y LatexBlock.tsx: `\\` → `<br/>` en parrafos. Fix catch-all regex que eliminaba texto visible. Fix hydration error home/page.tsx (localStorage→useEffect).
 
 _Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto, fórmulas renderizadas y saltos de linea correctos en parrafos._
-_Estado: EN PROGRESO — visor integrado y funcional excepto por renderizado de `\\`._
+_Estado: COMPLETADO (2026-03-26 sesion 3). Pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones — algunas ecuaciones no se renderizan correctamente, investigar en F3-M3._
 
 ---
 
