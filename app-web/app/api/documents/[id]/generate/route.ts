@@ -204,6 +204,7 @@ export async function POST(
     })
     .eq('id', documentId);
 
+
   // Save chat messages
   await supabase.from('chat_messages').insert([
     {

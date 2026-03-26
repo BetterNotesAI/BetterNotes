@@ -4,6 +4,34 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-03-26 (session 2) — UI/UX stars + carpetas + FolderSectionMenu (Change color, Download, Archive)
+
+**Completado:**
+- Star hover preview: hover sobre estrella marcada muestra outline (preview de "quitar estrella") antes de confirmar el click — en documentos y carpetas
+- Carpetas starred en seccion Starred: las carpetas con estrella aparecen en la seccion "Starred" con card identica a la de Folders, y desaparecen de la seccion Folders
+- Estrella siempre visible en folder cards (no solo al hover), alineada con el comportamiento de documentos
+- Alineacion horizontal corregida en folder cards: dot + icono + nombre + tres puntos + estrella + chevron sin desalineamientos
+- FolderSectionMenu — Change color: picker con 10 colores predefinidos, checkmark en el color activo, llama PATCH /api/folders/[id]
+- FolderSectionMenu — Download PDFs: descarga los PDFs de todos los documentos de la carpeta. Endpoint GET /api/folders/[id]/download creado. Funcionalidad basica operativa.
+- FolderSectionMenu — Archive folder: archiva la carpeta (archived_at), la saca del listado. Endpoint PATCH /api/folders/[id] actualizado. Migracion SQL aplicada en Supabase.
+- Archivos nuevos: supabase/migrations/20260326000003_folders_archived_at.sql, app-web/app/api/folders/[id]/download/route.ts
+- Archivo actualizado: app-web/app/api/folders/[id]/route.ts (archive + color)
+
+**Decisiones tomadas:**
+- Change color y Archive no son Pro-only — disponibles para todos los planes
+- Download PDFs tampoco es Pro-only por ahora
+- Share y subcarpetas (New folder here, Move to) quedan como "disabled / Soon" en el menu
+- La descarga de PDFs se hace de forma individual por ahora — ZIP real y progress indicator van al backlog
+
+**Problemas encontrados:**
+- Download PDFs es funcional pero basico: descarga archivos individualmente sin ZIP real ni indicador de progreso. Queda en backlog para mejorar.
+
+**Lecciones capturadas:** no
+
+**Siguiente:** Revisar descarga de carpetas (ZIP + progress), luego implementar subcarpetas (New folder here / Move to), o retomar F3-M2 (saltos de linea `\\`) segun prioridad
+
+---
+
 ## Sesión 2026-03-26 (session-end) — F3-M1 completado + F3-M2 visor integrado (en progreso)
 
 **Completado:**

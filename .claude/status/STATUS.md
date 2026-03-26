@@ -7,13 +7,13 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo
-**Milestone activo:** F3-M2 — Renderizado base (EN PROGRESO)
-**Tarea activa:** F3-M2 — Pendiente: renderizado de saltos de linea (`\\`) en parrafos
+**Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
+**Milestone activo:** F3-M2 — Renderizado base (EN PROGRESO — pendiente: `\\` en parrafos)
+**Tarea activa:** UI/UX — Stars + carpetas + FolderSectionMenu (Change color, Download, Archive)
 **Último hito cerrado:** F3-M1 — Arquitectura + PoC ✅ (2026-03-26)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** session/2026-03-26
-**Bloqueantes:** ninguno (pendiente menor: `\\` en parrafos para F3-M2)
+**Rama activa:** main
+**Bloqueantes:** ninguno. Pendiente menor en F3-M2: `\\` en parrafos. Bug conocido: Download PDFs de carpeta no descarga ningun fichero (causa desconocida, prioridad media).
 
 ---
 
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 (session-end) — F3-M1 completado. F3-M2 en progreso: LatexViewer integrado en /documents/[id] con tab "Interactive", layout CSS columns, toolbar pagination/zoom, titulo, separadores HR, MyBox. Pendiente: renderizado saltos de linea (`\\`) en parrafos.*
+*Última actualización: 2026-03-26 (sesion 2, cierre) — UI/UX: star hover preview, carpetas starred en seccion Starred, estrella siempre visible en folder cards, alineacion horizontal corregida. FolderSectionMenu: Change color (picker 10 colores), Download PDFs (bug conocido: no descarga), Archive folder (con migracion SQL). Carpetas archivadas visibles en modo Archived. Seccion Starred oculta en modo Archived. Bug registrado en backlog: Download PDFs de carpeta. F3-M2 sigue en progreso: pendiente `\\` en parrafos.*

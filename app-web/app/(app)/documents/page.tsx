@@ -80,7 +80,7 @@ export default function DocumentsPage() {
   });
 
   // Folders for DocumentCard "move to folder" menu
-  const [folders, setFolders] = useState<{ id: string; name: string; color: string | null }[]>([]);
+  const [folders, setFolders] = useState<{ id: string; name: string; color: string | null; is_starred: boolean; archived_at?: string | null }[]>([]);
 
   // Create modal state
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -158,8 +158,22 @@ export default function DocumentsPage() {
       })
       .sort((a, b) => a.folderName.localeCompare(b.folderName));
 
-    return { starred, folderGroups, looseDocs, visibleDocs };
-  }, [activeFolderId, filterStarred, documents, folders]);
+    // Separate archived and non-archived folders
+    const nonArchivedFolders = folders.filter((f) => !f.archived_at);
+    const archivedFolders = showArchived ? folders.filter((f) => !!f.archived_at) : [];
+    const starredFolders = nonArchivedFolders.filter((f) => f.is_starred);
+    const starredFolderIds = new Set(starredFolders.map((f) => f.id));
+
+    // Build set of non-archived folder ids for filtering folder groups
+    const nonArchivedFolderIds = new Set(nonArchivedFolders.map((f) => f.id));
+
+    // Exclude starred folders and archived folders from the Folders section
+    const filteredFolderGroups = folderGroups.filter(
+      (g) => !starredFolderIds.has(g.folderId) && nonArchivedFolderIds.has(g.folderId)
+    );
+
+    return { starred, folderGroups: filteredFolderGroups, looseDocs, visibleDocs, starredFolders, archivedFolders };
+  }, [activeFolderId, filterStarred, showArchived, documents, folders]);
 
   async function loadDocuments() {
     const silent = silentNextLoad.current;
@@ -209,8 +223,6 @@ export default function DocumentsPage() {
     });
     if (!res.ok) {
       setDocuments(previousDocs);
-    } else if (filterStarred) {
-      loadDocuments();
     }
   }
 
@@ -235,6 +247,36 @@ export default function DocumentsPage() {
       body: JSON.stringify({ folder_id: folderId }),
     });
     loadDocuments();
+  }
+
+  async function handleDuplicate(doc: DocumentItem) {
+    const resp = await fetch(`/api/documents/${doc.id}/duplicate`, { method: 'POST' });
+    if (resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      if (data?.document?.id) {
+        router.push(`/documents/${data.document.id}`);
+      } else {
+        loadDocuments();
+      }
+    }
+  }
+
+  async function handleDownload(doc: DocumentItem) {
+    const resp = await fetch(`/api/documents/${doc.id}`);
+    if (!resp.ok) return;
+    const data = await resp.json().catch(() => ({}));
+    const pdfUrl: string | null = data?.pdfSignedUrl ?? null;
+    if (!pdfUrl) return;
+    const res = await fetch(pdfUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.title}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   // --- Folder action handlers (F2-M6.6) ---
@@ -272,9 +314,91 @@ export default function DocumentsPage() {
     }
   }
 
+  async function handleStarFolder(folderId: string, isStarred: boolean) {
+    const previousFolders = folders;
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderId ? { ...f, is_starred: isStarred } : f))
+    );
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_starred: isStarred }),
+    });
+    if (!res.ok) {
+      setFolders(previousFolders);
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
   function handleCreateDocInFolder(folderId: string) {
     setPendingFolderId(folderId);
     setShowNewDocModal(true);
+  }
+
+  async function handleChangeFolderColor(folderId: string, newColor: string) {
+    const previousFolders = folders;
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderId ? { ...f, color: newColor } : f))
+    );
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color: newColor }),
+    });
+    if (!res.ok) {
+      setFolders(previousFolders);
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
+  async function handleDownloadFolder(folderId: string) {
+    const res = await fetch(`/api/folders/${folderId}/download`);
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({ files: [] }));
+    const files: { title: string; signedUrl: string }[] = data.files ?? [];
+    if (files.length === 0) return;
+    // Download each PDF individually with a small delay to avoid browser blocking
+    for (let i = 0; i < files.length; i++) {
+      const { title, signedUrl } = files[i];
+      const blob = await fetch(signedUrl).then((r) => r.blob()).catch(() => null);
+      if (!blob) continue;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      // Small delay so browser doesn't block multiple simultaneous downloads
+      if (i < files.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+
+  async function handleArchiveFolder(folderId: string, currentlyArchived: boolean) {
+    const archivedAt = currentlyArchived ? null : new Date().toISOString();
+    const previousFolders = folders;
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderId ? { ...f, archived_at: archivedAt } : f))
+    );
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived_at: archivedAt }),
+    });
+    if (!res.ok) {
+      setFolders(previousFolders);
+    } else {
+      window.dispatchEvent(new Event('folders:updated'));
+      // If archiving the currently active folder, navigate back to All Documents
+      if (!currentlyArchived && activeFolderId === folderId) {
+        setActiveFolderId(null);
+      }
+    }
   }
 
   // --- New document modal handlers ---
@@ -409,11 +533,11 @@ export default function DocumentsPage() {
       {/* Filters bar */}
       <DocumentFilters
         sortBy={sortBy}
-        setSortBy={setSortBy}
+        setSortBy={(v) => { setIsLoadingDocs(true); setSortBy(v); }}
         filterStarred={filterStarred}
-        setFilterStarred={setFilterStarred}
+        setFilterStarred={(v) => { setIsLoadingDocs(true); setFilterStarred(v); }}
         showArchived={showArchived}
-        setShowArchived={setShowArchived}
+        setShowArchived={(v) => { setIsLoadingDocs(true); setShowArchived(v); }}
       />
 
       {/* Documents list */}
@@ -447,9 +571,15 @@ export default function DocumentsPage() {
                         <FolderSectionMenu
                           folderName={activeFolder.name}
                           folderColor={activeFolder.color}
+                          isStarred={activeFolder.is_starred ?? false}
+                          isArchived={!!activeFolder.archived_at}
+                          onStar={(isStarred) => handleStarFolder(activeFolderId!, isStarred)}
                           onCreateDocumentInside={() => handleCreateDocInFolder(activeFolderId!)}
                           onRename={(newName) => handleRenameFolder(activeFolderId!, newName)}
                           onDelete={() => handleDeleteFolder(activeFolderId!)}
+                          onChangeColor={(color) => handleChangeFolderColor(activeFolderId!, color)}
+                          onDownload={() => handleDownloadFolder(activeFolderId!)}
+                          onArchive={() => handleArchiveFolder(activeFolderId!, !!activeFolder.archived_at)}
                         />
                       )}
                     </div>
@@ -517,8 +647,8 @@ export default function DocumentsPage() {
             /* ── All Documents grouped view (F2-M6.3 + F2-M6.4) ── */
             <div className="space-y-8">
 
-              {/* F2-M6.3 — Starred section: always visible */}
-              <section>
+              {/* F2-M6.3 — Starred section: hidden in Archived view */}
+              {!showArchived && <section>
                 <div className="flex items-center gap-2 mb-4">
                   <svg className="w-4 h-4 text-yellow-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
@@ -528,31 +658,94 @@ export default function DocumentsPage() {
                     <span className="text-[10px] text-white/30 font-medium">{groupedView.starred.length}</span>
                   )}
                 </div>
-                {groupedView.starred.length === 0 ? (
+                {groupedView.starred.length === 0 && groupedView.starredFolders.length === 0 ? (
                   <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/8 bg-white/[0.03]">
                     <svg className="w-3.5 h-3.5 text-white/20 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                     </svg>
-                    <p className="text-xs text-white/30">No starred documents yet — click the star on any document to add it here.</p>
+                    <p className="text-xs text-white/30">No starred items yet — star documents or folders to add them here.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groupedView.starred.map((doc) => (
-                      <DocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        onRename={(newTitle) => handleRename(doc.id, newTitle)}
-                        onStar={(isStarred) => handleStar(doc.id, isStarred)}
-                        onArchive={(archive) => handleArchive(doc.id, archive)}
-                        onDelete={() => handleDelete(doc.id)}
-                        onNavigate={() => router.push(`/documents/${doc.id}`)}
-                        folders={folders}
-                        onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
-                      />
-                    ))}
-                  </div>
+                  <>
+                  {/* Starred folders — same card format as Folders section */}
+                  {groupedView.starredFolders.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                      {groupedView.starredFolders.map((f) => (
+                        <div
+                          key={f.id}
+                          className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl
+                            border border-white/10 bg-white/[0.04] hover:bg-white/[0.07]
+                            transition-colors cursor-pointer group"
+                          onClick={() => { setIsLoadingDocs(true); setActiveFolderId(f.id); }}
+                          title={`Open folder: ${f.name}`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color ?? '#6366f1' }} />
+                            <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                            </svg>
+                            <span className="text-sm font-medium text-white/80 truncate">{f.name}</span>
+                          </div>
+                          <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <FolderSectionMenu
+                              folderName={f.name}
+                              folderColor={f.color}
+                              isStarred={f.is_starred}
+                              isArchived={!!f.archived_at}
+                              onStar={(isStarred) => handleStarFolder(f.id, isStarred)}
+                              onCreateDocumentInside={() => handleCreateDocInFolder(f.id)}
+                              onRename={(newName) => handleRenameFolder(f.id, newName)}
+                              onDelete={() => handleDeleteFolder(f.id)}
+                              onChangeColor={(color) => handleChangeFolderColor(f.id, color)}
+                              onDownload={() => handleDownloadFolder(f.id)}
+                              onArchive={() => handleArchiveFolder(f.id, !!f.archived_at)}
+                            />
+                            <button
+                              onClick={() => handleStarFolder(f.id, false)}
+                              className="p-1 rounded-md hover:bg-white/10 transition-colors group/star"
+                              title="Remove from starred"
+                            >
+                              <svg className="w-4 h-4 text-yellow-400 group-hover/star:hidden" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                              </svg>
+                              <svg className="w-4 h-4 text-white/50 hidden group-hover/star:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                              </svg>
+                            </button>
+                            <span className="p-1">
+                              <svg className="w-4 h-4 text-white/25 group-hover:text-white/50 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Starred documents */}
+                  {groupedView.starred.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groupedView.starred.map((doc) => (
+                        <DocumentCard
+                          key={doc.id}
+                          doc={doc}
+                          onRename={(newTitle) => handleRename(doc.id, newTitle)}
+                          onStar={(isStarred) => handleStar(doc.id, isStarred)}
+                          onArchive={(archive) => handleArchive(doc.id, archive)}
+                          onDelete={() => handleDelete(doc.id)}
+                          onNavigate={() => router.push(`/documents/${doc.id}`)}
+                          onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
+                          folders={folders}
+                          onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                          onDuplicate={() => handleDuplicate(doc)}
+                          onDownload={() => handleDownload(doc)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  </>
                 )}
-              </section>
+              </section>}
 
               {/* F2-M6.4 — Folder sections: alphabetically, in a grid (like document cards) */}
               {groupedView.folderGroups.length > 0 && (
@@ -582,22 +775,108 @@ export default function DocumentsPage() {
                           <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                           </svg>
-                          <h2 className="text-sm font-medium text-white/80 truncate">
+                          <span className="text-sm font-medium text-white/80 truncate">
                             {folderName}
-                          </h2>
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          {/* F2-M6.6 — 3-dots menu for folder section */}
+                        <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {/* 3-dots menu */}
                           <FolderSectionMenu
                             folderName={folderName}
                             folderColor={folderColor}
+                            isStarred={folders.find((f) => f.id === groupFolderId)?.is_starred ?? false}
+                            isArchived={!!folders.find((f) => f.id === groupFolderId)?.archived_at}
+                            onStar={(isStarred) => handleStarFolder(groupFolderId, isStarred)}
                             onCreateDocumentInside={() => handleCreateDocInFolder(groupFolderId)}
                             onRename={(newName) => handleRenameFolder(groupFolderId, newName)}
                             onDelete={() => handleDeleteFolder(groupFolderId)}
+                            onChangeColor={(color) => handleChangeFolderColor(groupFolderId, color)}
+                            onDownload={() => handleDownloadFolder(groupFolderId)}
+                            onArchive={() => handleArchiveFolder(groupFolderId, !!folders.find((f) => f.id === groupFolderId)?.archived_at)}
                           />
-                          <svg className="w-4 h-4 text-white/25 group-hover:text-white/50 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          {/* Star toggle */}
+                          <button
+                            onClick={() => {
+                              const starred = folders.find((f) => f.id === groupFolderId)?.is_starred ?? false;
+                              handleStarFolder(groupFolderId, !starred);
+                            }}
+                            className="p-1 rounded-md hover:bg-white/10 transition-colors group/star"
+                            title={folders.find((f) => f.id === groupFolderId)?.is_starred ? 'Remove from starred' : 'Add to starred'}
+                          >
+                            {folders.find((f) => f.id === groupFolderId)?.is_starred ? (
+                              <>
+                                <svg className="w-4 h-4 text-yellow-400 group-hover/star:hidden" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                                </svg>
+                                <svg className="w-4 h-4 text-white/50 hidden group-hover/star:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                                </svg>
+                              </>
+                            ) : (
+                              <svg className="w-4 h-4 text-white/30 group-hover/star:text-yellow-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                              </svg>
+                            )}
+                          </button>
+                          {/* Chevron — same p-1 padding as buttons for alignment */}
+                          <span className="p-1">
+                            <svg className="w-4 h-4 text-white/25 group-hover:text-white/50 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Archived folders — shown when showArchived=true */}
+              {groupedView.archivedFolders.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <svg className="w-4 h-4 text-yellow-400/50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                    <h2 className="text-xs font-semibold text-yellow-400/50 uppercase tracking-wider">Archived Folders</h2>
+                    <span className="text-[10px] text-white/30 font-medium">{groupedView.archivedFolders.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {groupedView.archivedFolders.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl
+                          border border-yellow-400/10 bg-yellow-400/[0.03] hover:bg-yellow-400/[0.06]
+                          transition-colors cursor-pointer group opacity-70 hover:opacity-100"
+                        onClick={() => { setIsLoadingDocs(true); setActiveFolderId(f.id); }}
+                        title={`Open archived folder: ${f.name}`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color ?? '#6366f1' }} />
+                          <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                           </svg>
+                          <span className="text-sm font-medium text-white/60 truncate">{f.name}</span>
+                        </div>
+                        <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <FolderSectionMenu
+                            folderName={f.name}
+                            folderColor={f.color}
+                            isStarred={f.is_starred}
+                            isArchived={true}
+                            onStar={(isStarred) => handleStarFolder(f.id, isStarred)}
+                            onCreateDocumentInside={() => handleCreateDocInFolder(f.id)}
+                            onRename={(newName) => handleRenameFolder(f.id, newName)}
+                            onDelete={() => handleDeleteFolder(f.id)}
+                            onChangeColor={(color) => handleChangeFolderColor(f.id, color)}
+                            onDownload={() => handleDownloadFolder(f.id)}
+                            onArchive={() => handleArchiveFolder(f.id, true)}
+                          />
+                          <span className="p-1">
+                            <svg className="w-4 h-4 text-white/25 group-hover:text-white/50 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -625,8 +904,11 @@ export default function DocumentsPage() {
                         onArchive={(archive) => handleArchive(doc.id, archive)}
                         onDelete={() => handleDelete(doc.id)}
                         onNavigate={() => router.push(`/documents/${doc.id}`)}
+                        onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
                         folders={folders}
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                        onDuplicate={() => handleDuplicate(doc)}
+                        onDownload={() => handleDownload(doc)}
                       />
                     ))}
                   </div>
@@ -634,7 +916,7 @@ export default function DocumentsPage() {
               )}
 
               {/* All Documents empty state (only shown when there are truly no docs at all) */}
-              {groupedView.visibleDocs.length === 0 && (
+              {groupedView.visibleDocs.length === 0 && !(showArchived && groupedView.archivedFolders.length > 0) && (
                 filterStarred || showArchived ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
@@ -696,9 +978,15 @@ export default function DocumentsPage() {
                       <FolderSectionMenu
                         folderName={activeFolder.name}
                         folderColor={activeFolder.color}
+                        isStarred={activeFolder.is_starred ?? false}
+                        isArchived={!!activeFolder.archived_at}
+                        onStar={(isStarred) => handleStarFolder(activeFolderId!, isStarred)}
                         onCreateDocumentInside={() => handleCreateDocInFolder(activeFolderId!)}
                         onRename={(newName) => handleRenameFolder(activeFolderId!, newName)}
                         onDelete={() => handleDeleteFolder(activeFolderId!)}
+                        onChangeColor={(color) => handleChangeFolderColor(activeFolderId!, color)}
+                        onDownload={() => handleDownloadFolder(activeFolderId!)}
+                        onArchive={() => handleArchiveFolder(activeFolderId!, !!activeFolder.archived_at)}
                       />
                     )}
                   </div>
@@ -714,8 +1002,11 @@ export default function DocumentsPage() {
                         onArchive={(archive) => handleArchive(doc.id, archive)}
                         onDelete={() => handleDelete(doc.id)}
                         onNavigate={() => router.push(`/documents/${doc.id}`)}
+                        onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
                         folders={folders}
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                        onDuplicate={() => handleDuplicate(doc)}
+                        onDownload={() => handleDownload(doc)}
                       />
                     ))}
                   </div>

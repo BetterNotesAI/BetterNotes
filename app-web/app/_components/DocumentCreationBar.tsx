@@ -60,6 +60,7 @@ export function DocumentCreationBar({
   const [openPanel, setOpenPanel] = useState<'template' | 'specs' | null>(null);
   // Specs are only "active" after the user explicitly clicks Apply
   const [specsApplied, setSpecsApplied] = useState(false);
+  const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
 
   const barRef         = useRef<HTMLDivElement>(null);
   const textareaRef    = useRef<HTMLTextAreaElement>(null);
@@ -198,11 +199,16 @@ export function DocumentCreationBar({
           className="w-72 rounded-2xl border border-white/15 bg-neutral-900/95 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] p-3"
         >
           <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
-            {TEMPLATES.map((t) => {
+            {[...TEMPLATES].sort((a, b) => (b.id === templateId ? 1 : 0) - (a.id === templateId ? 1 : 0)).map((t) => {
               const isSelected = t.id === templateId;
               return (
-                <button
+                <div
                   key={t.id}
+                  className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
                   onClick={() => {
                     const next = t.id === templateId ? null : t.id;
                     setTemplateId(next);
@@ -212,22 +218,29 @@ export function DocumentCreationBar({
                     setOpenPanel(null);
                     setPopoverPos(null);
                   }}
-                  className={`relative text-left rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
-                    isSelected
-                      ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                  }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
-                    <span className="leading-snug">{t.displayName}</span>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <div className="flex items-center gap-1.5">
+                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
+                      <span className="leading-snug">{t.displayName}</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPdfPreviewId(t.id); }}
+                      title="Preview sample PDF"
+                      className="shrink-0 text-white/25 hover:text-white/70 transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
                   </div>
                   {t.isPro && (
                     <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded px-1 py-px">
                       Pro
                     </span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -337,10 +350,56 @@ export function DocumentCreationBar({
       )
     : null;
 
+  const pdfModal = pdfPreviewId && typeof window !== 'undefined'
+    ? createPortal(
+        <div
+          data-creation-popover
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setPdfPreviewId(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl h-[85vh] rounded-2xl overflow-hidden border border-white/15 bg-neutral-900 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+              <span className="text-sm font-medium text-white/80">
+                {TEMPLATES.find(t => t.id === pdfPreviewId)?.displayName ?? pdfPreviewId} — Sample PDF
+              </span>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/templates/samples/${pdfPreviewId}.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  onClick={() => setPdfPreviewId(null)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={`/templates/samples/${pdfPreviewId}.pdf`}
+              className="flex-1 w-full"
+              title="PDF preview"
+            />
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
     <>
       {templatePopover}
       {specsPopover}
+      {pdfModal}
 
       <div ref={barRef}>
       {/* Main bar — two rows */}
@@ -358,6 +417,7 @@ export function DocumentCreationBar({
             value={prompt}
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
+            onFocus={() => { setOpenPanel(null); setPopoverPos(null); }}
             placeholder={placeholder}
             rows={1}
             className="w-full bg-transparent text-white/90 text-sm placeholder-white/30 resize-none focus:outline-none min-h-[36px] max-h-[160px] leading-snug"

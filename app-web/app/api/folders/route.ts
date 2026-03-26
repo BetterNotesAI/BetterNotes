@@ -13,7 +13,7 @@ export async function GET() {
   // Fetch folders belonging to the user
   const { data: folders, error: foldersError } = await supabase
     .from('folders')
-    .select('id, name, color, created_at')
+    .select('id, name, color, is_starred, created_at')
     .eq('user_id', user.id)
     .order('name', { ascending: true });
 
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       color: color?.trim() || null,
     })
-    .select('id, name, color, created_at')
+    .select('id, name, color, is_starred, created_at')
     .single();
 
   if (error) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// PATCH /api/folders/[id] — rename folder or change color
+// PATCH /api/folders/[id] — rename folder, change color, or toggle starred
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +15,12 @@ export async function PATCH(
 
   const { id: folderId } = await params;
   const body = await req.json().catch(() => ({}));
-  const { name, color } = body as { name?: string; color?: string };
+  const { name, color, is_starred, archived_at } = body as {
+    name?: string;
+    color?: string;
+    is_starred?: boolean;
+    archived_at?: string | null;
+  };
 
   if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
     return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 });
@@ -24,6 +29,8 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name.trim();
   if (color !== undefined) updates.color = color?.trim() || null;
+  if (is_starred !== undefined) updates.is_starred = Boolean(is_starred);
+  if (archived_at !== undefined) updates.archived_at = archived_at ?? null;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

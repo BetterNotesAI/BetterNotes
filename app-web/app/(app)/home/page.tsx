@@ -13,29 +13,13 @@ interface RecentDocument {
   status: string;
 }
 
-const FEATURED_TEMPLATES = [
-  {
-    id: '2cols_portrait',
-    name: '2-Column Cheat Sheet',
-    desc: 'Compact portrait layout with 2 columns for formulas, definitions and key results.',
-    accent: '#6366f1',
-    linkColor: 'text-indigo-400 group-hover:text-indigo-300',
-  },
-  {
-    id: 'landscape_3col_maths',
-    name: '3-Column Landscape',
-    desc: 'A4 landscape with 3 dense columns — ideal for math reference sheets.',
-    accent: '#8b5cf6',
-    linkColor: 'text-violet-400 group-hover:text-violet-300',
-  },
-  {
-    id: 'lecture_notes',
-    name: 'Lecture Notes',
-    desc: 'Multi-page structured notes with objectives, sections and a summary box.',
-    accent: '#3b82f6',
-    linkColor: 'text-blue-400 group-hover:text-blue-300',
-  },
-] as const;
+const HOME_TEMPLATES: Record<string, { name: string; accent: string; linkColor: string }> = {
+  '2cols_portrait':       { name: '2-Column Cheat Sheet', accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' },
+  'landscape_3col_maths': { name: '3-Column Landscape',   accent: '#8b5cf6', linkColor: 'text-violet-400 group-hover:text-violet-300' },
+  'lecture_notes':        { name: 'Lecture Notes',         accent: '#3b82f6', linkColor: 'text-blue-400 group-hover:text-blue-300' },
+  'study_form':           { name: '3-Col Portrait',        accent: '#10b981', linkColor: 'text-emerald-400 group-hover:text-emerald-300' },
+};
+const FEATURED_IDS = ['2cols_portrait', 'landscape_3col_maths', 'lecture_notes'];
 
 export default function HomePage() {
   const router = useRouter();
@@ -45,6 +29,7 @@ export default function HomePage() {
   );
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
 
@@ -108,6 +93,7 @@ export default function HomePage() {
   }
 
   return (
+    <>
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
@@ -153,39 +139,58 @@ export default function HomePage() {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {FEATURED_TEMPLATES.map((t) => {
-                const isActive = selectedTemplateId === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => handleTemplateCardClick(t.id)}
-                    className={`group rounded-2xl border backdrop-blur p-3 text-left transition-all
-                      hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] ${
-                      isActive
-                        ? 'bg-white/[0.10] border-white/30'
-                        : 'bg-white/[0.04] border-white/12 hover:bg-white/[0.08] hover:border-white/20'
-                    }`}
-                  >
-                    {/* Schematic */}
+              {(() => {
+                const visibleIds = selectedTemplateId
+                  ? [selectedTemplateId, ...FEATURED_IDS.filter(id => id !== selectedTemplateId)].slice(0, 3)
+                  : FEATURED_IDS;
+                return visibleIds.map((id) => {
+                  const t = HOME_TEMPLATES[id] ?? { name: id.replace(/_/g, ' '), accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' };
+                  const isActive = selectedTemplateId === id;
+                  return (
                     <div
-                      className={`aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
-                        isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
+                      key={id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleTemplateCardClick(id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTemplateCardClick(id); }}
+                      className={`group rounded-2xl border backdrop-blur p-3 text-left transition-all cursor-pointer
+                        hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] ${
+                        isActive
+                          ? 'bg-white/[0.10] border-white/30'
+                          : 'bg-white/[0.04] border-white/12 hover:bg-white/[0.08] hover:border-white/20'
                       }`}
-                      style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
                     >
-                      <div className="w-full h-full p-2 group-hover:scale-[1.02] transition-transform duration-300">
-                        {t.id === '2cols_portrait' && <TwoColSchematic />}
-                        {t.id === 'landscape_3col_maths' && <ThreeColSchematic />}
-                        {t.id === 'lecture_notes' && <LectureSchematic />}
+                      {/* Schematic */}
+                      <div
+                        className={`aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
+                          isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
+                        }`}
+                        style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
+                      >
+                        <div className="w-full h-full p-2 group-hover:scale-[1.02] transition-transform duration-300">
+                          {renderSchematic(id)}
+                        </div>
                       </div>
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <p className="text-xs font-semibold text-white/85 leading-snug">{t.name}</p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPdfPreviewId(id); }}
+                          title="Preview sample PDF"
+                          className="shrink-0 text-white/30 hover:text-white/70 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className={`text-[10px] transition-colors ${t.linkColor}`}>
+                        {isActive ? '✓ Selected' : 'Select →'}
+                      </p>
                     </div>
-                    <p className="text-xs font-semibold text-white/85 leading-snug mb-1">{t.name}</p>
-                    <p className={`text-[10px] transition-colors ${t.linkColor}`}>
-                      {isActive ? '✓ Selected' : 'Select →'}
-                    </p>
-                  </button>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </div>
 
@@ -235,6 +240,49 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+
+    {/* PDF preview modal */}
+    {pdfPreviewId && (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        onClick={() => setPdfPreviewId(null)}
+      >
+        <div
+          className="relative w-full max-w-3xl h-[85vh] rounded-2xl overflow-hidden border border-white/15 bg-neutral-900 flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+            <span className="text-sm font-medium text-white/80">
+              {HOME_TEMPLATES[pdfPreviewId]?.name ?? pdfPreviewId} — Sample PDF
+            </span>
+            <div className="flex items-center gap-3">
+              <a
+                href={`/templates/samples/${pdfPreviewId}.pdf`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-white/40 hover:text-white/70 transition-colors"
+              >
+                Open in new tab
+              </a>
+              <button
+                onClick={() => setPdfPreviewId(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <iframe
+            src={`/templates/samples/${pdfPreviewId}.pdf`}
+            className="flex-1 w-full"
+            title="PDF preview"
+          />
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -314,4 +362,11 @@ function LectureSchematic() {
       </div>
     </div>
   );
+}
+
+function renderSchematic(id: string) {
+  if (id === '2cols_portrait') return <TwoColSchematic />;
+  if (id === 'landscape_3col_maths') return <ThreeColSchematic />;
+  if (id === 'lecture_notes') return <LectureSchematic />;
+  return <ThreeColSchematic />;
 }
