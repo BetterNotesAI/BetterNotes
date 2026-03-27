@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-26 (sesion 3) — F3-M2 completado: fix `\\` → `<br/>` en parrafos, fix catch-all regex LatexBlock, fix hydration home/page.tsx. Pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones (investigar). Siguiente milestone: F3-M3 — Interactividad (patrón Typora)._
+_Última actualización: 2026-03-27 — Post-F3-M2: bug Download PDFs resuelto (ZIP con fflate), folderBadge en DocumentCard, menús 3-dots con overflow detection y scroll-close. Siguiente milestone: F3-M3 — Interactividad (patrón Typora)._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -323,8 +323,8 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 
 | Prioridad | Tarea | Notas |
 |-----------|-------|-------|
-| 🟡 Media | **Bug — Download PDFs de carpeta no funciona**: el boton "Download PDFs" en el menu de carpetas no descarga ningun fichero. Endpoint implementado: GET /api/folders/[id]/download. Causa desconocida, pendiente de investigar. | Bug introducido en sesion 2026-03-26 sesion 2. No bloquea otras features. |
-| 🟡 Media | Mejorar Download PDFs de carpeta: ZIP real + progress indicator | Una vez resuelto el bug anterior. Actualmente descarga archivos individualmente. |
+| ✅ Resuelto | **Bug — Download PDFs de carpeta RESUELTO**: endpoint reescrito, devuelve ZIP via fflate. GET /api/folders/[id]/download → application/zip. | Resuelto 2026-03-27. |
+| 🟢 Baja | Mejorar Download PDFs de carpeta: progress indicator durante generacion del ZIP | ZIP funciona. Falta feedback visual de progreso. |
 | 🟡 Media | Subcarpetas: New folder here + Move to | No implementado. Opciones en menu como "disabled/Soon". |
 | 🟢 Baja | Archive folder: vista de carpetas archivadas + opcion de restaurar | Archive funciona (archived_at), pero no hay UI para ver ni restaurar las archivadas. |
 
@@ -341,8 +341,8 @@ interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido 
 | 🟢 Baja | Plantillas hardcodeadas en app-api | Se resuelve en F2-M7 |
 | 🟢 Baja | Exportar .tex además del PDF | Pendiente |
 | 🟢 Baja | `onTrigger` en NewDocumentWatcher debería estar en useCallback | Pendiente |
-| 🟡 Media | **Bug** — Download PDFs de carpeta no descarga ningun fichero (boton en FolderSectionMenu) | Backlog UI/UX 2026-03-26 — pendiente investigar causa |
-| 🟢 Baja | Download PDFs de carpeta: mejorar a ZIP real + progress indicator (tras fix del bug) | Backlog UI/UX 2026-03-26 |
+| ✅ Resuelto | **Bug** — Download PDFs de carpeta resuelto: ZIP con fflate (2026-03-27) | fflate dependency añadida, endpoint reescrito |
+| 🟢 Baja | Download PDFs de carpeta: añadir progress indicator durante generacion del ZIP | ZIP funciona, falta feedback visual |
 
 ---
 

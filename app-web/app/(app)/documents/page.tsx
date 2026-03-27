@@ -137,9 +137,9 @@ export default function DocumentsPage() {
 
     const starred = visibleDocs.filter((d) => d.is_starred);
 
-    // Loose files: not starred AND no folder (or filterStarred hides them)
+    // All non-starred docs (including those inside folders)
     const nonStarred = filterStarred ? [] : visibleDocs.filter((d) => !d.is_starred);
-    const looseDocs = nonStarred.filter((d) => d.folder_id === null);
+    const looseDocs = nonStarred;
 
     // Folder groups: non-starred docs that belong to a folder, grouped by folder_id
     const inFolderDocs = nonStarred.filter((d) => d.folder_id !== null);
@@ -355,28 +355,20 @@ export default function DocumentsPage() {
 
   async function handleDownloadFolder(folderId: string) {
     const res = await fetch(`/api/folders/${folderId}/download`);
-    if (!res.ok) return;
-    const data = await res.json().catch(() => ({ files: [] }));
-    const files: { title: string; signedUrl: string }[] = data.files ?? [];
-    if (files.length === 0) return;
-    // Download each PDF individually with a small delay to avoid browser blocking
-    for (let i = 0; i < files.length; i++) {
-      const { title, signedUrl } = files[i];
-      const blob = await fetch(signedUrl).then((r) => r.blob()).catch(() => null);
-      if (!blob) continue;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      // Small delay so browser doesn't block multiple simultaneous downloads
-      if (i < files.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? `Request failed (${res.status})`);
     }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const folderName = folders.find((f) => f.id === folderId)?.name ?? 'folder';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${folderName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async function handleArchiveFolder(folderId: string, currentlyArchived: boolean) {
@@ -654,8 +646,12 @@ export default function DocumentsPage() {
                     <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                   </svg>
                   <h2 className="text-xs font-semibold text-white/60 uppercase tracking-wider">Starred</h2>
-                  {groupedView.starred.length > 0 && (
-                    <span className="text-[10px] text-white/30 font-medium">{groupedView.starred.length}</span>
+                  {(groupedView.starredFolders.length > 0 || groupedView.starred.length > 0) && (
+                    <span className="text-[10px] text-white/30 font-medium">
+                      {groupedView.starredFolders.length > 0 && `${groupedView.starredFolders.length} folder${groupedView.starredFolders.length !== 1 ? 's' : ''}`}
+                      {groupedView.starredFolders.length > 0 && groupedView.starred.length > 0 && ' · '}
+                      {groupedView.starred.length > 0 && `${groupedView.starred.length} file${groupedView.starred.length !== 1 ? 's' : ''}`}
+                    </span>
                   )}
                 </div>
                 {groupedView.starred.length === 0 && groupedView.starredFolders.length === 0 ? (
@@ -725,7 +721,9 @@ export default function DocumentsPage() {
                   {/* Starred documents */}
                   {groupedView.starred.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {groupedView.starred.map((doc) => (
+                      {groupedView.starred.map((doc) => {
+                        const parentFolder = doc.folder_id ? folders.find((f) => f.id === doc.folder_id) : null;
+                        return (
                         <DocumentCard
                           key={doc.id}
                           doc={doc}
@@ -739,8 +737,10 @@ export default function DocumentsPage() {
                           onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
                           onDuplicate={() => handleDuplicate(doc)}
                           onDownload={() => handleDownload(doc)}
+                          folderBadge={parentFolder ? { name: parentFolder.name, color: parentFolder.color } : undefined}
                         />
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   </>
@@ -895,7 +895,9 @@ export default function DocumentsPage() {
                     <span className="text-[10px] text-white/30 font-medium">{groupedView.looseDocs.length}</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groupedView.looseDocs.map((doc) => (
+                    {groupedView.looseDocs.map((doc) => {
+                      const parentFolder = doc.folder_id ? folders.find((f) => f.id === doc.folder_id) : null;
+                      return (
                       <DocumentCard
                         key={doc.id}
                         doc={doc}
@@ -909,8 +911,10 @@ export default function DocumentsPage() {
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
                         onDuplicate={() => handleDuplicate(doc)}
                         onDownload={() => handleDownload(doc)}
+                        folderBadge={parentFolder ? { name: parentFolder.name, color: parentFolder.color } : undefined}
                       />
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
               )}
@@ -1007,6 +1011,7 @@ export default function DocumentsPage() {
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
                         onDuplicate={() => handleDuplicate(doc)}
                         onDownload={() => handleDownload(doc)}
+                        folderBadge={activeFolder ? { name: activeFolder.name, color: activeFolder.color } : undefined}
                       />
                     ))}
                   </div>
