@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-27 — Post-F3-M2: bug Download PDFs resuelto (ZIP con fflate), folderBadge en DocumentCard, menús 3-dots con overflow detection y scroll-close. Siguiente milestone: F3-M3 — Interactividad (patrón Typora)._
+_Última actualización: 2026-03-27 (cierre de sesión) — F3-M3 completado: interactividad patrón Typora (M3.1–M3.7). Siguiente milestone: F3-M4 — Chat contextual._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -161,7 +161,7 @@ _Estado: ✅ COMPLETADO — todos los sub-milestones verificados. Gate para F3-M
 
 ---
 
-### F3-M2 — Renderizado base (EN PROGRESO)
+### F3-M2 — Renderizado base ✅ COMPLETADO (2026-03-26 sesion 3)
 _Prerrequisito: F3-M1 completado_
 
 - [x] F3-M2.1 — Parser LaTeX → bloques tipados completo para los 4 templates · Completada: lib/latex-parser.ts (validado en F3-M1, reutilizado sin cambios)
@@ -175,24 +175,35 @@ _Prerrequisito: F3-M1 completado_
   > Fix en latex-parser.ts y LatexBlock.tsx: `\\` → `<br/>` en parrafos. Fix catch-all regex que eliminaba texto visible. Fix hydration error home/page.tsx (localStorage→useEffect).
 
 _Criterio de aceptación: Un documento con cualquiera de las 4 plantillas se visualiza en el workspace con layout correcto, fórmulas renderizadas y saltos de linea correctos en parrafos._
-_Estado: COMPLETADO (2026-03-26 sesion 3). Pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones — algunas ecuaciones no se renderizan correctamente, investigar en F3-M3._
+_Estado: ✅ COMPLETADO (2026-03-26 sesion 3). KaTeX env rendering (align*, equation*, gather*) resuelto en F3-M3._
 
 ---
 
-### F3-M3 — Interactividad (patrón Typora)
+### F3-M3 — Interactividad (patrón Typora) ✅ COMPLETADO (2026-03-27)
 _Prerrequisito: F3-M2 completado_
 
-- [ ] F3-M3.1 — Hover sobre bloque → borde sutil resaltado · ~30min
-- [ ] F3-M3.2 — Click en bloque → borde marcado, contenido sigue renderizado (estado "focused") · ~30min
-- [ ] F3-M3.3 — Click/doble click en texto dentro del bloque → ese fragmento pasa a modo edición (muestra LaTeX crudo en input/textarea) · ~1h30min
+- [x] F3-M3.1 — Hover sobre bloque → borde sutil resaltado · COMPLETADO
+- [x] F3-M3.2 — Click en bloque → borde marcado, contenido sigue renderizado (estado "focused") · COMPLETADO
+- [x] F3-M3.3 — Click/doble click en texto dentro del bloque → ese fragmento pasa a modo edición (muestra LaTeX crudo en input/textarea) · COMPLETADO
   - Ejemplo: "el radio es R > 4/3" → editable como "el radio es $R>\frac{4}{3}$"
   - El resto del bloque sigue renderizado
-- [ ] F3-M3.4 — Enter o click fuera → re-renderiza solo ese fragmento con KaTeX, persiste cambio · ~1h
-- [ ] F3-M3.5 — Selección de texto con el ratón → click derecho → menú contextual con "Referenciar en chat" · ~1h
-- [ ] F3-M3.6 — Toolbar de formato: H1/H2, bold, italic, underline, formula, color, boxed (afectan al bloque focused) · ~2h
-- [ ] F3-M3.7 — Auto-detección del tipo de bloque para activar/desactivar acciones de toolbar · ~30min
+- [x] F3-M3.4 — Enter o click fuera → re-renderiza solo ese fragmento con KaTeX, persiste cambio · COMPLETADO
+- [x] F3-M3.5 — Selección de texto con el ratón → click derecho → menú contextual con "Referenciar en chat" · COMPLETADO
+- [x] F3-M3.6 — Toolbar de formato: H1/H2, bold, italic, underline, formula, color, boxed (afectan al bloque focused) · COMPLETADO
+- [x] F3-M3.7 — Auto-detección del tipo de bloque para activar/desactivar acciones de toolbar · COMPLETADO
 
-_Criterio de aceptación: El usuario puede editar cualquier fragmento inline, confirmar y ver el re-render KaTeX. Puede seleccionar texto y acceder al menú contextual._
+**Extras completados en esta sesión:**
+- Fix KaTeX entornos \begin{align*}, \begin{equation*}, \begin{gather*} y similares
+- Conexión onReferenceInChat: LatexViewer → ChatPanel prefillText (wired end-to-end)
+- data-block-id añadido a todos los wrappers de bloque en LatexBlock.tsx
+- Fix endpoint Download PDFs carpeta: ZIP real con fflate (antes devolvía solo URLs firmadas)
+- DocumentCard: folderBadge con overflow detection (useLayoutEffect) y scroll-close
+- FolderSectionMenu: downloadError state + mejoras de menú
+- documents/page.tsx: looseDocs mejorado, contador "X folders · Y files"
+
+_Commits: 481bf42, 258dc20, 3bd901e, 34aee68 + merge commits. Mergeado a main._
+
+_Criterio de aceptación: El usuario puede editar cualquier fragmento inline, confirmar y ver el re-render KaTeX. Puede seleccionar texto y acceder al menú contextual. CUMPLIDO._
 
 ---
 
