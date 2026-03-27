@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { zipSync } from 'fflate';
 import { createClient } from '@/lib/supabase/server';
 
 // GET /api/folders/[id]/download
-// Returns a list of { title, signedUrl } for all documents in the folder
-// that have a compiled PDF. The frontend downloads each one individually.
+// Downloads all compiled PDFs in the folder as a single ZIP file.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -35,7 +35,7 @@ export async function GET(
     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   }
 
-  // Get all documents in this folder with their current version
+  // Get all non-archived documents in this folder that have a current version
   const { data: docs, error: docsError } = await supabase
     .from('documents')
     .select('id, title, current_version_id')
@@ -46,16 +46,20 @@ export async function GET(
   if (docsError) {
     return NextResponse.json({ error: docsError.message }, { status: 500 });
   }
-  if (!docs || docs.length === 0) {
-    return NextResponse.json({ folderName: folder.name, files: [] });
+
+  const docsWithVersion = (docs ?? []).filter((d) => d.current_version_id);
+
+  if (docsWithVersion.length === 0) {
+    return NextResponse.json(
+      { error: 'No compiled PDFs found in this folder. Generate documents first.' },
+      { status: 404 }
+    );
   }
 
-  // For each doc, get the pdf_storage_path from its current version and generate a signed URL
-  const files: { title: string; signedUrl: string }[] = [];
+  // Fetch each PDF from storage and add to ZIP
+  const zipEntries: Record<string, Uint8Array> = {};
 
-  for (const doc of docs) {
-    if (!doc.current_version_id) continue;
-
+  for (const doc of docsWithVersion) {
     const { data: version } = await supabase
       .from('document_versions')
       .select('pdf_storage_path')
@@ -65,14 +69,32 @@ export async function GET(
 
     if (!version?.pdf_storage_path) continue;
 
-    const { data: signedUrlData } = await supabase.storage
+    const { data: fileBlob, error: downloadError } = await supabase.storage
       .from('documents-output')
-      .createSignedUrl(version.pdf_storage_path, 3600);
+      .download(version.pdf_storage_path);
 
-    if (signedUrlData?.signedUrl) {
-      files.push({ title: doc.title ?? 'document', signedUrl: signedUrlData.signedUrl });
-    }
+    if (downloadError || !fileBlob) continue;
+
+    const buffer = await fileBlob.arrayBuffer();
+    // Sanitize filename to avoid ZIP path issues
+    const safeName = (doc.title ?? 'document').replace(/[/\\:*?"<>|]/g, '_');
+    zipEntries[`${safeName}.pdf`] = new Uint8Array(buffer);
   }
 
-  return NextResponse.json({ folderName: folder.name, files });
+  if (Object.keys(zipEntries).length === 0) {
+    return NextResponse.json(
+      { error: 'Could not retrieve any PDFs. Try again later.' },
+      { status: 500 }
+    );
+  }
+
+  const zipped = zipSync(zipEntries);
+  const safeFolderName = folder.name.replace(/[/\\:*?"<>|]/g, '_');
+
+  return new Response(zipped, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${safeFolderName}.zip"`,
+    },
+  });
 }

@@ -8,12 +8,12 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M2 — Renderizado base (COMPLETADO — pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones)
+**Milestone activo:** F3-M3 — Interactividad (patrón Typora) — pendiente iniciar
 **Tarea activa:** ninguna — sesión cerrada
 **Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26 sesion 3)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** main
-**Bloqueantes:** ninguno. Pendiente para próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues — investigar). Bug conocido: Download PDFs de carpeta no descarga ningun fichero (causa desconocida, prioridad media).
+**Rama activa:** f3-m3-interactivity
+**Bloqueantes:** ninguno. Pendiente para próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues — investigar en F3-M3). Bug Download PDFs RESUELTO (ZIP con fflate, 2026-03-27).
 
 ---
 
@@ -45,7 +45,7 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 **Milestones F3:**
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
 - [x] F3-M2 — Renderizado base — COMPLETADO (2026-03-26 sesion 3) — pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones
-- [ ] F3-M3 — Interactividad (patrón Typora)
+- [ ] F3-M3 — Interactividad (patrón Typora) ← PRÓXIMO
 - [ ] F3-M4 — Chat contextual
 - [ ] F3-M5 — Publish to My Studies + polish
 
@@ -72,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-26 (sesion 3, cierre) — F3-M2 completado: fix `\\` → `<br/>` en parrafos (latex-parser.ts + LatexBlock.tsx), fix catch-all regex que eliminaba texto visible de comandos LaTeX desconocidos, fix hydration error en home/page.tsx (localStorage en useState → useEffect). Pendiente próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues).*
+*Última actualización: 2026-03-27 — Fixes post-F3-M2: bug Download PDFs resuelto (ZIP con fflate), folderBadge en DocumentCard (starred y loose docs muestran carpeta de origen), menús 3-dots con overflow detection (useLayoutEffect) y scroll-close en DocumentCard y FolderSectionMenu. Rama activa: f3-m3-interactivity. Siguiente milestone: F3-M3 — Interactividad (patrón Typora).*

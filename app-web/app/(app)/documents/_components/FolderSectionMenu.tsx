@@ -1,7 +1,7 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const COLOR_SWATCHES = [
   { label: 'Indigo',   value: '#6366f1' },
@@ -26,7 +26,7 @@ interface FolderSectionMenuProps {
   onRename: (newName: string) => void;
   onDelete: () => void;
   onChangeColor: (newColor: string) => void;
-  onDownload: () => void;
+  onDownload: () => Promise<void>;
   onArchive: () => void;
 }
 
@@ -240,20 +240,40 @@ export function FolderSectionMenu({
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
-  // Close menu on outside click
+  // Close menu on outside click or scroll
   useEffect(() => {
     if (!menuOpen) return;
-    function handler(e: MouseEvent) {
+    function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    function handleScroll() {
+      setMenuOpen(false);
+      setMenuPos(null);
+    }
+    document.addEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [menuOpen]);
+
+  // After menu renders, measure actual height and shift up if it overflows the viewport
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const overflow = rect.bottom - (window.innerHeight - 8);
+    if (overflow > 0) {
+      setMenuPos((prev) => prev ? { ...prev, top: Math.max(prev.top - overflow, 8) } : prev);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
 
   function handleToggle(e: React.MouseEvent) {
@@ -265,26 +285,33 @@ export function FolderSectionMenu({
     }
     const rect = buttonRef.current?.getBoundingClientRect();
     if (rect) {
-      // Estimated menu height (8 items + 4 dividers): ~280px
-      const menuHeight = 280;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const openUpward = spaceBelow < menuHeight + 8;
-      setMenuPos(
-        openUpward
-          ? { top: rect.top - menuHeight - 4, left: rect.right - 192 }
-          : { top: rect.bottom + 4, left: rect.right - 192 }
+      const menuWidth = 208; // w-52
+      const margin = 8;
+
+      // Horizontal: align to right edge of button, clamped to viewport
+      const left = Math.min(
+        Math.max(rect.right - menuWidth, margin),
+        window.innerWidth - menuWidth - margin
       );
+
+      // Vertical: open below the button — useLayoutEffect will shift up if it overflows
+      const top = rect.bottom + 4;
+
+      setMenuPos({ top, left });
     }
     setMenuOpen(true);
   }
 
   async function handleDownloadClick(e: React.MouseEvent) {
     e.stopPropagation();
-    setMenuOpen(false);
     if (isDownloading) return;
+    setDownloadError(null);
     setIsDownloading(true);
     try {
-      onDownload();
+      await onDownload();
+      setMenuOpen(false);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed');
     } finally {
       setIsDownloading(false);
     }
@@ -293,7 +320,12 @@ export function FolderSectionMenu({
   const menu = menuOpen && menuPos ? createPortal(
     <div
       ref={menuRef}
-      style={{ top: menuPos.top, left: menuPos.left, position: 'fixed', zIndex: 9998 }}
+      style={{
+        top: menuPos.top,
+        left: menuPos.left,
+        position: 'fixed',
+        zIndex: 9998,
+      }}
       className="w-52 rounded-xl border border-white/15 bg-neutral-950/90 backdrop-blur-xl
         shadow-[0_8px_40px_rgba(0,0,0,0.7)] py-1.5"
       onClick={(e) => e.stopPropagation()}
@@ -387,8 +419,11 @@ export function FolderSectionMenu({
         <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
-        Download PDFs
+        {isDownloading ? 'Downloading…' : 'Download PDFs'}
       </button>
+      {downloadError && (
+        <p className="px-3 py-1.5 text-[10px] text-red-400/80 leading-snug">{downloadError}</p>
+      )}
 
       {/* Share — disabled */}
       <div

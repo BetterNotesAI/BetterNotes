@@ -1,7 +1,7 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export interface DocumentItem {
   id: string;
@@ -216,6 +216,7 @@ interface DocumentCardProps {
   onMoveToFolder: (folderId: string | null) => void;
   onDuplicate?: () => void | Promise<void>;
   onDownload?: () => void;
+  folderBadge?: { name: string; color: string | null };
 }
 
 export function DocumentCard({
@@ -230,6 +231,7 @@ export function DocumentCard({
   onMoveToFolder,
   onDuplicate,
   onDownload,
+  folderBadge,
 }: DocumentCardProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(doc.title);
@@ -257,10 +259,10 @@ export function DocumentCard({
     }
   }, [isRenaming]);
 
-  // Close menu on outside click (works with portal-based menu)
+  // Close menu on outside click or scroll
   useEffect(() => {
     if (!menuOpen) return;
-    function handler(e: MouseEvent) {
+    function handleClick(e: MouseEvent) {
       const target = e.target as Node;
       const clickedButton = menuButtonRef.current?.contains(target);
       const clickedMenu = menuRef.current?.contains(target);
@@ -270,8 +272,28 @@ export function DocumentCard({
         setShowFolderSubmenu(false);
       }
     }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    function handleScroll() {
+      setMenuOpen(false);
+      setMenuPos(null);
+      setShowFolderSubmenu(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [menuOpen]);
+
+  // After menu renders, measure actual height and shift up if it overflows the viewport
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const overflow = rect.bottom - (window.innerHeight - 8);
+    if (overflow > 0) {
+      setMenuPos((prev) => prev ? { ...prev, top: Math.max(prev.top - overflow, 8) } : prev);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
 
   function handleTitleClick(e: React.MouseEvent) {
@@ -323,15 +345,18 @@ export function DocumentCard({
     }
     const rect = menuButtonRef.current?.getBoundingClientRect();
     if (rect) {
-      // Estimated menu height (base items, no submenu): ~260px
-      const menuHeight = 260;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const openUpward = spaceBelow < menuHeight + 8;
-      setMenuPos(
-        openUpward
-          ? { top: rect.top - menuHeight - 4, left: rect.right - 192 }
-          : { top: rect.bottom + 4, left: rect.right - 192 }
+      const menuWidth = 192;
+      const margin = 8;
+
+      const left = Math.min(
+        Math.max(rect.right - menuWidth, margin),
+        window.innerWidth - menuWidth - margin
       );
+
+      // Vertical: open below the button — useLayoutEffect will shift up if it overflows
+      const top = rect.bottom + 4;
+
+      setMenuPos({ top, left });
     }
     setMenuOpen(true);
   }
@@ -369,10 +394,24 @@ export function DocumentCard({
         if (!isRenaming) onNavigate();
       }}
     >
-      {/* Star button — always visible, top-right corner */}
-      <button
+      {/* Top-right row: folder badge + star — flex so they stay vertically centered */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 max-w-[120px]">
+          {folderBadge ? (
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: folderBadge.color ?? '#6366f1' }}
+            />
+          ) : null}
+          <span className="text-[10px] text-white/40 truncate">
+            {folderBadge ? folderBadge.name : 'none'}
+          </span>
+        </div>
+
+        {/* Star button */}
+        <button
         onClick={handleStarClick}
-        className="absolute top-3 right-3 z-10 group/star"
+        className="group/star"
         aria-label={doc.is_starred ? 'Unstar document' : 'Star document'}
         title={doc.is_starred ? 'Remove from starred' : 'Add to starred'}
       >
@@ -393,9 +432,10 @@ export function DocumentCard({
           </svg>
         )}
       </button>
+      </div>
 
       {/* Title row */}
-      <div className="flex items-start mb-2 pr-8">
+      <div className="flex items-start mb-2 pr-28">
         {isRenaming ? (
           <input
             ref={inputRef}
