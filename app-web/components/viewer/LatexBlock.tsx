@@ -307,15 +307,18 @@ export default function LatexBlock({
   const rendered = useMemo(() => {
     switch (block.type) {
       case 'formula-block': {
-        // Strip outer $$...$$ or \[...\] wrappers
-        // If it's already a \begin{env}...\end{env}, pass as-is (KaTeX handles align*, equation*, etc.)
+        // Strip outer $$...$$ or \[...\] wrappers before passing to KaTeX
         let formula = block.latex_source;
         if (formula.startsWith('$$') && formula.endsWith('$$')) {
           formula = formula.slice(2, -2).trim();
         } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
           formula = formula.slice(2, -2).trim();
         }
-        return renderKatex(formula, true);
+        // If the formula contains a \begin{env} environment (align*, equation*, gather*, etc.)
+        // pass displayMode: false — KaTeX honours the environment's own display semantics
+        // and double-wrapping with displayMode: true causes rendering errors.
+        const hasEnv = /\\begin\s*\{/.test(formula);
+        return renderKatex(formula, !hasEnv);
       }
 
       case 'formula-inline':
@@ -331,7 +334,7 @@ export default function LatexBlock({
   // ── Inline editor overlay — shown when isEditing ───────────────────────────
   if (isEditing) {
     return (
-      <div className={`${interactiveClass} px-1 py-0.5`} {...interactiveHandlers}>
+      <div className={`${interactiveClass} px-1 py-0.5`} data-block-id={block.id} {...interactiveHandlers}>
         <textarea
           ref={textareaRef}
           value={editValue}
@@ -363,7 +366,7 @@ export default function LatexBlock({
           ? 'text-lg font-semibold mt-4 mb-1'
           : 'text-base font-semibold mt-3 mb-1';
       return (
-        <div className={interactiveClass} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
           <HeadingTag className={headingClass}>
             {block.latex_source}
           </HeadingTag>
@@ -375,6 +378,7 @@ export default function LatexBlock({
       return (
         <div
           className={`my-4 overflow-x-auto text-center ${interactiveClass}`}
+          data-block-id={block.id}
           {...interactiveHandlers}
           dangerouslySetInnerHTML={{ __html: rendered! }}
         />
@@ -383,7 +387,7 @@ export default function LatexBlock({
     case 'formula-inline':
     case 'paragraph':
       return (
-        <div className={interactiveClass} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
           <p
             className="my-2 text-sm leading-relaxed"
             dangerouslySetInnerHTML={{ __html: rendered! }}
@@ -393,14 +397,14 @@ export default function LatexBlock({
 
     case 'list':
       return (
-        <div className={`my-2 ${interactiveClass}`} {...interactiveHandlers}>
+        <div className={`my-2 ${interactiveClass}`} data-block-id={block.id} {...interactiveHandlers}>
           {renderList(block.latex_source)}
         </div>
       );
 
     case 'table':
       return (
-        <div className={interactiveClass} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
           {renderTable(block.latex_source)}
         </div>
       );
@@ -413,6 +417,7 @@ export default function LatexBlock({
         <div
           style={{ breakInside: 'avoid' }}
           className={`my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm ${interactiveClass}`}
+          data-block-id={block.id}
           {...interactiveHandlers}
         >
           <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />

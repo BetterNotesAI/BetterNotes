@@ -114,6 +114,9 @@ export default function DocumentWorkspacePage() {
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('interactive');
+  // F3-M3.5: text referenced from the interactive viewer → injected into chat input
+  const [chatPrefill, setChatPrefill] = useState<string | undefined>(undefined);
+  const chatPrefillCounterRef = useRef(0);
   const searchParamsDoc = useSearchParams();
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc.get('history') === '1');
   const [zoom, setZoom] = useState(100);
@@ -591,6 +594,14 @@ export default function DocumentWorkspacePage() {
                 <LatexViewer
                   latexSource={latexContent}
                   templateId={docData.template_id}
+                  onReferenceInChat={(text) => {
+                    chatPrefillCounterRef.current += 1;
+                    // Encode counter into the string so the effect in ChatPanel
+                    // fires even when the same text is referenced twice in a row.
+                    setChatPrefill(`__ref${chatPrefillCounterRef.current}__${text}`);
+                    // Switch to chat tab on mobile so the user sees the panel
+                    setMobileTab('chat');
+                  }}
                 />
               </div>
             )}
@@ -740,6 +751,7 @@ export default function DocumentWorkspacePage() {
               isDraft={isDraft}
               onSend={handleSend}
               loadingLabel={loadingLabel}
+              prefillText={chatPrefill}
             />
           </div>
         </div>
