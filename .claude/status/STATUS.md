@@ -8,13 +8,12 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M3 — Interactividad (patrón Typora) — en progreso
-**Tarea activa:** fixes previos al inicio de F3-M3 — completados (2026-03-27)
-**Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26 sesion 3)
+**Milestone activo:** F3-M4 — Chat contextual ← PRÓXIMO
+**Tarea activa:** —
+**Último hito cerrado:** F3-M3 — Interactividad (patrón Typora) ✅ (2026-03-27)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** f3-m3-interactivity
+**Rama activa:** main (mergeada desde f3-m3-interactivity)
 **Bloqueantes:** ninguno.
-**Fixes aplicados (2026-03-27):** KaTeX env rendering (align*, equation*, gather*), onReferenceInChat wired (LatexViewer → ChatPanel prefillText), data-block-id en todos los wrappers de LatexBlock. Commit: 3bd901e.
 
 ---
 
@@ -45,9 +44,9 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 **Milestones F3:**
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
-- [x] F3-M2 — Renderizado base — COMPLETADO (2026-03-26 sesion 3) — pendiente próxima sesión: KaTeX/LaTeX rendering issues en ecuaciones
-- [ ] F3-M3 — Interactividad (patrón Typora) ← PRÓXIMO
-- [ ] F3-M4 — Chat contextual
+- [x] F3-M2 — Renderizado base — COMPLETADO (2026-03-26 sesion 3)
+- [x] F3-M3 — Interactividad (patrón Typora) — COMPLETADO (2026-03-27)
+- [ ] F3-M4 — Chat contextual ← PRÓXIMO
 - [ ] F3-M5 — Publish to My Studies + polish
 
 ---
@@ -73,4 +72,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-27 — Fixes post-F3-M2: bug Download PDFs resuelto (ZIP con fflate), folderBadge en DocumentCard (starred y loose docs muestran carpeta de origen), menús 3-dots con overflow detection (useLayoutEffect) y scroll-close en DocumentCard y FolderSectionMenu. Rama activa: f3-m3-interactivity. Siguiente milestone: F3-M3 — Interactividad (patrón Typora).*
+*Última actualización: 2026-03-27 (cierre de sesión) — F3-M3 completado: interactividad patrón Typora (M3.1–M3.7): hover highlight, focused state, edición inline LaTeX, re-render KaTeX, context menu "Reference in chat", toolbar de formato, auto-detección de bloque. Fix KaTeX entornos \begin{align*} etc. Conexión onReferenceInChat con ChatPanel (prefillText). data-block-id en todos los wrappers. Fixes adicionales de sesión: Download PDFs ZIP (fflate), folderBadge DocumentCard, overflow detection useLayoutEffect, scroll-close. Mergeado a main. Commits: 481bf42, 258dc20, 3bd901e, 34aee68. Siguiente milestone: F3-M4 — Chat contextual.*
