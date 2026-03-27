@@ -10,9 +10,11 @@
  * - paragraph      : <p> with inline math rendered if present
  * - table          : plain <pre> placeholder (tabular is complex to render)
  * - list           : basic itemize/enumerate render
+ *
+ * F3-M3: Interactive props — hover, focus, edit, confirm
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '@/lib/latex-parser';
@@ -201,22 +203,118 @@ function renderTable(latex: string): React.ReactElement {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-interface LatexBlockProps {
+export interface LatexBlockInteractiveProps {
+  /** Whether this block is hovered */
+  isHovered?: boolean;
+  /** Whether this block is focused (single-click) */
+  isFocused?: boolean;
+  /** Whether this block is in inline edit mode (double-click) */
+  isEditing?: boolean;
+  onHover?: (id: string | null) => void;
+  onFocus?: (id: string | null) => void;
+  onEdit?: (id: string) => void;
+  /** Confirm edit: new latex_source value */
+  onConfirm?: (id: string, newSource: string) => void;
+  onCancel?: (id: string) => void;
+}
+
+interface LatexBlockProps extends LatexBlockInteractiveProps {
   block: Block;
 }
 
-export default function LatexBlock({ block }: LatexBlockProps) {
+export default function LatexBlock({
+  block,
+  isHovered = false,
+  isFocused = false,
+  isEditing = false,
+  onHover,
+  onFocus,
+  onEdit,
+  onConfirm,
+  onCancel,
+}: LatexBlockProps) {
+  const [editValue, setEditValue] = useState(block.latex_source);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sync edit value when block source changes externally
+  useEffect(() => {
+    setEditValue(block.latex_source);
+  }, [block.latex_source]);
+
+  // Auto-focus and select textarea when entering edit mode
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.select();
+    }
+  }, [isEditing]);
+
+  // Auto-resize textarea to content
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      const el = textareaRef.current;
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [isEditing, editValue]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onConfirm?.(block.id, editValue);
+    }
+    if (e.key === 'Escape') {
+      onCancel?.(block.id);
+    }
+  }
+
+  // Interactive block wrapper classes
+  const interactiveClass = [
+    'group relative transition-all duration-150 rounded',
+    // M3.1: hover highlight — subtle ring on hover (non-editing, non-section)
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end'
+      ? isEditing
+        ? 'ring-2 ring-indigo-400 ring-offset-1 bg-indigo-50/60'
+        : isFocused
+        ? 'ring-1 ring-indigo-300 ring-offset-1 bg-indigo-50/30 cursor-text'
+        : isHovered
+        ? 'ring-1 ring-gray-300 bg-gray-50/50 cursor-text'
+        : 'cursor-text'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  // Event handlers for interactive blocks
+  const interactiveHandlers =
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end'
+      ? {
+          onMouseEnter: () => onHover?.(block.id),
+          onMouseLeave: () => onHover?.(null),
+          onClick: (e: React.MouseEvent) => {
+            // Prevent bubbling so LatexViewer click-away doesn't immediately re-blur
+            e.stopPropagation();
+            if (!isEditing) onFocus?.(block.id);
+          },
+          onDoubleClick: (e: React.MouseEvent) => {
+            e.stopPropagation();
+            onEdit?.(block.id);
+          },
+        }
+      : {};
+
+  // ── Rendered content (must be computed before any conditional returns) ────────
   const rendered = useMemo(() => {
     switch (block.type) {
       case 'formula-block': {
-        // Strip outer $$...$$ or \[...\] or \begin{env}...\end{env} wrappers
+        // Strip outer $$...$$ or \[...\] wrappers
+        // If it's already a \begin{env}...\end{env}, pass as-is (KaTeX handles align*, equation*, etc.)
         let formula = block.latex_source;
         if (formula.startsWith('$$') && formula.endsWith('$$')) {
           formula = formula.slice(2, -2).trim();
         } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
           formula = formula.slice(2, -2).trim();
         }
-        // If it's a \begin{env}...\end{env}, pass as-is — KaTeX handles align*, equation*, etc.
         return renderKatex(formula, true);
       }
 
@@ -230,6 +328,31 @@ export default function LatexBlock({ block }: LatexBlockProps) {
     }
   }, [block]);
 
+  // ── Inline editor overlay — shown when isEditing ───────────────────────────
+  if (isEditing) {
+    return (
+      <div className={`${interactiveClass} px-1 py-0.5`} {...interactiveHandlers}>
+        <textarea
+          ref={textareaRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => onConfirm?.(block.id, editValue)}
+          className="w-full resize-none rounded border border-indigo-300 bg-white/90 px-2 py-1
+            font-mono text-xs text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400
+            shadow-sm leading-relaxed"
+          rows={3}
+          spellCheck={false}
+          aria-label="Edit LaTeX source"
+        />
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] text-gray-400">Enter to confirm · Esc to cancel</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal rendered view ───────────────────────────────────────────────────
   switch (block.type) {
     case 'section': {
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
@@ -240,16 +363,19 @@ export default function LatexBlock({ block }: LatexBlockProps) {
           ? 'text-lg font-semibold mt-4 mb-1'
           : 'text-base font-semibold mt-3 mb-1';
       return (
-        <HeadingTag className={headingClass}>
-          {block.latex_source}
-        </HeadingTag>
+        <div className={interactiveClass} {...interactiveHandlers}>
+          <HeadingTag className={headingClass}>
+            {block.latex_source}
+          </HeadingTag>
+        </div>
       );
     }
 
     case 'formula-block':
       return (
         <div
-          className="my-4 overflow-x-auto text-center"
+          className={`my-4 overflow-x-auto text-center ${interactiveClass}`}
+          {...interactiveHandlers}
           dangerouslySetInnerHTML={{ __html: rendered! }}
         />
       );
@@ -257,17 +383,27 @@ export default function LatexBlock({ block }: LatexBlockProps) {
     case 'formula-inline':
     case 'paragraph':
       return (
-        <p
-          className="my-2 text-sm leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: rendered! }}
-        />
+        <div className={interactiveClass} {...interactiveHandlers}>
+          <p
+            className="my-2 text-sm leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: rendered! }}
+          />
+        </div>
       );
 
     case 'list':
-      return <div className="my-2">{renderList(block.latex_source)}</div>;
+      return (
+        <div className={`my-2 ${interactiveClass}`} {...interactiveHandlers}>
+          {renderList(block.latex_source)}
+        </div>
+      );
 
     case 'table':
-      return renderTable(block.latex_source);
+      return (
+        <div className={interactiveClass} {...interactiveHandlers}>
+          {renderTable(block.latex_source)}
+        </div>
+      );
 
     case 'hr':
       return <hr className="my-2 border-gray-400" style={{ breakBefore: 'avoid' }} />;
@@ -276,7 +412,8 @@ export default function LatexBlock({ block }: LatexBlockProps) {
       return (
         <div
           style={{ breakInside: 'avoid' }}
-          className="my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm"
+          className={`my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm ${interactiveClass}`}
+          {...interactiveHandlers}
         >
           <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
         </div>
