@@ -18,6 +18,13 @@ interface ChatPanelProps {
   onSend: (content: string) => void;
   placeholder?: string;
   loadingLabel?: string;
+  /**
+   * When set, the text is appended to the current chat input and the textarea
+   * is focused. Intended for "Reference in chat" from the interactive viewer.
+   * The parent must provide a stable reference — typically a string that changes
+   * each time a new reference is injected (e.g. wrapped with a counter).
+   */
+  prefillText?: string;
 }
 
 function formatTime(dateStr: string): string {
@@ -32,11 +39,32 @@ const LOADING_PHASES = [
   { label: 'Compiling PDF...', duration: null },
 ] as const;
 
-export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, loadingLabel }: ChatPanelProps) {
+export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, loadingLabel, prefillText }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Append referenced text from the interactive viewer to the chat input.
+  // prefillText may contain a counter prefix (__refN__) to force re-fires
+  // when the same text is referenced twice in a row — strip it before display.
+  useEffect(() => {
+    if (!prefillText) return;
+    const displayText = prefillText.replace(/^__ref\d+__/, '');
+    setInput((prev) => {
+      const separator = prev.trim() ? '\n' : '';
+      return prev + separator + `[ref: ${displayText}] `;
+    });
+    // Resize textarea and focus it
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+        textareaRef.current.focus();
+      }
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillText]);
 
   useEffect(() => {
     if (!isLoading) {

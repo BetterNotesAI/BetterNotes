@@ -7,21 +7,20 @@
  *
  * F3-M2.3: templateId prop drives multicolumn layout.
  * F3-M2.4: Built-in toolbar with virtual page navigation and zoom.
+ * F3-M3:   Interactivity — hover, focus, inline edit, format toolbar,
+ *          contextual menu "Reference in chat", auto-detect block type.
  *
  * Usage:
  *   <LatexViewer latexSource={rawLatexString} templateId="lecture_notes" />
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { parseLatex } from '@/lib/latex-parser';
+import type { Block, BlockType } from '@/lib/latex-parser';
 import LatexBlock from './LatexBlock';
 
 // ─── template layout config ───────────────────────────────────────────────────
 
-/**
- * How many blocks constitute a "virtual page" for each template.
- * Used by the toolbar prev/next page navigation.
- */
 const BLOCKS_PER_PAGE: Record<string, number> = {
   lecture_notes: 12,
   '2cols_portrait': 16,
@@ -30,13 +29,6 @@ const BLOCKS_PER_PAGE: Record<string, number> = {
 };
 const DEFAULT_BLOCKS_PER_PAGE = 15;
 
-/**
- * Returns the CSS class(es) to apply to the content area based on templateId.
- * - lecture_notes       → single column, max-width 700px
- * - 2cols_portrait      → 2 columns grid
- * - study_form          → 3 columns portrait
- * - landscape_3col_maths → 3 columns landscape (wider)
- */
 function getLayoutClass(templateId: string | undefined): string {
   switch (templateId) {
     case 'lecture_notes':
@@ -57,6 +49,202 @@ function getLayoutClass(templateId: string | undefined): string {
 const ZOOM_PRESETS = [75, 100, 125, 150] as const;
 type ZoomPreset = typeof ZOOM_PRESETS[number];
 
+// ─── M3.7: block-type label for toolbar context ───────────────────────────────
+
+function getBlockTypeLabel(type: BlockType | null): string {
+  if (!type) return '';
+  switch (type) {
+    case 'section': return 'Heading';
+    case 'formula-block': return 'Formula (block)';
+    case 'formula-inline': return 'Formula (inline)';
+    case 'paragraph': return 'Paragraph';
+    case 'list': return 'List';
+    case 'table': return 'Table';
+    case 'box': return 'Box';
+    default: return '';
+  }
+}
+
+// ─── M3.6: format toolbar ────────────────────────────────────────────────────
+
+interface FormatToolbarProps {
+  focusedBlockType: BlockType | null;
+  onApplyFormat: (format: FormatAction) => void;
+}
+
+type FormatAction =
+  | { kind: 'heading'; level: 1 | 2 }
+  | { kind: 'bold' }
+  | { kind: 'italic' }
+  | { kind: 'underline' }
+  | { kind: 'math' }
+  | { kind: 'boxed' };
+
+function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) {
+  const isTextBlock =
+    focusedBlockType === 'paragraph' ||
+    focusedBlockType === 'formula-inline' ||
+    focusedBlockType === 'section';
+  const isMathBlock =
+    focusedBlockType === 'formula-block' || focusedBlockType === 'formula-inline';
+
+  const btnBase =
+    'px-2 py-1 text-xs rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+  const btnActive = 'bg-indigo-100 text-indigo-700 border border-indigo-300 hover:bg-indigo-200';
+  const btnInactive = 'text-gray-500 hover:text-gray-700 hover:bg-gray-200 border border-transparent';
+
+  return (
+    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-100 bg-gray-50 shrink-0 flex-wrap">
+      {/* M3.7: block type label */}
+      {focusedBlockType && (
+        <>
+          <span className="text-[10px] text-indigo-500 font-medium bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 mr-1">
+            {getBlockTypeLabel(focusedBlockType)}
+          </span>
+          <div className="w-px h-4 bg-gray-200 mx-0.5" />
+        </>
+      )}
+
+      {/* H1 */}
+      <button
+        title="Heading 1"
+        disabled={!isTextBlock}
+        onClick={() => onApplyFormat({ kind: 'heading', level: 1 })}
+        className={`${btnBase} ${isTextBlock ? btnInactive : ''}`}
+      >
+        H1
+      </button>
+
+      {/* H2 */}
+      <button
+        title="Heading 2"
+        disabled={!isTextBlock}
+        onClick={() => onApplyFormat({ kind: 'heading', level: 2 })}
+        className={`${btnBase} ${isTextBlock ? btnInactive : ''}`}
+      >
+        H2
+      </button>
+
+      <div className="w-px h-4 bg-gray-200 mx-0.5" />
+
+      {/* Bold */}
+      <button
+        title="Bold"
+        disabled={!isTextBlock}
+        onClick={() => onApplyFormat({ kind: 'bold' })}
+        className={`${btnBase} font-bold ${isTextBlock ? btnInactive : ''}`}
+      >
+        B
+      </button>
+
+      {/* Italic */}
+      <button
+        title="Italic"
+        disabled={!isTextBlock}
+        onClick={() => onApplyFormat({ kind: 'italic' })}
+        className={`${btnBase} italic ${isTextBlock ? btnInactive : ''}`}
+      >
+        I
+      </button>
+
+      {/* Underline */}
+      <button
+        title="Underline"
+        disabled={!isTextBlock}
+        onClick={() => onApplyFormat({ kind: 'underline' })}
+        className={`${btnBase} underline ${isTextBlock ? btnInactive : ''}`}
+      >
+        U
+      </button>
+
+      <div className="w-px h-4 bg-gray-200 mx-0.5" />
+
+      {/* Math toggle */}
+      <button
+        title={isMathBlock ? 'Already a formula block' : 'Wrap in inline math $...$'}
+        disabled={focusedBlockType === null || focusedBlockType === 'formula-block'}
+        onClick={() => onApplyFormat({ kind: 'math' })}
+        className={`${btnBase} font-mono ${focusedBlockType && focusedBlockType !== 'formula-block' ? btnInactive : ''}`}
+      >
+        ∑
+      </button>
+
+      {/* Boxed */}
+      <button
+        title="Wrap in box"
+        disabled={!isTextBlock && !isMathBlock}
+        onClick={() => onApplyFormat({ kind: 'boxed' })}
+        className={`${btnBase} ${isTextBlock || isMathBlock ? btnInactive : ''}`}
+      >
+        [ ]
+      </button>
+
+      {!focusedBlockType && (
+        <span className="text-[10px] text-gray-400 ml-1">Click a block to activate formatting</span>
+      )}
+    </div>
+  );
+}
+
+// ─── M3.5: contextual menu "Reference in chat" ───────────────────────────────
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  selectedText: string;
+  blockId: string;
+}
+
+interface ContextMenuProps {
+  menu: ContextMenuState;
+  onReference: (text: string) => void;
+  onClose: () => void;
+}
+
+function ContextMenu({ menu, onReference, onClose }: ContextMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      style={{ position: 'fixed', left: menu.x, top: menu.y, zIndex: 9999 }}
+      className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[160px]"
+    >
+      <button
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+        onClick={() => {
+          onReference(menu.selectedText);
+          onClose();
+        }}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        Reference in chat
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+        onClick={onClose}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 interface LatexViewerProps {
@@ -66,6 +254,11 @@ interface LatexViewerProps {
   className?: string;
   /** When true, the built-in toolbar is hidden (parent manages controls) */
   hideToolbar?: boolean;
+  /**
+   * M3.5: called when user selects text and clicks "Reference in chat".
+   * The parent (workspace page) can use this to inject context into the chat panel.
+   */
+  onReferenceInChat?: (selectedText: string) => void;
 }
 
 export default function LatexViewer({
@@ -73,9 +266,17 @@ export default function LatexViewer({
   templateId,
   className,
   hideToolbar = false,
+  onReferenceInChat,
 }: LatexViewerProps) {
-  const blocks = useMemo(() => parseLatex(latexSource), [latexSource]);
+  // ── Parse blocks (mutable state for inline editing) ──────────────────────
+  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(latexSource));
 
+  // Re-parse when external source changes
+  useEffect(() => {
+    setBlocks(parseLatex(latexSource));
+  }, [latexSource]);
+
+  // ── Pagination & zoom ─────────────────────────────────────────────────────
   const blocksPerPage = BLOCKS_PER_PAGE[templateId ?? ''] ?? DEFAULT_BLOCKS_PER_PAGE;
   const totalPages = Math.max(1, Math.ceil(blocks.length / blocksPerPage));
 
@@ -83,15 +284,128 @@ export default function LatexViewer({
   const [zoom, setZoom] = useState<ZoomPreset>(100);
 
   const goToPrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
-  const goToNext = useCallback(() => setPage((p) => Math.min(totalPages, p + 1)), [totalPages]);
+  const goToNext = useCallback(
+    () => setPage((p) => Math.min(totalPages, p + 1)),
+    [totalPages]
+  );
 
   // Reset page when source changes
-  React.useEffect(() => { setPage(1); }, [latexSource]);
+  useEffect(() => {
+    setPage(1);
+  }, [latexSource]);
 
   const pageBlocks = useMemo(() => {
     const start = (page - 1) * blocksPerPage;
     return blocks.slice(start, start + blocksPerPage);
   }, [blocks, page, blocksPerPage]);
+
+  // ── M3.1/M3.2/M3.3: interaction state ────────────────────────────────────
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+
+  // M3.7: derive focused block type for toolbar
+  const focusedBlock = useMemo(
+    () => blocks.find((b) => b.id === focusedBlockId) ?? null,
+    [blocks, focusedBlockId]
+  );
+  const focusedBlockType = focusedBlock?.type ?? null;
+
+  // Click-away to blur focus/editing
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickAway(e: MouseEvent) {
+      if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
+        setFocusedBlockId(null);
+        setEditingBlockId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickAway);
+    return () => document.removeEventListener('mousedown', handleClickAway);
+  }, []);
+
+  // ── M3.4: confirm edit — re-render block ──────────────────────────────────
+  const handleConfirm = useCallback((id: string, newSource: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, latex_source: newSource } : b))
+    );
+    setEditingBlockId(null);
+    setFocusedBlockId(id);
+  }, []);
+
+  const handleCancelEdit = useCallback((id: string) => {
+    setEditingBlockId(null);
+    setFocusedBlockId(id);
+  }, []);
+
+  // ── M3.6: apply format action to focused block ────────────────────────────
+  const handleApplyFormat = useCallback(
+    (format: FormatAction) => {
+      if (!focusedBlockId) return;
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== focusedBlockId) return b;
+          let src = b.latex_source;
+          switch (format.kind) {
+            case 'heading':
+              // Convert paragraph to section, or change level
+              return {
+                ...b,
+                type: 'section' as BlockType,
+                level: format.level,
+                // Strip existing \section{} wrapper if present, otherwise use text as-is
+                latex_source: src
+                  .replace(/^\\(?:sub)*section\*?\{([\s\S]*)\}$/, '$1')
+                  .trim(),
+              };
+            case 'bold':
+              return { ...b, latex_source: `\\textbf{${src}}` };
+            case 'italic':
+              return { ...b, latex_source: `\\textit{${src}}` };
+            case 'underline':
+              return { ...b, latex_source: `\\underline{${src}}` };
+            case 'math':
+              return {
+                ...b,
+                type: 'formula-inline' as BlockType,
+                latex_source: `$${src}$`,
+              };
+            case 'boxed':
+              return {
+                ...b,
+                type: 'box' as BlockType,
+                latex_source: src,
+              };
+            default:
+              return b;
+          }
+        })
+      );
+    },
+    [focusedBlockId]
+  );
+
+  // ── M3.5: context menu state ──────────────────────────────────────────────
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  useEffect(() => {
+    function handleContextMenu(e: MouseEvent) {
+      const selection = window.getSelection();
+      const selectedText = selection?.toString().trim() ?? '';
+      if (!selectedText || !contentRef.current?.contains(e.target as Node)) return;
+      e.preventDefault();
+      // Find closest block id via DOM traversal
+      let el = e.target as HTMLElement | null;
+      let blockId = '';
+      while (el && el !== contentRef.current) {
+        if (el.dataset?.blockId) { blockId = el.dataset.blockId; break; }
+        el = el.parentElement;
+      }
+      setContextMenu({ x: e.clientX, y: e.clientY, selectedText, blockId });
+    }
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => document.removeEventListener('contextmenu', handleContextMenu);
+  }, []);
 
   if (!latexSource.trim()) {
     return (
@@ -103,7 +417,7 @@ export default function LatexViewer({
 
   return (
     <div className={`flex flex-col h-full ${className ?? ''}`}>
-      {/* ── Toolbar ── */}
+      {/* ── Navigation + zoom toolbar ── */}
       {!hideToolbar && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 shrink-0 bg-gray-50">
           {/* Page navigation */}
@@ -148,13 +462,42 @@ export default function LatexViewer({
               </button>
             ))}
           </div>
+
+          {/* Hint when no block is focused */}
+          <div className="flex-1" />
+          {!focusedBlockId && (
+            <span className="text-[10px] text-gray-400 hidden sm:inline">
+              Click to focus · Double-click to edit
+            </span>
+          )}
+          {focusedBlockId && (
+            <span className="text-[10px] text-gray-400 hidden sm:inline">
+              Double-click to edit · Esc to cancel
+            </span>
+          )}
         </div>
       )}
 
+      {/* ── M3.6: Format toolbar — always visible, context-aware ── */}
+      <FormatToolbar
+        focusedBlockType={focusedBlockType}
+        onApplyFormat={handleApplyFormat}
+      />
+
       {/* ── Content area ── */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={contentRef}>
         <div style={{ fontSize: `${zoom}%` }} className="px-6 py-5 font-sans text-gray-900">
-          <BlockRegionRenderer blocks={pageBlocks} />
+          <BlockRegionRenderer
+            blocks={pageBlocks}
+            hoveredBlockId={hoveredBlockId}
+            focusedBlockId={focusedBlockId}
+            editingBlockId={editingBlockId}
+            onHover={setHoveredBlockId}
+            onFocus={setFocusedBlockId}
+            onEdit={setEditingBlockId}
+            onConfirm={handleConfirm}
+            onCancel={handleCancelEdit}
+          />
           {pageBlocks.length === 0 && (
             <div className="text-gray-400 italic text-sm">
               Parser returned no blocks. Check the LaTeX source.
@@ -162,15 +505,46 @@ export default function LatexViewer({
           )}
         </div>
       </div>
+
+      {/* ── M3.5: Context menu ── */}
+      {contextMenu && (
+        <ContextMenu
+          menu={contextMenu}
+          onReference={(text) => {
+            onReferenceInChat?.(text);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
 
-/**
- * Renders blocks respecting col-start / col-end markers.
- * Blocks outside multicols are full-width; blocks inside use CSS columns.
- */
-function BlockRegionRenderer({ blocks }: { blocks: import('@/lib/latex-parser').Block[] }) {
+// ─── BlockRegionRenderer ──────────────────────────────────────────────────────
+
+interface BlockRegionRendererProps {
+  blocks: Block[];
+  hoveredBlockId: string | null;
+  focusedBlockId: string | null;
+  editingBlockId: string | null;
+  onHover: (id: string | null) => void;
+  onFocus: (id: string | null) => void;
+  onEdit: (id: string) => void;
+  onConfirm: (id: string, newSource: string) => void;
+  onCancel: (id: string) => void;
+}
+
+function BlockRegionRenderer({
+  blocks,
+  hoveredBlockId,
+  focusedBlockId,
+  editingBlockId,
+  onHover,
+  onFocus,
+  onEdit,
+  onConfirm,
+  onCancel,
+}: BlockRegionRendererProps) {
   const regions: React.ReactNode[] = [];
   let i = 0;
 
@@ -182,7 +556,21 @@ function BlockRegionRenderer({ blocks }: { blocks: import('@/lib/latex-parser').
       const inner: React.ReactNode[] = [];
       i++;
       while (i < blocks.length && blocks[i].type !== 'col-end') {
-        inner.push(<LatexBlock key={blocks[i].id} block={blocks[i]} />);
+        const b = blocks[i];
+        inner.push(
+          <LatexBlock
+            key={b.id}
+            block={b}
+            isHovered={hoveredBlockId === b.id}
+            isFocused={focusedBlockId === b.id}
+            isEditing={editingBlockId === b.id}
+            onHover={onHover}
+            onFocus={onFocus}
+            onEdit={onEdit}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+          />
+        );
         i++;
       }
       regions.push(
@@ -196,7 +584,20 @@ function BlockRegionRenderer({ blocks }: { blocks: import('@/lib/latex-parser').
       );
       i++; // skip col-end
     } else if (block.type !== 'col-end') {
-      regions.push(<LatexBlock key={block.id} block={block} />);
+      regions.push(
+        <LatexBlock
+          key={block.id}
+          block={block}
+          isHovered={hoveredBlockId === block.id}
+          isFocused={focusedBlockId === block.id}
+          isEditing={editingBlockId === block.id}
+          onHover={onHover}
+          onFocus={onFocus}
+          onEdit={onEdit}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+        />
+      );
       i++;
     } else {
       i++;

@@ -8,12 +8,13 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M3 — Interactividad (patrón Typora) — pendiente iniciar
-**Tarea activa:** ninguna — sesión cerrada
+**Milestone activo:** F3-M3 — Interactividad (patrón Typora) — en progreso
+**Tarea activa:** fixes previos al inicio de F3-M3 — completados (2026-03-27)
 **Último hito cerrado:** F3-M2 — Renderizado base ✅ (2026-03-26 sesion 3)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** f3-m3-interactivity
-**Bloqueantes:** ninguno. Pendiente para próxima sesión: ecuaciones sin renderizar correctamente (KaTeX/LaTeX rendering issues — investigar en F3-M3). Bug Download PDFs RESUELTO (ZIP con fflate, 2026-03-27).
+**Bloqueantes:** ninguno.
+**Fixes aplicados (2026-03-27):** KaTeX env rendering (align*, equation*, gather*), onReferenceInChat wired (LatexViewer → ChatPanel prefillText), data-block-id en todos los wrappers de LatexBlock. Commit: 3bd901e.
 
 ---
 
