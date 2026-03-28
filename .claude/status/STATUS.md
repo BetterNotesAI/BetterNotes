@@ -7,14 +7,26 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M5 — Publish to My Studies + polish COMPLETADO ✅ (2026-03-28)
-**Tarea activa:** ninguna — Fase 3 completa, pendiente cierre de fase
+**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28)
+**Milestone activo:** ninguno — Fase 3 cerrada. Pendiente apertura Fase 4.
+**Tarea activa:** verificar visor interactivo end-to-end en navegador antes de merge a main
 **Último hito cerrado:** F3-M5 — Publish to My Studies + polish ✅ (2026-03-28)
-**Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** main
-**Bloqueantes:** ninguno.
-**Completado hoy (2026-03-28):** F3-M5 — migración SQL publish, endpoint POST /publish, POST /suggest-keywords (GPT-4o directo), PublishModal.tsx con keywords chips + AI suggest, botón Publish en header workspace, My Studies page grid, accesibilidad LatexBlock (tabIndex/role/aria/Enter), skeleton loader visor, "Saved X ago" header.
+**Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
+**Rama activa:** f3-m4-chat-contextual (SIN merge a main — pendiente verificación)
+**Bloqueantes:** ninguno técnico. Pendiente de verificación manual en navegador.
+
+**Pendiente crítico antes de mergear a main:**
+- Verificar en navegador que el visor interactivo funciona end-to-end: edición de bloques (patrón Typora), chat contextual con chip de referencia, Apply/Discard de sugerencias IA, undo/redo (Ctrl+Z/Y)
+- Verificar que "Saved X ago" aparece en header tras Apply
+- Verificar PublishModal y My Studies page
+
+**Pendiente operacional (no bloqueante para Fase 4):**
+- Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])
+- Añadir OPENAI_API_KEY a las variables de entorno de Vercel
+
+**Completado sesión 2026-03-28:**
+- F3-M4: chip visual BlockReference, preview KaTeX en BlockEditPreviewCard, Apply/Discard con actualización optimista, /api/documents/[id]/edit-block, undo/redo hasta 20 estados (Ctrl+Z/Y/Shift+Z)
+- F3-M5: migración SQL publish, POST /publish, POST /suggest-keywords (GPT-4o directo desde Next.js), GET /api/documents/published, PublishModal.tsx (keywords chips + AI suggest), botón Publish en header workspace, My Studies page grid, accesibilidad LatexBlock (tabIndex/role/aria/Enter), skeleton loader visor, "Saved X ago" en header (onApplyPersisted), transition-opacity al cambiar viewerTab
 
 ---
 
@@ -47,8 +59,10 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 - [x] F3-M1 — Arquitectura + PoC — COMPLETADO (2026-03-26)
 - [x] F3-M2 — Renderizado base — COMPLETADO (2026-03-26 sesion 3)
 - [x] F3-M3 — Interactividad (patrón Typora) — COMPLETADO (2026-03-27)
-- [ ] F3-M4 — Chat contextual ← PRÓXIMO
-- [ ] F3-M5 — Publish to My Studies + polish
+- [x] F3-M4 — Chat contextual — COMPLETADO (2026-03-28)
+- [x] F3-M5 — Publish to My Studies + polish — COMPLETADO (2026-03-28)
+
+**Fase 3: COMPLETA ✅ (2026-03-28)** — pendiente verificación en navegador + merge a main
 
 ---
 
@@ -73,4 +87,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-27 (cierre de sesión) — F3-M3 completado: interactividad patrón Typora (M3.1–M3.7): hover highlight, focused state, edición inline LaTeX, re-render KaTeX, context menu "Reference in chat", toolbar de formato, auto-detección de bloque. Fix KaTeX entornos \begin{align*} etc. Conexión onReferenceInChat con ChatPanel (prefillText). data-block-id en todos los wrappers. Fixes adicionales de sesión: Download PDFs ZIP (fflate), folderBadge DocumentCard, overflow detection useLayoutEffect, scroll-close. Mergeado a main. Commits: 481bf42, 258dc20, 3bd901e, 34aee68. Siguiente milestone: F3-M4 — Chat contextual.*
+*Última actualización: 2026-03-28 (cierre de sesión) — Fase 3 COMPLETA. F3-M4 (chat contextual: chip BlockReference, preview KaTeX, Apply/Discard optimista, edit-block endpoint, undo/redo Ctrl+Z/Y) y F3-M5 (Publish modal, suggest-keywords GPT-4o, My Studies page, skeleton loader, "Saved X ago", accesibilidad LatexBlock) completados. Rama activa: f3-m4-chat-contextual — pendiente verificación en navegador antes de merge a main. Siguiente: abrir Fase 4 (F4-M1 Problem Solver) tras verificación y merge.*

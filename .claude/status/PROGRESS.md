@@ -4,6 +4,30 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-03-28 — F3-M4 + F3-M5 completados · Fase 3 CERRADA
+
+**Completado:**
+- F3-M4 — Chat contextual: chip visual BlockReference con boton "x" para desreferenciar, endpoint POST /api/documents/[id]/edit-block, editBlock() en AIProvider, BlockEditPreviewCard con preview KaTeX renderizado, botones Apply/Discard con actualizacion optimista en LatexViewer via applyBlockEdit prop, persistencia en DB + /compile al aplicar, undo/redo en memoria hasta 20 estados (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+- F3-M5 — Publish to My Studies: migracion SQL (is_published, published_at, university, degree, subject, visibility, keywords[]), endpoint POST /api/documents/[id]/publish, POST /api/documents/[id]/suggest-keywords (GPT-4o directo desde Next.js), GET /api/documents/published, PublishModal.tsx con chips de keywords editables y sugerencia IA, boton "Publish" en header workspace, My Studies page con grid de cards de documentos publicados
+- F3-M5 polish: skeleton loader en visor, "Saved X ago" en header (onApplyPersisted callback), transition-opacity al cambiar viewerTab
+- F3-M5 accesibilidad: LatexBlock con tabIndex=0, role="article", Enter/Space abre edicion, aria-label en todos los tipos de bloque
+
+**Decisiones tomadas:**
+- suggest-keywords llama GPT-4o directamente desde Next.js (no via app-api) para evitar latencia extra y simplificar el flujo
+- Apply actualiza el estado local de LatexViewer de forma optimista antes de confirmar persistencia en DB
+- Undo/redo se guarda en memoria del componente (no en DB) — suficiente para la sesion activa
+
+**Problemas encontrados:**
+- Ninguno bloqueante. La migracion SQL de F3-M5 aun no se ha aplicado en Supabase Dashboard (pendiente operacional)
+
+**Estado de rama:** f3-m4-chat-contextual — SIN merge a main. Pendiente verificacion end-to-end en navegador.
+
+**Lecciones capturadas:** no
+
+**Siguiente:** Verificar visor interactivo en navegador (edicion bloques, chat contextual, Apply/Discard, undo/redo) → aplicar migracion SQL en Supabase → merge a main → abrir Fase 4 (F4-M1 Problem Solver)
+
+---
+
 ## Sesion 2026-03-26 (sesion 3) — F3-M2 completado: fix `\\`, catch-all regex, hydration error
 
 **Completado:**

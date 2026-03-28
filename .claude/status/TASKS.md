@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-28 (cierre de sesión) — F3-M5 completado: Publish to My Studies + polish. Fase 3 COMPLETA._
+_Última actualización: 2026-03-28 (cierre de sesión) — Fase 3 COMPLETA ✅. F3-M4 (chat contextual) y F3-M5 (Publish + polish) completados. Rama f3-m4-chat-contextual pendiente de verificación en navegador antes de merge a main. Pendiente operacional: migración SQL F3-M5 en Supabase + OPENAI_API_KEY en Vercel._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -121,7 +121,7 @@ _Criterio de aceptación: 4 plantillas activas, thumbnail PNG encima del esquem�
 
 ---
 
-## Fase 3 — VISOR INTERACTIVO ⭐
+## Fase 3 — VISOR INTERACTIVO ⭐ COMPLETA ✅ (2026-03-28)
 
 > **Feature estratégica más importante del roadmap.**
 >
