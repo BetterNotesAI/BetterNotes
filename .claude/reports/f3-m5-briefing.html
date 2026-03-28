@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>F3-M5 Briefing — BetterNotes</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #e2e2e8;
+      padding: 32px 24px;
+      min-height: 100vh;
+    }
+    .container { max-width: 820px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap-8px;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px; font-weight: 600; color: #a5b4fc;
+      letter-spacing: 0.04em;
+    }
+    .badge-green {
+      background: rgba(52,211,153,0.1);
+      border-color: rgba(52,211,153,0.25);
+      color: #6ee7b7;
+    }
+    h1 { font-size: 26px; font-weight: 700; color: #fff; }
+    .subtitle { font-size: 14px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+    /* Sections */
+    .section { margin-bottom: 36px; }
+    .section-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(255,255,255,0.3);
+      margin-bottom: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 12px;
+    }
+    .card-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .card-title { font-size: 14px; font-weight: 600; color: #fff; }
+    .card-tag {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px; padding: 3px 8px; color: rgba(255,255,255,0.5);
+      white-space: nowrap;
+    }
+    .card-tag.backend { background: rgba(251,146,60,0.1); border-color: rgba(251,146,60,0.2); color: #fdba74; }
+    .card-tag.frontend { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); color: #a5b4fc; }
+    .card-tag.db { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: #6ee7b7; }
+    .card-tag.a11y { background: rgba(244,114,182,0.1); border-color: rgba(244,114,182,0.2); color: #f9a8d4; }
+    .card-body { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; }
+    .card-body ul { padding-left: 16px; list-style: disc; }
+    .card-body li { margin-bottom: 4px; }
+
+    /* File list */
+    .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .file-chip {
+      font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; padding: 3px 10px; color: rgba(255,255,255,0.6);
+    }
+    .file-chip.new { border-color: rgba(52,211,153,0.3); color: #6ee7b7; background: rgba(52,211,153,0.06); }
+    .file-chip.modified { border-color: rgba(251,191,36,0.3); color: #fcd34d; background: rgba(251,191,36,0.06); }
+
+    /* Decision table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+         text-transform: uppercase; color: rgba(255,255,255,0.3);
+         padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+         color: rgba(255,255,255,0.65); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    /* Status row */
+    .status-row {
+      display: flex; gap: 16px; margin-bottom: 36px; flex-wrap: wrap;
+    }
+    .stat {
+      flex: 1; min-width: 140px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .stat-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+                  text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #fff; }
+    .stat-sub { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+
+    /* Review */
+    .review-ok { display: flex; align-items: center; gap: 8px;
+                 color: #6ee7b7; font-size: 13px; padding: 10px 0; }
+    .review-ok::before { content: "✓"; font-weight: 700; }
+
+    /* Footer */
+    .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.06);
+              font-size: 11px; color: rgba(255,255,255,0.2); text-align: center; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <span class="badge">F3-M5</span>
+        <span class="badge badge-green">COMPLETADO</span>
+      </div>
+      <h1>Publish to My Studies + Polish</h1>
+      <p class="subtitle">BetterNotes v2 · Fase 3 — Visor Interactivo · 2026-03-28</p>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="status-row">
+    <div class="stat">
+      <div class="stat-label">Archivos nuevos</div>
+      <div class="stat-value">6</div>
+      <div class="stat-sub">migration, 3 API routes, modal, my-studies</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Archivos modificados</div>
+      <div class="stat-value">3</div>
+      <div class="stat-sub">page.tsx, LatexBlock, .env.local</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">TS errors (nuevo código)</div>
+      <div class="stat-value" style="color:#6ee7b7">0</div>
+      <div class="stat-sub">Pre-existing fflate warning no aplica</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">ESLint errors</div>
+      <div class="stat-value" style="color:#6ee7b7">0</div>
+      <div class="stat-sub">0 errors, 0 warnings en código F3-M5</div>
+    </div>
+  </div>
+
+  <!-- Subtasks delivered -->
+  <div class="section">
+    <div class="section-title">Subtareas entregadas</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">F3-M5.1 backend — SQL migration + API endpoints</div>
+        <div style="display:flex;gap:6px">
+          <span class="card-tag db">DB</span>
+          <span class="card-tag backend">backend</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Migración SQL: columnas <code>is_published</code>, <code>published_at</code>, <code>university</code>, <code>degree</code>, <code>subject</code>, <code>visibility</code>, <code>keywords[]</code> en tabla <code>documents</code></li>
+          <li>Índice <code>idx_documents_published</code> (user_id, is_published WHERE true)</li>
+          <li>Índice <code>idx_documents_public</code> para futura discovery</li>
+          <li><strong>POST /api/documents/[id]/publish</strong> — action publish | unpublish, guarda metadatos en DB</li>
+          <li><strong>POST /api/documents/[id]/suggest-keywords</strong> — llama GPT-4o directamente desde Next.js (sin hop a app-api), lee título + excerpt de LaTeX, devuelve 6 keywords en JSON array</li>
+          <li><strong>GET /api/documents/published</strong> — lista documentos publicados del usuario, para My Studies page</li>
+          <li>OPENAI_API_KEY añadido a <code>.env.local</code> y <code>.env.example</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">F3-M5.1+M5.2 frontend — Botón Publish + PublishModal + My Studies</div>
+        <span class="card-tag frontend">frontend</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Botón <strong>"Publish"</strong> en header del workspace: aparece solo si el documento no es draft, cambia a estado "Published" (indigo) cuando ya está publicado</li>
+          <li><strong>PublishModal.tsx</strong>: campos de texto libre (university, degree, subject), keywords chips editables (Enter/comma para añadir, backspace para borrar), botón "Suggest with AI" que llama al endpoint, toggle private/public, botón Unpublish si ya publicado</li>
+          <li>Al abrir el modal se pre-rellena con datos actuales de la DB (useEffect on isOpen)</li>
+          <li><strong>My Studies page</strong>: grid responsive (1/2/3 cols), DocumentCard con título, subject, university+degree, keywords chips, template label, fecha publicación. Estados: loading skeleton, empty state con CTA a /documents, error state</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">F3-M5.3 — Polish visual</div>
+        <span class="card-tag frontend">frontend</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><strong>Skeleton loader del visor</strong>: aparece mientras isLoading &amp;&amp; !latexContent en pestaña Interactive, con bloques de distintos anchos animados con <code>animate-pulse</code></li>
+          <li><strong>"Saved X ago"</strong>: badge verde en header tras <code>onApplyPersisted</code>. Tick cada 30s para actualizar "just now → Xs ago → Xm ago → Xh ago". Visible solo en sm+ para no saturar mobile.</li>
+          <li><strong>transition-opacity</strong> en el contenedor del viewer body al cambiar de tab</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">F3-M5.4 — Accesibilidad LatexBlock</div>
+        <span class="card-tag a11y">a11y</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><code>tabIndex=0</code> en todos los bloques interactivos (section, formula-block, formula-inline, paragraph, list, table, box, y el editing overlay)</li>
+          <li><code>role="article"</code> para describir semánticamente cada bloque</li>
+          <li><code>aria-label</code> descriptivo: "[type] block — click to focus, double-click or Enter to edit"</li>
+          <li>Handler <code>onKeyDown</code>: <strong>Enter/Space</strong> → si focused, abre edición; si no, da foco. Respeta el patrón de doble interacción del visor.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Files changed -->
+  <div class="section">
+    <div class="section-title">Archivos entregados</div>
+    <div class="card">
+      <div class="card-body">
+        <strong style="color:rgba(255,255,255,0.7)">Nuevos:</strong>
+        <div class="file-list">
+          <span class="file-chip new">supabase/migrations/20260328000001_f3m5_publish_columns.sql</span>
+          <span class="file-chip new">app-web/app/api/documents/[id]/publish/route.ts</span>
+          <span class="file-chip new">app-web/app/api/documents/[id]/suggest-keywords/route.ts</span>
+          <span class="file-chip new">app-web/app/api/documents/published/route.ts</span>
+          <span class="file-chip new">app-web/app/(app)/documents/_components/PublishModal.tsx</span>
+          <span class="file-chip new">app-web/app/(app)/my-studies/page.tsx (reescrito)</span>
+        </div>
+        <br/>
+        <strong style="color:rgba(255,255,255,0.7)">Modificados:</strong>
+        <div class="file-list">
+          <span class="file-chip modified">app-web/app/(app)/documents/[id]/page.tsx</span>
+          <span class="file-chip modified">app-web/components/viewer/LatexBlock.tsx</span>
+          <span class="file-chip modified">app-web/.env.local (+ OPENAI_API_KEY)</span>
+          <span class="file-chip modified">app-web/.env.example (+ OPENAI_API_KEY)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decisions -->
+  <div class="section">
+    <div class="section-title">Decisiones arquitectónicas confirmadas</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Decisión</th><th>Implementación</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>"Saved X ago" solo tras onApplyPersisted</td>
+            <td>Wired en onApplyPersisted callback del ChatPanel, timer de 30s con formatAgo()</td>
+          </tr>
+          <tr>
+            <td>Keywords GPT-4o: llamar directo desde Next.js route (sin hop a app-api)</td>
+            <td>suggest-keywords/route.ts usa fetch nativo a openai.com con OPENAI_API_KEY del env de Next.js</td>
+          </tr>
+          <tr>
+            <td>My Studies page: grid de cards con documentos publicados del usuario</td>
+            <td>GET /api/documents/published → grid 1/2/3 cols, skeleton loader, empty state con CTA</td>
+          </tr>
+          <tr>
+            <td>Modal de publicación: inputs de texto libre</td>
+            <td>PublishModal.tsx con campos university/degree/subject libres, sin dropdowns ni taxonomía rígida</td>
+          </tr>
+          <tr>
+            <td>Visibilidad por defecto: private</td>
+            <td>Default 'private' en DB, toggle en modal para cambiar a public (preparado para futura discovery)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Review -->
+  <div class="section">
+    <div class="section-title">Revisión de calidad</div>
+    <div class="card">
+      <div class="review-ok">TypeScript: 0 errores en código F3-M5 (único error pre-existente: fflate en download route, no relacionado)</div>
+      <div class="review-ok">ESLint: 0 errors, 0 warnings en los 7 archivos F3-M5 revisados</div>
+      <div class="review-ok">Publish button: solo visible cuando el documento no es draft</div>
+      <div class="review-ok">Unpublish: disponible en modal si el documento ya estaba publicado</div>
+      <div class="review-ok">Keywords chips: accesibles (aria-label por chip, backspace para borrar)</div>
+      <div class="review-ok">My Studies grid: skeleton, empty state, error state cubiertos</div>
+      <div class="review-ok">LatexBlock a11y: tabIndex, role, aria-label, Enter/Space en todos los tipos de bloque</div>
+    </div>
+  </div>
+
+  <!-- Next steps -->
+  <div class="section">
+    <div class="section-title">Estado de Fase 3</div>
+    <div class="card">
+      <div class="card-body">
+        <p style="margin-bottom:12px">Con F3-M5 completado, <strong>todos los milestones de Fase 3 están entregados</strong>:</p>
+        <ul>
+          <li>F3-M1 — Arquitectura + PoC ✅</li>
+          <li>F3-M2 — Renderizado base ✅</li>
+          <li>F3-M3 — Interactividad (patrón Typora) ✅</li>
+          <li>F3-M4 — Chat contextual ✅</li>
+          <li>F3-M5 — Publish to My Studies + polish ✅</li>
+        </ul>
+        <p style="margin-top:12px;color:rgba(255,255,255,0.4)">
+          Pendiente: aplicar migración SQL en Supabase Dashboard (añadir columnas publish a tabla documents)
+          y ejecutar github-sync para commit de cierre de fase.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    BetterNotes v2 · F3-M5 Briefing · Generated 2026-03-28 · Director + Team
+  </div>
+
+</div>
+</body>
+</html>

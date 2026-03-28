@@ -8,13 +8,13 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M4 — Chat contextual COMPLETADO ✅ (2026-03-28)
-**Tarea activa:** F3-M5 — Publish to My Studies + polish ← PRÓXIMO
-**Último hito cerrado:** F3-M4 — Chat contextual ✅ (2026-03-28)
+**Milestone activo:** F3-M5 — Publish to My Studies + polish COMPLETADO ✅ (2026-03-28)
+**Tarea activa:** ninguna — Fase 3 completa, pendiente cierre de fase
+**Último hito cerrado:** F3-M5 — Publish to My Studies + polish ✅ (2026-03-28)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
 **Rama activa:** main
 **Bloqueantes:** ninguno.
-**Completado hoy (2026-03-28):** F3-M4 Chat contextual — BlockReference chip, AI block edit, KaTeX preview, Apply/Discard, persist DB, undo/redo Ctrl+Z/Y.
+**Completado hoy (2026-03-28):** F3-M5 — migración SQL publish, endpoint POST /publish, POST /suggest-keywords (GPT-4o directo), PublishModal.tsx con keywords chips + AI suggest, botón Publish en header workspace, My Studies page grid, accesibilidad LatexBlock (tabIndex/role/aria/Enter), skeleton loader visor, "Saved X ago" header.
 
 ---
 

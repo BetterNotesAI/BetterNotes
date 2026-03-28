@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-27 (cierre de sesión) — F3-M3 completado: interactividad patrón Typora (M3.1–M3.7). Siguiente milestone: F3-M4 — Chat contextual._
+_Última actualización: 2026-03-28 (cierre de sesión) — F3-M5 completado: Publish to My Studies + polish. Fase 3 COMPLETA._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -224,15 +224,14 @@ _Criterio de aceptación: El usuario puede referenciar un fragmento, pedir a la 
 
 ---
 
-### F3-M5 — Publish to My Studies + polish
-_Prerrequisito: F3-M4 completado. F5-M1 debe estar al menos parcialmente listo._
+### F3-M5 — Publish to My Studies + polish ✅ COMPLETADO (2026-03-28)
 
-- [ ] F3-M5.1 — Botón "Publish to My Studies" en el visor (modal: universidad, grado, asignatura, visibilidad, keywords) · ~1h
-- [ ] F3-M5.2 — Keywords auto-generadas por GPT-4o al publicar (editables antes de confirmar) · ~1h
-- [ ] F3-M5.3 — Polish visual: skeleton loader, transiciones suaves, indicador "Guardado hace Xs" · ~1h
-- [ ] F3-M5.4 — Accesibilidad básica: bloques focusables con Tab, Enter abre edición, ARIA labels · ~1h
+- [x] F3-M5.1 backend — Migración SQL (is_published, published_at, university, degree, subject, visibility, keywords[]) + endpoint POST /api/documents/[id]/publish + endpoint POST /api/documents/[id]/suggest-keywords (GPT-4o directo desde Next.js) + GET /api/documents/published · COMPLETADO
+- [x] F3-M5.1+M5.2 frontend — Botón "Publish" en header workspace + PublishModal.tsx (campos texto libre + keywords chips editables + sugerencia GPT-4o) + My Studies page (grid de cards de documentos publicados) · COMPLETADO
+- [x] F3-M5.3 — Polish visual: skeleton loader visor, "Saved X ago" en header (onApplyPersisted), transition-opacity al cambiar viewerTab · COMPLETADO
+- [x] F3-M5.4 — Accesibilidad LatexBlock: tabIndex=0, role="article", Enter/Space abre edición, aria-label en todos los tipos de bloque · COMPLETADO
 
-_Criterio de aceptación: Documento publicable a My Studies con keywords auto-generadas. Visor con polish visual y accesibilidad básica._
+_Criterio de aceptación: Documento publicable a My Studies con keywords auto-generadas. Visor con polish visual y accesibilidad básica. TODOS CUMPLIDOS._
 
 ---
 

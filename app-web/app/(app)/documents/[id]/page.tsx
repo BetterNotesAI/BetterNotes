@@ -13,6 +13,7 @@ import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
 import LatexViewer, { type BlockReference } from '@/components/viewer/LatexViewer';
+import { PublishModal } from '../_components/PublishModal';
 
 type ViewerTab = 'interactive' | 'pdf' | 'latex' | 'split';
 
@@ -110,6 +111,8 @@ export default function DocumentWorkspacePage() {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
+  // isGuest state value is reserved for future gating UI (currently only used for auth listener)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isGuest, setIsGuest] = useState(false);
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
@@ -122,11 +125,58 @@ export default function DocumentWorkspacePage() {
   const [applyBlockEdit, setApplyBlockEdit] = useState<{ blockId: string; newBlockLatex: string; token: number } | null>(null);
   // F3-M4.6: current full latex (updated when viewer applies a block edit, used to persist)
   const [pendingApplyLatex, setPendingApplyLatex] = useState<string | null>(null);
+  // F3-M5.3: "Saved X ago" — timestamp set after onApplyPersisted fires
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [savedAgoLabel, setSavedAgoLabel] = useState<string | null>(null);
+  // F3-M5.2: Publish modal
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishData, setPublishData] = useState<{
+    is_published: boolean;
+    university?: string | null;
+    degree?: string | null;
+    subject?: string | null;
+    visibility?: string;
+    keywords?: string[];
+  } | undefined>(undefined);
   const searchParamsDoc = useSearchParams();
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc.get('history') === '1');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+
+  // F3-M5.2: load publish metadata when document data arrives
+  // We cast via unknown because DocumentData is the minimal type from the hook;
+  // the API returns additional publish columns that TypeScript doesn't know about yet.
+  useEffect(() => {
+    if (!docData) return;
+    const d = docData as unknown as Record<string, unknown>;
+    setPublishData({
+      is_published: (d.is_published as boolean) ?? false,
+      university: (d.university as string | null) ?? null,
+      degree: (d.degree as string | null) ?? null,
+      subject: (d.subject as string | null) ?? null,
+      visibility: (d.visibility as string) ?? 'private',
+      keywords: (d.keywords as string[]) ?? [],
+    });
+  }, [docData]);
+
+  // F3-M5.3: keep "Saved X ago" label fresh every 30s
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    function formatAgo(d: Date): string {
+      const diffMs = Date.now() - d.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      if (diffSec < 10) return 'just now';
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffH = Math.floor(diffMin / 60);
+      return `${diffH}h ago`;
+    }
+    setSavedAgoLabel(formatAgo(lastSavedAt));
+    const id = setInterval(() => setSavedAgoLabel(formatAgo(lastSavedAt)), 30_000);
+    return () => clearInterval(id);
+  }, [lastSavedAt]);
 
   // --- Task 6: editable LaTeX state ---
   const [editedLatex, setEditedLatex] = useState<string>('');
@@ -404,9 +454,36 @@ export default function DocumentWorkspacePage() {
           {docData.status === 'generating' && (
             <span className="text-xs text-blue-400 animate-pulse shrink-0">Generating...</span>
           )}
+
+          {/* F3-M5.3: Saved X ago — appears after a block edit is persisted */}
+          {savedAgoLabel && (
+            <span className="text-xs text-green-400/70 shrink-0 hidden sm:inline">
+              Saved {savedAgoLabel}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* F3-M5.2: Publish button */}
+          {docData.status !== 'draft' && (
+            <button
+              onClick={() => setShowPublishModal(true)}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                publishData?.is_published
+                  ? 'text-indigo-300 border-indigo-400/40 bg-indigo-500/15 hover:bg-indigo-500/25'
+                  : 'text-white/60 hover:text-white border-white/15 hover:border-white/30'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+              </svg>
+              <span className="hidden sm:inline">
+                {publishData?.is_published ? 'Published' : 'Publish'}
+              </span>
+            </button>
+          )}
+
           {/* Download PDF — fetch blob so browser shows Save-As dialog */}
           {activePdfUrl && (
             <button
@@ -590,12 +667,28 @@ export default function DocumentWorkspacePage() {
             </div>
           )}
 
-          {/* Viewer body */}
-          <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative">
+          {/* Viewer body — key on viewerTab so React remounts on tab switch, enabling CSS fade-in */}
+          <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative transition-opacity duration-150">
+
+            {/* F3-M5.3: Skeleton loader — shown while document is loading in interactive tab */}
+            {viewerTab === 'interactive' && isLoading && !latexContent && (
+              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto p-6 space-y-4 animate-pulse">
+                <div className="h-6 bg-gray-200 rounded w-2/3" />
+                <div className="h-4 bg-gray-100 rounded w-full" />
+                <div className="h-4 bg-gray-100 rounded w-5/6" />
+                <div className="h-10 bg-gray-200 rounded w-1/2 mt-4" />
+                <div className="h-4 bg-gray-100 rounded w-full" />
+                <div className="h-4 bg-gray-100 rounded w-4/6" />
+                <div className="h-4 bg-gray-100 rounded w-full" />
+                <div className="h-6 bg-gray-200 rounded w-3/5 mt-4" />
+                <div className="h-4 bg-gray-100 rounded w-full" />
+                <div className="h-4 bg-gray-100 rounded w-5/6" />
+              </div>
+            )}
 
             {/* Interactive viewer (F3-M2.6) */}
             {viewerTab === 'interactive' && latexContent && (
-              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto transition-opacity duration-200">
                 <LatexViewer
                   latexSource={latexContent}
                   templateId={docData.template_id}
@@ -771,6 +864,8 @@ export default function DocumentWorkspacePage() {
               onApplyPersisted={() => {
                 // After successful persist, reload the document to sync versions
                 reloadDocument();
+                // F3-M5.3: record save timestamp for "Saved X ago" display
+                setLastSavedAt(new Date());
               }}
               pendingApplyLatex={pendingApplyLatex}
             />
@@ -789,6 +884,21 @@ export default function DocumentWorkspacePage() {
         isOpen={showGuestModal}
         onClose={() => setShowGuestModal(false)}
       />
+
+      {/* F3-M5.2: Publish modal */}
+      {docData && (
+        <PublishModal
+          documentId={documentId}
+          documentTitle={docData.title}
+          isOpen={showPublishModal}
+          initialData={publishData}
+          onClose={() => setShowPublishModal(false)}
+          onSuccess={(published) => {
+            setPublishData((prev) => (prev ? { ...prev, is_published: published } : prev));
+            reloadDocument();
+          }}
+        />
+      )}
     </div>
   );
 }

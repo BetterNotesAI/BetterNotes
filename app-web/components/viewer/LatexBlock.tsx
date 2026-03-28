@@ -103,7 +103,7 @@ function renderLatexCommands(text: string): string {
   // Step 1 — escape raw HTML-significant chars (except inside LaTeX args, handled below)
   // We escape the whole string first, then substitute LaTeX commands.
   // This is safe because LaTeX args use {} not < >.
-  let out = text
+  const out = text
     .replace(/&/g, '&amp;')
     // Step 2 — LaTeX text commands (applied on escaped string; args use {} so safe)
     // \textbf{...}
@@ -300,6 +300,16 @@ export default function LatexBlock({
             e.stopPropagation();
             onEdit?.(block.id);
           },
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (isFocused) {
+                onEdit?.(block.id);
+              } else {
+                onFocus?.(block.id);
+              }
+            }
+          },
         }
       : {};
 
@@ -331,10 +341,21 @@ export default function LatexBlock({
     }
   }, [block]);
 
+  // ── Accessibility props for interactive blocks ────────────────────────────
+  const isInteractive =
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end';
+  const a11yProps = isInteractive
+    ? {
+        tabIndex: 0,
+        role: 'article' as const,
+        'aria-label': `${block.type} block — click to focus, double-click or Enter to edit`,
+      }
+    : {};
+
   // ── Inline editor overlay — shown when isEditing ───────────────────────────
   if (isEditing) {
     return (
-      <div className={`${interactiveClass} px-1 py-0.5`} data-block-id={block.id} {...interactiveHandlers}>
+      <div className={`${interactiveClass} px-1 py-0.5`} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
         <textarea
           ref={textareaRef}
           value={editValue}
@@ -366,7 +387,7 @@ export default function LatexBlock({
           ? 'text-lg font-semibold mt-4 mb-1'
           : 'text-base font-semibold mt-3 mb-1';
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           <HeadingTag className={headingClass}>
             {block.latex_source}
           </HeadingTag>
@@ -379,6 +400,7 @@ export default function LatexBlock({
         <div
           className={`my-4 overflow-x-auto text-center ${interactiveClass}`}
           data-block-id={block.id}
+          {...a11yProps}
           {...interactiveHandlers}
           dangerouslySetInnerHTML={{ __html: rendered! }}
         />
@@ -387,7 +409,7 @@ export default function LatexBlock({
     case 'formula-inline':
     case 'paragraph':
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           <p
             className="my-2 text-sm leading-relaxed"
             dangerouslySetInnerHTML={{ __html: rendered! }}
@@ -397,14 +419,14 @@ export default function LatexBlock({
 
     case 'list':
       return (
-        <div className={`my-2 ${interactiveClass}`} data-block-id={block.id} {...interactiveHandlers}>
+        <div className={`my-2 ${interactiveClass}`} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderList(block.latex_source)}
         </div>
       );
 
     case 'table':
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...interactiveHandlers}>
+        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderTable(block.latex_source)}
         </div>
       );
@@ -418,6 +440,7 @@ export default function LatexBlock({
           style={{ breakInside: 'avoid' }}
           className={`my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm ${interactiveClass}`}
           data-block-id={block.id}
+          {...a11yProps}
           {...interactiveHandlers}
         >
           <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
