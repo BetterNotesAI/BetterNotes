@@ -19,6 +19,20 @@ import { parseLatex } from '@/lib/latex-parser';
 import type { Block, BlockType } from '@/lib/latex-parser';
 import LatexBlock from './LatexBlock';
 
+// ─── F3-M4.2: BlockReference type ────────────────────────────────────────────
+
+export interface BlockReference {
+  blockId: string;
+  blockType: string;
+  latex_source: string;
+  /** Up to 2 blocks before/after for AI context */
+  adjacentBlocks: Array<{ blockId: string; blockType: string; latex_source: string }>;
+}
+
+// ─── F3-M4.7: undo/redo history ──────────────────────────────────────────────
+
+const MAX_HISTORY = 20;
+
 // ─── template layout config ───────────────────────────────────────────────────
 
 const BLOCKS_PER_PAGE: Record<string, number> = {
@@ -197,7 +211,7 @@ interface ContextMenuState {
 
 interface ContextMenuProps {
   menu: ContextMenuState;
-  onReference: (text: string) => void;
+  onReference: (blockId: string) => void;
   onClose: () => void;
 }
 
@@ -214,16 +228,22 @@ function ContextMenu({ menu, onReference, onClose }: ContextMenuProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
+  // Prevent mousedown inside the menu from clearing the browser's native text selection
+  function handleMenuMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+  }
+
   return (
     <div
       ref={ref}
       style={{ position: 'fixed', left: menu.x, top: menu.y, zIndex: 9999 }}
       className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[160px]"
+      onMouseDown={handleMenuMouseDown}
     >
       <button
         className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
         onClick={() => {
-          onReference(menu.selectedText);
+          onReference(menu.blockId);
           onClose();
         }}
       >
@@ -255,10 +275,20 @@ interface LatexViewerProps {
   /** When true, the built-in toolbar is hidden (parent manages controls) */
   hideToolbar?: boolean;
   /**
-   * M3.5: called when user selects text and clicks "Reference in chat".
-   * The parent (workspace page) can use this to inject context into the chat panel.
+   * M3.5 / F3-M4.2: called when user clicks "Reference in chat".
+   * Now receives a BlockReference with full block metadata.
    */
-  onReferenceInChat?: (selectedText: string) => void;
+  onReferenceInChat?: (ref: BlockReference) => void;
+  /**
+   * F3-M4.5: called when "Apply" is used in the chat to replace a block.
+   * Provides the current full reconstructed LaTeX so the parent can persist it.
+   */
+  onLatexChange?: (newLatex: string) => void;
+  /**
+   * F3-M4.5: apply a block edit from outside (e.g. ChatPanel "Apply" button).
+   * Replace block with blockId using newBlockLatex.
+   */
+  applyBlockEdit?: { blockId: string; newBlockLatex: string; token: number } | null;
 }
 
 export default function LatexViewer({
@@ -267,13 +297,71 @@ export default function LatexViewer({
   className,
   hideToolbar = false,
   onReferenceInChat,
+  onLatexChange,
+  applyBlockEdit,
 }: LatexViewerProps) {
   // ── Parse blocks (mutable state for inline editing) ──────────────────────
   const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(latexSource));
 
+  // ── F3-M4.7: undo/redo history ────────────────────────────────────────────
+  // History stores past blocks snapshots; pointer starts at -1 (no history yet)
+  const historyRef = useRef<Block[][]>([]);
+  const historyIndexRef = useRef<number>(-1);
+
+  // Push current blocks to history before a mutation
+  const pushHistory = useCallback((snapshot: Block[]) => {
+    // Truncate any forward history
+    historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+    historyRef.current.push(snapshot);
+    if (historyRef.current.length > MAX_HISTORY) {
+      historyRef.current.shift();
+    }
+    historyIndexRef.current = historyRef.current.length - 1;
+  }, []);
+
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    const snapshot = historyRef.current[historyIndexRef.current];
+    if (snapshot) setBlocks(snapshot);
+  }, []);
+
+  const redo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    const snapshot = historyRef.current[historyIndexRef.current];
+    if (snapshot) setBlocks(snapshot);
+  }, []);
+
+  // Keyboard shortcut Ctrl+Z / Ctrl+Y
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (!ctrl) return;
+      if (e.key === 'z' || e.key === 'Z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if (e.key === 'y' || e.key === 'Y') {
+        e.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [undo, redo]);
+
   // Re-parse when external source changes
   useEffect(() => {
-    setBlocks(parseLatex(latexSource));
+    const parsed = parseLatex(latexSource);
+    setBlocks(parsed);
+    // Reset history when a completely new source is loaded
+    historyRef.current = [];
+    historyIndexRef.current = -1;
   }, [latexSource]);
 
   // ── Pagination & zoom ─────────────────────────────────────────────────────
@@ -313,25 +401,37 @@ export default function LatexViewer({
 
   // Click-away to blur focus/editing
   const contentRef = useRef<HTMLDivElement>(null);
+  // Ref to capture selection text on right-mousedown before the browser can clear it
+  const pendingRightClickSelectionRef = useRef<string>('');
+
   useEffect(() => {
-    function handleClickAway(e: MouseEvent) {
+    function handleMouseDown(e: MouseEvent) {
+      if (e.button === 2) {
+        // Right-click: capture selection immediately before anything clears it.
+        // Do NOT run click-away logic — the contextmenu handler will manage the menu.
+        pendingRightClickSelectionRef.current =
+          window.getSelection()?.toString().trim() ?? '';
+        return;
+      }
+      // Left/middle click: blur focused block if clicking outside content area
       if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
         setFocusedBlockId(null);
         setEditingBlockId(null);
       }
     }
-    document.addEventListener('mousedown', handleClickAway);
-    return () => document.removeEventListener('mousedown', handleClickAway);
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
   // ── M3.4: confirm edit — re-render block ──────────────────────────────────
   const handleConfirm = useCallback((id: string, newSource: string) => {
-    setBlocks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, latex_source: newSource } : b))
-    );
+    setBlocks((prev) => {
+      pushHistory(prev);
+      return prev.map((b) => (b.id === id ? { ...b, latex_source: newSource } : b));
+    });
     setEditingBlockId(null);
     setFocusedBlockId(id);
-  }, []);
+  }, [pushHistory]);
 
   const handleCancelEdit = useCallback((id: string) => {
     setEditingBlockId(null);
@@ -342,10 +442,10 @@ export default function LatexViewer({
   const handleApplyFormat = useCallback(
     (format: FormatAction) => {
       if (!focusedBlockId) return;
-      setBlocks((prev) =>
-        prev.map((b) => {
+      setBlocks((prev) => {
+        pushHistory(prev);
+        return prev.map((b) => {
           if (b.id !== focusedBlockId) return b;
-          let src = b.latex_source;
           switch (format.kind) {
             case 'heading':
               // Convert paragraph to section, or change level
@@ -354,35 +454,35 @@ export default function LatexViewer({
                 type: 'section' as BlockType,
                 level: format.level,
                 // Strip existing \section{} wrapper if present, otherwise use text as-is
-                latex_source: src
+                latex_source: b.latex_source
                   .replace(/^\\(?:sub)*section\*?\{([\s\S]*)\}$/, '$1')
                   .trim(),
               };
             case 'bold':
-              return { ...b, latex_source: `\\textbf{${src}}` };
+              return { ...b, latex_source: `\\textbf{${b.latex_source}}` };
             case 'italic':
-              return { ...b, latex_source: `\\textit{${src}}` };
+              return { ...b, latex_source: `\\textit{${b.latex_source}}` };
             case 'underline':
-              return { ...b, latex_source: `\\underline{${src}}` };
+              return { ...b, latex_source: `\\underline{${b.latex_source}}` };
             case 'math':
               return {
                 ...b,
                 type: 'formula-inline' as BlockType,
-                latex_source: `$${src}$`,
+                latex_source: `$${b.latex_source}$`,
               };
             case 'boxed':
               return {
                 ...b,
                 type: 'box' as BlockType,
-                latex_source: src,
+                latex_source: b.latex_source,
               };
             default:
               return b;
           }
-        })
-      );
+        });
+      });
     },
-    [focusedBlockId]
+    [focusedBlockId, pushHistory]
   );
 
   // ── M3.5: context menu state ──────────────────────────────────────────────
@@ -390,8 +490,13 @@ export default function LatexViewer({
 
   useEffect(() => {
     function handleContextMenu(e: MouseEvent) {
-      const selection = window.getSelection();
-      const selectedText = selection?.toString().trim() ?? '';
+      // Use the live selection first; fall back to what we captured on mousedown
+      // (the browser may have cleared the native selection between mousedown and contextmenu)
+      const selectedText =
+        window.getSelection()?.toString().trim() ||
+        pendingRightClickSelectionRef.current;
+      pendingRightClickSelectionRef.current = ''; // reset after use
+
       if (!selectedText || !contentRef.current?.contains(e.target as Node)) return;
       e.preventDefault();
       // Find closest block id via DOM traversal
@@ -406,6 +511,54 @@ export default function LatexViewer({
     document.addEventListener('contextmenu', handleContextMenu);
     return () => document.removeEventListener('contextmenu', handleContextMenu);
   }, []);
+
+  // ── F3-M4.5: apply block edit from ChatPanel ─────────────────────────────
+  const appliedTokenRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!applyBlockEdit) return;
+    if (applyBlockEdit.token === appliedTokenRef.current) return;
+    appliedTokenRef.current = applyBlockEdit.token;
+
+    setBlocks((prev) => {
+      const target = prev.find((b) => b.id === applyBlockEdit.blockId);
+      if (!target) return prev;
+      pushHistory(prev);
+      const next = prev.map((b) =>
+        b.id === applyBlockEdit.blockId
+          ? { ...b, latex_source: applyBlockEdit.newBlockLatex }
+          : b
+      );
+      // Notify parent so it can reconstruct the full latex and persist
+      if (onLatexChange) {
+        // Reconstruct full latex: replace the old block latex_source in latexSource
+        const newFullLatex = latexSource.replace(
+          target.latex_source,
+          applyBlockEdit.newBlockLatex
+        );
+        onLatexChange(newFullLatex);
+      }
+      return next;
+    });
+  }, [applyBlockEdit, latexSource, onLatexChange, pushHistory]);
+
+  // ── Helper: build BlockReference for a given blockId ─────────────────────
+  const buildBlockReference = useCallback(
+    (blockId: string): BlockReference | null => {
+      const idx = blocks.findIndex((b) => b.id === blockId);
+      if (idx === -1) return null;
+      const b = blocks[idx];
+      const adjacent: BlockReference['adjacentBlocks'] = [];
+      for (let d = -2; d <= 2; d++) {
+        if (d === 0) continue;
+        const nb = blocks[idx + d];
+        if (nb && nb.type !== 'col-start' && nb.type !== 'col-end') {
+          adjacent.push({ blockId: nb.id, blockType: nb.type, latex_source: nb.latex_source });
+        }
+      }
+      return { blockId: b.id, blockType: b.type, latex_source: b.latex_source, adjacentBlocks: adjacent };
+    },
+    [blocks]
+  );
 
   if (!latexSource.trim()) {
     return (
@@ -506,12 +659,13 @@ export default function LatexViewer({
         </div>
       </div>
 
-      {/* ── M3.5: Context menu ── */}
+      {/* ── M3.5 / F3-M4.2: Context menu ── */}
       {contextMenu && (
         <ContextMenu
           menu={contextMenu}
-          onReference={(text) => {
-            onReferenceInChat?.(text);
+          onReference={(blockId) => {
+            const ref = buildBlockReference(blockId);
+            if (ref) onReferenceInChat?.(ref);
           }}
           onClose={() => setContextMenu(null)}
         />

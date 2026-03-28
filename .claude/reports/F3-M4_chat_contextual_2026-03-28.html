@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F3-M4 — Chat Contextual | BetterNotes</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #16161d;
+    --border: rgba(255,255,255,0.08);
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --green: #22c55e;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --card: #1a1a24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-bottom: 0.75rem;
+  }
+  .badge-phase { background: rgba(99,102,241,0.2); color: var(--accent-light); border: 1px solid rgba(99,102,241,0.3); }
+  .badge-done { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
+  h1 { font-size: 1.75rem; font-weight: 700; color: white; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); font-size: 13px; }
+  .date { color: var(--muted); font-size: 12px; margin-top: 0.4rem; }
+
+  section { margin-bottom: 2rem; }
+  h2 { font-size: 1.1rem; font-weight: 600; color: var(--accent-light); margin-bottom: 1rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 0.9rem; font-weight: 600; color: white; margin: 1rem 0 0.5rem; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card.accent { border-color: rgba(99,102,241,0.25); }
+
+  .task-list { list-style: none; space-y: 0.5rem; }
+  .task-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px;
+    color: var(--text);
+  }
+  .task-list li:last-child { border-bottom: none; }
+  .check { color: var(--green); font-size: 14px; flex-shrink: 0; }
+  .task-id { color: var(--accent-light); font-weight: 600; font-size: 11px; flex-shrink: 0; }
+
+  .file-list { list-style: none; }
+  .file-list li {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    padding: 0.35rem 0.75rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: 5px;
+    margin-bottom: 0.3rem;
+    color: #c4b5fd;
+    border-left: 2px solid var(--accent);
+  }
+  .file-list li.new { border-left-color: var(--green); color: #86efac; }
+  .file-list li.modified { border-left-color: #f59e0b; color: #fcd34d; }
+
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .flow-step .num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .flow-arrow { text-align: center; color: var(--muted); font-size: 12px; }
+
+  .criterion {
+    background: rgba(34,197,94,0.08);
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 13px;
+    color: #bbf7d0;
+  }
+  .criterion strong { color: #86efac; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .td-green { color: #86efac; }
+  .td-mono { font-family: monospace; font-size: 11px; color: #c4b5fd; }
+
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); text-align: center; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <span class="badge badge-phase">Fase 3 — Visor Interactivo</span>
+    <span class="badge badge-done">✓ Completado 2026-03-28</span>
+  </div>
+  <h1>F3-M4 — Chat Contextual</h1>
+  <p class="subtitle">Edicion de bloques con IA directamente desde el visor interactivo</p>
+  <p class="date">Sesion: 2026-03-28 &middot; BetterNotes v2</p>
+</header>
+
+<!-- Criterio de aceptacion -->
+<section>
+  <div class="criterion">
+    <strong>Criterio de aceptacion cumplido:</strong> El usuario puede referenciar un bloque del visor
+    con click derecho &rarr; ver el chip en el chat &rarr; escribir un prompt &rarr; recibir preview KaTeX del bloque modificado
+    &rarr; pulsar "Apply" &rarr; el bloque se actualiza en el visor &rarr; al descargar el PDF, refleja los cambios.
+  </div>
+</section>
+
+<!-- Sub-milestones -->
+<section>
+  <h2>Sub-milestones implementados</h2>
+  <ul class="task-list">
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.1</span>
+      Panel lateral de chat vinculado al visor. Sin referencia: guia al usuario a hacer click derecho. Con referencia: chip + input contextual.
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.2</span>
+      Chip visual con "x" encima del input. BlockReference: { blockId, blockType, latex_source, adjacentBlocks[] }.
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.3</span>
+      Endpoint POST /api/documents/[id]/edit-block (app-web) + ruta POST /latex/edit-block (app-api) + editBlock() en AIProvider/OpenAIProvider.
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.4</span>
+      Preview del bloque modificado con KaTeX renderizado en BlockEditPreviewCard. Soporte formula-block (display mode) y paragrafos con inline math.
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.5</span>
+      Botones "Apply" / "Discard". Apply: actualizacion optimista en LatexViewer via prop applyBlockEdit + token.
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.6</span>
+      Al Apply: reemplazar string exacto del bloque en el .tex completo, compilar con /compile-only, persistir nueva version en DB (document_versions).
+    </li>
+    <li>
+      <span class="check">✓</span>
+      <span class="task-id">M4.7</span>
+      Undo/redo en memoria en LatexViewer: historial hasta 20 estados. Ctrl+Z (undo), Ctrl+Y / Ctrl+Shift+Z (redo). Pushea en confirm, applyFormat y applyBlockEdit.
+    </li>
+  </ul>
+</section>
+
+<!-- Flujo de usuario -->
+<section>
+  <h2>Flujo de usuario</h2>
+  <div class="flow">
+    <div class="flow-step"><span class="num">1</span> Click derecho sobre un bloque en el LatexViewer &rarr; menu contextual "Reference in chat"</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">2</span> ChatPanel recibe BlockReference. Chip visual aparece sobre el input con type badge + preview LaTeX + boton X</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">3</span> Usuario escribe prompt ("make this formula more explicit") y pulsa Enter</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">4</span> POST /api/documents/[id]/edit-block &rarr; app-api /latex/edit-block &rarr; editBlock() en OpenAIProvider &rarr; devuelve modifiedLatex</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">5</span> BlockEditPreviewCard muestra el bloque modificado renderizado con KaTeX + collapse "View LaTeX source"</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">6</span> Usuario pulsa "Apply": actualizacion optimista en LatexViewer (bloque reemplazado visualmente)</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step"><span class="num">7</span> onLatexChange dispara &rarr; pendingApplyLatex &rarr; POST /edit-block (apply:true) &rarr; compile + persist nueva version &rarr; onApplyPersisted &rarr; reloadDocument</div>
+  </div>
+</section>
+
+<!-- Archivos -->
+<section>
+  <h2>Archivos modificados / creados</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Nuevos</h3>
+      <ul class="file-list">
+        <li class="new">app-api/src/routes/edit-block.ts</li>
+        <li class="new">app-web/app/api/documents/[id]/edit-block/route.ts</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Modificados</h3>
+      <ul class="file-list">
+        <li class="modified">app-api/src/lib/ai/types.ts</li>
+        <li class="modified">app-api/src/lib/ai/openai.provider.ts</li>
+        <li class="modified">app-api/src/server.ts</li>
+        <li class="modified">app-web/components/viewer/LatexViewer.tsx</li>
+        <li class="modified">app-web/app/(app)/documents/_components/ChatPanel.tsx</li>
+        <li class="modified">app-web/app/(app)/documents/[id]/page.tsx</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Decisiones tecnicas -->
+<section>
+  <h2>Decisiones tecnicas</h2>
+  <table>
+    <tr><th>Decision</th><th>Valor</th></tr>
+    <tr>
+      <td>Granularidad de edicion</td>
+      <td>Bloque completo — la IA recibe y devuelve el bloque entero, no fragmentos</td>
+    </tr>
+    <tr>
+      <td>Busqueda y reemplazo en .tex</td>
+      <td>String.replace() exacto del latex_source del bloque — sin parser adicional</td>
+    </tr>
+    <tr>
+      <td>Actualizacion optimista</td>
+      <td>LatexViewer actualiza el bloque visualmente antes de confirmar persist en DB</td>
+    </tr>
+    <tr>
+      <td>Historial undo/redo</td>
+      <td>En memoria (ref array de Block[]), hasta 20 estados. Se resetea al cargar nueva fuente</td>
+    </tr>
+    <tr>
+      <td>Contexto al AI</td>
+      <td>blockLatex + blockType + adjacentBlocks (±2) + fullLatex truncado a 3000 chars</td>
+    </tr>
+    <tr>
+      <td>Endpoint unificado</td>
+      <td>POST /edit-block maneja tanto preview (sin apply:true) como persist (apply:true)</td>
+    </tr>
+    <tr>
+      <td>KaTeX en ChatPanel</td>
+      <td>katex importado en ChatPanel.tsx con mismos macros custom (\dd, \real, \cplex)</td>
+    </tr>
+  </table>
+</section>
+
+<!-- Estado siguiente -->
+<section>
+  <h2>Siguiente milestone</h2>
+  <div class="card accent">
+    <h3>F3-M5 — Publish to My Studies + Polish</h3>
+    <p style="color: var(--muted); font-size: 13px; margin-top: 0.5rem;">
+      Boton "Publish to My Studies" en el visor. Keywords auto-generadas por GPT-4o.
+      Polish visual: skeleton loader, transiciones, indicador "Guardado hace Xs".
+      Accesibilidad basica: Tab, Enter, ARIA labels.
+    </p>
+  </div>
+</section>
+
+<footer>
+  BetterNotes v2 &middot; F3-M4 Chat Contextual &middot; 2026-03-28
+</footer>
+
+</body>
+</html>

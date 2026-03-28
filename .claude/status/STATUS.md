@@ -8,12 +8,13 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo (+ mejoras UI/UX en paralelo)
-**Milestone activo:** F3-M4 — Chat contextual ← PRÓXIMO
-**Tarea activa:** —
-**Último hito cerrado:** F3-M3 — Interactividad (patrón Typora) ✅ (2026-03-27)
+**Milestone activo:** F3-M4 — Chat contextual COMPLETADO ✅ (2026-03-28)
+**Tarea activa:** F3-M5 — Publish to My Studies + polish ← PRÓXIMO
+**Último hito cerrado:** F3-M4 — Chat contextual ✅ (2026-03-28)
 **Fase cerrada:** Fase 2 — Cierre y Refinamiento ✅ (2026-03-26)
-**Rama activa:** main (mergeada desde f3-m3-interactivity)
+**Rama activa:** main
 **Bloqueantes:** ninguno.
+**Completado hoy (2026-03-28):** F3-M4 Chat contextual — BlockReference chip, AI block edit, KaTeX preview, Apply/Discard, persist DB, undo/redo Ctrl+Z/Y.
 
 ---
 

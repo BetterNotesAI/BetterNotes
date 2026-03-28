@@ -12,7 +12,7 @@ import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWork
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
-import LatexViewer from '@/components/viewer/LatexViewer';
+import LatexViewer, { type BlockReference } from '@/components/viewer/LatexViewer';
 
 type ViewerTab = 'interactive' | 'pdf' | 'latex' | 'split';
 
@@ -114,9 +114,14 @@ export default function DocumentWorkspacePage() {
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('interactive');
-  // F3-M3.5: text referenced from the interactive viewer → injected into chat input
+  // F3-M3.5 / F3-M4.2: BlockReference from interactive viewer → chat panel
   const [chatPrefill, setChatPrefill] = useState<string | undefined>(undefined);
   const chatPrefillCounterRef = useRef(0);
+  const [blockReference, setBlockReference] = useState<BlockReference | null>(null);
+  // F3-M4.5: applyBlockEdit signal from ChatPanel → LatexViewer
+  const [applyBlockEdit, setApplyBlockEdit] = useState<{ blockId: string; newBlockLatex: string; token: number } | null>(null);
+  // F3-M4.6: current full latex (updated when viewer applies a block edit, used to persist)
+  const [pendingApplyLatex, setPendingApplyLatex] = useState<string | null>(null);
   const searchParamsDoc = useSearchParams();
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc.get('history') === '1');
   const [zoom, setZoom] = useState(100);
@@ -594,13 +599,16 @@ export default function DocumentWorkspacePage() {
                 <LatexViewer
                   latexSource={latexContent}
                   templateId={docData.template_id}
-                  onReferenceInChat={(text) => {
+                  onReferenceInChat={(ref) => {
                     chatPrefillCounterRef.current += 1;
-                    // Encode counter into the string so the effect in ChatPanel
-                    // fires even when the same text is referenced twice in a row.
-                    setChatPrefill(`__ref${chatPrefillCounterRef.current}__${text}`);
-                    // Switch to chat tab on mobile so the user sees the panel
+                    setBlockReference(ref);
+                    // Also set prefillText for backwards compat (shows in input)
+                    setChatPrefill(`__ref${chatPrefillCounterRef.current}__${ref.latex_source.slice(0, 120)}`);
                     setMobileTab('chat');
+                  }}
+                  applyBlockEdit={applyBlockEdit}
+                  onLatexChange={(newLatex) => {
+                    setPendingApplyLatex(newLatex);
                   }}
                 />
               </div>
@@ -752,6 +760,19 @@ export default function DocumentWorkspacePage() {
               onSend={handleSend}
               loadingLabel={loadingLabel}
               prefillText={chatPrefill}
+              blockReference={blockReference}
+              onClearBlockReference={() => setBlockReference(null)}
+              documentId={documentId}
+              latexSource={latexContent ?? ''}
+              onApplyBlockEdit={(blockId, newBlockLatex) => {
+                chatPrefillCounterRef.current += 1;
+                setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
+              }}
+              onApplyPersisted={() => {
+                // After successful persist, reload the document to sync versions
+                reloadDocument();
+              }}
+              pendingApplyLatex={pendingApplyLatex}
             />
           </div>
         </div>

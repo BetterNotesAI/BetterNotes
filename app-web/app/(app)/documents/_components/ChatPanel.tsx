@@ -1,6 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+/**
+ * ChatPanel.tsx
+ * F3-M4: Chat contextual panel.
+ *
+ * New features vs M3:
+ *   F3-M4.1 — Panel lateral de chat vinculado al visor.
+ *             Sin referencia: mensaje "Select a block to edit with AI".
+ *             Con referencia: muestra chip encima del input.
+ *   F3-M4.2 — Chip visual con "x" para desreferenciar.
+ *   F3-M4.4 — Preview del fragmento modificado con KaTeX renderizado.
+ *   F3-M4.5 — Botones "Apply" / "Discard" — al aplicar, reemplaza el bloque en el visor.
+ */
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import type { BlockReference } from '@/components/viewer/LatexViewer';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   id: string;
@@ -11,6 +29,15 @@ export interface ChatMessage {
   created_at: string;
 }
 
+// A pending AI block edit preview — shown in the chat with Apply/Discard.
+interface BlockEditPreview {
+  blockId: string;
+  blockType: string;
+  originalLatex: string;
+  modifiedLatex: string;
+  userPrompt: string;
+}
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -19,13 +46,113 @@ interface ChatPanelProps {
   placeholder?: string;
   loadingLabel?: string;
   /**
-   * When set, the text is appended to the current chat input and the textarea
-   * is focused. Intended for "Reference in chat" from the interactive viewer.
-   * The parent must provide a stable reference — typically a string that changes
-   * each time a new reference is injected (e.g. wrapped with a counter).
+   * Legacy: plain text prefill from "Reference in chat".
+   * The parent must provide a stable reference with counter prefix (__refN__).
    */
   prefillText?: string;
+  /** F3-M4.2: full BlockReference from the viewer. */
+  blockReference?: BlockReference | null;
+  /** F3-M4.2: clear the block reference (user clicked "x" on chip). */
+  onClearBlockReference?: () => void;
+  /** F3-M4.3: document id for the edit-block API call. */
+  documentId?: string;
+  /** F3-M4.5: current full LaTeX source (for apply payload). */
+  latexSource?: string;
+  /**
+   * F3-M4.5: called when user clicks "Apply" — triggers the LatexViewer
+   * to replace the block visually (optimistic update).
+   */
+  onApplyBlockEdit?: (blockId: string, newBlockLatex: string) => void;
+  /**
+   * F3-M4.6: called after a successful persist (apply mode returned 200).
+   * Parent should reload the document to sync the new version.
+   */
+  onApplyPersisted?: () => void;
+  /**
+   * F3-M4.6: the new full LaTeX after the viewer replaced the block.
+   * ChatPanel sends this to the API for compilation + persistence.
+   * Set by the parent after onApplyBlockEdit is called.
+   */
+  pendingApplyLatex?: string | null;
 }
+
+// ─── KaTeX helpers ────────────────────────────────────────────────────────────
+
+const KATEX_MACROS: Record<string, string> = {
+  '\\dd': '\\mathrm{d}',
+  '\\real': '\\mathbb{R}',
+  '\\cplex': '\\mathbb{C}',
+};
+
+function renderKatexSafe(latex: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(latex, {
+      displayMode,
+      throwOnError: false,
+      macros: KATEX_MACROS,
+      trust: false,
+    });
+  } catch {
+    return `<code class="text-xs text-red-400 font-mono">${latex}</code>`;
+  }
+}
+
+/**
+ * Render a LaTeX fragment for preview in the chat panel.
+ * Tries display mode first (for formula-block types), falls back to inline.
+ */
+function renderLatexPreview(latex: string, blockType: string): string {
+  const isDisplayMath =
+    blockType === 'formula-block' ||
+    latex.trim().startsWith('\\[') ||
+    latex.trim().startsWith('$$') ||
+    latex.trim().startsWith('\\begin{');
+
+  if (isDisplayMath) {
+    // Strip display math delimiters and render
+    let inner = latex.trim();
+    inner = inner.replace(/^\\\[|\\\]$/g, '').trim();
+    inner = inner.replace(/^\$\$|\$\$$/g, '').trim();
+    // If it's a \begin{env}...\end{env}, render as-is
+    if (inner.startsWith('\\begin{')) {
+      return renderKatexSafe(inner, true);
+    }
+    return renderKatexSafe(inner, true);
+  }
+
+  // Paragraph / mixed: render inline math fragments
+  const parts: string[] = [];
+  let i = 0;
+  let inMath = false;
+  let current = '';
+  while (i < latex.length) {
+    if (latex[i] === '$' && latex[i + 1] !== '$' && (i === 0 || latex[i - 1] !== '$')) {
+      if (!inMath) {
+        if (current) parts.push(`<span>${current}</span>`);
+        current = '';
+        inMath = true;
+      } else {
+        parts.push(renderKatexSafe(current, false));
+        current = '';
+        inMath = false;
+      }
+      i++;
+    } else {
+      current += latex[i];
+      i++;
+    }
+  }
+  if (current) {
+    if (inMath) {
+      parts.push(renderKatexSafe(current, false));
+    } else {
+      parts.push(`<span>${current}</span>`);
+    }
+  }
+  return parts.join('');
+}
+
+// ─── Misc helpers ─────────────────────────────────────────────────────────────
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -39,23 +166,153 @@ const LOADING_PHASES = [
   { label: 'Compiling PDF...', duration: null },
 ] as const;
 
-export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, loadingLabel, prefillText }: ChatPanelProps) {
+// ─── BlockEditPreviewCard ─────────────────────────────────────────────────────
+
+interface BlockEditPreviewCardProps {
+  preview: BlockEditPreview;
+  isApplying: boolean;
+  applyError: string | null;
+  onApply: () => void;
+  onDiscard: () => void;
+}
+
+function BlockEditPreviewCard({
+  preview,
+  isApplying,
+  applyError,
+  onApply,
+  onDiscard,
+}: BlockEditPreviewCardProps) {
+  const previewHtml = renderLatexPreview(preview.modifiedLatex, preview.blockType);
+
+  return (
+    <div className="rounded-xl border border-indigo-400/30 bg-indigo-500/10 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-400/20">
+        <span className="text-xs font-medium text-indigo-300">Block preview</span>
+        <span className="text-[10px] text-indigo-400/60 bg-indigo-500/20 rounded px-1.5 py-0.5">
+          {preview.blockType}
+        </span>
+      </div>
+
+      {/* KaTeX rendered preview */}
+      <div className="px-3 py-3 bg-white/95 rounded-none overflow-auto max-h-48">
+        <div
+          className="font-sans text-gray-900 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: previewHtml }}
+        />
+      </div>
+
+      {/* Raw LaTeX (collapsible via details) */}
+      <details className="px-3 py-1 border-t border-indigo-400/20">
+        <summary className="text-[10px] text-indigo-300/70 cursor-pointer select-none py-1 hover:text-indigo-300">
+          View LaTeX source
+        </summary>
+        <pre className="text-[10px] text-indigo-100/80 font-mono whitespace-pre-wrap break-all py-1 max-h-28 overflow-auto">
+          {preview.modifiedLatex}
+        </pre>
+      </details>
+
+      {/* Apply error */}
+      {applyError && (
+        <div className="px-3 py-1.5 bg-red-500/20 border-t border-red-500/20 text-red-400 text-xs">
+          {applyError}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-indigo-400/20">
+        <button
+          onClick={onApply}
+          disabled={isApplying}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg
+            bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium
+            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isApplying ? (
+            <><span className="animate-spin inline-block text-sm">⟳</span> Applying…</>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Apply
+            </>
+          )}
+        </button>
+        <button
+          onClick={onDiscard}
+          disabled={isApplying}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg
+            bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs font-medium
+            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Discard
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ChatPanel ────────────────────────────────────────────────────────────────
+
+export function ChatPanel({
+  messages,
+  isLoading,
+  isDraft,
+  onSend,
+  placeholder,
+  // loadingLabel is accepted for API compatibility but ChatPanel manages its own loading phases
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  loadingLabel: _loadingLabel,
+  prefillText,
+  blockReference,
+  onClearBlockReference,
+  documentId,
+  latexSource,
+  onApplyBlockEdit,
+  onApplyPersisted,
+  pendingApplyLatex,
+}: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Append referenced text from the interactive viewer to the chat input.
-  // prefillText may contain a counter prefix (__refN__) to force re-fires
-  // when the same text is referenced twice in a row — strip it before display.
+  // F3-M4.3 / M4.4: block edit state
+  const [isEditingBlock, setIsEditingBlock] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [blockEditPreview, setBlockEditPreview] = useState<BlockEditPreview | null>(null);
+
+  // F3-M4.5 / M4.6: apply state
+  const [isApplying, setIsApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Track pendingApplyLatex to trigger persistence after optimistic update
+  const pendingApplyLatexRef = useRef<string | null>(null);
+  const pendingApplyPreviewRef = useRef<BlockEditPreview | null>(null);
+
+  // When blockReference changes (new block referenced), clear any previous preview
+  useEffect(() => {
+    if (blockReference) {
+      setBlockEditPreview(null);
+      setEditError(null);
+    }
+  }, [blockReference]);
+
+  // Legacy prefillText: append raw text to input (for non-block-reference use)
   useEffect(() => {
     if (!prefillText) return;
+    // If there's a blockReference, chip handles it — no need to inject raw text
+    if (blockReference) return;
     const displayText = prefillText.replace(/^__ref\d+__/, '');
     setInput((prev) => {
       const separator = prev.trim() ? '\n' : '';
       return prev + separator + `[ref: ${displayText}] `;
     });
-    // Resize textarea and focus it
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -65,6 +322,14 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
     }, 0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillText]);
+
+  // When a new blockReference arrives, focus the input
+  useEffect(() => {
+    if (!blockReference) return;
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 50);
+  }, [blockReference]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -79,9 +344,127 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, blockEditPreview]);
+
+  // ── F3-M4.3: send block edit request ─────────────────────────────────────
+
+  const handleSendBlockEdit = useCallback(async () => {
+    if (!blockReference || !input.trim() || !documentId) return;
+    setIsEditingBlock(true);
+    setEditError(null);
+    setBlockEditPreview(null);
+
+    try {
+      const resp = await fetch(`/api/documents/${documentId}/edit-block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blockId: blockReference.blockId,
+          blockLatex: blockReference.latex_source,
+          blockType: blockReference.blockType,
+          adjacentBlocks: blockReference.adjacentBlocks,
+          userPrompt: input.trim(),
+          fullLatex: latexSource ?? '',
+        }),
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        setEditError(errData?.error ?? 'AI edit failed. Try again.');
+        return;
+      }
+
+      const data = await resp.json();
+      setBlockEditPreview({
+        blockId: blockReference.blockId,
+        blockType: blockReference.blockType,
+        originalLatex: blockReference.latex_source,
+        modifiedLatex: data.modifiedLatex ?? blockReference.latex_source,
+        userPrompt: input.trim(),
+      });
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setEditError(`Failed to reach server: ${msg}`);
+    } finally {
+      setIsEditingBlock(false);
+    }
+  }, [blockReference, input, documentId, latexSource]);
+
+  // ── F3-M4.5: Apply block edit ─────────────────────────────────────────────
+
+  const handleApply = useCallback(async () => {
+    if (!blockEditPreview || !documentId) return;
+    setIsApplying(true);
+    setApplyError(null);
+
+    // 1. Optimistic update: tell LatexViewer to replace the block visually
+    onApplyBlockEdit?.(blockEditPreview.blockId, blockEditPreview.modifiedLatex);
+    // Store ref so we can use it once pendingApplyLatex arrives
+    pendingApplyPreviewRef.current = blockEditPreview;
+    // pendingApplyLatex will be updated by parent after LatexViewer fires onLatexChange
+  }, [blockEditPreview, documentId, onApplyBlockEdit]);
+
+  // F3-M4.6: once pendingApplyLatex is updated by parent (after optimistic update),
+  // fire the persist API call
+  useEffect(() => {
+    if (!pendingApplyLatex) return;
+    if (pendingApplyLatex === pendingApplyLatexRef.current) return;
+    pendingApplyLatexRef.current = pendingApplyLatex;
+
+    const preview = pendingApplyPreviewRef.current;
+    if (!preview || !documentId || !isApplying) return;
+
+    (async () => {
+      try {
+        const resp = await fetch(`/api/documents/${documentId}/edit-block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apply: true,
+            blockId: preview.blockId,
+            blockLatex: preview.originalLatex,
+            modifiedLatex: preview.modifiedLatex,
+            fullLatex: pendingApplyLatex,
+          }),
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          setApplyError(errData?.error ?? 'Failed to save. Changes applied locally only.');
+        } else {
+          // Success: clear preview
+          setBlockEditPreview(null);
+          onClearBlockReference?.();
+          onApplyPersisted?.();
+          pendingApplyPreviewRef.current = null;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Network error';
+        setApplyError(`Save failed: ${msg}. Changes applied locally only.`);
+      } finally {
+        setIsApplying(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingApplyLatex]);
+
+  // ── Discard ───────────────────────────────────────────────────────────────
+
+  const handleDiscard = useCallback(() => {
+    setBlockEditPreview(null);
+    setApplyError(null);
+    pendingApplyPreviewRef.current = null;
+  }, []);
+
+  // ── Standard send (non-block-edit) ────────────────────────────────────────
 
   function handleSend() {
+    if (blockReference && documentId && !isDraft) {
+      handleSendBlockEdit();
+      return;
+    }
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
     onSend(trimmed);
@@ -104,9 +487,17 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
     }
   }
 
+  const isBlockEditMode = !!blockReference && !isDraft;
+
   const defaultPlaceholder = isDraft
     ? 'Describe the document you want to create...'
+    : isBlockEditMode
+    ? 'Describe what to change in this block...'
     : (placeholder ?? 'Ask for changes...');
+
+  const isSendDisabled = isEditingBlock || isLoading || !input.trim();
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full bg-black/20 border-l border-white/10 backdrop-blur-sm">
@@ -115,21 +506,22 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
         <h2 className="text-sm font-semibold text-white/80">Chat</h2>
       </div>
 
+      {/* F3-M4.1: Empty state when no block referenced and no messages */}
+      {messages.length === 0 && !isLoading && !blockReference && !blockEditPreview && (
+        <div className="px-4 py-6 text-center text-white/30 text-sm space-y-2">
+          <p className="text-white/50 font-medium">
+            {isDraft ? 'What would you like to create?' : 'Continue the conversation'}
+          </p>
+          <p className="text-xs">
+            {isDraft
+              ? 'Describe your document and the AI will generate it for you.'
+              : 'Ask the AI to modify your document, or right-click a block in the viewer to edit it with AI.'}
+          </p>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
-        {messages.length === 0 && !isLoading && (
-          <div className="text-center text-white/30 text-sm mt-8 space-y-2">
-            <p className="text-white/50 font-medium">
-              {isDraft ? 'What would you like to create?' : 'Continue the conversation'}
-            </p>
-            <p className="text-xs">
-              {isDraft
-                ? 'Describe your document and the AI will generate it for you.'
-                : 'Ask the AI to modify or extend your document.'}
-            </p>
-          </div>
-        )}
-
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -151,6 +543,7 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
           </div>
         ))}
 
+        {/* Standard generation loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-3 backdrop-blur-sm">
@@ -180,11 +573,75 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
           </div>
         )}
 
+        {/* F3-M4.3: Block edit loading indicator */}
+        {isEditingBlock && (
+          <div className="flex justify-start">
+            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                <span className="text-xs text-indigo-300/80 font-medium">Asking AI to edit block...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* F3-M4.3: Edit error */}
+        {editError && (
+          <div className="flex justify-start">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400 max-w-[85%]">
+              {editError}
+            </div>
+          </div>
+        )}
+
+        {/* F3-M4.4: Block edit preview card */}
+        {blockEditPreview && (
+          <div className="w-full">
+            <BlockEditPreviewCard
+              preview={blockEditPreview}
+              isApplying={isApplying}
+              applyError={applyError}
+              onApply={handleApply}
+              onDiscard={handleDiscard}
+            />
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-white/10 shrink-0">
+      {/* Input area */}
+      <div className="px-4 py-3 border-t border-white/10 shrink-0 space-y-2">
+
+        {/* F3-M4.2: Block reference chip */}
+        {blockReference && (
+          <div className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-400/25">
+            {/* Block type badge */}
+            <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/25 rounded px-1.5 py-0.5 mt-0.5">
+              {blockReference.blockType}
+            </span>
+            {/* LaTeX source preview */}
+            <span className="flex-1 text-xs text-indigo-200/80 font-mono leading-snug line-clamp-2 break-all">
+              {blockReference.latex_source.slice(0, 120)}
+              {blockReference.latex_source.length > 120 ? '…' : ''}
+            </span>
+            {/* X button */}
+            <button
+              onClick={() => {
+                onClearBlockReference?.();
+                setBlockEditPreview(null);
+                setEditError(null);
+              }}
+              className="shrink-0 text-indigo-400/50 hover:text-indigo-300 transition-colors p-0.5 rounded"
+              aria-label="Remove block reference"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -193,28 +650,39 @@ export function ChatPanel({ messages, isLoading, isDraft, onSend, placeholder, l
             onKeyDown={handleKeyDown}
             placeholder={defaultPlaceholder}
             rows={1}
-            disabled={isLoading}
+            disabled={isLoading || isEditingBlock}
             className="flex-1 bg-black/20 text-white/90 text-sm rounded-xl px-3 py-2.5 resize-none
               placeholder-white/30 border border-white/15 focus:outline-none focus:border-indigo-500/60
               transition-colors disabled:opacity-50 min-h-[40px] max-h-[160px]"
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={isSendDisabled}
             className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl
               bg-white text-neutral-950 hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors"
             aria-label="Send"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            {isEditingBlock ? (
+              <span className="text-sm animate-spin">⟳</span>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
           </button>
         </div>
-        <p className="text-xs text-white/25 mt-1.5">
-          Enter to send &middot; Shift+Enter for new line
-        </p>
+
+        {isBlockEditMode ? (
+          <p className="text-xs text-indigo-300/50">
+            Editing block with AI &middot; Enter to send &middot; Shift+Enter for new line
+          </p>
+        ) : (
+          <p className="text-xs text-white/25 mt-1.5">
+            Enter to send &middot; Shift+Enter for new line
+          </p>
+        )}
       </div>
     </div>
   );

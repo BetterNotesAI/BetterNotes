@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, AttachmentInput } from './types';
+import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, AttachmentInput } from './types';
 import type { ProcessedAttachment } from '../attachments';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
@@ -243,5 +243,59 @@ export class OpenAIProvider implements AIProvider {
     });
 
     return stripMarkdownFences(resp.choices?.[0]?.message?.content ?? '');
+  }
+
+  // ─── F3-M4.3: editBlock ───────────────────────────────────────────────────
+
+  async editBlock(args: EditBlockArgs): Promise<string> {
+    const system = [
+      'You are BetterNotes AI, an expert LaTeX editor.',
+      'You will receive a single LaTeX block (fragment) and a user instruction.',
+      'OUTPUT RULES:',
+      '- Return ONLY the modified LaTeX fragment — not the full document.',
+      '- Do NOT include \\documentclass, \\begin{document}, or any preamble.',
+      '- Do NOT wrap the output in markdown fences or backticks.',
+      '- Preserve the block type: if it is a formula-block, keep it as a formula-block; if it is a paragraph, keep it as a paragraph; etc.',
+      '- Apply the user instruction precisely and minimally — change only what is asked.',
+      '- If the instruction is unclear or impossible, return the original block unchanged.',
+      '- NEVER output explanations, only LaTeX source.',
+    ].join('\n');
+
+    const adjacentContext =
+      args.adjacentBlocks.length > 0
+        ? '\n\n=== ADJACENT BLOCKS (for context only — do NOT modify) ===\n' +
+          args.adjacentBlocks
+            .map((b) => `[${b.blockType}] ${b.latex_source}`)
+            .join('\n---\n')
+        : '';
+
+    // Truncate fullLatex to ~3000 chars to avoid token explosion
+    const fullLatexSnippet = args.fullLatex
+      ? `\n\n=== FULL DOCUMENT (first 3000 chars, context only) ===\n${args.fullLatex.slice(0, 3000)}`
+      : '';
+
+    const userContent = [
+      `=== BLOCK TO EDIT (type: ${args.blockType}) ===`,
+      args.blockLatex,
+      '',
+      `=== USER INSTRUCTION ===`,
+      args.userPrompt,
+      adjacentContext,
+      fullLatexSnippet,
+      '',
+      'Return ONLY the modified block LaTeX — nothing else.',
+    ].join('\n');
+
+    const resp = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent },
+      ],
+    });
+
+    const raw = resp.choices?.[0]?.message?.content ?? '';
+    return stripMarkdownFences(raw).trim();
   }
 }

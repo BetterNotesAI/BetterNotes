@@ -31,7 +31,27 @@ export interface FixLatexArgs {
   log: string;
 }
 
+// ─── F3-M4.3: block editing ───────────────────────────────────────────────────
+
+export interface AdjacentBlock {
+  blockId: string;
+  blockType: string;
+  latex_source: string;
+}
+
+export interface EditBlockArgs {
+  blockId: string;
+  blockLatex: string;
+  blockType: string;
+  adjacentBlocks: AdjacentBlock[];
+  userPrompt: string;
+  /** Full document LaTeX for broader context (may be large — provider can truncate). */
+  fullLatex: string;
+}
+
 export interface AIProvider {
   generateLatex(args: GenerateLatexArgs): Promise<GenerateLatexResult>;
   fixLatex(args: FixLatexArgs): Promise<string>;
+  /** F3-M4.3: Edit a single block. Returns the modified LaTeX fragment (not compiled). */
+  editBlock(args: EditBlockArgs): Promise<string>;
 }
