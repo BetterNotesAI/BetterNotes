@@ -207,20 +207,20 @@ _Criterio de aceptación: El usuario puede editar cualquier fragmento inline, co
 
 ---
 
-### F3-M4 — Chat contextual
+### F3-M4 — Chat contextual ✅ COMPLETADO (2026-03-28)
 _Prerrequisito: F3-M3 completado_
 
-- [ ] F3-M4.1 — Panel lateral de chat en el workspace vinculado al visor · ~1h
-  - Sin selección: "Selecciona un fragmento para editar con IA"
-  - Con fragmento referenciado: muestra el contexto en la parte superior
-- [ ] F3-M4.2 — "Referenciar en chat" añade el fragmento como contexto visible en el panel · ~1h
-- [ ] F3-M4.3 — El prompt se envía al backend junto con: fragmento seleccionado + tipo de bloque + bloques adyacentes como contexto · ~1h30min
-- [ ] F3-M4.4 — Respuesta del backend: preview del fragmento modificado con KaTeX en el panel de chat · ~1h
-- [ ] F3-M4.5 — Botones "Aplicar" / "Descartar" en el preview → aplicar reemplaza el bloque en el visor · ~1h
-- [ ] F3-M4.6 — Cambios persistidos en DB: reconstruir `.tex` desde bloques y guardar nueva versión · ~1h30min
-- [ ] F3-M4.7 — Undo/redo básico en memoria (Ctrl+Z / Ctrl+Y) dentro de la sesión · ~1h
+- [x] F3-M4.1 — Panel lateral de chat en el workspace vinculado al visor · COMPLETADO
+  - Sin referencia: "right-click a block in the viewer to edit it with AI"
+  - Con referencia: chip encima del input + input placeholder contextual
+- [x] F3-M4.2 — Chip visual con "x" para desreferenciar. BlockReference: { blockId, blockType, latex_source, adjacentBlocks[] } · COMPLETADO
+- [x] F3-M4.3 — Endpoint POST /api/documents/[id]/edit-block + editBlock() en AIProvider · COMPLETADO
+- [x] F3-M4.4 — Preview del fragmento modificado con KaTeX renderizado en BlockEditPreviewCard · COMPLETADO
+- [x] F3-M4.5 — Botones "Apply" / "Discard" — Apply: actualización optimista en LatexViewer vía applyBlockEdit prop · COMPLETADO
+- [x] F3-M4.6 — Al "Apply": reemplazar string exacto en .tex, llamar /compile, persistir versión en DB · COMPLETADO
+- [x] F3-M4.7 — Undo/redo en memoria en LatexViewer (hasta 20 estados, Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) · COMPLETADO
 
-_Criterio de aceptación: El usuario puede referenciar un fragmento, pedir a la IA que lo modifique, ver el preview y aplicarlo. El PDF descargado refleja los cambios._
+_Criterio de aceptación: El usuario puede referenciar un fragmento, pedir a la IA que lo modifique, ver el preview KaTeX y aplicarlo. El PDF descargado refleja los cambios. CUMPLIDO._
 
 ---
 

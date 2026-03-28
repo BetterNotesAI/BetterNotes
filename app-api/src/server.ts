@@ -3,6 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
+import { createEditBlockRouter } from './routes/edit-block';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -31,5 +32,8 @@ app.use('/latex', createLatexRouter({
   aiProvider,
   latexTimeoutMs: Number(process.env.LATEX_TIMEOUT_MS ?? 180000),
 }));
+
+// F3-M4.3: block editing endpoint
+app.use('/latex', createEditBlockRouter({ aiProvider }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));
