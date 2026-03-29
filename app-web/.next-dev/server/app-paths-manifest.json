@@ -1,0 +1,8 @@
+{
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/api/generate-latex/route": "app/api/generate-latex/route.js",
+  "/api/latex/compile-project/route": "app/api/latex/compile-project/route.js",
+  "/page": "app/page.js",
+  "/(app)/workspace/page": "app/(app)/workspace/page.js",
+  "/(app)/workspace/[projectId]/page": "app/(app)/workspace/[projectId]/page.js"
+}

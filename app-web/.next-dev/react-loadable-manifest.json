@@ -1,0 +1,31 @@
+{
+  "app/(app)/workspace/[projectId]/_hooks/useProjectFiles.ts -> @/app/components/ConfirmDialog": {
+    "id": "app/(app)/workspace/[projectId]/_hooks/useProjectFiles.ts -> @/app/components/ConfirmDialog",
+    "files": []
+  },
+  "app/(app)/workspace/[projectId]/page.tsx -> @/app/components/PdfViewer": {
+    "id": "app/(app)/workspace/[projectId]/page.tsx -> @/app/components/PdfViewer",
+    "files": [
+      "static/css/_app-pages-browser_app_components_PdfViewer_tsx.css",
+      "static/chunks/_app-pages-browser_app_components_PdfViewer_tsx.js"
+    ]
+  },
+  "app/(app)/workspace/[projectId]/page.tsx -> @/lib/api": {
+    "id": "app/(app)/workspace/[projectId]/page.tsx -> @/lib/api",
+    "files": []
+  },
+  "app/(app)/workspace/[projectId]/page.tsx -> jszip": {
+    "id": "app/(app)/workspace/[projectId]/page.tsx -> jszip",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_jszip_dist_jszip_min_js.js"
+    ]
+  },
+  "app/(app)/workspace/_hooks/useFileAttachments.ts -> @/lib/storage": {
+    "id": "app/(app)/workspace/_hooks/useFileAttachments.ts -> @/lib/storage",
+    "files": []
+  },
+  "app/(app)/workspace/_hooks/useWorkspaceAuthStart.ts -> @/lib/draft": {
+    "id": "app/(app)/workspace/_hooks/useWorkspaceAuthStart.ts -> @/lib/draft",
+    "files": []
+  }
+}
