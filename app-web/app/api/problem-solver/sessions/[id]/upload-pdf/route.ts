@@ -6,10 +6,11 @@ import pdfParse from 'pdf-parse';
 
 const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 const PDF_TEXT_MAX_CHARS = 50_000;
+type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: RouteContext,
 ) {
   const supabase = await createClient();
 
@@ -22,7 +23,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sessionId = params.id;
+  const { id: sessionId } = await params;
 
   // --- Ownership check ---
   const { data: session, error: sessionError } = await supabase

@@ -314,8 +314,7 @@ export function SubChatDrawer({
                       setEditingTitle(false);
                     }
                   }}
-                  className="w-full bg-white/8 border border-white/20 rounded-md px-2 py-0.5
-                    text-xs font-medium text-white outline-none focus:border-orange-400/50"
+                  className="w-full bg-white/8 border border-white/20 rounded-md px-2 py-0.5 text-xs font-medium text-white outline-none focus:border-orange-400/50"
                 />
               ) : (
                 <button
@@ -323,8 +322,7 @@ export function SubChatDrawer({
                     setEditingTitle(true);
                     setTimeout(() => titleInputRef.current?.focus(), 0);
                   }}
-                  className="text-xs font-semibold text-white/80 hover:text-white
-                    truncate max-w-full block transition-colors text-left"
+                  className="text-xs font-semibold text-white/80 hover:text-white truncate max-w-full block transition-colors text-left"
                   title="Click to rename"
                 >
                   {localTitle}
@@ -336,8 +334,7 @@ export function SubChatDrawer({
             <button
               onClick={onMinimize}
               title="Minimize"
-              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md
-                text-white/40 hover:text-white hover:bg-white/8 transition-colors text-sm leading-none"
+              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/8 transition-colors text-sm leading-none"
             >
               —
             </button>
@@ -346,8 +343,7 @@ export function SubChatDrawer({
             <button
               onClick={onClose}
               title="Close sub-chat"
-              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md
-                text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -366,8 +362,7 @@ export function SubChatDrawer({
             {messages.map((msg) => (
               <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 {msg.role === 'user' ? (
-                  <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-tr-sm
-                    bg-orange-500/20 border border-orange-500/30 text-white/90 text-xs leading-relaxed">
+                  <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-tr-sm bg-orange-500/20 border border-orange-500/30 text-white/90 text-xs leading-relaxed">
                     {msg.content}
                   </div>
                 ) : (
@@ -410,17 +405,12 @@ export function SubChatDrawer({
                 placeholder="Ask a question… (Enter to send)"
                 rows={2}
                 disabled={isSending}
-                className="flex-1 resize-none bg-white/6 border border-white/12 rounded-xl px-3 py-2
-                  text-xs text-white placeholder-white/30 outline-none
-                  focus:border-orange-400/40 focus:bg-white/8 transition-colors
-                  disabled:opacity-50"
+                className="flex-1 resize-none bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none focus:border-orange-400/40 focus:bg-white/8 transition-colors disabled:opacity-50"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isSending}
-                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl
-                  bg-orange-500 hover:bg-orange-400 disabled:bg-white/8 disabled:text-white/20
-                  text-white transition-colors"
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-orange-500 hover:bg-orange-400 disabled:bg-white/8 disabled:text-white/20 text-white transition-colors"
                 title="Send"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

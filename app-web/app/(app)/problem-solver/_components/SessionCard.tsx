@@ -115,16 +115,13 @@ export function SessionCard({ session, onDelete, onTitleChange }: Props) {
   return (
     <div
       onClick={() => !editing && router.push(`/problem-solver/${session.id}`)}
-      className="group relative text-left bg-white/4 hover:bg-white/7 border border-white/10
-        hover:border-orange-500/30 rounded-2xl p-5 transition-all duration-200 flex flex-col
-        gap-3 cursor-pointer"
+      className="group relative text-left bg-white/4 hover:bg-white/7 border border-white/10 hover:border-orange-500/30 rounded-2xl p-5 transition-all duration-200 flex flex-col gap-3 cursor-pointer"
     >
       {/* Delete button */}
       <button
         onClick={handleDelete}
         disabled={deleting}
-        className="absolute top-3 right-3 p-1.5 rounded-lg bg-transparent opacity-0 group-hover:opacity-100
-          hover:bg-red-500/15 text-white/30 hover:text-red-400 transition-all duration-150 z-10"
+        className="absolute top-3 right-3 p-1.5 rounded-lg bg-transparent opacity-0 group-hover:opacity-100 hover:bg-red-500/15 text-white/30 hover:text-red-400 transition-all duration-150 z-10"
         title="Delete session"
       >
         {deleting ? (
@@ -154,14 +151,12 @@ export function SessionCard({ session, onDelete, onTitleChange }: Props) {
             onBlur={commitTitle}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 bg-white/8 border border-white/20 rounded-lg px-2 py-0.5 text-sm
-              font-semibold text-white outline-none focus:border-orange-400/50"
+            className="flex-1 bg-white/8 border border-white/20 rounded-lg px-2 py-0.5 text-sm font-semibold text-white outline-none focus:border-orange-400/50"
           />
         ) : (
           <h3
             onClick={handleTitleClick}
-            className="flex-1 text-sm font-semibold text-white group-hover:text-orange-300
-              transition-colors line-clamp-2 cursor-text"
+            className="flex-1 text-sm font-semibold text-white group-hover:text-orange-300 transition-colors line-clamp-2 cursor-text"
             title="Click to rename"
           >
             {titleDraft}
@@ -174,8 +169,7 @@ export function SessionCard({ session, onDelete, onTitleChange }: Props) {
         <div className="flex items-center gap-1.5">
           <StatusBadge status={session.status} />
           {session.is_published && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border
-              text-emerald-400 bg-emerald-500/15 border-emerald-500/25">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border text-emerald-400 bg-emerald-500/15 border-emerald-500/25">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               Published
             </span>

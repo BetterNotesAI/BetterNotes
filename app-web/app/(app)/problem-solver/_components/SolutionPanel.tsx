@@ -228,8 +228,7 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
             </div>
             <button
               onClick={onSolve}
-              className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-white
-                font-medium text-sm transition-colors shadow-lg shadow-orange-500/20"
+              className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-medium text-sm transition-colors shadow-lg shadow-orange-500/20"
             >
               Solve with AI
             </button>
@@ -295,9 +294,7 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
         <div className="shrink-0 border-t border-white/10 px-6 py-4 flex items-center justify-between gap-3">
           <button
             onClick={onAskQuestion}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/15
-              hover:border-orange-500/40 bg-white/4 hover:bg-orange-500/10 text-white/60
-              hover:text-orange-300 text-sm transition-all duration-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/15 hover:border-orange-500/40 bg-white/4 hover:bg-orange-500/10 text-white/60 hover:text-orange-300 text-sm transition-all duration-200"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

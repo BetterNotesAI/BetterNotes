@@ -212,9 +212,7 @@ export function ProblemPublishModal({
               value={university}
               onChange={(e) => setUniversity(e.target.value)}
               placeholder="e.g. MIT, UCL, Universidad de Sevilla"
-              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
-                placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1
-                focus:ring-orange-400/30 transition-colors"
+              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1 focus:ring-orange-400/30 transition-colors"
               maxLength={120}
             />
           </div>
@@ -229,9 +227,7 @@ export function ProblemPublishModal({
               value={degree}
               onChange={(e) => setDegree(e.target.value)}
               placeholder="e.g. BSc Computer Science, MSc Mathematics"
-              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
-                placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1
-                focus:ring-orange-400/30 transition-colors"
+              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1 focus:ring-orange-400/30 transition-colors"
               maxLength={120}
             />
           </div>
@@ -246,9 +242,7 @@ export function ProblemPublishModal({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="e.g. Linear Algebra, Thermodynamics"
-              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
-                placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1
-                focus:ring-orange-400/30 transition-colors"
+              className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:border-orange-400/60 focus:ring-1 focus:ring-orange-400/30 transition-colors"
               maxLength={120}
             />
           </div>
@@ -281,8 +275,7 @@ export function ProblemPublishModal({
             </div>
 
             {/* Keyword chips + input */}
-            <div className="min-h-[44px] bg-white/6 border border-white/12 rounded-lg px-3 py-2 flex flex-wrap gap-1.5 items-center
-              focus-within:border-orange-400/60 focus-within:ring-1 focus-within:ring-orange-400/30 transition-colors cursor-text">
+            <div className="min-h-[44px] bg-white/6 border border-white/12 rounded-lg px-3 py-2 flex flex-wrap gap-1.5 items-center focus-within:border-orange-400/60 focus-within:ring-1 focus-within:ring-orange-400/30 transition-colors cursor-text">
               {keywords.map((kw) => (
                 <span
                   key={kw}
@@ -349,8 +342,7 @@ export function ProblemPublishModal({
             <button
               onClick={handleUnpublish}
               disabled={isSaving}
-              className="flex-1 py-2 rounded-lg text-xs font-medium border border-red-500/30 text-red-400
-                hover:bg-red-500/10 transition-colors disabled:opacity-50"
+              className="flex-1 py-2 rounded-lg text-xs font-medium border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
             >
               Unpublish
             </button>
@@ -358,16 +350,14 @@ export function ProblemPublishModal({
           <button
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1 py-2 rounded-lg text-xs font-medium border border-white/15 text-white/60
-              hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+            className="flex-1 py-2 rounded-lg text-xs font-medium border border-white/15 text-white/60 hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handlePublish}
             disabled={isSaving}
-            className="flex-1 py-2 rounded-lg text-xs font-medium bg-orange-500 hover:bg-orange-400
-              text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="flex-1 py-2 rounded-lg text-xs font-medium bg-orange-500 hover:bg-orange-400 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {isSaving ? (
               <>
