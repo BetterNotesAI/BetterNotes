@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
+import { createEditDocumentRouter } from './routes/edit-document';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -35,5 +36,8 @@ app.use('/latex', createLatexRouter({
 
 // F3-M4.3: block editing endpoint
 app.use('/latex', createEditBlockRouter({ aiProvider }));
+
+// Document-level AI edit endpoint
+app.use('/latex', createEditDocumentRouter({ aiProvider }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));

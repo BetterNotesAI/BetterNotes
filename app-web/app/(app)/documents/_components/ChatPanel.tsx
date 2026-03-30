@@ -39,6 +39,12 @@ interface BlockEditPreview {
   userPrompt: string;
 }
 
+// A pending document-level AI edit preview.
+interface DocumentEditPreview {
+  modifiedLatex: string;
+  summary: string;
+}
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -75,6 +81,13 @@ interface ChatPanelProps {
    * Set by the parent after onApplyBlockEdit is called.
    */
   pendingApplyLatex?: string | null;
+  // ── Document-level edit props (Flujo C) ──────────────────────────────────
+  /** Called when AI returns a document edit preview. Parent shows it in the viewer. */
+  onDocumentEditPreview?: (modifiedLatex: string) => void;
+  /** Called when user clicks "Apply to document". Parent compiles + persists. */
+  onApplyDocumentEdit?: (modifiedLatex: string) => Promise<void>;
+  /** Called when user clicks "Discard". Parent resets the preview. */
+  onDiscardDocumentEdit?: () => void;
 }
 
 // ─── KaTeX helpers ────────────────────────────────────────────────────────────
@@ -302,6 +315,82 @@ function BlockEditPreviewCard({
   );
 }
 
+// ─── DocumentEditPreviewCard ──────────────────────────────────────────────────
+
+interface DocumentEditPreviewCardProps {
+  preview: DocumentEditPreview;
+  isApplying: boolean;
+  applyError: string | null;
+  onApply: () => void;
+  onDiscard: () => void;
+}
+
+function DocumentEditPreviewCard({
+  preview,
+  isApplying,
+  applyError,
+  onApply,
+  onDiscard,
+}: DocumentEditPreviewCardProps) {
+  return (
+    <div className="rounded-xl border border-indigo-400/30 bg-indigo-500/10 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-indigo-400/20">
+        <svg className="w-3.5 h-3.5 text-indigo-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        <span className="text-xs font-medium text-indigo-300">Document Edit Preview</span>
+      </div>
+
+      {/* Summary */}
+      <div className="px-3 py-3">
+        <p className="text-xs text-indigo-100/85 leading-relaxed">{preview.summary}</p>
+      </div>
+
+      {/* Apply error */}
+      {applyError && (
+        <div className="px-3 py-1.5 bg-red-500/20 border-t border-red-500/20 text-red-400 text-xs">
+          {applyError}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-indigo-400/20">
+        <button
+          onClick={onApply}
+          disabled={isApplying}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg
+            bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium
+            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isApplying ? (
+            <><span className="animate-spin inline-block text-sm">⟳</span> Applying…</>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Apply to document
+            </>
+          )}
+        </button>
+        <button
+          onClick={onDiscard}
+          disabled={isApplying}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg
+            bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs font-medium
+            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Discard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── ChatPanel ────────────────────────────────────────────────────────────────
 
 export function ChatPanel({
@@ -321,6 +410,9 @@ export function ChatPanel({
   onApplyBlockEdit,
   onApplyPersisted,
   pendingApplyLatex,
+  onDocumentEditPreview,
+  onApplyDocumentEdit,
+  onDiscardDocumentEdit,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
@@ -335,6 +427,13 @@ export function ChatPanel({
   // F3-M4.5 / M4.6: apply state
   const [isApplying, setIsApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Document-level edit state (Flujo C)
+  const [isDocumentEditing, setIsDocumentEditing] = useState(false);
+  const [documentEditError, setDocumentEditError] = useState<string | null>(null);
+  const [documentEditPreview, setDocumentEditPreview] = useState<DocumentEditPreview | null>(null);
+  const [isApplyingDocumentEdit, setIsApplyingDocumentEdit] = useState(false);
+  const [documentApplyError, setDocumentApplyError] = useState<string | null>(null);
 
   // Track pendingApplyLatex to trigger persistence after optimistic update
   const pendingApplyLatexRef = useRef<string | null>(null);
@@ -389,7 +488,7 @@ export function ChatPanel({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, blockEditPreview]);
+  }, [messages, isLoading, blockEditPreview, documentEditPreview]);
 
   // ── F3-M4.3: send block edit request ─────────────────────────────────────
 
@@ -503,11 +602,82 @@ export function ChatPanel({
     pendingApplyPreviewRef.current = null;
   }, []);
 
+  // ── Document-level send (Flujo C) ────────────────────────────────────────
+
+  const handleSendDocumentEdit = useCallback(async () => {
+    if (!documentId || !latexSource || !input.trim()) return;
+    setIsDocumentEditing(true);
+    setDocumentEditError(null);
+
+    try {
+      const resp = await fetch(`/api/documents/${documentId}/chat-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: input.trim(),
+          fullLatex: latexSource,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        setDocumentEditError(errData?.error ?? 'AI edit failed. Try again.');
+        return;
+      }
+
+      const data = await resp.json();
+
+      if (data.type === 'edit') {
+        setDocumentEditPreview({ modifiedLatex: data.modifiedLatex, summary: data.summary });
+        onDocumentEditPreview?.(data.modifiedLatex);
+      }
+      // For 'message' type, the DB message was already saved server-side;
+      // the parent will reload messages via the existing flow (no extra action needed here).
+
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setDocumentEditError(`Failed to reach server: ${msg}`);
+    } finally {
+      setIsDocumentEditing(false);
+    }
+  }, [documentId, latexSource, input, onDocumentEditPreview]);
+
+  // ── Document-level apply ──────────────────────────────────────────────────
+
+  const handleApplyDocumentEdit = useCallback(async () => {
+    if (!documentEditPreview) return;
+    setIsApplyingDocumentEdit(true);
+    setDocumentApplyError(null);
+    try {
+      await onApplyDocumentEdit?.(documentEditPreview.modifiedLatex);
+      setDocumentEditPreview(null);
+    } catch {
+      setDocumentApplyError('Failed to apply. Please try again.');
+    } finally {
+      setIsApplyingDocumentEdit(false);
+    }
+  }, [documentEditPreview, onApplyDocumentEdit]);
+
+  // ── Document-level discard ────────────────────────────────────────────────
+
+  const handleDiscardDocumentEdit = useCallback(() => {
+    setDocumentEditPreview(null);
+    setDocumentApplyError(null);
+    onDiscardDocumentEdit?.();
+  }, [onDiscardDocumentEdit]);
+
   // ── Standard send (non-block-edit) ────────────────────────────────────────
 
   function handleSend() {
     if (blockReference && documentId && !isDraft) {
       handleSendBlockEdit();
+      return;
+    }
+    // Document-level edit mode: no blockReference, not a draft
+    if (!blockReference && !isDraft && documentId && latexSource) {
+      handleSendDocumentEdit();
       return;
     }
     const trimmed = input.trim();
@@ -540,7 +710,7 @@ export function ChatPanel({
     ? 'Describe what to change in this block...'
     : (placeholder ?? 'Ask for changes...');
 
-  const isSendDisabled = isEditingBlock || isLoading || !input.trim();
+  const isSendDisabled = isEditingBlock || isDocumentEditing || isLoading || !input.trim();
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -652,6 +822,40 @@ export function ChatPanel({
           </div>
         )}
 
+        {/* Document-level edit loading indicator */}
+        {isDocumentEditing && (
+          <div className="flex justify-start">
+            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                <span className="text-xs text-indigo-300/80 font-medium">Asking AI to edit document...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Document-level edit error */}
+        {documentEditError && (
+          <div className="flex justify-start">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400 max-w-[85%]">
+              {documentEditError}
+            </div>
+          </div>
+        )}
+
+        {/* Document-level edit preview card */}
+        {documentEditPreview && (
+          <div className="w-full">
+            <DocumentEditPreviewCard
+              preview={documentEditPreview}
+              isApplying={isApplyingDocumentEdit}
+              applyError={documentApplyError}
+              onApply={handleApplyDocumentEdit}
+              onDiscard={handleDiscardDocumentEdit}
+            />
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -698,7 +902,7 @@ export function ChatPanel({
             onKeyDown={handleKeyDown}
             placeholder={defaultPlaceholder}
             rows={1}
-            disabled={isLoading || isEditingBlock}
+            disabled={isLoading || isEditingBlock || isDocumentEditing}
             className="flex-1 bg-black/20 text-white/90 text-sm rounded-xl px-3 py-2.5 resize-none
               placeholder-white/30 border border-white/15 focus:outline-none focus:border-indigo-500/60
               transition-colors disabled:opacity-50 min-h-[40px] max-h-[160px]"
@@ -711,7 +915,7 @@ export function ChatPanel({
               transition-colors"
             aria-label="Send"
           >
-            {isEditingBlock ? (
+            {isEditingBlock || isDocumentEditing ? (
               <span className="text-sm animate-spin">⟳</span>
             ) : (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

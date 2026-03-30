@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, AttachmentInput } from './types';
+import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput } from './types';
 import type { ProcessedAttachment } from '../attachments';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
@@ -243,6 +243,81 @@ export class OpenAIProvider implements AIProvider {
     });
 
     return stripMarkdownFences(resp.choices?.[0]?.message?.content ?? '');
+  }
+
+  // ─── F3-M4.3: editBlock ───────────────────────────────────────────────────
+
+  // ─── Document-level AI edit ──────────────────────────────────────────────
+
+  async editDocument(args: EditDocumentArgs): Promise<EditDocumentResult> {
+    const system = [
+      'You are BetterNotes AI, an expert LaTeX document editor.',
+      'You receive the FULL LaTeX source of a document and a user instruction.',
+      'Classify the instruction and respond ONLY with a valid JSON object (no markdown, no backticks).',
+      '',
+      'CLASSIFICATION RULES:',
+      '- If the user asks to modify, add, remove, translate, rewrite, reformat, or change document content → respond with:',
+      '  {"type":"edit","latex":"<FULL modified LaTeX document>","summary":"<one sentence describing what changed>"}',
+      '- If the user asks a question, requests an explanation, or is chatting → respond with:',
+      '  {"type":"message","content":"<your answer>"}',
+      '',
+      'EDIT RULES:',
+      '- The "latex" field must be the COMPLETE .tex document — not a fragment.',
+      '- Preserve the preamble, \\documentclass, and overall structure unless the instruction explicitly asks to change them.',
+      '- Apply the change precisely and minimally.',
+      '- "summary" must be a short plain-English sentence (max 20 words) describing what changed.',
+      '',
+      'OUTPUT: Valid JSON only. No markdown fences. No explanation outside the JSON.',
+    ].join('\n');
+
+    // Truncate fullLatex to avoid token explosion (~80k chars ≈ 20k tokens)
+    const MAX_LATEX_CHARS = 80_000;
+    const truncatedLatex = args.fullLatex.length > MAX_LATEX_CHARS
+      ? args.fullLatex.slice(0, MAX_LATEX_CHARS) + '\n% [truncated]'
+      : args.fullLatex;
+
+    const userContent = [
+      `=== CURRENT DOCUMENT LaTeX ===`,
+      truncatedLatex,
+      '',
+      `=== USER INSTRUCTION ===`,
+      args.prompt,
+    ].join('\n');
+
+    const resp = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent },
+      ],
+    });
+
+    const raw = resp.choices?.[0]?.message?.content ?? '{}';
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Fallback: treat as a conversational message if JSON parse fails
+      return { type: 'message', content: raw.slice(0, 500) };
+    }
+
+    if (parsed.type === 'edit' && typeof parsed.latex === 'string') {
+      const latex = stripMarkdownFences(parsed.latex).trim();
+      const summary = typeof parsed.summary === 'string'
+        ? parsed.summary.trim()
+        : 'Document updated';
+      return { type: 'edit', latex, summary };
+    }
+
+    if (parsed.type === 'message' && typeof parsed.content === 'string') {
+      return { type: 'message', content: parsed.content.trim() };
+    }
+
+    // Unexpected shape — treat as conversational
+    return { type: 'message', content: 'I could not process that request. Please try again.' };
   }
 
   // ─── F3-M4.3: editBlock ───────────────────────────────────────────────────

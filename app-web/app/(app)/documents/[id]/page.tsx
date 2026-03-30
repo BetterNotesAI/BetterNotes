@@ -128,6 +128,9 @@ export default function DocumentWorkspacePage() {
   // F3-M5.3: "Saved X ago" — timestamp set after onApplyPersisted fires
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [savedAgoLabel, setSavedAgoLabel] = useState<string | null>(null);
+  // Document-level AI edit preview (Flujo C)
+  const [pendingDocumentEdit, setPendingDocumentEdit] = useState<string | null>(null);
+
   // F3-M5.2: Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishData, setPublishData] = useState<{
@@ -371,6 +374,34 @@ export default function DocumentWorkspacePage() {
     }
   }
 
+
+  // ── Document-level edit handlers (Flujo C) ──────────────────────────────
+
+  const handleDocumentEditPreview = useCallback((modifiedLatex: string) => {
+    setPendingDocumentEdit(modifiedLatex);
+  }, []);
+
+  const handleDiscardDocumentEdit = useCallback(() => {
+    setPendingDocumentEdit(null);
+  }, []);
+
+  const handleApplyDocumentEdit = useCallback(async (modifiedLatex: string) => {
+    const res = await fetch(`/api/documents/${documentId}/compile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latex: modifiedLatex }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error ?? 'Compilation failed');
+    }
+    const { pdfUrl } = await res.json();
+    await reloadDocument();
+    if (pdfUrl) setCurrentPdfUrl(pdfUrl);
+    setCurrentPage(1);
+    setPendingDocumentEdit(null);
+    setLastSavedAt(new Date());
+  }, [documentId, reloadDocument]);
 
   if (isLoading && !docData) {
     return (
@@ -703,6 +734,7 @@ export default function DocumentWorkspacePage() {
                   onLatexChange={(newLatex) => {
                     setPendingApplyLatex(newLatex);
                   }}
+                  pendingDocumentEdit={pendingDocumentEdit}
                 />
               </div>
             )}
@@ -868,6 +900,9 @@ export default function DocumentWorkspacePage() {
                 setLastSavedAt(new Date());
               }}
               pendingApplyLatex={pendingApplyLatex}
+              onDocumentEditPreview={handleDocumentEditPreview}
+              onApplyDocumentEdit={handleApplyDocumentEdit}
+              onDiscardDocumentEdit={handleDiscardDocumentEdit}
             />
           </div>
         </div>

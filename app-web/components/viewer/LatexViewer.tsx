@@ -271,6 +271,12 @@ interface LatexViewerProps {
    * Replace block with blockId using newBlockLatex.
    */
   applyBlockEdit?: { blockId: string; newBlockLatex: string; token: number } | null;
+  /**
+   * Document-level AI edit preview (Flujo C).
+   * When non-null, the viewer renders this LaTeX instead of latexSource,
+   * and shows an "AI preview" banner at the top of the sheet.
+   */
+  pendingDocumentEdit?: string | null;
 }
 
 export default function LatexViewer({
@@ -281,9 +287,13 @@ export default function LatexViewer({
   onReferenceInChat,
   onLatexChange,
   applyBlockEdit,
+  pendingDocumentEdit,
 }: LatexViewerProps) {
+  // ── Active source: preview takes priority over persisted source ───────────
+  const activeLatexSource = pendingDocumentEdit ?? latexSource;
+
   // ── Parse blocks (mutable state for inline editing) ──────────────────────
-  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(latexSource));
+  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(activeLatexSource));
 
   // ── F3-M4.7: undo/redo history ────────────────────────────────────────────
   // History stores past blocks snapshots; pointer starts at -1 (no history yet)
@@ -353,15 +363,15 @@ export default function LatexViewer({
     return () => window.removeEventListener('keydown', handleKey);
   }, [undo, redo]);
 
-  // Re-parse when external source changes
+  // Re-parse when the active source changes (preview or persisted)
   useEffect(() => {
-    const parsed = parseLatex(latexSource);
+    const parsed = parseLatex(activeLatexSource);
     setBlocks(parsed);
     // Reset history when a completely new source is loaded
     historyRef.current = [];
     historyIndexRef.current = -1;
     setUndoCount(0);
-  }, [latexSource]);
+  }, [activeLatexSource]);
 
   // ── Template profile ──────────────────────────────────────────────────────
   const profile = useMemo(() => getTemplateProfile(templateId), [templateId]);
@@ -525,7 +535,7 @@ export default function LatexViewer({
         // Strategy: find the block's original latex_source in the full string and
         // replace only the first occurrence that exactly matches (searching from
         // left-to-right in block order reduces the chance of an ambiguous match).
-        let reconstructed = latexSource;
+        let reconstructed = activeLatexSource;
         const originalSource = target.latex_source;
         const newSource = applyBlockEdit.newBlockLatex;
 
@@ -561,7 +571,7 @@ export default function LatexViewer({
 
       return next;
     });
-  }, [applyBlockEdit, latexSource, onLatexChange, pushHistory]);
+  }, [applyBlockEdit, activeLatexSource, onLatexChange, pushHistory]);
 
   // Mejora D: scroll to last edited block after blocks state updates
   useEffect(() => {
@@ -640,7 +650,10 @@ export default function LatexViewer({
     width: profile.geometry.widthPx,
     minHeight: sheetHeightPx,
     background: 'white',
-    boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
+    color: '#111111',
+    boxShadow: pendingDocumentEdit
+      ? '0 4px 32px rgba(0,0,0,0.18), 0 0 0 2px rgba(99,102,241,0.35)'
+      : '0 4px 32px rgba(0,0,0,0.18)',
     paddingTop: `${profile.geometry.margins.top}rem`,
     paddingRight: `${profile.geometry.margins.right}rem`,
     paddingBottom: `${profile.geometry.margins.bottom}rem`,
@@ -743,6 +756,33 @@ export default function LatexViewer({
           <div style={zoomInnerStyle}>
           {/* White A4 / landscape sheet */}
           <div style={sheetStyle} ref={contentRef}>
+            {/* AI preview banner — shown when pendingDocumentEdit is active */}
+            {pendingDocumentEdit && (
+              <div
+                style={{
+                  margin: `-${profile.geometry.margins.top}rem -${profile.geometry.margins.right}rem 0.75rem -${profile.geometry.margins.left}rem`,
+                  padding: '0.35rem 0.75rem',
+                  background: 'rgba(238,242,255,0.95)',
+                  borderBottom: '1px solid rgba(99,102,241,0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <svg
+                  style={{ width: '0.875rem', height: '0.875rem', color: 'rgb(99,102,241)', flexShrink: 0 }}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span style={{ fontSize: '0.6875rem', color: 'rgb(79,70,229)', fontWeight: 500, fontFamily: 'sans-serif' }}>
+                  AI preview — Apply or Discard in the chat
+                </span>
+              </div>
+            )}
             <BlockRegionRenderer
               blocks={blocks}
               hoveredBlockId={hoveredBlockId}

@@ -49,9 +49,23 @@ export interface EditBlockArgs {
   fullLatex: string;
 }
 
+// ─── Document-level AI edit ──────────────────────────────────────────────────
+
+export interface EditDocumentArgs {
+  prompt: string;
+  fullLatex: string;
+  templateId: string;
+}
+
+export type EditDocumentResult =
+  | { type: 'edit'; latex: string; summary: string }
+  | { type: 'message'; content: string };
+
 export interface AIProvider {
   generateLatex(args: GenerateLatexArgs): Promise<GenerateLatexResult>;
   fixLatex(args: FixLatexArgs): Promise<string>;
   /** F3-M4.3: Edit a single block. Returns the modified LaTeX fragment (not compiled). */
   editBlock(args: EditBlockArgs): Promise<string>;
+  /** Document-level AI edit. Returns either a full modified LaTeX or a conversational message. */
+  editDocument(args: EditDocumentArgs): Promise<EditDocumentResult>;
 }
