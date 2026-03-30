@@ -151,7 +151,7 @@ export function SessionCard({ session, onDelete, onTitleChange }: Props) {
             onBlur={commitTitle}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 bg-white/8 border border-white/20 rounded-lg px-2 py-0.5 text-sm font-semibold text-white outline-none focus:border-orange-400/50"
+            className="flex-1 bg-white/10 border border-white/25 rounded-lg px-2 py-0.5 text-sm font-semibold text-white outline-none focus:border-orange-400/50"
           />
         ) : (
           <h3

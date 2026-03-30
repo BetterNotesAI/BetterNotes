@@ -299,7 +299,7 @@ export function SubChatDrawer({
         <div className="flex flex-col h-full bg-[#141414] border-l border-white/10 shadow-2xl shadow-black/60">
 
           {/* Header */}
-          <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-white/3">
+          <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-white/5">
             <div className="flex-1 min-w-0">
               {editingTitle ? (
                 <input
@@ -314,7 +314,7 @@ export function SubChatDrawer({
                       setEditingTitle(false);
                     }
                   }}
-                  className="w-full bg-white/8 border border-white/20 rounded-md px-2 py-0.5 text-xs font-medium text-white outline-none focus:border-orange-400/50"
+                  className="w-full appearance-none bg-[#1f1f1f] border border-white/25 rounded-md px-2 py-0.5 text-xs font-medium text-white outline-none focus:border-orange-400/50"
                 />
               ) : (
                 <button
@@ -334,7 +334,7 @@ export function SubChatDrawer({
             <button
               onClick={onMinimize}
               title="Minimize"
-              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/8 transition-colors text-sm leading-none"
+              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-colors text-sm leading-none"
             >
               —
             </button>
@@ -405,12 +405,12 @@ export function SubChatDrawer({
                 placeholder="Ask a question… (Enter to send)"
                 rows={2}
                 disabled={isSending}
-                className="flex-1 resize-none bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none focus:border-orange-400/40 focus:bg-white/8 transition-colors disabled:opacity-50"
+                className="flex-1 appearance-none resize-none bg-[#1f1f1f] border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-white/35 outline-none focus:border-orange-400/40 focus:bg-[#262626] transition-colors disabled:opacity-50"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isSending}
-                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-orange-500 hover:bg-orange-400 disabled:bg-white/8 disabled:text-white/20 text-white transition-colors"
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-orange-500 hover:bg-orange-400 disabled:bg-white/10 disabled:text-white/20 text-white transition-colors"
                 title="Send"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

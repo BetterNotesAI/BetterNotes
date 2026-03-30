@@ -11,6 +11,10 @@ import { SubChatBubble } from '../_components/SubChatBubble';
 import type { SessionStatus, ProblemSession } from '../_components/SessionCard';
 import type { SubChatMessage } from '../_components/SubChatDrawer';
 
+const DEFAULT_RIGHT_PANEL_WIDTH_PCT = 50;
+const MIN_RIGHT_PANEL_WIDTH_PCT = 35;
+const MAX_RIGHT_PANEL_WIDTH_PCT = 70;
+
 // ---------------------------------------------------------------------------
 // Sub-chat types
 // ---------------------------------------------------------------------------
@@ -98,6 +102,11 @@ export default function ProblemSessionPage() {
   // Sub-chats
   const [subChats, setSubChats] = useState<SubChat[]>([]);
   const [activeSubChatId, setActiveSubChatId] = useState<string | null>(null);
+
+  // Resizable split layout
+  const [rightPanelWidthPct, setRightPanelWidthPct] = useState(DEFAULT_RIGHT_PANEL_WIDTH_PCT);
+  const [isResizingPanels, setIsResizingPanels] = useState(false);
+  const splitLayoutRef = useRef<HTMLDivElement>(null);
 
   // ---------------------------------------------------------------------------
   // Load session
@@ -339,6 +348,72 @@ export default function ProblemSessionPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Split layout resize
+  // ---------------------------------------------------------------------------
+
+  const clampRightPanelWidth = useCallback((value: number) => {
+    return Math.min(MAX_RIGHT_PANEL_WIDTH_PCT, Math.max(MIN_RIGHT_PANEL_WIDTH_PCT, value));
+  }, []);
+
+  const updateSplitFromClientX = useCallback((clientX: number) => {
+    const rect = splitLayoutRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+
+    const leftPct = ((clientX - rect.left) / rect.width) * 100;
+    const nextRightPct = clampRightPanelWidth(100 - leftPct);
+    setRightPanelWidthPct(nextRightPct);
+  }, [clampRightPanelWidth]);
+
+  function handleSplitPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsResizingPanels(true);
+    updateSplitFromClientX(e.clientX);
+  }
+
+  function handleSplitPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!isResizingPanels) return;
+    updateSplitFromClientX(e.clientX);
+  }
+
+  function handleSplitPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setIsResizingPanels(false);
+  }
+
+  function handleSplitKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setRightPanelWidthPct((prev) => clampRightPanelWidth(prev + 2));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setRightPanelWidthPct((prev) => clampRightPanelWidth(prev - 2));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setRightPanelWidthPct(MIN_RIGHT_PANEL_WIDTH_PCT);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setRightPanelWidthPct(MAX_RIGHT_PANEL_WIDTH_PCT);
+    }
+  }
+
+  useEffect(() => {
+    if (!isResizingPanels) return;
+
+    const prevCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevUserSelect;
+    };
+  }, [isResizingPanels]);
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -371,6 +446,7 @@ export default function ProblemSessionPage() {
 
   const activeStatus = session.status;
   const displayMd = streamedMd ?? session.solution_md ?? null;
+  const leftPanelWidthPct = 100 - rightPanelWidthPct;
 
   return (
     <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
@@ -401,7 +477,7 @@ export default function ProblemSessionPage() {
                   setEditingTitle(false);
                 }
               }}
-              className="bg-white/8 border border-white/20 rounded-lg px-2.5 py-1 text-sm font-semibold
+              className="bg-white/10 border border-white/25 rounded-lg px-2.5 py-1 text-sm font-semibold
                 text-white outline-none focus:border-orange-400/50 min-w-0 w-64"
             />
           ) : (
@@ -463,10 +539,13 @@ export default function ProblemSessionPage() {
         </div>
       </div>
 
-      {/* ── Split layout 50/50 ── */}
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+      {/* ── Resizable split layout ── */}
+      <div ref={splitLayoutRef} className="flex-1 flex min-h-0 overflow-hidden relative">
         {/* Left: PDF Viewer */}
-        <div className="w-1/2 border-r border-white/10 flex flex-col min-h-0 overflow-hidden bg-black/20">
+        <div
+          className="border-r border-white/10 flex flex-col min-h-0 overflow-hidden bg-black/20"
+          style={{ width: `${leftPanelWidthPct}%` }}
+        >
           {pdfUrl ? (
             <PdfViewer
               url={pdfUrl}
@@ -494,8 +573,40 @@ export default function ProblemSessionPage() {
           )}
         </div>
 
+        {/* Splitter handle */}
+        <button
+          type="button"
+          role="separator"
+          aria-label="Resize solution panel width"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_RIGHT_PANEL_WIDTH_PCT}
+          aria-valuemax={MAX_RIGHT_PANEL_WIDTH_PCT}
+          aria-valuenow={Math.round(rightPanelWidthPct)}
+          onPointerDown={handleSplitPointerDown}
+          onPointerMove={handleSplitPointerMove}
+          onPointerUp={handleSplitPointerUp}
+          onPointerCancel={handleSplitPointerUp}
+          onKeyDown={handleSplitKeyDown}
+          onDoubleClick={() => setRightPanelWidthPct(DEFAULT_RIGHT_PANEL_WIDTH_PCT)}
+          title="Drag to resize (double-click to reset)"
+          className={`group absolute top-0 bottom-0 -translate-x-1/2 w-4 z-20 cursor-col-resize touch-none
+            flex items-center justify-center transition-colors ${
+              isResizingPanels ? 'bg-orange-500/10' : 'hover:bg-white/10'
+            }`}
+          style={{ left: `${leftPanelWidthPct}%` }}
+        >
+          <span
+            className={`h-16 w-[2px] rounded-full transition-colors ${
+              isResizingPanels ? 'bg-orange-400' : 'bg-white/25 group-hover:bg-white/45'
+            }`}
+          />
+        </button>
+
         {/* Right: Solution Panel */}
-        <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+        <div
+          className="flex flex-col min-h-0 overflow-hidden"
+          style={{ width: `${rightPanelWidthPct}%` }}
+        >
           <SolutionPanel
             solutionMd={displayMd}
             status={activeStatus}
