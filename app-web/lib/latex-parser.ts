@@ -30,6 +30,12 @@ export interface Block {
   latex_source: string;
   /** section level: 1 = \section, 2 = \subsection, 3 = \subsubsection */
   level?: number;
+  /** For type === 'box': the theorem-like environment that produced this block */
+  boxSubtype?: 'definition' | 'theorem' | 'proposition' | 'observation' | 'example';
+  /** Character offset in the original source where this block starts (after preamble strip) */
+  sourceStart?: number;
+  /** Character offset in the original source where this block ends (exclusive) */
+  sourceEnd?: number;
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -90,7 +96,7 @@ const BLOCK_ENVS = [
   'itemize', 'enumerate', 'description',
   // theorem-like (from templates)
   'definition', 'theorem', 'lemma', 'proposition', 'corollary', 'remark',
-  'proof', 'obs', 'example*', 'exercise*',
+  'proof', 'obs', 'observation', 'example', 'example*', 'exercise*',
   // tcolorbox environments (lecture_notes template)
   'workedexample', 'keypoint', 'warning',
   // multicol (study_form, 2cols_portrait, landscape_3col_maths)
@@ -347,8 +353,11 @@ function processTextSegment(text: string, blocks: Block[]): void {
 
 // ─── main parser ─────────────────────────────────────────────────────────────
 
-export function parseLatex(latex: string): Block[] {
-  _idCounter = 0; // reset on each parse call
+/**
+ * Internal parser that does NOT reset _idCounter.
+ * Used for recursive calls (e.g. multicols) so IDs remain unique across the document.
+ */
+function parseLatexInternal(latex: string): Block[] {
   const blocks: Block[] = [];
   let remaining = stripPreamble(latex);
 
@@ -412,14 +421,24 @@ export function parseLatex(latex: string): Block[] {
       const colMatch = extracted.inner.match(/^\s*\{(\d+)\}/);
       const colCount = colMatch ? colMatch[1] : '2';
       const innerContent = extracted.inner.replace(/^\s*\{[^}]*\}/, '');
-      // Emit col-start marker, recurse, emit col-end marker
+      // Emit col-start marker, recurse using internal parser (no counter reset), emit col-end marker
       blocks.push({ id: makeId('col-start'), type: 'col-start', latex_source: colCount });
-      const innerBlocks = parseLatex(innerContent);
+      const innerBlocks = parseLatexInternal(innerContent);
       blocks.push(...innerBlocks);
       blocks.push({ id: makeId('col-end'), type: 'col-end', latex_source: '' });
+    } else if (env === 'definition') {
+      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'definition' });
+    } else if (env === 'theorem') {
+      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'theorem' });
+    } else if (env === 'proposition') {
+      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'proposition' });
+    } else if (env === 'obs' || env === 'observation') {
+      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'observation' });
+    } else if (env === 'example' || env === 'example*') {
+      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'example' });
     } else {
-      // theorem-like, tcolorbox, workedexample, keypoint, warning — treat as paragraph
-      // that may contain math inside
+      // tcolorbox, workedexample, keypoint, warning, lemma, corollary, remark, proof, etc.
+      // Recurse into inner content so math/text blocks are preserved
       const innerBlocks = parseLatexFragment(extracted.inner);
       blocks.push(...innerBlocks);
     }
@@ -430,6 +449,15 @@ export function parseLatex(latex: string): Block[] {
   return blocks.filter(b =>
     b.latex_source.trim().length > 0 || b.type === 'hr' || b.type === 'col-end'
   );
+}
+
+/**
+ * Public entry point: resets the ID counter then delegates to the internal parser.
+ * Always call this (not parseLatexInternal) from outside this module.
+ */
+export function parseLatex(latex: string): Block[] {
+  _idCounter = 0;
+  return parseLatexInternal(latex);
 }
 
 /**

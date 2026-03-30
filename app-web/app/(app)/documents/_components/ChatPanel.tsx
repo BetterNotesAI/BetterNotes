@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { BlockReference } from '@/components/viewer/LatexViewer';
+import { KATEX_MACROS } from '@/lib/katex-macros';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,12 +78,6 @@ interface ChatPanelProps {
 }
 
 // ─── KaTeX helpers ────────────────────────────────────────────────────────────
-
-const KATEX_MACROS: Record<string, string> = {
-  '\\dd': '\\mathrm{d}',
-  '\\real': '\\mathbb{R}',
-  '\\cplex': '\\mathbb{C}',
-};
 
 function renderKatexSafe(latex: string, displayMode: boolean): string {
   try {
@@ -150,6 +145,56 @@ function renderLatexPreview(latex: string, blockType: string): string {
     }
   }
   return parts.join('');
+}
+
+// ─── BlockReference chip preview helper ──────────────────────────────────────
+
+/**
+ * Render a compact preview of a block reference for the chat chip.
+ * - Formula blocks: render with KaTeX (inline mode, truncated).
+ * - Text blocks: strip basic LaTeX commands, return first 80 chars.
+ * Returns an HTML string ready for dangerouslySetInnerHTML.
+ */
+function renderChipPreview(latex: string, blockType: string): string {
+  const isFormula =
+    blockType === 'formula-block' ||
+    blockType === 'formula-inline' ||
+    latex.trim().startsWith('$') ||
+    latex.trim().startsWith('\\[') ||
+    latex.trim().startsWith('\\begin{');
+
+  if (isFormula) {
+    // Strip outer display delimiters
+    let inner = latex.trim();
+    inner = inner.replace(/^\\\[|\\\]$/g, '').trim();
+    inner = inner.replace(/^\$\$|\$\$$/g, '').trim();
+    inner = inner.replace(/^\\begin\{[^}]+\}|\\end\{[^}]+\}$/g, '').trim();
+    // Truncate very long formulas to avoid layout explosion
+    const truncated = inner.length > 200 ? inner.slice(0, 200) + '\\ldots' : inner;
+    try {
+      return katex.renderToString(truncated, {
+        displayMode: false,
+        throwOnError: false,
+        macros: KATEX_MACROS,
+        trust: false,
+      });
+    } catch {
+      return `<code class="text-xs font-mono">${inner.slice(0, 80)}</code>`;
+    }
+  }
+
+  // Text block: clean up common LaTeX commands and return first 80 chars
+  const cleaned = latex
+    .replace(/\\textbf\{([^}]*)\}/g, '$1')
+    .replace(/\\textit\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\text\{([^}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+\*?(?:\{[^}]*\})?/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const display = cleaned.length > 80 ? cleaned.slice(0, 80) + '…' : cleaned;
+  return `<span>${display.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
 }
 
 // ─── Misc helpers ─────────────────────────────────────────────────────────────
@@ -613,18 +658,21 @@ export function ChatPanel({
       {/* Input area */}
       <div className="px-4 py-3 border-t border-white/10 shrink-0 space-y-2">
 
-        {/* F3-M4.2: Block reference chip */}
+        {/* F3-M4.2: Block reference chip — Mejora B: KaTeX mini-preview */}
         {blockReference && (
           <div className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-400/25">
             {/* Block type badge */}
             <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/25 rounded px-1.5 py-0.5 mt-0.5">
               {blockReference.blockType}
             </span>
-            {/* LaTeX source preview */}
-            <span className="flex-1 text-xs text-indigo-200/80 font-mono leading-snug line-clamp-2 break-all">
-              {blockReference.latex_source.slice(0, 120)}
-              {blockReference.latex_source.length > 120 ? '…' : ''}
-            </span>
+            {/* KaTeX / text mini-preview */}
+            <span
+              className="flex-1 text-xs text-indigo-100/90 leading-snug line-clamp-2 overflow-hidden
+                [&_.katex]:text-indigo-100 [&_.katex-html]:max-w-full"
+              dangerouslySetInnerHTML={{
+                __html: renderChipPreview(blockReference.latex_source, blockReference.blockType),
+              }}
+            />
             {/* X button */}
             <button
               onClick={() => {

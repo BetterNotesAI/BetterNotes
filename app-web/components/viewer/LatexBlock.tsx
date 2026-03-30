@@ -18,13 +18,7 @@ import React, { useMemo, useRef, useEffect, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '@/lib/latex-parser';
-
-// ─── KaTeX macros — custom commands from landscape_3col_maths template ────────
-const KATEX_MACROS: Record<string, string> = {
-  '\\dd': '\\mathrm{d}',
-  '\\real': '\\mathbb{R}',
-  '\\cplex': '\\mathbb{C}',
-};
+import { KATEX_MACROS } from '@/lib/katex-macros';
 
 // ─── render a single KaTeX formula string ─────────────────────────────────────
 
@@ -382,13 +376,13 @@ export default function LatexBlock({
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
       const headingClass =
         block.level === 1
-          ? 'text-xl font-bold mt-6 mb-2 border-b border-gray-300 pb-1'
+          ? 'text-xl font-bold mt-6 mb-2 border-b pb-1'
           : block.level === 2
           ? 'text-lg font-semibold mt-4 mb-1'
           : 'text-base font-semibold mt-3 mb-1';
       return (
         <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
-          <HeadingTag className={headingClass}>
+          <HeadingTag className={headingClass} style={{ color: 'var(--accent, #333)' }}>
             {block.latex_source}
           </HeadingTag>
         </div>
@@ -434,11 +428,24 @@ export default function LatexBlock({
     case 'hr':
       return <hr className="my-2 border-gray-400" style={{ breakBefore: 'avoid' }} />;
 
-    case 'box':
+    case 'box': {
+      // Choose border-left colour based on subtype, falling back to accent
+      const boxBorderVar =
+        block.boxSubtype === 'definition'
+          ? 'var(--def-color, #0891B2)'
+          : block.boxSubtype === 'theorem'
+          ? 'var(--thm-color, #7C3AED)'
+          : block.boxSubtype === 'proposition'
+          ? 'var(--prop-color, #059669)'
+          : block.boxSubtype === 'observation'
+          ? 'var(--accent, #374151)'
+          : block.boxSubtype === 'example'
+          ? 'var(--accent, #374151)'
+          : 'var(--accent, #374151)';
       return (
         <div
-          style={{ breakInside: 'avoid' }}
-          className={`my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm ${interactiveClass}`}
+          style={{ breakInside: 'avoid', borderLeftColor: boxBorderVar, borderLeftWidth: '3px', borderLeftStyle: 'solid' }}
+          className={`my-2 border border-gray-200 rounded-r px-3 py-2 bg-gray-50/70 text-sm ${interactiveClass}`}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
@@ -446,6 +453,7 @@ export default function LatexBlock({
           <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
         </div>
       );
+    }
 
     case 'col-start':
     case 'col-end':
