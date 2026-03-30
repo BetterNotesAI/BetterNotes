@@ -4,6 +4,33 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-03-31 — Visor PDF-like + perfiles de plantilla + AI document-level edits
+
+**Completado:**
+- `lib/template-profiles.ts`: interface TemplateProfile con geometria, tipografia, colores, layout y chrome. Perfiles reales derivados de los preambles LaTeX de las 4 plantillas activas (lecture_notes, 2cols_portrait, landscape_3col_maths, study_form) + default.
+- LatexViewer: layout A4 PDF-like (hoja blanca sobre fondo neutro, estilo visor PDF real). Zoom via `transform: scale()` con wrapper two-div para que scroll height sea correcto. CSS custom properties inyectadas por plantilla. Fix color texto negro sobre fondo blanco.
+- Mejora A: `lib/katex-macros.ts` — constante KATEX_MACROS compartida entre LatexBlock y ChatPanel.
+- Mejora B: preview KaTeX renderizado en chips de BlockReference.
+- Mejora C: indicadores de pasos undo/redo en toolbar con contadores en estado React.
+- Mejora D: scroll automatico al bloque editado tras Apply.
+- Mejora E: fix replace fragil — estrategia Nth-occurrence para bloques con latex_source identico.
+- Fixes del reviewer: FormatToolbar movida dentro de !hideToolbar, IDs duplicados en multicols (parseLatexInternal no resetea _idCounter), boton redo usa redoCount state en lugar de ref.current.
+- AI edita el documento via prompts del chat: `editDocument()` en AIProvider con JSON mode para clasificar automaticamente entre edicion de documento y respuesta conversacional. Ruta `POST /latex/edit-document` en app-api. Route handler `POST /api/documents/[id]/chat-edit` en app-web (guarda mensajes en DB). LatexViewer: prop `pendingDocumentEdit` con banner "AI preview" y outline indigo. ChatPanel: `DocumentEditPreviewCard` con Apply/Discard. page.tsx: estado y wiring completo.
+
+**Decisiones tomadas:**
+- JSON mode en editDocument(): clasifica automaticamente el mensaje del usuario entre edicion de documento (devuelve nuevo latex_source) o respuesta conversacional (devuelve mensaje de texto). El clasificador esta en el propio prompt de sistema.
+- Commits separados por feature: d1c00c6 (visor PDF-like + mejoras A-E) y d5f1668 (AI document-level edit).
+
+**Problemas encontrados:**
+- Calidad de AI edits parcial: la IA no aplica cambios en todas las instancias del documento consistentemente (ej: cambiar color de ecuaciones no afecta a todas). Pendiente mejora de prompt o estrategia de edicion.
+- app-api en modo Docker no tiene los nuevos endpoints. Usuario debe rebuildar imagen o usar `npm run dev` directamente.
+
+**Lecciones capturadas:** no
+
+**Siguiente:** F4-M1 Problem Solver (primera feature de Fase 4)
+
+---
+
 ## Sesion 2026-03-28 — F3-M4 + F3-M5 completados · Fase 3 CERRADA
 
 **Completado:**

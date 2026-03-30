@@ -7,26 +7,27 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28)
-**Milestone activo:** ninguno — Fase 3 cerrada. Pendiente apertura Fase 4.
-**Tarea activa:** verificar visor interactivo end-to-end en navegador antes de merge a main
-**Último hito cerrado:** F3-M5 — Publish to My Studies + polish ✅ (2026-03-28)
+**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones de sesión 2026-03-31
+**Milestone activo:** ninguno — sesión 2026-03-31 cerrada. Siguiente: F4-M1 Problem Solver
+**Tarea activa:** ninguna
+**Último hito cerrado:** F3-M5 ✅ (2026-03-28) + visor PDF-like + AI document-level edits (2026-03-31)
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
-**Rama activa:** f3-m4-chat-contextual (SIN merge a main — pendiente verificación)
-**Bloqueantes:** ninguno técnico. Pendiente de verificación manual en navegador.
+**Rama activa:** main (commits d1c00c6, d5f1668 mergeados)
+**Sesión cerrada:** 2026-03-31
+**Bloqueantes:** ninguno técnico.
 
-**Pendiente crítico antes de mergear a main:**
-- Verificar en navegador que el visor interactivo funciona end-to-end: edición de bloques (patrón Typora), chat contextual con chip de referencia, Apply/Discard de sugerencias IA, undo/redo (Ctrl+Z/Y)
-- Verificar que "Saved X ago" aparece en header tras Apply
-- Verificar PublishModal y My Studies page
+**Completado sesión 2026-03-31:**
+- Visor PDF-like con perfiles de plantilla (`lib/template-profiles.ts`): TemplateProfile interface con geometría, tipografía, colores, layout y chrome para las 4 plantillas activas + default. Layout A4 blanco sobre fondo neutro (estilo PDF viewer real). Zoom via `transform: scale()` con wrapper two-div para scroll height correcto. CSS custom properties inyectadas por plantilla.
+- Mejoras A-E al visor: (A) `lib/katex-macros.ts` constante compartida, (B) preview KaTeX en chips BlockReference, (C) contadores undo/redo en toolbar, (D) scroll automático al bloque editado tras Apply, (E) fix replace Nth-occurrence para bloques con latex_source idéntico.
+- Fixes del reviewer: zoom wrapper con altura visual explícita, FormatToolbar dentro de !hideToolbar, IDs duplicados en multicols corregidos, botón redo usa redoCount state, fix color texto negro sobre hoja blanca.
+- AI edita el documento vía prompts del chat: método `editDocument()` en AIProvider con JSON mode (clasifica entre edición de documento y respuesta conversacional), ruta `POST /latex/edit-document` en app-api, route handler `POST /api/documents/[id]/chat-edit` en app-web, LatexViewer prop `pendingDocumentEdit` con banner "AI preview" + outline indigo, ChatPanel con `DocumentEditPreviewCard` (Apply/Discard), page.tsx con estado y wiring completo.
 
 **Pendiente operacional (no bloqueante para Fase 4):**
 - Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])
 - Añadir OPENAI_API_KEY a las variables de entorno de Vercel
+- Rebuildar imagen Docker de app-api para incluir endpoints `/latex/edit-document` (o usar `npm run dev` directamente)
 
-**Completado sesión 2026-03-28:**
-- F3-M4: chip visual BlockReference, preview KaTeX en BlockEditPreviewCard, Apply/Discard con actualización optimista, /api/documents/[id]/edit-block, undo/redo hasta 20 estados (Ctrl+Z/Y/Shift+Z)
-- F3-M5: migración SQL publish, POST /publish, POST /suggest-keywords (GPT-4o directo desde Next.js), GET /api/documents/published, PublishModal.tsx (keywords chips + AI suggest), botón Publish en header workspace, My Studies page grid, accesibilidad LatexBlock (tabIndex/role/aria/Enter), skeleton loader visor, "Saved X ago" en header (onApplyPersisted), transition-opacity al cambiar viewerTab
+**Calidad de AI edits:** funcional pero parcial — la IA no siempre aplica cambios en todas las instancias del documento. Pendiente mejora en próxima sesión o como parte de F4.
 
 ---
 
@@ -87,4 +88,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-28 (cierre de sesión) — Fase 3 COMPLETA. F3-M4 (chat contextual: chip BlockReference, preview KaTeX, Apply/Discard optimista, edit-block endpoint, undo/redo Ctrl+Z/Y) y F3-M5 (Publish modal, suggest-keywords GPT-4o, My Studies page, skeleton loader, "Saved X ago", accesibilidad LatexBlock) completados. Rama activa: f3-m4-chat-contextual — pendiente verificación en navegador antes de merge a main. Siguiente: abrir Fase 4 (F4-M1 Problem Solver) tras verificación y merge.*
+*Última actualización: 2026-03-31 (cierre de sesión) — Sesión post-F3: visor PDF-like con perfiles de plantilla, mejoras A-E al visor interactivo, AI document-level edit con preview/confirm/discard. Commits: d1c00c6, d5f1668. Rama main actualizada. Siguiente: F4-M1 Problem Solver.*
