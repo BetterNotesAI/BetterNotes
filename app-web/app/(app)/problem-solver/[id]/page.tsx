@@ -12,6 +12,11 @@ const DEFAULT_RIGHT_PANEL_WIDTH_PCT = 50;
 const MIN_RIGHT_PANEL_WIDTH_PCT = 35;
 const MAX_RIGHT_PANEL_WIDTH_PCT = 70;
 
+interface SelectedContextItem {
+  id: string;
+  text: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -70,6 +75,12 @@ export default function ProblemSessionPage() {
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfTotalPages, setPdfTotalPages] = useState(0);
 
+  // PDF local pan/zoom
+  const [pdfPan, setPdfPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+
   // Solution streaming
   const [streamedMd, setStreamedMd] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -83,8 +94,8 @@ export default function ProblemSessionPage() {
   // Publish modal
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
-  // Inline chat — selected text context
-  const [selectedContext, setSelectedContext] = useState<string | null>(null);
+  // Inline chat — selected text contexts (multiple selections)
+  const [selectedContexts, setSelectedContexts] = useState<SelectedContextItem[]>([]);
 
   // Resizable split layout
   const [rightPanelWidthPct, setRightPanelWidthPct] = useState(DEFAULT_RIGHT_PANEL_WIDTH_PCT);
@@ -308,6 +319,60 @@ export default function ProblemSessionPage() {
   }, [isResizingPanels]);
 
   // ---------------------------------------------------------------------------
+  // PDF local zoom (trackpad pinch / Ctrl+wheel) & pan (drag)
+  // ---------------------------------------------------------------------------
+
+  const MIN_PDF_ZOOM = 30;
+  const MAX_PDF_ZOOM = 400;
+
+  useEffect(() => {
+    const el = pdfContainerRef.current;
+    if (!el) return;
+
+    function onWheel(e: WheelEvent) {
+      // Pinch-to-zoom on trackpad sends ctrlKey + deltaY
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = -e.deltaY;
+        setPdfZoom((z) => Math.min(MAX_PDF_ZOOM, Math.max(MIN_PDF_ZOOM, z + delta * 0.5)));
+      }
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  function handlePdfPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Only pan with left button (or touch)
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStartRef.current = { x: e.clientX, y: e.clientY, panX: pdfPan.x, panY: pdfPan.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePdfPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isPanning) return;
+    const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
+    setPdfPan({ x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy });
+  }
+
+  function handlePdfPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (isPanning) {
+      setIsPanning(false);
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    }
+  }
+
+  function resetPdfView() {
+    setPdfZoom(100);
+    setPdfPan({ x: 0, y: 0 });
+  }
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -393,14 +458,20 @@ export default function ProblemSessionPage() {
           {pdfUrl && (
             <div className="flex items-center gap-1 text-white/50">
               <button
-                onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
+                onClick={() => setPdfZoom((z) => Math.max(MIN_PDF_ZOOM, z - 10))}
                 className="p-1.5 rounded-lg hover:bg-white/8 hover:text-white transition-colors text-xs font-mono"
               >
                 −
               </button>
-              <span className="text-xs w-10 text-center">{pdfZoom}%</span>
               <button
-                onClick={() => setPdfZoom((z) => Math.min(200, z + 10))}
+                onClick={resetPdfView}
+                className="text-xs w-10 text-center hover:text-white transition-colors"
+                title="Reset zoom & pan"
+              >
+                {Math.round(pdfZoom)}%
+              </button>
+              <button
+                onClick={() => setPdfZoom((z) => Math.min(MAX_PDF_ZOOM, z + 10))}
                 className="p-1.5 rounded-lg hover:bg-white/8 hover:text-white transition-colors text-xs font-mono"
               >
                 +
@@ -435,24 +506,37 @@ export default function ProblemSessionPage() {
 
       {/* ── Resizable split layout ── */}
       <div ref={splitLayoutRef} className="flex-1 flex min-h-0 overflow-hidden relative">
-        {/* Left: PDF Viewer */}
+        {/* Left: PDF Viewer with local zoom/pan */}
         <div
-          className="border-r border-white/10 flex flex-col min-h-0 overflow-hidden bg-black/20"
-          style={{ width: `${leftPanelWidthPct}%` }}
+          ref={pdfContainerRef}
+          className={`border-r border-white/10 flex flex-col min-h-0 overflow-hidden bg-black/20 relative ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={{ width: `${leftPanelWidthPct}%`, touchAction: 'none' }}
+          onPointerDown={handlePdfPointerDown}
+          onPointerMove={handlePdfPointerMove}
+          onPointerUp={handlePdfPointerUp}
+          onPointerCancel={handlePdfPointerUp}
         >
           {pdfUrl ? (
-            <PdfViewer
-              url={pdfUrl}
-              zoom={pdfZoom}
-              currentPage={pdfPage}
-              onTotalPages={(total) => setPdfTotalPages(total)}
-            />
+            <div
+              className="flex-1 min-h-0 overflow-hidden"
+              style={{
+                transform: `translate(${pdfPan.x}px, ${pdfPan.y}px)`,
+                willChange: isPanning ? 'transform' : 'auto',
+              }}
+            >
+              <PdfViewer
+                url={pdfUrl}
+                zoom={pdfZoom}
+                currentPage={pdfPage}
+                onTotalPages={(total) => setPdfTotalPages(total)}
+              />
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-white/30">
               {session.pdf_path ? (
                 <div className="text-center space-y-2">
                   <div className="w-6 h-6 border-2 border-white/20 border-t-orange-400 rounded-full animate-spin mx-auto" />
-                  <p className="text-xs">Loading PDF…</p>
+                  <p className="text-xs">Loading PDF...</p>
                 </div>
               ) : (
                 <div className="text-center space-y-2 px-8">
@@ -507,9 +591,16 @@ export default function ProblemSessionPage() {
             status={activeStatus}
             isStreaming={isStreaming}
             onSolve={handleSolve}
-            selectedContext={selectedContext}
-            onTextSelect={setSelectedContext}
-            onClearContext={() => setSelectedContext(null)}
+            selectedContexts={selectedContexts}
+            onTextSelect={(context) => {
+              setSelectedContexts((prev) => (
+                prev.some((item) => item.text === context.text)
+                  ? prev
+                  : [...prev, context]
+              ));
+            }}
+            onClearContext={(id) => setSelectedContexts((prev) => prev.filter((item) => item.id !== id))}
+            onClearAllContexts={() => setSelectedContexts([])}
           />
         </div>
 

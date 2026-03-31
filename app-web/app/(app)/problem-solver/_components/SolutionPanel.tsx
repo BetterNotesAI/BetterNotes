@@ -84,7 +84,7 @@ function markdownToHtml(md: string): string {
       } else {
         inCodeBlock = false;
         const langAttr = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
-        html.push(`<pre class="code-block"><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+        html.push(`<pre class="code-block" data-solution-block="true"><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
         codeLines = [];
         codeLang = '';
       }
@@ -102,7 +102,7 @@ function markdownToHtml(md: string): string {
       // Single-line display: $$...$$
       if (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim() !== '$$') {
         const math = raw.trim().slice(2, -2);
-        html.push(`<div class="math-display">${renderKatex(math, true)}</div>`);
+        html.push(`<div class="math-display" data-solution-block="true">${renderKatex(math, true)}</div>`);
         continue;
       }
       // Multi-line display math block starting with $$ alone
@@ -112,7 +112,7 @@ function markdownToHtml(md: string): string {
         mathLines.push(lines[i]);
         i++;
       }
-      html.push(`<div class="math-display">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      html.push(`<div class="math-display" data-solution-block="true">${renderKatex(mathLines.join('\n'), true)}</div>`);
       continue;
     }
 
@@ -131,7 +131,7 @@ function markdownToHtml(md: string): string {
       const level = h1 ? 1 : h2 ? 2 : 3;
       const text = (h1 ?? h2 ?? h3)![1];
       const processed = renderInline(renderInlineMath(text));
-      html.push(`<h${level} class="md-h${level}">${processed}</h${level}>`);
+      html.push(`<h${level} class="md-h${level}" data-solution-block="true">${processed}</h${level}>`);
       continue;
     }
 
@@ -147,7 +147,7 @@ function markdownToHtml(md: string): string {
     if (ulMatch) {
       closeParagraph();
       const text = renderInline(renderInlineMath(ulMatch[1]));
-      html.push(`<li class="md-li">${text}</li>`);
+      html.push(`<li class="md-li" data-solution-block="true">${text}</li>`);
       continue;
     }
 
@@ -156,14 +156,14 @@ function markdownToHtml(md: string): string {
     if (olMatch) {
       closeParagraph();
       const text = renderInline(renderInlineMath(olMatch[1]));
-      html.push(`<li class="md-li md-oli">${text}</li>`);
+      html.push(`<li class="md-li md-oli" data-solution-block="true">${text}</li>`);
       continue;
     }
 
     // Regular text → paragraph
     const processed = renderInline(renderInlineMath(raw));
     if (!inParagraph) {
-      html.push('<p class="md-p">');
+      html.push('<p class="md-p" data-solution-block="true">');
       inParagraph = true;
     } else {
       html.push('<br />');
@@ -185,9 +185,10 @@ interface Props {
   status: 'pending' | 'solving' | 'done' | 'error';
   isStreaming: boolean;
   onSolve: () => void;
-  selectedContext: string | null;
-  onTextSelect: (text: string) => void;
-  onClearContext: () => void;
+  selectedContexts: Array<{ id: string; text: string }>;
+  onTextSelect: (context: { id: string; text: string }) => void;
+  onClearContext: (id: string) => void;
+  onClearAllContexts: () => void;
 }
 
 export function SolutionPanel({
@@ -196,16 +197,118 @@ export function SolutionPanel({
   status,
   isStreaming,
   onSolve,
-  selectedContext,
+  selectedContexts,
   onTextSelect,
   onClearContext,
+  onClearAllContexts,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const solutionRef = useRef<HTMLDivElement>(null);
 
   // Selection tooltip
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<{ id: string; text: string } | null>(null);
+  const [pendingOutlineRects, setPendingOutlineRects] = useState<Array<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }>>([]);
+  const pendingHighlightedBlocksRef = useRef<HTMLElement[]>([]);
+
+  const clearHighlightFromBlocks = useCallback((blocks: HTMLElement[], className: string) => {
+    for (const block of blocks) {
+      block.classList.remove(className);
+    }
+  }, []);
+
+  const applyHighlightToBlocks = useCallback((blocks: HTMLElement[], className: string) => {
+    for (const block of blocks) {
+      block.classList.add(className);
+    }
+  }, []);
+
+  const clearPendingHighlight = useCallback(() => {
+    clearHighlightFromBlocks(pendingHighlightedBlocksRef.current, 'solution-context-pending');
+    pendingHighlightedBlocksRef.current = [];
+  }, [clearHighlightFromBlocks]);
+
+  const hideSelectionTooltip = useCallback(() => {
+    clearPendingHighlight();
+    setTooltipPos(null);
+    setPendingSelection(null);
+    setPendingOutlineRects([]);
+  }, [clearPendingHighlight]);
+
+  const normalizeSelectionText = useCallback((value: string) => {
+    return value
+      .replace(/\u00A0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }, []);
+
+  const createSelectionId = useCallback(() => {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }, []);
+
+  const getIntersectingBlocks = useCallback((range: Range) => {
+    if (!solutionRef.current) return [] as HTMLElement[];
+
+    return Array.from(
+      solutionRef.current.querySelectorAll<HTMLElement>('[data-solution-block="true"]'),
+    ).filter((block) => {
+      try {
+        return range.intersectsNode(block);
+      } catch {
+        return false;
+      }
+    });
+  }, []);
+
+  const getRectFromBlocks = useCallback((blocks: HTMLElement[]) => {
+    if (blocks.length === 0) return null;
+    let minLeft = Number.POSITIVE_INFINITY;
+    let minTop = Number.POSITIVE_INFINITY;
+    let maxRight = Number.NEGATIVE_INFINITY;
+    let maxBottom = Number.NEGATIVE_INFINITY;
+
+    for (const block of blocks) {
+      const rect = block.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      minLeft = Math.min(minLeft, rect.left);
+      minTop = Math.min(minTop, rect.top);
+      maxRight = Math.max(maxRight, rect.right);
+      maxBottom = Math.max(maxBottom, rect.bottom);
+    }
+
+    if (!Number.isFinite(minLeft) || !Number.isFinite(minTop) || !Number.isFinite(maxRight) || !Number.isFinite(maxBottom)) {
+      return null;
+    }
+    return { left: minLeft, top: minTop, width: maxRight - minLeft, height: maxBottom - minTop };
+  }, []);
+
+  const getRectFromRange = useCallback((range: Range) => {
+    const clientRects = Array.from(range.getClientRects()).filter((r) => r.width > 0 || r.height > 0);
+    if (clientRects.length === 0) {
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return null;
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }
+
+    let minLeft = Number.POSITIVE_INFINITY;
+    let minTop = Number.POSITIVE_INFINITY;
+    let maxRight = Number.NEGATIVE_INFINITY;
+    let maxBottom = Number.NEGATIVE_INFINITY;
+
+    for (const rect of clientRects) {
+      minLeft = Math.min(minLeft, rect.left);
+      minTop = Math.min(minTop, rect.top);
+      maxRight = Math.max(maxRight, rect.right);
+      maxBottom = Math.max(maxBottom, rect.bottom);
+    }
+    return { left: minLeft, top: minTop, width: maxRight - minLeft, height: maxBottom - minTop };
+  }, []);
 
   // Auto-scroll during streaming
   useEffect(() => {
@@ -214,50 +317,121 @@ export function SolutionPanel({
     }
   }, [solutionMd, isStreaming]);
 
-  const handleMouseUp = useCallback(() => {
-    if (isStreaming) return;
-    const sel = window.getSelection();
-    const text = sel?.toString().trim();
-    if (!text || text.length < 10) {
-      setTooltipPos(null);
-      setPendingSelection(null);
+  const handleTextSelection = useCallback(() => {
+    if (isStreaming) {
+      hideSelectionTooltip();
       return;
     }
 
-    // Check selection is within our solution div
-    if (solutionRef.current && sel?.rangeCount) {
-      const range = sel.getRangeAt(0);
-      if (!solutionRef.current.contains(range.commonAncestorContainer)) {
-        setTooltipPos(null);
-        setPendingSelection(null);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      hideSelectionTooltip();
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    if (!solutionRef.current?.contains(range.commonAncestorContainer)) {
+      hideSelectionTooltip();
+      return;
+    }
+
+    const rawSelection = normalizeSelectionText(sel.toString());
+    if (!rawSelection) {
+      hideSelectionTooltip();
+      return;
+    }
+
+    const blocks = getIntersectingBlocks(range);
+    let contextText = rawSelection;
+    let tooltipX: number | null = null;
+    let tooltipY: number | null = null;
+    let outlineRect: { left: number; top: number; width: number; height: number } | null = null;
+
+    if (blocks.length > 0) {
+      clearPendingHighlight();
+      applyHighlightToBlocks(blocks, 'solution-context-pending');
+      pendingHighlightedBlocksRef.current = blocks;
+
+      const blockText = normalizeSelectionText(
+        blocks
+          .map((block) => normalizeSelectionText(block.textContent ?? ''))
+          .filter(Boolean)
+          .join('\n\n'),
+      );
+      if (blockText) contextText = blockText;
+
+      // Position tooltip at the top-right of the first block
+      const firstRect = blocks[0].getBoundingClientRect();
+      if (firstRect.width > 0 || firstRect.height > 0) {
+        tooltipX = firstRect.right;
+        tooltipY = firstRect.top;
+      }
+      outlineRect = getRectFromBlocks(blocks);
+    } else {
+      clearPendingHighlight();
+      outlineRect = getRectFromRange(range);
+    }
+
+    if (tooltipX === null || tooltipY === null) {
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        hideSelectionTooltip();
         return;
       }
+      tooltipX = rect.right;
+      tooltipY = rect.top;
     }
 
-    const range = sel?.getRangeAt(0);
-    if (!range) return;
-    const rect = range.getBoundingClientRect();
-    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
-    setPendingSelection(text);
-  }, [isStreaming]);
+    setTooltipPos({ x: tooltipX, y: tooltipY });
+    setPendingSelection({ id: createSelectionId(), text: contextText });
+    setPendingOutlineRects(outlineRect ? [outlineRect] : []);
+  }, [
+    applyHighlightToBlocks,
+    createSelectionId,
+    clearPendingHighlight,
+    getRectFromBlocks,
+    getRectFromRange,
+    getIntersectingBlocks,
+    hideSelectionTooltip,
+    isStreaming,
+    normalizeSelectionText,
+  ]);
 
-  // Hide tooltip on click outside or scroll
+  // Hide tooltip on scroll
   useEffect(() => {
-    function hide() { setTooltipPos(null); setPendingSelection(null); }
-    document.addEventListener('mousedown', (e) => {
-      const tooltip = document.getElementById('selection-tooltip');
-      if (tooltip && !tooltip.contains(e.target as Node)) hide();
-    });
-    return () => {};
-  }, []);
+    const handleScroll = () => hideSelectionTooltip();
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [hideSelectionTooltip]);
+
+  useEffect(() => {
+    if (isStreaming) {
+      hideSelectionTooltip();
+    }
+  }, [hideSelectionTooltip, isStreaming]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingHighlight();
+    };
+  }, [clearPendingHighlight]);
 
   function handleAddToChat() {
-    if (pendingSelection) {
-      onTextSelect(pendingSelection);
+    if (!pendingSelection) return;
+
+    const alreadySelected = selectedContexts.some((ctx) => ctx.text === pendingSelection.text);
+    if (alreadySelected) {
       window.getSelection()?.removeAllRanges();
-      setTooltipPos(null);
-      setPendingSelection(null);
+      hideSelectionTooltip();
+      return;
     }
+
+    onTextSelect(pendingSelection);
+    window.getSelection()?.removeAllRanges();
+    hideSelectionTooltip();
   }
 
   const html = solutionMd ? markdownToHtml(solutionMd) : null;
@@ -265,7 +439,7 @@ export function SolutionPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6" onMouseUp={handleMouseUp}>
+      <div className="flex-1 overflow-y-auto px-6 py-6">
 
         {/* PENDING state */}
         {status === 'pending' && !solutionMd && (
@@ -308,6 +482,8 @@ export function SolutionPanel({
                 <div
                   ref={solutionRef}
                   className="solution-md"
+                  onMouseUp={handleTextSelection}
+                  onTouchEnd={handleTextSelection}
                   dangerouslySetInnerHTML={{ __html: html }}
                 />
                 {/* Blinking cursor */}
@@ -330,6 +506,8 @@ export function SolutionPanel({
           <div
             ref={solutionRef}
             className="solution-md"
+            onMouseUp={handleTextSelection}
+            onTouchEnd={handleTextSelection}
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )}
@@ -357,31 +535,57 @@ export function SolutionPanel({
         {(status === 'done' || (status === 'solving' && solutionMd)) && (
           <InlineChat
             sessionId={sessionId}
-            selectedContext={selectedContext}
+            selectedContexts={selectedContexts}
+            onTextSelect={onTextSelect}
             onClearContext={onClearContext}
+            onClearAllContexts={onClearAllContexts}
           />
         )}
 
         <div ref={bottomRef} />
       </div>
 
-      {/* Selection tooltip — portal */}
+      {/* Selection outline overlay (in-situ) */}
+      {pendingOutlineRects.length > 0 && typeof document !== 'undefined' && createPortal(
+        <>
+          {pendingOutlineRects.map((rect, index) => (
+            <div
+              key={`${index}-${rect.left}-${rect.top}-${rect.width}-${rect.height}`}
+              className="fixed pointer-events-none rounded-[10px]"
+              style={{
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                zIndex: 2147483645,
+                border: '2px solid rgba(249, 115, 22, 0.95)',
+                background: 'rgba(249, 115, 22, 0.12)',
+                boxShadow: '0 0 0 4px rgba(249, 115, 22, 0.22)',
+              }}
+            />
+          ))}
+        </>,
+        document.body,
+      )}
+
+      {/* Selection tooltip — positioned at top-right of the recuadro */}
       {tooltipPos && pendingSelection && typeof document !== 'undefined' && createPortal(
         <div
           id="selection-tooltip"
-          className="fixed z-[9999] animate-in fade-in duration-150"
+          className="fixed"
           style={{
             left: tooltipPos.x,
             top: tooltipPos.y,
-            transform: 'translate(-50%, -100%)',
+            transform: 'translate(-100%, -50%)',
+            zIndex: 2147483646,
           }}
         >
           <button
             onClick={handleAddToChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-white/20 shadow-xl shadow-black/50 text-white/80 hover:text-orange-300 hover:border-orange-500/40 text-xs font-medium transition-all whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-500/90 hover:bg-orange-400 text-white text-[11px] font-semibold shadow-lg shadow-orange-500/30 transition-all whitespace-nowrap backdrop-blur-sm"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
             </svg>
             Add to chat
           </button>
@@ -395,6 +599,31 @@ export function SolutionPanel({
           color: rgba(255, 255, 255, 0.85);
           font-size: 0.9rem;
           line-height: 1.75;
+          user-select: text;
+          -webkit-user-select: text;
+          cursor: text;
+        }
+        .solution-md::selection,
+        .solution-md *::selection {
+          background: rgba(249, 115, 22, 0.35);
+          color: #fff;
+        }
+        .solution-md [data-solution-block="true"] {
+          transition: background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease, margin 0.2s ease;
+          border-radius: 8px;
+        }
+        .solution-md .solution-context-pending {
+          background: rgba(249, 115, 22, 0.26) !important;
+          outline: 3px solid rgba(249, 115, 22, 1) !important;
+          outline-offset: 2px;
+          box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+            0 8px 30px rgba(249, 115, 22, 0.38) !important;
+          padding: 8px 12px;
+          margin-left: -12px;
+          margin-right: -12px;
+          position: relative;
+          z-index: 3;
         }
         .solution-md .md-h1 {
           font-size: 1.35rem;

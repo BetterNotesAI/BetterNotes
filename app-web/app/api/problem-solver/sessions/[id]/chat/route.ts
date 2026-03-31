@@ -9,6 +9,13 @@ const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function toQuoteBlock(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (line.trim() ? `> ${line}` : '>'))
+    .join('\n');
+}
+
 // ── GET — load all chat messages for a session ────────────────────────────────
 export async function GET(
   _req: NextRequest,
@@ -74,16 +81,24 @@ export async function POST(
 
   // Parse body
   const body = await req.json().catch(() => ({}));
-  const { content, selectedText } = body as { content?: string; selectedText?: string };
+  const { content, selectedTexts } = body as {
+    content?: string;
+    selectedTexts?: string[];
+  };
 
   if (!content || typeof content !== 'string' || !content.trim()) {
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
   }
 
   // Build the message content that gets sent to the LLM
-  // If there's selected text, prepend it as a quote block
-  const userMessageForLLM = selectedText
-    ? `> ${selectedText}\n\n${content.trim()}`
+  // If there are selected texts, prepend each as a quote block
+  const contexts = Array.isArray(selectedTexts)
+    ? selectedTexts.map((t) => t.trim()).filter(Boolean)
+    : [];
+
+  const quoteBlocks = contexts.map((ctx) => toQuoteBlock(ctx));
+  const userMessageForLLM = quoteBlocks.length > 0
+    ? `${quoteBlocks.join('\n\n')}\n\n${content.trim()}`
     : content.trim();
 
   // Save user message (store with quote so history is complete for the LLM)
