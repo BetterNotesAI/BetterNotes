@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
+import { createExamsRouter } from './routes/exams';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -35,5 +36,8 @@ app.use('/latex', createLatexRouter({
 
 // F3-M4.3: block editing endpoint
 app.use('/latex', createEditBlockRouter({ aiProvider }));
+
+// Exam generation endpoint
+app.use('/exams', createExamsRouter({ aiProvider }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));

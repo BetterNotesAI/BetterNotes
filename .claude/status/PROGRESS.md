@@ -4,6 +4,39 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-03-31 — Modulo Exams: 14 features implementadas
+
+**Completado:**
+- Color theme del modulo de examen cambiado de amarillo a indigo en todos los componentes: ExamSetup, ExamStats, ExamResults, ExamReportModal, ExamInProgress, ExamFlashcards y generateExamPDF
+- Formatos mutuamente exclusivos: seleccionar Flashcard deselecciona los demas formatos y viceversa
+- Partial credit para preguntas fill_in: opcion strict/partial en ExamSetup; la IA asigna score 0.0–1.0; columna `partial_score real` en `exam_questions`; calculo de nota proporcional
+- Grading delegado a app-api: endpoint `POST /exams/grade-fill-in` en app-api; el submit route de app-web ya no llama a OpenAI directamente
+- LangBadge: emojis de banderas reemplazados por badges de texto (EN, ES, CA, FR, DE, PT, IT) — fiables en Windows donde los emojis de bandera no tienen representacion visual
+- canonical_subject en ingles: la IA normaliza el nombre del tema en ingles para agrupar correctamente en stats cross-idioma
+- Validacion de grounding: segunda llamada a la IA cuando hay documento adjunto para verificar que las preguntas estan basadas en el documento
+- Cognitive Distribution en Advanced: seccion colapsable con toggle (estilo timer), steppers de cuenta de preguntas (no porcentajes), barra proporcional, auto-distribucion, validacion con status bar verde/naranja + boton auto-distribute + submit deshabilitado si invalido
+- Custom Instructions en Advanced: textarea libre para instrucciones adicionales con prioridad maxima en el prompt
+- Deteccion de matematicas (has_math): la IA marca preguntas con `has_math: boolean`; columna en DB; teclado virtual de simbolos matematicos (Basic/Greek/Calculus/Chemistry) en preguntas fill_in
+- Render de formulas con KaTeX: componente `MathText` que parsea `$...$` y renderiza con KaTeX; aplicado en ExamInProgress (pregunta + opciones) y ExamResults (pregunta, respuesta, correccion, explicacion); la IA usa `$...$` para formulas
+- Subida de foto de procedimiento: para preguntas fill_in, boton "Upload photo of handwritten work"; preview local; submit via FormData; upload a Supabase Storage bucket privado `exam-answers`; signed URL 300s para la IA; GPT-4o vision evalua la foto; columna `answer_image_url text` en DB
+- Migraciones SQL aplicadas: `grading_mode text` en `exams`, `language text` en `exams`, `partial_score real` en `exam_questions`, `has_math boolean` en `exam_questions`, `answer_image_url text` en `exam_questions`, bucket privado `exam-answers` con RLS policies
+- UI/UX polish: alineacion vertical con `flex items-center`/`items-baseline`, toggles con `top-[3px] left-[3px]`, idiomas en `grid grid-cols-4`, separadores con gap en lugar de margin
+
+**Decisiones tomadas:**
+- Grading delegado a app-api (no OpenAI directo desde Next.js) para centralizar logica de evaluacion y no exponer la API key en el cliente
+- LangBadge con texto en lugar de emojis de bandera: los emojis de bandera no tienen representacion visual en Windows, los badges de texto son universales y semanticamente equivalentes
+- canonical_subject normalizado en ingles por la IA: garantiza agrupacion correcta en stats cuando el usuario mezcla idiomas entre sesiones
+- Foto de procedimiento con signed URL de 300s: el bucket es privado por seguridad; la URL efimera se pasa directamente a GPT-4o vision en la misma llamada de grading
+
+**Problemas encontrados:**
+- Emojis de bandera en Windows no tienen representacion visual — resuelto con LangBadge de texto
+
+**Lecciones capturadas:** no
+
+**Siguiente:** Verificar el modulo de examen en navegador end-to-end (flujo completo: crear examen → responder → grading → resultados → PDF) y aplicar las migraciones SQL pendientes en Supabase si aun no estan aplicadas
+
+---
+
 ## Sesion 2026-03-28 — F3-M4 + F3-M5 completados · Fase 3 CERRADA
 
 **Completado:**
