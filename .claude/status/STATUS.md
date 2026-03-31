@@ -8,12 +8,11 @@
 ## Estado actual
 
 **Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones de sesión 2026-03-31
-**Milestone activo:** ninguno — sesión 2026-03-31 cerrada. Siguiente: F4-M1 Problem Solver
-**Tarea activa:** ninguna
-**Último hito cerrado:** F3-M5 ✅ (2026-03-28) + visor PDF-like + AI document-level edits (2026-03-31)
+**Milestone activo:** IA-M2 completado (sesión 2026-03-31 continuada)
+**Tarea activa:** ninguna — IA-M1 e IA-M2 completados. Siguiente: IA-M3 (multi-modelo, futuro) o F4-M1 Problem Solver
+**Último hito cerrado:** IA-M2 ✅ (2026-03-31) — gestión dinámica de bloques
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
-**Rama activa:** main (commits d1c00c6, d5f1668 mergeados)
-**Sesión cerrada:** 2026-03-31
+**Rama activa:** session/2026-03-31
 **Bloqueantes:** ninguno técnico.
 
 **Completado sesión 2026-03-31:**
@@ -21,6 +20,10 @@
 - Mejoras A-E al visor: (A) `lib/katex-macros.ts` constante compartida, (B) preview KaTeX en chips BlockReference, (C) contadores undo/redo en toolbar, (D) scroll automático al bloque editado tras Apply, (E) fix replace Nth-occurrence para bloques con latex_source idéntico.
 - Fixes del reviewer: zoom wrapper con altura visual explícita, FormatToolbar dentro de !hideToolbar, IDs duplicados en multicols corregidos, botón redo usa redoCount state, fix color texto negro sobre hoja blanca.
 - AI edita el documento vía prompts del chat: método `editDocument()` en AIProvider con JSON mode (clasifica entre edición de documento y respuesta conversacional), ruta `POST /latex/edit-document` en app-api, route handler `POST /api/documents/[id]/chat-edit` en app-web, LatexViewer prop `pendingDocumentEdit` con banner "AI preview" + outline indigo, ChatPanel con `DocumentEditPreviewCard` (Apply/Discard), page.tsx con estado y wiring completo.
+
+**Completado sesión 2026-03-31 (continuada) — IA-M1 e IA-M2:**
+- IA-M1 Fundamentos robustos: sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser), prevalidación LaTeX del Flujo C antes de mostrar preview (chat-edit route compila antes de retornar), persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant), historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory).
+- IA-M2 Gestión dinámica de bloques: UI en el visor (BlockActionBar en LatexBlock) para añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección), eliminar bloque (con confirmación), reordenar (subir/bajar), reconstructLatexFromBlocks() en parser reconstituye LaTeX completo desde Block[], newBlockLatex() genera placeholders, onBlockMutation prop en LatexViewer dispara compile+persist vía /api/documents/[id]/compile en page.tsx.
 
 **Pendiente operacional (no bloqueante para Fase 4):**
 - Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])

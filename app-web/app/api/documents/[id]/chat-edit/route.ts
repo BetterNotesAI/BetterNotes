@@ -109,6 +109,41 @@ export async function POST(
       ? apiResult.summary
       : 'Document updated';
 
+    // IA-M1: Pre-validate the AI-generated LaTeX by attempting a compile before showing
+    // the preview to the user. If compilation fails, return an error instead of presenting
+    // broken LaTeX. This prevents the "Apply" step from failing with a bad document.
+    try {
+      const validateResp = await fetch(`${API_URL}/latex/compile-only`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
+        },
+        body: JSON.stringify({ latex: apiResult.latex }),
+      });
+
+      if (!validateResp.ok) {
+        const errBody = await validateResp.json().catch(() => ({}));
+        // Save user message was already saved above; save a system error note
+        await supabase.from('chat_messages').insert({
+          document_id: documentId,
+          user_id: user.id,
+          role: 'assistant',
+          content: `[AI edit rejected — LaTeX failed to compile: ${errBody?.error ?? 'compile error'}]`,
+        });
+        return NextResponse.json(
+          {
+            error: `AI generated invalid LaTeX that failed to compile. Try rephrasing your request.`,
+            compileLog: errBody?.compileLog,
+          },
+          { status: 422 }
+        );
+      }
+    } catch (validateErr: any) {
+      // Validation unreachable — skip validation and allow the preview (best-effort)
+      console.warn('[chat-edit] LaTeX pre-validation unavailable:', validateErr.message);
+    }
+
     // Save assistant message with the summary (NOT the full LaTeX)
     await supabase.from('chat_messages').insert({
       document_id: documentId,

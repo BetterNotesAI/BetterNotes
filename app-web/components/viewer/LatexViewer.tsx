@@ -15,8 +15,8 @@
  */
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { parseLatex } from '@/lib/latex-parser';
-import type { Block, BlockType } from '@/lib/latex-parser';
+import { parseLatex, reconstructLatexFromBlocks, newBlockLatex } from '@/lib/latex-parser';
+import type { Block, BlockType, NewBlockType } from '@/lib/latex-parser';
 import LatexBlock from './LatexBlock';
 import { getTemplateProfile } from '@/lib/template-profiles';
 
@@ -28,6 +28,12 @@ export interface BlockReference {
   latex_source: string;
   /** Up to 2 blocks before/after for AI context */
   adjacentBlocks: Array<{ blockId: string; blockType: string; latex_source: string }>;
+  /**
+   * IA-M1: character offsets of this block in the original LaTeX source (after preamble strip).
+   * When present, the edit-block API uses them for unambiguous offset-based substitution.
+   */
+  sourceStart?: number;
+  sourceEnd?: number;
 }
 
 // ─── F3-M4.7: undo/redo history ──────────────────────────────────────────────
@@ -277,6 +283,12 @@ interface LatexViewerProps {
    * and shows an "AI preview" banner at the top of the sheet.
    */
   pendingDocumentEdit?: string | null;
+  /**
+   * IA-M2: called when a structural block mutation (add, delete, reorder) produces
+   * a new full LaTeX string. Unlike onLatexChange (which is used for block AI edits),
+   * this callback triggers a direct compile + persist cycle in the parent.
+   */
+  onBlockMutation?: (newLatex: string) => void;
 }
 
 export default function LatexViewer({
@@ -288,6 +300,7 @@ export default function LatexViewer({
   onLatexChange,
   applyBlockEdit,
   pendingDocumentEdit,
+  onBlockMutation,
 }: LatexViewerProps) {
   // ── Active source: preview takes priority over persisted source ───────────
   const activeLatexSource = pendingDocumentEdit ?? latexSource;
@@ -436,6 +449,99 @@ export default function LatexViewer({
     setEditingBlockId(null);
     setFocusedBlockId(id);
   }, []);
+
+  // ── IA-M2: block management helpers ──────────────────────────────────────
+
+  /**
+   * Reconstruct the full LaTeX from the current block array and notify the parent.
+   * Called after every structural mutation (add, delete, reorder).
+   * Uses onBlockMutation (IA-M2) if available, otherwise falls back to onLatexChange.
+   */
+  const commitBlockMutation = useCallback(
+    (newBlocks: Block[]) => {
+      const notify = onBlockMutation ?? onLatexChange;
+      if (notify) {
+        const reconstructed = reconstructLatexFromBlocks(newBlocks, activeLatexSource);
+        notify(reconstructed);
+      }
+    },
+    [onBlockMutation, onLatexChange, activeLatexSource]
+  );
+
+  /**
+   * Add a new block of the given type after (position='after') or before
+   * (position='before') the block with id `anchorId`.
+   */
+  const handleAddBlock = useCallback(
+    (anchorId: string, type: NewBlockType, position: 'before' | 'after') => {
+      setBlocks((prev) => {
+        pushHistory(prev);
+        const idx = prev.findIndex((b) => b.id === anchorId);
+        if (idx === -1) return prev;
+        const insertAt = position === 'after' ? idx + 1 : idx;
+        const idSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const newBlock: Block = {
+          id: `${type}-${idSuffix}`,
+          type: type === 'formula' ? 'formula-block' : type === 'list' ? 'list' : type === 'section' ? 'section' : 'paragraph',
+          latex_source: newBlockLatex(type),
+          level: type === 'section' ? 1 : undefined,
+        };
+        const next = [...prev.slice(0, insertAt), newBlock, ...prev.slice(insertAt)];
+        // Defer onLatexChange so state updates first
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+    },
+    [pushHistory, commitBlockMutation]
+  );
+
+  /** Delete the block with the given id. Cannot delete col-start/col-end markers. */
+  const handleDeleteBlock = useCallback(
+    (id: string) => {
+      setBlocks((prev) => {
+        const target = prev.find((b) => b.id === id);
+        if (!target || target.type === 'col-start' || target.type === 'col-end') return prev;
+        pushHistory(prev);
+        const next = prev.filter((b) => b.id !== id);
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+      setFocusedBlockId(null);
+      setEditingBlockId(null);
+    },
+    [pushHistory, commitBlockMutation]
+  );
+
+  /**
+   * Move the block with `id` up (direction=-1) or down (direction=1) by one position.
+   * Skips over col-start/col-end markers to avoid breaking multicols structure.
+   */
+  const handleMoveBlock = useCallback(
+    (id: string, direction: -1 | 1) => {
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        if (idx === -1) return prev;
+
+        // Find the target swap index (skip structural markers)
+        let targetIdx = idx + direction;
+        while (
+          targetIdx >= 0 &&
+          targetIdx < prev.length &&
+          (prev[targetIdx].type === 'col-start' || prev[targetIdx].type === 'col-end')
+        ) {
+          targetIdx += direction;
+        }
+        if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+
+        pushHistory(prev);
+        const next = [...prev];
+        [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+    },
+    [pushHistory, commitBlockMutation]
+  );
 
   // ── M3.6: apply format action to focused block ────────────────────────────
   const handleApplyFormat = useCallback(
@@ -601,7 +707,15 @@ export default function LatexViewer({
           adjacent.push({ blockId: nb.id, blockType: nb.type, latex_source: nb.latex_source });
         }
       }
-      return { blockId: b.id, blockType: b.type, latex_source: b.latex_source, adjacentBlocks: adjacent };
+      return {
+        blockId: b.id,
+        blockType: b.type,
+        latex_source: b.latex_source,
+        adjacentBlocks: adjacent,
+        // IA-M1: include parser offsets for robust substitution
+        sourceStart: b.sourceStart,
+        sourceEnd: b.sourceEnd,
+      };
     },
     [blocks]
   );
@@ -794,6 +908,9 @@ export default function LatexViewer({
               onConfirm={handleConfirm}
               onCancel={handleCancelEdit}
               columnGap={profile.layout.columnGap}
+              onAddBlock={handleAddBlock}
+              onDeleteBlock={handleDeleteBlock}
+              onMoveBlock={handleMoveBlock}
             />
             {blocks.length === 0 && (
               <div className="text-gray-400 italic text-sm">
@@ -833,6 +950,10 @@ interface BlockRegionRendererProps {
   onConfirm: (id: string, newSource: string) => void;
   onCancel: (id: string) => void;
   columnGap?: string;
+  // IA-M2: block management
+  onAddBlock?: (id: string, type: NewBlockType, position: 'before' | 'after') => void;
+  onDeleteBlock?: (id: string) => void;
+  onMoveBlock?: (id: string, direction: -1 | 1) => void;
 }
 
 function BlockRegionRenderer({
@@ -846,7 +967,17 @@ function BlockRegionRenderer({
   onConfirm,
   onCancel,
   columnGap = '1.5rem',
+  onAddBlock,
+  onDeleteBlock,
+  onMoveBlock,
 }: BlockRegionRendererProps) {
+  // IA-M2: precompute which indices are first/last non-structural blocks for move buttons
+  const interactiveIndices = blocks
+    .map((b, idx) => ({ b, idx }))
+    .filter(({ b }) => b.type !== 'col-start' && b.type !== 'col-end' && b.type !== 'hr');
+  const firstInteractiveIdx = interactiveIndices[0]?.idx ?? -1;
+  const lastInteractiveIdx = interactiveIndices[interactiveIndices.length - 1]?.idx ?? -1;
+
   const regions: React.ReactNode[] = [];
   let i = 0;
 
@@ -859,6 +990,7 @@ function BlockRegionRenderer({
       i++;
       while (i < blocks.length && blocks[i].type !== 'col-end') {
         const b = blocks[i];
+        const bIdx = blocks.indexOf(b);
         inner.push(
           <LatexBlock
             key={b.id}
@@ -871,6 +1003,11 @@ function BlockRegionRenderer({
             onEdit={onEdit}
             onConfirm={onConfirm}
             onCancel={onCancel}
+            onAddBlock={onAddBlock}
+            onDeleteBlock={onDeleteBlock}
+            onMoveBlock={onMoveBlock}
+            canMoveUp={bIdx > firstInteractiveIdx}
+            canMoveDown={bIdx < lastInteractiveIdx}
           />
         );
         i++;
@@ -898,6 +1035,11 @@ function BlockRegionRenderer({
           onEdit={onEdit}
           onConfirm={onConfirm}
           onCancel={onCancel}
+          onAddBlock={onAddBlock}
+          onDeleteBlock={onDeleteBlock}
+          onMoveBlock={onMoveBlock}
+          canMoveUp={i > firstInteractiveIdx}
+          canMoveDown={i < lastInteractiveIdx}
         />
       );
       i++;

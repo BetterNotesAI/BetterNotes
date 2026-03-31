@@ -37,6 +37,9 @@ interface BlockEditPreview {
   originalLatex: string;
   modifiedLatex: string;
   userPrompt: string;
+  /** IA-M1: parser offsets for unambiguous substitution in the route handler. */
+  sourceStart?: number;
+  sourceEnd?: number;
 }
 
 // A pending document-level AI edit preview.
@@ -424,6 +427,11 @@ export function ChatPanel({
   const [editError, setEditError] = useState<string | null>(null);
   const [blockEditPreview, setBlockEditPreview] = useState<BlockEditPreview | null>(null);
 
+  // IA-M1: conversation history for multi-turn block editing.
+  // Accumulates user instructions + AI responses for the currently referenced block.
+  // Reset when blockReference changes (new block selected).
+  const [blockEditHistory, setBlockEditHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+
   // F3-M4.5 / M4.6: apply state
   const [isApplying, setIsApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -438,12 +446,15 @@ export function ChatPanel({
   // Track pendingApplyLatex to trigger persistence after optimistic update
   const pendingApplyLatexRef = useRef<string | null>(null);
   const pendingApplyPreviewRef = useRef<BlockEditPreview | null>(null);
+  // IA-M1: capture history at apply time so the useEffect closure has a stable snapshot
+  const pendingApplyHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
 
-  // When blockReference changes (new block referenced), clear any previous preview
+  // When blockReference changes (new block referenced), clear previous preview + history
   useEffect(() => {
     if (blockReference) {
       setBlockEditPreview(null);
       setEditError(null);
+      setBlockEditHistory([]); // IA-M1: reset history for the new block
     }
   }, [blockReference]);
 
@@ -498,6 +509,8 @@ export function ChatPanel({
     setEditError(null);
     setBlockEditPreview(null);
 
+    const userPrompt = input.trim();
+
     try {
       const resp = await fetch(`/api/documents/${documentId}/edit-block`, {
         method: 'POST',
@@ -507,8 +520,10 @@ export function ChatPanel({
           blockLatex: blockReference.latex_source,
           blockType: blockReference.blockType,
           adjacentBlocks: blockReference.adjacentBlocks,
-          userPrompt: input.trim(),
+          userPrompt,
           fullLatex: latexSource ?? '',
+          // IA-M1: pass accumulated conversation history for multi-turn editing
+          conversationHistory: blockEditHistory,
         }),
       });
 
@@ -519,13 +534,26 @@ export function ChatPanel({
       }
 
       const data = await resp.json();
+      const modifiedLatex = data.modifiedLatex ?? blockReference.latex_source;
+
       setBlockEditPreview({
         blockId: blockReference.blockId,
         blockType: blockReference.blockType,
         originalLatex: blockReference.latex_source,
-        modifiedLatex: data.modifiedLatex ?? blockReference.latex_source,
-        userPrompt: input.trim(),
+        modifiedLatex,
+        userPrompt,
+        // IA-M1: carry offsets from BlockReference → apply payload
+        sourceStart: blockReference.sourceStart,
+        sourceEnd: blockReference.sourceEnd,
       });
+
+      // IA-M1: accumulate this turn in history so follow-up prompts have context
+      setBlockEditHistory((prev) => [
+        ...prev,
+        { role: 'user' as const, content: userPrompt },
+        { role: 'assistant' as const, content: modifiedLatex },
+      ]);
+
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
     } catch (err: unknown) {
@@ -534,7 +562,7 @@ export function ChatPanel({
     } finally {
       setIsEditingBlock(false);
     }
-  }, [blockReference, input, documentId, latexSource]);
+  }, [blockReference, input, documentId, latexSource, blockEditHistory]);
 
   // ── F3-M4.5: Apply block edit ─────────────────────────────────────────────
 
@@ -545,8 +573,9 @@ export function ChatPanel({
 
     // 1. Optimistic update: tell LatexViewer to replace the block visually
     onApplyBlockEdit?.(blockEditPreview.blockId, blockEditPreview.modifiedLatex);
-    // Store ref so we can use it once pendingApplyLatex arrives
+    // Store refs so they're available when pendingApplyLatex arrives
     pendingApplyPreviewRef.current = blockEditPreview;
+    pendingApplyHistoryRef.current = blockEditHistory; // IA-M1: snapshot history at apply time
     // pendingApplyLatex will be updated by parent after LatexViewer fires onLatexChange
   }, [blockEditPreview, documentId, onApplyBlockEdit]);
 
@@ -571,6 +600,10 @@ export function ChatPanel({
             blockLatex: preview.originalLatex,
             modifiedLatex: preview.modifiedLatex,
             fullLatex: pendingApplyLatex,
+            // IA-M1: pass parser offsets for robust substitution
+            sourceStart: preview.sourceStart,
+            sourceEnd: preview.sourceEnd,
+            conversationHistory: pendingApplyHistoryRef.current,
           }),
         });
 
@@ -583,6 +616,9 @@ export function ChatPanel({
           onClearBlockReference?.();
           onApplyPersisted?.();
           pendingApplyPreviewRef.current = null;
+          // IA-M1: reset history after successful apply (block is now in a new state)
+          setBlockEditHistory([]);
+          pendingApplyHistoryRef.current = [];
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Network error';
@@ -600,6 +636,8 @@ export function ChatPanel({
     setBlockEditPreview(null);
     setApplyError(null);
     pendingApplyPreviewRef.current = null;
+    // IA-M1: clear history when user discards (starts fresh next time)
+    setBlockEditHistory([]);
   }, []);
 
   // ── Document-level send (Flujo C) ────────────────────────────────────────

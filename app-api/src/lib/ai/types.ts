@@ -39,6 +39,11 @@ export interface AdjacentBlock {
   latex_source: string;
 }
 
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface EditBlockArgs {
   blockId: string;
   blockLatex: string;
@@ -47,6 +52,8 @@ export interface EditBlockArgs {
   userPrompt: string;
   /** Full document LaTeX for broader context (may be large — provider can truncate). */
   fullLatex: string;
+  /** Prior conversation turns for this block (user instructions + AI responses). Max ~6 turns. */
+  conversationHistory?: ConversationTurn[];
 }
 
 // ─── Document-level AI edit ──────────────────────────────────────────────────

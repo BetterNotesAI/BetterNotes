@@ -452,12 +452,139 @@ function parseLatexInternal(latex: string): Block[] {
 }
 
 /**
+ * Annotate blocks with sourceStart/sourceEnd offsets into the original LaTeX string.
+ * Offsets are absolute (include preamble) so they can be used directly with fullLatex.
+ *
+ * Strategy: for each block, find the Nth occurrence of its latex_source in the full
+ * source, where N equals the number of preceding blocks with the same latex_source.
+ * This is identical to the "robust replace" strategy in LatexViewer (Mejora E).
+ *
+ * Blocks that cannot be located (e.g. col-start/col-end structural markers, or blocks
+ * whose source was transformed during parsing) are left without offsets.
+ */
+function annotateBlockOffsets(blocks: Block[], fullSource: string): void {
+  // Track how many times we've seen each latex_source so far
+  const seenCounts = new Map<string, number>();
+
+  for (const block of blocks) {
+    // Skip structural markers that don't have literal source matches
+    if (block.type === 'col-start' || block.type === 'col-end' || block.type === 'hr') {
+      continue;
+    }
+
+    const source = block.latex_source;
+    if (!source || source.length === 0) continue;
+
+    const occurrenceIndex = seenCounts.get(source) ?? 0;
+    seenCounts.set(source, occurrenceIndex + 1);
+
+    // Find the (occurrenceIndex+1)-th occurrence
+    let searchFrom = 0;
+    let foundIdx = -1;
+    for (let n = 0; n <= occurrenceIndex; n++) {
+      const idx = fullSource.indexOf(source, searchFrom);
+      if (idx === -1) { foundIdx = -1; break; }
+      foundIdx = idx;
+      searchFrom = idx + 1;
+    }
+
+    if (foundIdx !== -1) {
+      block.sourceStart = foundIdx;
+      block.sourceEnd = foundIdx + source.length;
+    }
+  }
+}
+
+/**
  * Public entry point: resets the ID counter then delegates to the internal parser.
  * Always call this (not parseLatexInternal) from outside this module.
  */
 export function parseLatex(latex: string): Block[] {
   _idCounter = 0;
-  return parseLatexInternal(latex);
+  const blocks = parseLatexInternal(latex);
+  // IA-M1: annotate blocks with absolute offsets into the original source
+  annotateBlockOffsets(blocks, latex);
+  return blocks;
+}
+
+// ─── IA-M2: block-level template stubs ──────────────────────────────────────
+
+export type NewBlockType = 'paragraph' | 'formula' | 'list' | 'section';
+
+/** Generate placeholder LaTeX source for a newly inserted block. */
+export function newBlockLatex(type: NewBlockType): string {
+  switch (type) {
+    case 'paragraph':
+      return 'New paragraph text here.';
+    case 'formula':
+      return '\\[\nf(x) = \\int_{a}^{b} g(t)\\, dt\n\\]';
+    case 'list':
+      return '\\begin{itemize}\n  \\item First item\n  \\item Second item\n\\end{itemize}';
+    case 'section':
+      return '\\section{New Section}';
+  }
+}
+
+/**
+ * Reconstruct the full LaTeX source from a Block[] array.
+ * Preserves the original preamble (\documentclass … \begin{document}) and
+ * \end{document} tail. Only the document body (between \begin{document} and
+ * \end{document}) is rebuilt from the blocks.
+ *
+ * col-start blocks are unwrapped (their multicols wrapper is re-emitted around
+ * the consecutive non-col-end blocks). col-end blocks mark the end of the region.
+ * All other blocks are emitted as their latex_source separated by blank lines.
+ */
+export function reconstructLatexFromBlocks(blocks: Block[], originalSource: string): string {
+  // Extract preamble up to and including \begin{document}
+  const beginDocTag = '\\begin{document}';
+  const endDocTag = '\\end{document}';
+  const beginIdx = originalSource.indexOf(beginDocTag);
+  const preamble = beginIdx !== -1
+    ? originalSource.slice(0, beginIdx + beginDocTag.length)
+    : '';
+
+  // Reconstruct body
+  const lines: string[] = [];
+  let i = 0;
+
+  while (i < blocks.length) {
+    const block = blocks[i];
+
+    if (block.type === 'col-start') {
+      // The col-start block's latex_source is the column count as a string (from parser).
+      // We re-wrap the enclosed blocks in \begin{multicols}{N}...\end{multicols}.
+      const colCount = parseInt(block.latex_source) || 2;
+      lines.push(`\\begin{multicols}{${colCount}}`);
+      i++;
+      while (i < blocks.length && blocks[i].type !== 'col-end') {
+        const inner = blocks[i];
+        if (inner.latex_source.trim()) {
+          lines.push(inner.latex_source);
+        }
+        i++;
+      }
+      lines.push('\\end{multicols}');
+      i++; // skip col-end
+    } else if (block.type === 'col-end' || block.type === 'hr') {
+      // hr → emit the rule; col-end is handled above
+      if (block.type === 'hr') lines.push('\\hrule');
+      i++;
+    } else {
+      if (block.latex_source.trim()) {
+        lines.push(block.latex_source);
+      }
+      i++;
+    }
+  }
+
+  const body = lines.join('\n\n');
+
+  if (preamble) {
+    return `${preamble}\n${body}\n${endDocTag}`;
+  }
+  // No preamble found — return body as-is (fallback for bare LaTeX fragments)
+  return body;
 }
 
 /**

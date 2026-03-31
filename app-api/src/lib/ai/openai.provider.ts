@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput } from './types';
+import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput, ConversationTurn } from './types';
 import type { ProcessedAttachment } from '../attachments';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
@@ -326,12 +326,14 @@ export class OpenAIProvider implements AIProvider {
     const system = [
       'You are BetterNotes AI, an expert LaTeX editor.',
       'You will receive a single LaTeX block (fragment) and a user instruction.',
+      'There may also be a prior conversation history for refinements to the same block.',
       'OUTPUT RULES:',
       '- Return ONLY the modified LaTeX fragment — not the full document.',
       '- Do NOT include \\documentclass, \\begin{document}, or any preamble.',
       '- Do NOT wrap the output in markdown fences or backticks.',
       '- Preserve the block type: if it is a formula-block, keep it as a formula-block; if it is a paragraph, keep it as a paragraph; etc.',
       '- Apply the user instruction precisely and minimally — change only what is asked.',
+      '- When there is conversation history, the most recent assistant turn represents the current state of the block; apply the new instruction on top of it.',
       '- If the instruction is unclear or impossible, return the original block unchanged.',
       '- NEVER output explanations, only LaTeX source.',
     ].join('\n');
@@ -349,25 +351,42 @@ export class OpenAIProvider implements AIProvider {
       ? `\n\n=== FULL DOCUMENT (first 3000 chars, context only) ===\n${args.fullLatex.slice(0, 3000)}`
       : '';
 
-    const userContent = [
+    // Build the initial user message with block + context (sent before any history)
+    const initialUserContent = [
       `=== BLOCK TO EDIT (type: ${args.blockType}) ===`,
       args.blockLatex,
-      '',
-      `=== USER INSTRUCTION ===`,
-      args.userPrompt,
       adjacentContext,
       fullLatexSnippet,
-      '',
-      'Return ONLY the modified block LaTeX — nothing else.',
     ].join('\n');
+
+    // Build message array: system → initial context → history turns → current instruction
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: system },
+      { role: 'user', content: initialUserContent },
+    ];
+
+    // Inject prior conversation turns (max 6 to keep token cost low)
+    const history: ConversationTurn[] = args.conversationHistory ?? [];
+    const recentHistory = history.slice(-6);
+    for (const turn of recentHistory) {
+      messages.push({ role: turn.role, content: turn.content });
+    }
+
+    // Append the new instruction as the latest user message
+    messages.push({
+      role: 'user',
+      content: [
+        `=== USER INSTRUCTION ===`,
+        args.userPrompt,
+        '',
+        'Return ONLY the modified block LaTeX — nothing else.',
+      ].join('\n'),
+    });
 
     const resp = await this.client.chat.completions.create({
       model: this.model,
       temperature: 0.2,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userContent },
-      ],
+      messages,
     });
 
     const raw = resp.choices?.[0]?.message?.content ?? '';

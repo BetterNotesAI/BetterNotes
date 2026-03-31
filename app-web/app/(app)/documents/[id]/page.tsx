@@ -130,6 +130,8 @@ export default function DocumentWorkspacePage() {
   const [savedAgoLabel, setSavedAgoLabel] = useState<string | null>(null);
   // Document-level AI edit preview (Flujo C)
   const [pendingDocumentEdit, setPendingDocumentEdit] = useState<string | null>(null);
+  // IA-M2: block mutation in progress (compile + persist)
+  const [isBlockMutating, setIsBlockMutating] = useState(false);
 
   // F3-M5.2: Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -402,6 +404,36 @@ export default function DocumentWorkspacePage() {
     setPendingDocumentEdit(null);
     setLastSavedAt(new Date());
   }, [documentId, reloadDocument]);
+
+  /**
+   * IA-M2: handle structural block mutations (add, delete, reorder).
+   * Compiles the new LaTeX and persists it as a new version.
+   * Uses the existing /api/documents/[id]/compile route.
+   */
+  const handleBlockMutation = useCallback(async (newLatex: string) => {
+    if (isBlockMutating) return; // debounce concurrent calls
+    setIsBlockMutating(true);
+    try {
+      const res = await fetch(`/api/documents/${documentId}/compile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latex: newLatex }),
+      });
+      if (!res.ok) {
+        // Non-fatal: the viewer already applied the change locally; just don't persist
+        console.warn('[IA-M2] Block mutation compile failed:', await res.json().catch(() => ({})));
+        return;
+      }
+      const { pdfUrl } = await res.json();
+      await reloadDocument();
+      if (pdfUrl) setCurrentPdfUrl(pdfUrl);
+      setLastSavedAt(new Date());
+    } catch (err) {
+      console.warn('[IA-M2] Block mutation error:', err);
+    } finally {
+      setIsBlockMutating(false);
+    }
+  }, [documentId, isBlockMutating, reloadDocument]);
 
   if (isLoading && !docData) {
     return (
@@ -719,7 +751,12 @@ export default function DocumentWorkspacePage() {
 
             {/* Interactive viewer (F3-M2.6) */}
             {viewerTab === 'interactive' && latexContent && (
-              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto transition-opacity duration-200">
+              <div className="relative flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto transition-opacity duration-200">
+                {isBlockMutating && (
+                  <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
+                    <span className="animate-spin inline-block">⟳</span> Saving…
+                  </div>
+                )}
                 <LatexViewer
                   latexSource={latexContent}
                   templateId={docData.template_id}
@@ -735,6 +772,7 @@ export default function DocumentWorkspacePage() {
                     setPendingApplyLatex(newLatex);
                   }}
                   pendingDocumentEdit={pendingDocumentEdit}
+                  onBlockMutation={handleBlockMutation}
                 />
               </div>
             )}
