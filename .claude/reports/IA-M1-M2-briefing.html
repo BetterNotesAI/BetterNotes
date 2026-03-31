@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterNotes — IA-M1 &amp; IA-M2 Completados</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 2.5rem 2rem;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+      border-radius: 16px;
+      border: 1px solid rgba(99,102,241,0.3);
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.2) 0%, transparent 70%);
+    }
+    .header-content { position: relative; z-index: 1; }
+    .badge {
+      display: inline-block;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.4);
+      color: #a5b4fc;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.75rem;
+      border-radius: 100px;
+      margin-bottom: 1rem;
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+    .header .subtitle {
+      color: #a5b4fc;
+      font-size: 1rem;
+    }
+    .header .date {
+      color: #6b7280;
+      font-size: 0.8rem;
+      margin-top: 0.75rem;
+    }
+
+    /* Milestone cards */
+    .milestone-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 640px) { .milestone-grid { grid-template-columns: 1fr; } }
+    .milestone-card {
+      background: #1a1a2e;
+      border: 1px solid #2d2d44;
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .milestone-card.ia-m1 { border-color: rgba(99,102,241,0.4); }
+    .milestone-card.ia-m2 { border-color: rgba(16,185,129,0.4); }
+    .milestone-card .m-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+    .ia-m1 .m-badge { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .ia-m2 .m-badge { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .milestone-card h2 { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .milestone-card p { font-size: 0.82rem; color: #94a3b8; line-height: 1.6; margin-bottom: 1rem; }
+    .feature-list { list-style: none; }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list li::before {
+      content: '✓';
+      color: #6ee7b7;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 0.05rem;
+    }
+
+    /* Architecture section */
+    .section {
+      background: #1a1a2e;
+      border: 1px solid #2d2d44;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .section h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+    }
+
+    /* Change table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th {
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.4rem 0.75rem;
+      border-bottom: 1px solid #2d2d44;
+    }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: #cbd5e1; }
+    tr:last-child td { border-bottom: none; }
+    .tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .tag-backend { background: rgba(234,88,12,0.2); color: #fb923c; }
+    .tag-frontend { background: rgba(14,165,233,0.2); color: #38bdf8; }
+    .tag-parser { background: rgba(168,85,247,0.2); color: #c084fc; }
+    .tag-api { background: rgba(250,204,21,0.2); color: #fbbf24; }
+
+    /* Flow diagrams */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+    .flow-step {
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.72rem;
+      color: #a5b4fc;
+    }
+    .flow-arrow { color: #4b5563; font-size: 0.8rem; }
+
+    /* Reviewer notes */
+    .reviewer-box {
+      background: rgba(234,179,8,0.07);
+      border: 1px solid rgba(234,179,8,0.25);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .reviewer-box h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #fbbf24;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .reviewer-box ul { list-style: none; }
+    .reviewer-box li {
+      font-size: 0.78rem;
+      color: #e2c875;
+      padding: 0.2rem 0;
+    }
+    .reviewer-box li::before { content: '⚠ '; }
+
+    /* Next steps */
+    .next-box {
+      background: rgba(16,185,129,0.07);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .next-box h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #6ee7b7;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.75rem;
+    }
+    .next-box ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    @media (max-width: 520px) { .next-box ul { grid-template-columns: 1fr; } }
+    .next-box li {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: #a7f3d0;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.15);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+    }
+    .next-box li::before { content: '→'; color: #6ee7b7; }
+
+    /* Commit info */
+    .commit-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: #111118;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-top: 1.25rem;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    .commit-hash { font-family: monospace; color: #a5b4fc; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <div class="badge">BetterNotes — Visor Interactivo</div>
+      <h1>IA-M1 &amp; IA-M2 Completados</h1>
+      <div class="subtitle">Fundamentos robustos + Gestión dinámica de bloques</div>
+      <div class="date">Sesión 2026-03-31 · Rama session/2026-03-31</div>
+    </div>
+  </div>
+
+  <!-- Milestone Cards -->
+  <div class="milestone-grid">
+    <div class="milestone-card ia-m1">
+      <div class="m-badge">IA-M1</div>
+      <h2>Fundamentos Robustos</h2>
+      <p>Mejoras de fiabilidad e inteligencia en la edición de bloques por IA.</p>
+      <ul class="feature-list">
+        <li>Sustitución por offsets sourceStart/sourceEnd (annotateBlockOffsets)</li>
+        <li>Prevalidación LaTeX del Flujo C antes del preview</li>
+        <li>Persistencia de block-edits en chat_messages</li>
+        <li>Historial de conversación en editBlock() — refinamiento iterativo</li>
+        <li>BlockReference y BlockEditPreview llevan offsets al apply</li>
+        <li>Fallback robusto a string.replace() cuando offsets no disponibles</li>
+      </ul>
+    </div>
+    <div class="milestone-card ia-m2">
+      <div class="m-badge">IA-M2</div>
+      <h2>Gestión Dinámica de Bloques</h2>
+      <p>UI para añadir, eliminar y reordenar bloques directamente en el visor.</p>
+      <ul class="feature-list">
+        <li>BlockActionBar: aparece al enfocar cualquier bloque interactivo</li>
+        <li>Añadir bloque arriba/abajo (párrafo, fórmula, lista, sección)</li>
+        <li>Eliminar bloque con confirmación nativa</li>
+        <li>Subir/bajar bloque (omite col-start/col-end)</li>
+        <li>reconstructLatexFromBlocks() en parser — reconstruye .tex completo</li>
+        <li>onBlockMutation → compile + persist automático vía /api/compile</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Files changed -->
+  <div class="section">
+    <h3>Archivos Modificados</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Archivo</th>
+          <th>Capa</th>
+          <th>Cambio principal</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>lib/latex-parser.ts</td>
+          <td><span class="tag tag-parser">parser</span></td>
+          <td>annotateBlockOffsets(), reconstructLatexFromBlocks(), newBlockLatex()</td>
+        </tr>
+        <tr>
+          <td>components/viewer/LatexBlock.tsx</td>
+          <td><span class="tag tag-frontend">frontend</span></td>
+          <td>BlockActionBar, AddBlockMenu, props onAddBlock/onDeleteBlock/onMoveBlock</td>
+        </tr>
+        <tr>
+          <td>components/viewer/LatexViewer.tsx</td>
+          <td><span class="tag tag-frontend">frontend</span></td>
+          <td>handleAddBlock/Delete/Move, commitBlockMutation, onBlockMutation prop, BlockReference offsets</td>
+        </tr>
+        <tr>
+          <td>app/(app)/documents/[id]/page.tsx</td>
+          <td><span class="tag tag-frontend">frontend</span></td>
+          <td>handleBlockMutation (compile+persist), isBlockMutating spinner, onBlockMutation wiring</td>
+        </tr>
+        <tr>
+          <td>app/(app)/documents/_components/ChatPanel.tsx</td>
+          <td><span class="tag tag-frontend">frontend</span></td>
+          <td>blockEditHistory state, conversationHistory en preview+apply, sourceStart/sourceEnd forwarding</td>
+        </tr>
+        <tr>
+          <td>app/api/documents/[id]/edit-block/route.ts</td>
+          <td><span class="tag tag-api">API route</span></td>
+          <td>Strategy A (offset) + B (string.replace) substitution, chat_messages persist, conversationHistory</td>
+        </tr>
+        <tr>
+          <td>app/api/documents/[id]/chat-edit/route.ts</td>
+          <td><span class="tag tag-api">API route</span></td>
+          <td>Pre-validación via compile-only antes de retornar preview al usuario</td>
+        </tr>
+        <tr>
+          <td>app-api/src/lib/ai/types.ts</td>
+          <td><span class="tag tag-backend">backend</span></td>
+          <td>ConversationTurn interface, conversationHistory? en EditBlockArgs</td>
+        </tr>
+        <tr>
+          <td>app-api/src/lib/ai/openai.provider.ts</td>
+          <td><span class="tag tag-backend">backend</span></td>
+          <td>editBlock() usa historial multi-turn con messages array (system → context → history → nueva instrucción)</td>
+        </tr>
+        <tr>
+          <td>app-api/src/routes/edit-block.ts</td>
+          <td><span class="tag tag-backend">backend</span></td>
+          <td>conversationHistory en EditBlockBody, forwarding al provider</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- IA-M1 Flow -->
+  <div class="section">
+    <h3>IA-M1 — Flujo de Sustitución Robusto</h3>
+    <p style="font-size:0.8rem;color:#94a3b8;margin-bottom:0.75rem;">
+      Antes: <code style="color:#f87171">fullLatex.replace(blockLatex, modified)</code> — podía sustituir la instancia equivocada en documentos con bloques duplicados.<br/>
+      Ahora: Estrategia A (offsets) cuando están disponibles, Estrategia B (fallback) en caso contrario.
+    </p>
+    <div class="flow">
+      <div class="flow-step">parseLatex()</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">annotateBlockOffsets()</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Block.sourceStart/End</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">BlockReference.sourceStart/End</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">ChatPanel → apply API</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">slice(0, start) + modified + slice(end)</div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">IA-M1 — Flujo de Historial Multi-Turn</h3>
+    <div class="flow">
+      <div class="flow-step">User envia prompt 1</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">blockEditHistory: [{user, p1}]</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Discard → history reset</div>
+    </div>
+    <div class="flow" style="margin-top:0.4rem;">
+      <div class="flow-step">User envia prompt 2 (mismo bloque)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">history: [{u,p1},{a,r1},{u,p2}]</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">editBlock() con multi-turn context</div>
+    </div>
+  </div>
+
+  <!-- IA-M2 Flow -->
+  <div class="section">
+    <h3>IA-M2 — Flujo de Mutación de Bloques</h3>
+    <div class="flow">
+      <div class="flow-step">Click bloque → isFocused</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">BlockActionBar visible</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">User elige acción</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">handleAdd/Delete/Move</div>
+    </div>
+    <div class="flow" style="margin-top:0.4rem;">
+      <div class="flow-step">pushHistory(prev)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">setBlocks(next)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">reconstructLatexFromBlocks()</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">onBlockMutation(newLatex)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">POST /api/compile</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">nueva versión persistida</div>
+    </div>
+    <p style="font-size:0.75rem;color:#64748b;margin-top:0.75rem;">
+      Nota: mutaciones son optimistas — el visor se actualiza inmediatamente. La compilación/persistencia es asíncrona con spinner "Saving…".
+      Ctrl+Z deshace la mutación en el visor (el historial de compilación sigue intacto en versiones DB).
+    </p>
+  </div>
+
+  <!-- Reviewer notes -->
+  <div class="reviewer-box">
+    <h4>Notas del Reviewer</h4>
+    <ul>
+      <li>annotateBlockOffsets no localiza bloques cuyo latex_source fue transformado por el parser (formula-block sin delimitadores, títulos limpios). Fallback a string.replace() — comportamiento correcto.</li>
+      <li>commitBlockMutation usa setTimeout(fn, 0) + cierre sobre activeLatexSource: raza teórica si dos mutaciones se disparan en menos de 1 frame. Riesgo aceptable — mutaciones requieren clicks del usuario.</li>
+      <li>Botón eliminar usa confirm() nativo. Funcional para MVP; mejorar a modal custom en iteración futura.</li>
+      <li>TypeScript limpio en app-web y app-api. Único error pre-existente: fflate en folder download (no introducido por esta sesión).</li>
+    </ul>
+  </div>
+
+  <!-- Next steps -->
+  <div class="next-box">
+    <h3>Siguientes Pasos</h3>
+    <ul>
+      <li>IA-M3 Multi-modelo (futuro)</li>
+      <li>F4-M1 Problem Solver</li>
+      <li>Migración SQL F3-M5 en Supabase</li>
+      <li>OPENAI_API_KEY en Vercel</li>
+      <li>Rebuild Docker app-api</li>
+      <li>Modal custom para delete block</li>
+    </ul>
+  </div>
+
+  <!-- Commit -->
+  <div class="commit-info">
+    <span>Commit:</span>
+    <span class="commit-hash">9837350</span>
+    <span>·</span>
+    <span>feat(viewer): IA-M1 robust block edit + IA-M2 dynamic block management</span>
+    <span>·</span>
+    <span>11 archivos · +739 / -48</span>
+  </div>
+
+</div>
+</body>
+</html>

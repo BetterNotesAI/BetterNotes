@@ -91,4 +91,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-31 (cierre de sesión) — Sesión post-F3: visor PDF-like con perfiles de plantilla, mejoras A-E al visor interactivo, AI document-level edit con preview/confirm/discard. Commits: d1c00c6, d5f1668. Rama main actualizada. Siguiente: F4-M1 Problem Solver.*
+*Última actualización: 2026-03-31 (cierre de sesión extendida) — IA-M1 (sustitución offset-based, prevalidación LaTeX, historial conversación, persistencia chat_messages) e IA-M2 (BlockActionBar, add/delete/reorder bloques, reconstructLatexFromBlocks) completados. Commits: d1c00c6, d5f1668, 9837350. Pendiente verificación funcional por usuario. Siguiente: verificar IA-M1/M2 en navegador → F4-M1 Problem Solver o IA-M3 multi-modelo.*

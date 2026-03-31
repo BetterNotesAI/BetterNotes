@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-28 (cierre de sesión) — Fase 3 COMPLETA ✅. F3-M4 (chat contextual) y F3-M5 (Publish + polish) completados. Rama f3-m4-chat-contextual pendiente de verificación en navegador antes de merge a main. Pendiente operacional: migración SQL F3-M5 en Supabase + OPENAI_API_KEY en Vercel._
+_Última actualización: 2026-03-31 (cierre de sesión) — IA-M1 (fundamentos robustos de edición IA) e IA-M2 (gestión dinámica de bloques) completados. Pendiente verificación funcional por el usuario. Pendiente operacional: migración SQL F3-M5 en Supabase + OPENAI_API_KEY en Vercel + rebuild Docker app-api. IA-M3 (multi-modelo) queda para sesión futura._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -232,6 +232,39 @@ _Criterio de aceptación: El usuario puede referenciar un fragmento, pedir a la 
 - [x] F3-M5.4 — Accesibilidad LatexBlock: tabIndex=0, role="article", Enter/Space abre edición, aria-label en todos los tipos de bloque · COMPLETADO
 
 _Criterio de aceptación: Documento publicable a My Studies con keywords auto-generadas. Visor con polish visual y accesibilidad básica. TODOS CUMPLIDOS._
+
+---
+
+## Extensiones post-F3 — IA Visor Interactivo
+
+### IA-M1 — Fundamentos robustos de edición IA ✅ COMPLETADO (2026-03-31)
+
+- [x] Sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser)
+- [x] Prevalidación LaTeX en Flujo C: chat-edit route compila antes de retornar el preview
+- [x] Persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant)
+- [x] Historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory)
+
+_Pendiente: verificación funcional en navegador por el usuario._
+
+---
+
+### IA-M2 — Gestión dinámica de bloques ✅ COMPLETADO (2026-03-31)
+
+- [x] BlockActionBar en LatexBlock: añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección)
+- [x] Eliminar bloque con confirmación
+- [x] Reordenar bloques (subir/bajar)
+- [x] reconstructLatexFromBlocks() en parser: reconstituye LaTeX completo desde Block[]
+- [x] newBlockLatex() genera placeholders por tipo
+- [x] onBlockMutation prop en LatexViewer: dispara compile+persist vía /api/documents/[id]/compile
+
+_Pendiente: verificación funcional en navegador por el usuario._
+
+---
+
+### IA-M3 — Multi-modelo
+_Para sesión futura._
+
+Permitir al usuario elegir modelo IA (gpt-4o-mini, gpt-4o, Claude, etc.) por documento o globalmente. Requiere refactor del AIProvider para soportar múltiples proveedores.
 
 ---
 
