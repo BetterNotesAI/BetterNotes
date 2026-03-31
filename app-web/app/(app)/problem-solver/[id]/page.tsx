@@ -6,27 +6,11 @@ import { createClient } from '@/lib/supabase/client';
 import { PdfViewer } from '@/app/(app)/documents/_components/PdfViewer';
 import { SolutionPanel } from '../_components/SolutionPanel';
 import { ProblemPublishModal } from '../_components/ProblemPublishModal';
-import { SubChatDrawer } from '../_components/SubChatDrawer';
-import { SubChatBubble } from '../_components/SubChatBubble';
 import type { SessionStatus, ProblemSession } from '../_components/SessionCard';
-import type { SubChatMessage } from '../_components/SubChatDrawer';
 
 const DEFAULT_RIGHT_PANEL_WIDTH_PCT = 50;
 const MIN_RIGHT_PANEL_WIDTH_PCT = 35;
 const MAX_RIGHT_PANEL_WIDTH_PCT = 70;
-
-// ---------------------------------------------------------------------------
-// Sub-chat types
-// ---------------------------------------------------------------------------
-
-interface SubChat {
-  id: string;
-  session_id: string;
-  title: string;
-  is_minimized: boolean;
-  created_at: string;
-  messages: SubChatMessage[];
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,9 +83,8 @@ export default function ProblemSessionPage() {
   // Publish modal
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
-  // Sub-chats
-  const [subChats, setSubChats] = useState<SubChat[]>([]);
-  const [activeSubChatId, setActiveSubChatId] = useState<string | null>(null);
+  // Inline chat — selected text context
+  const [selectedContext, setSelectedContext] = useState<string | null>(null);
 
   // Resizable split layout
   const [rightPanelWidthPct, setRightPanelWidthPct] = useState(DEFAULT_RIGHT_PANEL_WIDTH_PCT);
@@ -134,24 +117,6 @@ export default function ProblemSessionPage() {
       }
     }
     loadSession();
-  }, [sessionId]);
-
-  // ---------------------------------------------------------------------------
-  // Load sub-chats
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    async function loadSubChats() {
-      try {
-        const res = await fetch(`/api/problem-solver/sessions/${sessionId}/sub-chats`);
-        if (!res.ok) return;
-        const data = await res.json() as { subChats: SubChat[] };
-        setSubChats(data.subChats ?? []);
-      } catch {
-        // Non-critical
-      }
-    }
-    loadSubChats();
   }, [sessionId]);
 
   // ---------------------------------------------------------------------------
@@ -274,77 +239,6 @@ export default function ProblemSessionPage() {
     } catch {
       // Optimistic update stays
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Sub-chat actions
-  // ---------------------------------------------------------------------------
-
-  async function handleAskQuestion() {
-    try {
-      const res = await fetch(`/api/problem-solver/sessions/${sessionId}/sub-chats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Question' }),
-      });
-      if (!res.ok) return;
-      const data = await res.json() as { subChat: Omit<SubChat, 'messages'> };
-      const newSubChat: SubChat = { ...data.subChat, messages: [] };
-      setSubChats((prev) => [...prev, newSubChat]);
-      setActiveSubChatId(newSubChat.id);
-    } catch {
-      // Silently fail
-    }
-  }
-
-  async function handleMinimizeSubChat(scId: string) {
-    setActiveSubChatId(null);
-    setSubChats((prev) =>
-      prev.map((sc) => (sc.id === scId ? { ...sc, is_minimized: true } : sc)),
-    );
-    try {
-      await fetch(`/api/problem-solver/sessions/${sessionId}/sub-chats/${scId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_minimized: true }),
-      });
-    } catch {
-      // Optimistic update stays
-    }
-  }
-
-  async function handleExpandSubChat(scId: string) {
-    setSubChats((prev) =>
-      prev.map((sc) => (sc.id === scId ? { ...sc, is_minimized: false } : sc)),
-    );
-    setActiveSubChatId(scId);
-    try {
-      await fetch(`/api/problem-solver/sessions/${sessionId}/sub-chats/${scId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_minimized: false }),
-      });
-    } catch {
-      // Optimistic update stays
-    }
-  }
-
-  async function handleDeleteSubChat(scId: string) {
-    setSubChats((prev) => prev.filter((sc) => sc.id !== scId));
-    if (activeSubChatId === scId) setActiveSubChatId(null);
-    try {
-      await fetch(`/api/problem-solver/sessions/${sessionId}/sub-chats/${scId}`, {
-        method: 'DELETE',
-      });
-    } catch {
-      // Optimistic update stays
-    }
-  }
-
-  function handleSubChatMessagesUpdate(scId: string, messages: SubChatMessage[]) {
-    setSubChats((prev) =>
-      prev.map((sc) => (sc.id === scId ? { ...sc, messages } : sc)),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -608,49 +502,18 @@ export default function ProblemSessionPage() {
           style={{ width: `${rightPanelWidthPct}%` }}
         >
           <SolutionPanel
+            sessionId={sessionId}
             solutionMd={displayMd}
             status={activeStatus}
             isStreaming={isStreaming}
             onSolve={handleSolve}
-            onAskQuestion={handleAskQuestion}
+            selectedContext={selectedContext}
+            onTextSelect={setSelectedContext}
+            onClearContext={() => setSelectedContext(null)}
           />
         </div>
 
-        {/* SubChatDrawer — fixed overlay from the right edge */}
-        {activeSubChatId && (() => {
-          const activeSubChat = subChats.find((sc) => sc.id === activeSubChatId);
-          if (!activeSubChat) return null;
-          return (
-            <SubChatDrawer
-              sessionId={sessionId}
-              subChatId={activeSubChat.id}
-              title={activeSubChat.title}
-              messages={activeSubChat.messages}
-              onClose={() => handleDeleteSubChat(activeSubChat.id)}
-              onMinimize={() => handleMinimizeSubChat(activeSubChat.id)}
-              onMessagesUpdate={(msgs) => handleSubChatMessagesUpdate(activeSubChat.id, msgs)}
-            />
-          );
-        })()}
       </div>
-
-      {/* SubChatBubbles — fixed bottom-right stack for minimized sub-chats */}
-      {subChats.filter((sc) => sc.is_minimized && sc.id !== activeSubChatId).length > 0 && (
-        <div className="fixed bottom-6 right-6 z-40 flex flex-col-reverse gap-2 items-end">
-          {subChats
-            .filter((sc) => sc.is_minimized && sc.id !== activeSubChatId)
-            .map((sc) => (
-              <SubChatBubble
-                key={sc.id}
-                subChatId={sc.id}
-                sessionId={sessionId}
-                title={sc.title}
-                onExpand={() => handleExpandSubChat(sc.id)}
-                onDelete={() => handleDeleteSubChat(sc.id)}
-              />
-            ))}
-        </div>
-      )}
 
       {/* F4-M1.6 — Publish Modal */}
       <ProblemPublishModal

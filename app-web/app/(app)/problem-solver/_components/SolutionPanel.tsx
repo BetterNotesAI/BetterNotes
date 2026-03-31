@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { InlineChat } from './InlineChat';
 
 // ---------------------------------------------------------------------------
 // Minimal Markdown → HTML renderer (no external lib)
@@ -178,15 +180,32 @@ function markdownToHtml(md: string): string {
 // ---------------------------------------------------------------------------
 
 interface Props {
+  sessionId: string;
   solutionMd: string | null;
   status: 'pending' | 'solving' | 'done' | 'error';
   isStreaming: boolean;
   onSolve: () => void;
-  onAskQuestion?: () => void;
+  selectedContext: string | null;
+  onTextSelect: (text: string) => void;
+  onClearContext: () => void;
 }
 
-export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQuestion }: Props) {
+export function SolutionPanel({
+  sessionId,
+  solutionMd,
+  status,
+  isStreaming,
+  onSolve,
+  selectedContext,
+  onTextSelect,
+  onClearContext,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const solutionRef = useRef<HTMLDivElement>(null);
+
+  // Selection tooltip
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
 
   // Auto-scroll during streaming
   useEffect(() => {
@@ -195,12 +214,58 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
     }
   }, [solutionMd, isStreaming]);
 
+  const handleMouseUp = useCallback(() => {
+    if (isStreaming) return;
+    const sel = window.getSelection();
+    const text = sel?.toString().trim();
+    if (!text || text.length < 10) {
+      setTooltipPos(null);
+      setPendingSelection(null);
+      return;
+    }
+
+    // Check selection is within our solution div
+    if (solutionRef.current && sel?.rangeCount) {
+      const range = sel.getRangeAt(0);
+      if (!solutionRef.current.contains(range.commonAncestorContainer)) {
+        setTooltipPos(null);
+        setPendingSelection(null);
+        return;
+      }
+    }
+
+    const range = sel?.getRangeAt(0);
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+    setPendingSelection(text);
+  }, [isStreaming]);
+
+  // Hide tooltip on click outside or scroll
+  useEffect(() => {
+    function hide() { setTooltipPos(null); setPendingSelection(null); }
+    document.addEventListener('mousedown', (e) => {
+      const tooltip = document.getElementById('selection-tooltip');
+      if (tooltip && !tooltip.contains(e.target as Node)) hide();
+    });
+    return () => {};
+  }, []);
+
+  function handleAddToChat() {
+    if (pendingSelection) {
+      onTextSelect(pendingSelection);
+      window.getSelection()?.removeAllRanges();
+      setTooltipPos(null);
+      setPendingSelection(null);
+    }
+  }
+
   const html = solutionMd ? markdownToHtml(solutionMd) : null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-6 py-6" onMouseUp={handleMouseUp}>
 
         {/* PENDING state */}
         {status === 'pending' && !solutionMd && (
@@ -241,6 +306,7 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
             {html ? (
               <>
                 <div
+                  ref={solutionRef}
                   className="solution-md"
                   dangerouslySetInnerHTML={{ __html: html }}
                 />
@@ -253,7 +319,7 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                <span className="text-sm text-white/60">AI is working on your solution…</span>
+                <span className="text-sm text-white/60">AI is working on your solution...</span>
               </div>
             )}
           </div>
@@ -262,6 +328,7 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
         {/* DONE state */}
         {status === 'done' && html && !isStreaming && (
           <div
+            ref={solutionRef}
             className="solution-md"
             dangerouslySetInnerHTML={{ __html: html }}
           />
@@ -286,27 +353,40 @@ export function SolutionPanel({ solutionMd, status, isStreaming, onSolve, onAskQ
           </div>
         )}
 
+        {/* Inline chat — below the solution */}
+        {(status === 'done' || (status === 'solving' && solutionMd)) && (
+          <InlineChat
+            sessionId={sessionId}
+            selectedContext={selectedContext}
+            onClearContext={onClearContext}
+          />
+        )}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Footer actions */}
-      {(status === 'done' || status === 'solving') && (
-        <div className="shrink-0 border-t border-white/10 px-6 py-4 flex items-center justify-between gap-3">
+      {/* Selection tooltip — portal */}
+      {tooltipPos && pendingSelection && typeof document !== 'undefined' && createPortal(
+        <div
+          id="selection-tooltip"
+          className="fixed z-[9999] animate-in fade-in duration-150"
+          style={{
+            left: tooltipPos.x,
+            top: tooltipPos.y,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
           <button
-            onClick={onAskQuestion}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/15 hover:border-orange-500/40 bg-white/4 hover:bg-orange-500/10 text-white/60 hover:text-orange-300 text-sm transition-all duration-200"
+            onClick={handleAddToChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-white/20 shadow-xl shadow-black/50 text-white/80 hover:text-orange-300 hover:border-orange-500/40 text-xs font-medium transition-all whitespace-nowrap"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-              />
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Ask a question
+            Add to chat
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <style jsx global>{`
