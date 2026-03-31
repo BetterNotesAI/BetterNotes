@@ -4,32 +4,43 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
-## Sesion 2026-03-31 — Modulo Exams: 14 features implementadas
+## Sesion 2026-03-31 — Modulo Exams: features + polish post-commit
 
-**Completado:**
+**Completado (features principales — antes del commit de exams):**
 - Color theme del modulo de examen cambiado de amarillo a indigo en todos los componentes: ExamSetup, ExamStats, ExamResults, ExamReportModal, ExamInProgress, ExamFlashcards y generateExamPDF
 - Formatos mutuamente exclusivos: seleccionar Flashcard deselecciona los demas formatos y viceversa
 - Partial credit para preguntas fill_in: opcion strict/partial en ExamSetup; la IA asigna score 0.0–1.0; columna `partial_score real` en `exam_questions`; calculo de nota proporcional
 - Grading delegado a app-api: endpoint `POST /exams/grade-fill-in` en app-api; el submit route de app-web ya no llama a OpenAI directamente
-- LangBadge: emojis de banderas reemplazados por badges de texto (EN, ES, CA, FR, DE, PT, IT) — fiables en Windows donde los emojis de bandera no tienen representacion visual
 - canonical_subject en ingles: la IA normaliza el nombre del tema en ingles para agrupar correctamente en stats cross-idioma
 - Validacion de grounding: segunda llamada a la IA cuando hay documento adjunto para verificar que las preguntas estan basadas en el documento
 - Cognitive Distribution en Advanced: seccion colapsable con toggle (estilo timer), steppers de cuenta de preguntas (no porcentajes), barra proporcional, auto-distribucion, validacion con status bar verde/naranja + boton auto-distribute + submit deshabilitado si invalido
-- Custom Instructions en Advanced: textarea libre para instrucciones adicionales con prioridad maxima en el prompt
 - Deteccion de matematicas (has_math): la IA marca preguntas con `has_math: boolean`; columna en DB; teclado virtual de simbolos matematicos (Basic/Greek/Calculus/Chemistry) en preguntas fill_in
-- Render de formulas con KaTeX: componente `MathText` que parsea `$...$` y renderiza con KaTeX; aplicado en ExamInProgress (pregunta + opciones) y ExamResults (pregunta, respuesta, correccion, explicacion); la IA usa `$...$` para formulas
 - Subida de foto de procedimiento: para preguntas fill_in, boton "Upload photo of handwritten work"; preview local; submit via FormData; upload a Supabase Storage bucket privado `exam-answers`; signed URL 300s para la IA; GPT-4o vision evalua la foto; columna `answer_image_url text` en DB
 - Migraciones SQL aplicadas: `grading_mode text` en `exams`, `language text` en `exams`, `partial_score real` en `exam_questions`, `has_math boolean` en `exam_questions`, `answer_image_url text` en `exam_questions`, bucket privado `exam-answers` con RLS policies
-- UI/UX polish: alineacion vertical con `flex items-center`/`items-baseline`, toggles con `top-[3px] left-[3px]`, idiomas en `grid grid-cols-4`, separadores con gap en lugar de margin
+
+**Completado (polish post-commit — cambios de UI no incluidos en el commit de exams):**
+- MathText component: componente que parsea `$...$` inline y renderiza con KaTeX; aplicado en ExamInProgress (enunciado + opciones de multiple choice) y ExamResults (pregunta, respuesta del alumno, correccion de la IA, explicacion); la IA genera formulas con delimitador `$...$`
+- LangBadge: badges de texto EN/ES/CA/FR/DE/PT/IT en lugar de emojis de bandera — los emojis de bandera no tienen representacion visual en Windows; los badges de texto son universales
+- Alineacion vertical: `flex items-center` y `flex items-baseline` aplicados de forma consistente en todos los componentes del modulo de examen para eliminar desalineaciones entre icono, label y controles
+- Toggles: `top-[3px] left-[3px]` para centrado perfecto de la bolita dentro del track en todos los toggles del modulo
+- Language selector: `grid grid-cols-4` en lugar de `flex flex-wrap` para que las 4 opciones de idioma queden en una sola fila alineada
+- Headers h-14: altura unificada a `h-14` en los headers de Home, Exams, My Documents y Templates para que queden alineados con la sidebar
+- New Document button: `w-full` en el div contenedor para que el boton quede en el extremo derecho del header
+- Sort by updated_at: "Newest first" ahora ordena por `updated_at` (ultima modificacion) en lugar de `created_at` (fecha de creacion)
+- gitignore fix: `/exams/` (con slash inicial) en lugar de `exams/` en .gitignore para que la regla solo afecte al directorio raiz y no bloquee `app/(app)/exams/`
+- Custom Instructions en Advanced: textarea libre para instrucciones adicionales; se inyectan al final del prompt del sistema con prioridad maxima para que la IA las respete sobre cualquier otra instruccion
 
 **Decisiones tomadas:**
 - Grading delegado a app-api (no OpenAI directo desde Next.js) para centralizar logica de evaluacion y no exponer la API key en el cliente
-- LangBadge con texto en lugar de emojis de bandera: los emojis de bandera no tienen representacion visual en Windows, los badges de texto son universales y semanticamente equivalentes
+- LangBadge con texto en lugar de emojis de bandera: los emojis de bandera no tienen representacion visual en Windows; los badges de texto son universales y semanticamente equivalentes
 - canonical_subject normalizado en ingles por la IA: garantiza agrupacion correcta en stats cuando el usuario mezcla idiomas entre sesiones
 - Foto de procedimiento con signed URL de 300s: el bucket es privado por seguridad; la URL efimera se pasa directamente a GPT-4o vision en la misma llamada de grading
+- Sort por updated_at en lugar de created_at: refleja mejor el orden de trabajo real del usuario; un documento editado hoy aparece antes que uno creado ayer pero no tocado
+- gitignore con slash inicial `/exams/`: la regla `exams/` sin slash afectaba a cualquier carpeta llamada exams en cualquier nivel del arbol, bloqueando la ruta de Next.js `app/(app)/exams/`
 
 **Problemas encontrados:**
 - Emojis de bandera en Windows no tienen representacion visual — resuelto con LangBadge de texto
+- .gitignore bloqueaba `app/(app)/exams/` porque la regla `exams/` era demasiado amplia — resuelto cambiando a `/exams/`
 
 **Lecciones capturadas:** no
 
