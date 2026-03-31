@@ -23,7 +23,7 @@
 # misc
 .DS_Store
 TASKEXAM.md
-exams/
+/exams/
 **/.DS_Store
 *.pem
 

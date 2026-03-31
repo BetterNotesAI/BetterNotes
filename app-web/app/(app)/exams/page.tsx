@@ -230,8 +230,8 @@ export default function ExamsPage() {
   return (
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             {/* Back button when in exam or results */}
             {(state.screen === 'exam' || state.screen === 'submitting' || state.screen === 'results') && (
