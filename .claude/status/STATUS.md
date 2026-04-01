@@ -7,29 +7,22 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28)
-**Milestone activo:** ninguno — Fase 3 cerrada. Pendiente apertura Fase 4.
-**Tarea activa:** exam PDF Unicode/KaTeX + RPC stats + partial_score — COMPLETADO 2026-04-01
-**Último hito cerrado:** F3-M5 — Publish to My Studies + polish ✅ (2026-03-28)
+**Fase:** 4 — Ecosistema de Estudio — EN CURSO
+**Milestone activo:** F4-M3 — Exams v2 (en curso)
+**Último hito cerrado:** F4-M2 — Exams v1 ✅ (2026-03-31)
 
-**Completado sesión 2026-04-01 (2) — Exam PDF + RPC + partial_score:**
-- RPC SQL `get_exam_stats` generado en .claude/research/exam-stats-rpc.sql — aplicar en Supabase Dashboard
-- stats/route.ts reescrito para llamar al RPC en lugar de SELECT masivo; streak + history[] siguen en Node
-- report/route.ts: añadido partial_score al SELECT de exam_questions
-- generateExamPDF.ts reescrito con html2canvas + jsPDF: soporte Unicode/KaTeX, div off-screen, paginación A4
-- Estado parcial (amarillo) en PDF cuando partial_score > 0 && < 1, mostrando el % de credit
-- ExamReportModal.tsx: await en getExamPDFBlobUrl y downloadExamPDF (ahora async)
-- html2canvas instalado como dependencia en app-web/package.json
-
-**Completado sesión 2026-04-01 — Exam stats improvements:**
-- Fix LEVEL_LABELS (9 nuevos valores: secondary/highschool/university × basic/intermediate/advanced) + 3 legacy fallbacks
-- Timer persistence: time_spent_seconds calculado en ExamInProgress/ExamFlashcards y enviado al submit endpoint
-- Columnas BD: migración SQL en .claude/research/exam-stats-migration.sql (time_spent_seconds INTEGER, cognitive_distribution JSONB)
-- Generate route: guarda cognitive_distribution en BD
-- Submit route: persiste time_spent_seconds, calcula cognitive breakdown por tipo cognitivo, lo devuelve en response
-- Stats route: añade avg_time_seconds, history[] por subject (para chart), timezone-aware streak (query param ?tz=)
-- ExamResults: muestra "Completed in Xm Ys" + sección Cognitive Breakdown con barras de progreso
-- ExamStats: avg time card (grid 2x2), mini SVG line chart de evolución por subject, envía timezone al fetch
+**Completado sesión 2026-04-01 — F4-M3 Exams v2:**
+- Flashcards: YA IMPLEMENTADO (sesión anterior)
+- Temporizador: YA IMPLEMENTADO (sesión anterior)
+- Sistema de dificultad rediseñado: Secondary / High School / University × Basic / Intermediate / Advanced (9 valores)
+- Fix LEVEL_LABELS (9 nuevos valores) + 3 legacy fallbacks
+- Timer persistence: time_spent_seconds calculado en ExamInProgress/ExamFlashcards y enviado al submit
+- Columnas BD: time_spent_seconds INTEGER + cognitive_distribution JSONB (migraciones en supabase/migrations/)
+- Stats route: RPC get_exam_stats() para agregación SQL, avg_time_seconds, history[] por subject, timezone-aware streak
+- ExamResults: "Completed in Xm Ys" + Cognitive Breakdown con barras de progreso
+- ExamStats: Avg Time card, mini SVG line chart de evolución por subject
+- PDF: fondo blanco, html2canvas + iframe, Unicode/KaTeX, estado parcial (amarillo), alineación círculo/badge corregida
+- Bugs corregidos: stats tab en blanc (columnes BD inexistents), exams[] per subject perdut en refactor RPC
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
 **Rama activa:** f3-m4-chat-contextual (SIN merge a main — pendiente verificación)
 **Bloqueantes:** ninguno técnico. Pendiente de verificación manual en navegador.
@@ -106,4 +99,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-28 (cierre de sesión) — Fase 3 COMPLETA. F3-M4 (chat contextual: chip BlockReference, preview KaTeX, Apply/Discard optimista, edit-block endpoint, undo/redo Ctrl+Z/Y) y F3-M5 (Publish modal, suggest-keywords GPT-4o, My Studies page, skeleton loader, "Saved X ago", accesibilidad LatexBlock) completados. Rama activa: f3-m4-chat-contextual — pendiente verificación en navegador antes de merge a main. Siguiente: abrir Fase 4 (F4-M1 Problem Solver) tras verificación y merge.*
+*Última actualización: 2026-04-01 — F4-M3 Exams v2 en curso. Flashcards y temporizador ya implementados (sesión anterior). Esta sesión: sistema de dificultad por tiers, stats con RPC SQL, PDF blanc amb html2canvas, time_spent_seconds i cognitive_distribution a BD. Pendent: animacions estil Duolingo, pantalla de resultats celebració.*

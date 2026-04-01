@@ -221,20 +221,18 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
       <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #e5e7eb;">
         <!-- Question header -->
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
-          <div style="
-            min-width:22px;width:22px;height:22px;border-radius:50%;background:${colors.circle};
-            text-align:center;line-height:22px;
-            font-size:11px;font-weight:700;color:#fff;flex-shrink:0;">
-            ${q.question_number}
+          <!-- Circle: background and number separated -->
+          <div style="position:relative;min-width:22px;width:22px;height:22px;flex-shrink:0;">
+            <div style="position:absolute;top:6px;left:0;width:22px;height:22px;border-radius:50%;background:${colors.circle};"></div>
+            <div style="position:absolute;top:0;left:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;">${q.question_number}</div>
           </div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:600;color:#111827;line-height:1.5;">${questionHtml}</div>
           </div>
-          <div style="
-            display:inline-block;padding:0 8px;height:20px;line-height:20px;
-            border-radius:999px;font-size:10px;font-weight:600;
-            background:${colors.badge};color:${colors.badgeText};white-space:nowrap;flex-shrink:0;">
-            ${stateLabel}
+          <!-- Badge: background and text separated -->
+          <div style="position:relative;display:inline-block;flex-shrink:0;">
+            <div style="position:absolute;top:7px;left:0;right:0;height:22px;border-radius:999px;background:${colors.badge};"></div>
+            <div style="position:relative;padding:3px 8px;font-size:10px;font-weight:600;color:${colors.badgeText};white-space:nowrap;">${stateLabel}</div>
           </div>
         </div>
 
