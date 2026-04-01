@@ -80,6 +80,7 @@ export default function ProblemSessionPage() {
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const pdfViewportRef = useRef<HTMLDivElement>(null);
+  const lastGestureScaleRef = useRef<number | null>(null);
 
   // Solution streaming
   const [streamedMd, setStreamedMd] = useState<string | null>(null);
@@ -358,10 +359,23 @@ export default function ProblemSessionPage() {
   }, [clampPdfZoom]);
 
   useEffect(() => {
-    const el = pdfContainerRef.current;
-    if (!el) return;
+    const container = pdfContainerRef.current;
+    if (!container || !pdfUrl) return;
+
+    type GestureEventLike = Event & {
+      scale: number;
+      clientX: number;
+      clientY: number;
+      preventDefault: () => void;
+      stopPropagation: () => void;
+    };
+
+    function isInsidePdfPanel(target: EventTarget | null): target is Node {
+      return target instanceof Node && container.contains(target);
+    }
 
     function onWheel(e: WheelEvent) {
+      if (!isInsidePdfPanel(e.target)) return;
       // Pinch-to-zoom on trackpad sends ctrlKey + deltaY
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -370,9 +384,49 @@ export default function ProblemSessionPage() {
       }
     }
 
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [applyPdfZoomDelta]);
+    // Safari trackpad pinch emits gesture events (not wheel+ctrl).
+    function onGestureStart(evt: Event) {
+      const e = evt as GestureEventLike;
+      if (!isInsidePdfPanel(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lastGestureScaleRef.current = e.scale;
+    }
+
+    function onGestureChange(evt: Event) {
+      const e = evt as GestureEventLike;
+      if (!isInsidePdfPanel(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const prevScale = lastGestureScaleRef.current ?? e.scale;
+      const deltaScale = e.scale - prevScale;
+      lastGestureScaleRef.current = e.scale;
+
+      if (Math.abs(deltaScale) < 0.0001) return;
+      applyPdfZoomDelta(deltaScale * 180, { clientX: e.clientX, clientY: e.clientY });
+    }
+
+    function onGestureEnd(evt: Event) {
+      const e = evt as GestureEventLike;
+      if (!isInsidePdfPanel(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lastGestureScaleRef.current = null;
+    }
+
+    document.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    document.addEventListener('gesturestart', onGestureStart as EventListener, { passive: false, capture: true });
+    document.addEventListener('gesturechange', onGestureChange as EventListener, { passive: false, capture: true });
+    document.addEventListener('gestureend', onGestureEnd as EventListener, { passive: false, capture: true });
+
+    return () => {
+      document.removeEventListener('wheel', onWheel, true);
+      document.removeEventListener('gesturestart', onGestureStart as EventListener, true);
+      document.removeEventListener('gesturechange', onGestureChange as EventListener, true);
+      document.removeEventListener('gestureend', onGestureEnd as EventListener, true);
+    };
+  }, [applyPdfZoomDelta, pdfUrl]);
 
   function handlePdfPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!pdfUrl) return;
@@ -570,7 +624,8 @@ export default function ProblemSessionPage() {
           {pdfUrl ? (
             <PdfViewer
               url={pdfUrl}
-              zoom={pdfZoom}
+              zoom={100}
+              visualZoom={pdfZoom}
               currentPage={pdfPage}
               onTotalPages={(total) => setPdfTotalPages(total)}
               viewportRef={pdfViewportRef}

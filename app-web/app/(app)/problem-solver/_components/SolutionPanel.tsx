@@ -310,6 +310,20 @@ export function SolutionPanel({
     return { left: minLeft, top: minTop, width: maxRight - minLeft, height: maxBottom - minTop };
   }, []);
 
+  const isRangeInsideSolution = useCallback((range: Range) => {
+    const root = solutionRef.current;
+    if (!root) return false;
+
+    const startInside = root.contains(range.startContainer);
+    const endInside = root.contains(range.endContainer);
+
+    try {
+      return range.intersectsNode(root) && (startInside || endInside);
+    } catch {
+      return startInside || endInside;
+    }
+  }, []);
+
   // Auto-scroll during streaming
   useEffect(() => {
     if (isStreaming) {
@@ -330,7 +344,7 @@ export function SolutionPanel({
     }
 
     const range = sel.getRangeAt(0);
-    if (!solutionRef.current?.contains(range.commonAncestorContainer)) {
+    if (!isRangeInsideSolution(range)) {
       hideSelectionTooltip();
       return;
     }
@@ -394,8 +408,15 @@ export function SolutionPanel({
     getIntersectingBlocks,
     hideSelectionTooltip,
     isStreaming,
+    isRangeInsideSolution,
     normalizeSelectionText,
   ]);
+
+  const handleTextSelectionDeferred = useCallback(() => {
+    requestAnimationFrame(() => {
+      handleTextSelection();
+    });
+  }, [handleTextSelection]);
 
   // Hide tooltip on scroll
   useEffect(() => {
@@ -482,8 +503,8 @@ export function SolutionPanel({
                 <div
                   ref={solutionRef}
                   className="solution-md"
-                  onMouseUp={handleTextSelection}
-                  onTouchEnd={handleTextSelection}
+                  onMouseUp={handleTextSelectionDeferred}
+                  onTouchEnd={handleTextSelectionDeferred}
                   dangerouslySetInnerHTML={{ __html: html }}
                 />
                 {/* Blinking cursor */}
@@ -506,8 +527,8 @@ export function SolutionPanel({
           <div
             ref={solutionRef}
             className="solution-md"
-            onMouseUp={handleTextSelection}
-            onTouchEnd={handleTextSelection}
+            onMouseUp={handleTextSelectionDeferred}
+            onTouchEnd={handleTextSelectionDeferred}
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )}

@@ -12,6 +12,7 @@ interface PdfViewerProps {
   isLoading?: boolean;
   loadingLabel?: string;
   zoom: number;
+  visualZoom?: number;
   currentPage: number;
   onTotalPages: (total: number) => void;
   viewportRef?: Ref<HTMLDivElement>;
@@ -32,6 +33,7 @@ export function PdfViewer({
   isLoading,
   loadingLabel,
   zoom,
+  visualZoom,
   currentPage,
   onTotalPages,
   viewportRef,
@@ -98,6 +100,8 @@ export function PdfViewer({
     onTotalPages(n);
   }
 
+  const visualScale = Math.max(0.1, (visualZoom ?? zoom) / zoom);
+
   // Loading state
   if (isLoading) {
     const activePhase = getActivePhase(loadingLabel);
@@ -141,7 +145,10 @@ export function PdfViewer({
   return (
     <div ref={viewportRef} className="flex-1 min-h-0 overflow-auto overscroll-contain bg-transparent">
       {objectUrl && (
-        <div className="w-max min-w-full mx-auto px-4 py-6">
+        <div
+          className="w-max min-w-full mx-auto px-4 py-6"
+          style={{ zoom: visualScale }}
+        >
           <Document
             file={objectUrl}
             onLoadSuccess={handleLoadSuccess}

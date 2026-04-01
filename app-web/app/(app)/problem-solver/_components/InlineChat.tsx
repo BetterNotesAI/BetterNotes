@@ -259,14 +259,25 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isSending]);
 
-  const getAssistantContainerFromRange = useCallback((range: Range) => {
-    const ancestor = range.commonAncestorContainer;
-    const baseEl = ancestor.nodeType === Node.ELEMENT_NODE
-      ? (ancestor as Element)
-      : ancestor.parentElement;
+  const getClosestAssistantContainer = useCallback((node: Node | null) => {
+    if (!node) return null;
+    const baseEl = node.nodeType === Node.ELEMENT_NODE
+      ? (node as Element)
+      : node.parentElement;
     if (!baseEl) return null;
     return baseEl.closest('[data-chat-assistant="true"]') as HTMLElement | null;
   }, []);
+
+  const getAssistantContainerFromRange = useCallback((range: Range) => {
+    const fromAncestor = getClosestAssistantContainer(range.commonAncestorContainer);
+    if (fromAncestor) return fromAncestor;
+
+    const fromStart = getClosestAssistantContainer(range.startContainer);
+    const fromEnd = getClosestAssistantContainer(range.endContainer);
+    if (fromStart && fromEnd && fromStart !== fromEnd) return null;
+
+    return fromStart ?? fromEnd;
+  }, [getClosestAssistantContainer]);
 
   const getIntersectingBlocks = useCallback((range: Range, assistantContainer: HTMLElement) => {
     return Array.from(
@@ -398,6 +409,12 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     hideSelectionTooltip,
     normalizeSelectionText,
   ]);
+
+  const handleAssistantSelectionDeferred = useCallback(() => {
+    requestAnimationFrame(() => {
+      handleAssistantSelection();
+    });
+  }, [handleAssistantSelection]);
 
   useEffect(() => {
     const handleScroll = () => hideSelectionTooltip();
@@ -566,8 +583,8 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
                   className="ic-message-md"
                   data-chat-assistant="true"
                   data-chat-message-id={msg.id}
-                  onMouseUp={handleAssistantSelection}
-                  onTouchEnd={handleAssistantSelection}
+                  onMouseUp={handleAssistantSelectionDeferred}
+                  onTouchEnd={handleAssistantSelectionDeferred}
                   dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
                 />
               </div>
