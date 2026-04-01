@@ -5,8 +5,18 @@
 
 /**
  * Nivel de dificultad del examen
+ * Formato: <tier>_<difficulty>
  */
-export type ExamLevel = 'beginner' | 'intermediate' | 'advanced';
+export type ExamLevel =
+  | 'secondary_basic'
+  | 'secondary_intermediate'
+  | 'secondary_advanced'
+  | 'highschool_basic'
+  | 'highschool_intermediate'
+  | 'highschool_advanced'
+  | 'university_basic'
+  | 'university_intermediate'
+  | 'university_advanced';
 
 /**
  * Estado del examen

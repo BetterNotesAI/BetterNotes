@@ -251,9 +251,24 @@ export class OpenAIProvider implements AIProvider {
 
   async generateExam(args: GenerateExamArgs): Promise<GenerateExamResult> {
     const LEVEL_DESCRIPTIONS: Record<string, string> = {
-      beginner: 'foundational definitions, basic concepts, and recall of key terms — no prior knowledge assumed',
-      intermediate: 'application of concepts, cause-effect relationships, and interpretation of examples',
-      advanced: 'analysis, synthesis, edge cases, common misconceptions, and deep mastery of the subject',
+      secondary_basic:
+        'foundational vocabulary, simple definitions, and direct recall of facts — suitable for students aged 12–14 with no prior study of the topic; avoid complex sentences or multi-step reasoning',
+      secondary_intermediate:
+        'understanding of core concepts, basic cause-and-effect relationships, and simple application to familiar examples — suitable for students aged 13–16 who have studied the topic in class',
+      secondary_advanced:
+        'comparison and analysis of concepts, interpretation of diagrams or data, and application to slightly novel scenarios — suitable for strong secondary students preparing for end-of-year exams',
+      highschool_basic:
+        'recall and comprehension of curriculum content — suitable for high-school students (15–17) revisiting material; questions should be clear and direct with no ambiguous wording',
+      highschool_intermediate:
+        'application and analysis of high-school curriculum concepts, including multi-step reasoning, interpretation of evidence, and connections between topics — typical exam difficulty',
+      highschool_advanced:
+        'synthesis, evaluation, and deep analytical thinking — suitable for high-school students preparing for university-entrance exams (e.g. A-Levels, IB, Selectivitat); expect edge cases and precise technical language',
+      university_basic:
+        'introductory university-level content — foundational theories, key terminology, and straightforward application; suitable for first-year students encountering the subject for the first time',
+      university_intermediate:
+        'intermediate university difficulty — multi-concept integration, quantitative reasoning, critical evaluation of arguments, and application to real-world or research contexts',
+      university_advanced:
+        'advanced university and graduate-level mastery — nuanced analysis, identification of assumptions and limitations, comparison of competing theories, and synthesis of cross-disciplinary knowledge; expect expert-level precision',
     };
 
     const { subject, level, language, distribution, format, documentContext, cognitiveDistribution, customInstructions } = args;

@@ -18,7 +18,11 @@ export interface ExamsRouterOptions {
   aiProvider: AIProvider;
 }
 
-const VALID_LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
+const VALID_LEVELS = [
+  'secondary_basic', 'secondary_intermediate', 'secondary_advanced',
+  'highschool_basic', 'highschool_intermediate', 'highschool_advanced',
+  'university_basic', 'university_intermediate', 'university_advanced',
+] as const;
 const VALID_FORMATS = ['multiple_choice', 'true_false', 'fill_in', 'flashcard'] as const;
 
 interface GenerateExamBody {

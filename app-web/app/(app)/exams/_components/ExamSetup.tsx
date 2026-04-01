@@ -36,8 +36,14 @@ interface DocumentItem {
   title: string;
 }
 
-const LEVELS: { value: ExamLevel; label: string; description: string }[] = [
-  { value: 'beginner', label: 'Beginner', description: 'Basic concepts' },
+const TIERS: { value: string; label: string; description: string }[] = [
+  { value: 'secondary', label: 'Secondary', description: 'Middle school level' },
+  { value: 'highschool', label: 'High School', description: 'Pre-university level' },
+  { value: 'university', label: 'University', description: 'Higher education level' },
+];
+
+const DIFFICULTIES: { value: string; label: string; description: string }[] = [
+  { value: 'basic', label: 'Basic', description: 'Core concepts' },
   { value: 'intermediate', label: 'Intermediate', description: 'Applied knowledge' },
   { value: 'advanced', label: 'Advanced', description: 'Deep mastery' },
 ];
@@ -98,7 +104,9 @@ function autoDistribute(total: number, fmts: ExamQuestionType[]): Partial<Record
 
 export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps) {
   const [subject, setSubject] = useState('');
-  const [level, setLevel] = useState<ExamLevel>('intermediate');
+  const [tier, setTier] = useState<string>('');
+  const [difficulty, setDifficulty] = useState<string>('');
+  const level = (tier && difficulty ? `${tier}_${difficulty}` : '') as ExamLevel;
   const [questionCount, setQuestionCount] = useState(10);
   const [questionCountInput, setQuestionCountInput] = useState('10');
   const [formats, setFormats] = useState<ExamQuestionType[]>(['multiple_choice']);
@@ -294,6 +302,10 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
     // Subject is required only when no documents are selected
     if (!hasDocuments && !subjectTrimmed) {
       setValidationError('Please enter a subject or topic, or select at least one document.');
+      return;
+    }
+    if (!tier || !difficulty) {
+      setValidationError('Please select a difficulty level.');
       return;
     }
     if (formats.length === 0) {
@@ -606,19 +618,24 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
           </div>
         </div>
 
-        {/* Difficulty level */}
+        {/* Difficulty level — two-step: tier then difficulty */}
         <div>
           <label className="block text-sm font-medium text-white/80 mb-2">
             Difficulty Level
           </label>
+
+          {/* Step 1: Tier cards */}
           <div className="grid grid-cols-3 gap-2">
-            {LEVELS.map((l) => {
-              const isSelected = level === l.value;
+            {TIERS.map((t) => {
+              const isSelected = tier === t.value;
               return (
                 <button
-                  key={l.value}
+                  key={t.value}
                   type="button"
-                  onClick={() => setLevel(l.value)}
+                  onClick={() => {
+                    setTier(t.value);
+                    if (!difficulty) setDifficulty('intermediate');
+                  }}
                   disabled={isLoading}
                   className={`rounded-xl border px-3 py-3 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
                     ${isSelected
@@ -627,13 +644,40 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
                     }`}
                 >
                   <p className={`text-xs font-semibold ${isSelected ? 'text-indigo-300' : ''}`}>
-                    {l.label}
+                    {t.label}
                   </p>
-                  <p className="text-[10px] text-white/40 mt-0.5">{l.description}</p>
+                  <p className="text-[10px] text-white/40 mt-0.5">{t.description}</p>
                 </button>
               );
             })}
           </div>
+
+          {/* Step 2: Difficulty buttons — appear once a tier is selected */}
+          {tier && (
+            <div className="flex gap-2 mt-2">
+              {DIFFICULTIES.map((d) => {
+                const isSelected = difficulty === d.value;
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => setDifficulty(d.value)}
+                    disabled={isLoading}
+                    className={`flex-1 rounded-xl border px-3 py-2.5 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                      ${isSelected
+                        ? 'bg-indigo-500/15 border-indigo-500/40 text-white'
+                        : 'bg-white/4 border-white/10 text-white/60 hover:bg-white/7 hover:border-white/20 hover:text-white/80'
+                      }`}
+                  >
+                    <p className={`text-xs font-semibold ${isSelected ? 'text-indigo-300' : ''}`}>
+                      {d.label}
+                    </p>
+                    <p className="text-[10px] text-white/40 mt-0.5">{d.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Total questions */}
@@ -1072,7 +1116,7 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
         {/* Submit */}
         <button
           type="submit"
-          disabled={isLoading || !isBalanced || !isCogBalanced}
+          disabled={isLoading || !isBalanced || !isCogBalanced || !tier || !difficulty}
           className="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40
             text-black font-semibold text-sm py-3 transition-colors duration-150 disabled:cursor-not-allowed"
         >
