@@ -44,18 +44,35 @@ function isLatex(text: string): boolean {
  * The regex walks character-by-character inside JSON string literals and doubles
  * any backslash that is not already doubled.
  */
+/**
+ * The OpenAI SDK parses the outer HTTP-level JSON before handing us `content`.
+ * As part of that parse, JSON escape sequences like \f (form-feed), \v (vertical-tab),
+ * and \b (backspace) are decoded into their actual control characters.
+ * When the model wrote a LaTeX command such as \frac inside a JSON string using a
+ * single backslash, the outer JSON parse turns \f into the form-feed character
+ * (ASCII 12) and leaves "rac{1}{x}" — which renders as a garbage symbol in the UI.
+ *
+ * This function runs FIRST on the raw content string and restores those control
+ * characters back to the two-character backslash sequences (\f → \f as text, etc.)
+ * so that the subsequent sanitizeLatexInJsonString + JSON.parse pipeline can handle
+ * them correctly.
+ *
+ * We intentionally skip \n (newline) and \t (tab) because those ARE legitimately used
+ * as formatting whitespace at the JSON-structure level and replacing them blindly
+ * would produce malformed JSON.
+ */
+function restoreLatexControlChars(s: string): string {
+  return s
+    .replace(/\f/g, '\\f')  // form-feed  (ASCII 12) → \f  e.g. \frac, \footnote
+    .replace(/\v/g, '\\v')  // vert. tab  (ASCII 11) → \v  e.g. \vec, \vee
+    .replace(/\b/g, '\\b'); // backspace  (ASCII  8) → \b  e.g. \beta, \bar
+}
+
 function sanitizeLatexInJsonString(raw: string): string {
   // Replace every occurrence of a single backslash (not already doubled) followed
-  // by a letter, digit, or common LaTeX special char with a doubled backslash.
-  // We process the raw JSON string before parsing so we operate on the serialised
-  // text, not on parsed values.
-  //
-  // Approach: only replace \X sequences where X is a letter (a-z A-Z) because
-  // those are the problematic LaTeX commands. We must NOT touch \\ (already
-  // escaped), \", \/, and numeric \uXXXX sequences.
-  //
-  // The negative lookbehind (?<!\\) ensures we don't double an already-doubled
-  // backslash such as \\frac (which is already correct).
+  // by a letter with a doubled backslash, so JSON.parse produces the \cmd string
+  // that KaTeX expects.
+  // The negative lookbehind (?<!\\) avoids doubling an already-doubled \\frac.
   return raw.replace(/(?<!\\)\\([a-zA-Z])/g, '\\\\$1');
 }
 
@@ -393,7 +410,7 @@ ${customInstructions}
 
     let parsed: unknown;
     const cleaned = sanitizeLatexInJsonString(
-      raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim()
+      restoreLatexControlChars(raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
     );
     parsed = JSON.parse(cleaned);
 
@@ -463,7 +480,7 @@ ${JSON.stringify(questions, null, 2)}`;
       try {
         const rawV = validationResp.choices?.[0]?.message?.content ?? '{}';
         const cleanedV = sanitizeLatexInJsonString(
-          rawV.replace(/```(?:json)?/g, '').replace(/```/g, '').trim()
+          restoreLatexControlChars(rawV.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
         );
         const parsedV = JSON.parse(cleanedV) as { questions?: GenerateExamQuestion[] };
         if (Array.isArray(parsedV.questions) && parsedV.questions.length === questions.length) {
