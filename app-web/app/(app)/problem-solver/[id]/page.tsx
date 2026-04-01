@@ -76,10 +76,10 @@ export default function ProblemSessionPage() {
   const [pdfTotalPages, setPdfTotalPages] = useState(0);
 
   // PDF local pan/zoom
-  const [pdfPan, setPdfPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const pdfViewportRef = useRef<HTMLDivElement>(null);
 
   // Solution streaming
   const [streamedMd, setStreamedMd] = useState<string | null>(null);
@@ -325,6 +325,38 @@ export default function ProblemSessionPage() {
   const MIN_PDF_ZOOM = 30;
   const MAX_PDF_ZOOM = 400;
 
+  const clampPdfZoom = useCallback((value: number) => {
+    return Math.min(MAX_PDF_ZOOM, Math.max(MIN_PDF_ZOOM, value));
+  }, []);
+
+  const applyPdfZoomDelta = useCallback((
+    delta: number,
+    anchor?: { clientX: number; clientY: number },
+  ) => {
+    const viewport = pdfViewportRef.current;
+    setPdfZoom((prev) => {
+      const next = clampPdfZoom(prev + delta);
+      if (!viewport || next === prev) return next;
+
+      const rect = viewport.getBoundingClientRect();
+      const anchorX = anchor ? anchor.clientX - rect.left : rect.width / 2;
+      const anchorY = anchor ? anchor.clientY - rect.top : rect.height / 2;
+
+      const contentX = viewport.scrollLeft + anchorX;
+      const contentY = viewport.scrollTop + anchorY;
+      const ratio = next / prev;
+
+      requestAnimationFrame(() => {
+        const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        viewport.scrollLeft = Math.min(maxLeft, Math.max(0, contentX * ratio - anchorX));
+        viewport.scrollTop = Math.min(maxTop, Math.max(0, contentY * ratio - anchorY));
+      });
+
+      return next;
+    });
+  }, [clampPdfZoom]);
+
   useEffect(() => {
     const el = pdfContainerRef.current;
     if (!el) return;
@@ -334,28 +366,38 @@ export default function ProblemSessionPage() {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        const delta = -e.deltaY;
-        setPdfZoom((z) => Math.min(MAX_PDF_ZOOM, Math.max(MIN_PDF_ZOOM, z + delta * 0.5)));
+        applyPdfZoomDelta(-e.deltaY * 0.4, { clientX: e.clientX, clientY: e.clientY });
       }
     }
 
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [applyPdfZoomDelta]);
 
   function handlePdfPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    // Only pan with left button (or touch)
-    if (e.button !== 0) return;
+    if (!pdfUrl) return;
+    // Only pan with left button for mouse (touch/pen don't use button the same way)
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const viewport = pdfViewportRef.current;
+    if (!viewport) return;
     setIsPanning(true);
-    panStartRef.current = { x: e.clientX, y: e.clientY, panX: pdfPan.x, panY: pdfPan.y };
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function handlePdfPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!isPanning) return;
+    const viewport = pdfViewportRef.current;
+    if (!viewport) return;
     const dx = e.clientX - panStartRef.current.x;
     const dy = e.clientY - panStartRef.current.y;
-    setPdfPan({ x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy });
+    viewport.scrollLeft = panStartRef.current.scrollLeft - dx;
+    viewport.scrollTop = panStartRef.current.scrollTop - dy;
   }
 
   function handlePdfPointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -369,8 +411,17 @@ export default function ProblemSessionPage() {
 
   function resetPdfView() {
     setPdfZoom(100);
-    setPdfPan({ x: 0, y: 0 });
+    pdfViewportRef.current?.scrollTo({ left: 0, top: 0 });
   }
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.body.style.userSelect = prevUserSelect;
+    };
+  }, [isPanning]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -458,7 +509,7 @@ export default function ProblemSessionPage() {
           {pdfUrl && (
             <div className="flex items-center gap-1 text-white/50">
               <button
-                onClick={() => setPdfZoom((z) => Math.max(MIN_PDF_ZOOM, z - 10))}
+                onClick={() => applyPdfZoomDelta(-10)}
                 className="p-1.5 rounded-lg hover:bg-white/8 hover:text-white transition-colors text-xs font-mono"
               >
                 −
@@ -471,7 +522,7 @@ export default function ProblemSessionPage() {
                 {Math.round(pdfZoom)}%
               </button>
               <button
-                onClick={() => setPdfZoom((z) => Math.min(MAX_PDF_ZOOM, z + 10))}
+                onClick={() => applyPdfZoomDelta(10)}
                 className="p-1.5 rounded-lg hover:bg-white/8 hover:text-white transition-colors text-xs font-mono"
               >
                 +
@@ -517,20 +568,13 @@ export default function ProblemSessionPage() {
           onPointerCancel={handlePdfPointerUp}
         >
           {pdfUrl ? (
-            <div
-              className="flex-1 min-h-0 overflow-hidden"
-              style={{
-                transform: `translate(${pdfPan.x}px, ${pdfPan.y}px)`,
-                willChange: isPanning ? 'transform' : 'auto',
-              }}
-            >
-              <PdfViewer
-                url={pdfUrl}
-                zoom={pdfZoom}
-                currentPage={pdfPage}
-                onTotalPages={(total) => setPdfTotalPages(total)}
-              />
-            </div>
+            <PdfViewer
+              url={pdfUrl}
+              zoom={pdfZoom}
+              currentPage={pdfPage}
+              onTotalPages={(total) => setPdfTotalPages(total)}
+              viewportRef={pdfViewportRef}
+            />
           ) : (
             <div className="flex-1 flex items-center justify-center text-white/30">
               {session.pdf_path ? (
