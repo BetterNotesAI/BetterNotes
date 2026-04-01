@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ActiveQuestion } from './ExamInProgress';
 
 interface ExamFlashcardsProps {
   questions: ActiveQuestion[];
   isSubmitting: boolean;
   error: string | null;
-  onSubmit: (answers: { question_id: string; answer: string }[]) => void;
+  onSubmit: (
+    answers: { question_id: string; answer: string }[],
+    photos: Record<string, File>,
+    timeSpentSeconds: number
+  ) => void;
   onBack: () => void;
 }
 
@@ -20,6 +24,7 @@ export default function ExamFlashcards({
   onSubmit,
   onBack,
 }: ExamFlashcardsProps) {
+  const startTimeRef = useRef<number>(Date.now());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [evaluations, setEvaluations] = useState<Record<string, Evaluation>>({});
@@ -77,7 +82,8 @@ export default function ExamFlashcards({
       question_id: q.id,
       answer: evaluations[q.id] === 'got' ? (q.correct_answer ?? 'correct') : '',
     }));
-    onSubmit(payload);
+    const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+    onSubmit(payload, {}, elapsed);
   }
 
   // ── Done screen ──────────────────────────────────────────────────────────────

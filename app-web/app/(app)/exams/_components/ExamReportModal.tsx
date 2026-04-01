@@ -29,7 +29,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
 
         const { getExamPDFBlobUrl } = await import('../_utils/generateExamPDF');
         if (cancelled) return;
-        const url = getExamPDFBlobUrl(data);
+        const url = await getExamPDFBlobUrl(data);
         urlRef.current = url;
         setPdfUrl(url);
       } catch (e) {
@@ -60,7 +60,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
     setDownloading(true);
     try {
       const { downloadExamPDF } = await import('../_utils/generateExamPDF');
-      downloadExamPDF(report);
+      await downloadExamPDF(report);
     } finally {
       setDownloading(false);
     }

@@ -37,7 +37,7 @@ export async function GET(
 
   const { data: questions, error: qError } = await supabase
     .from('exam_questions')
-    .select('id, question_number, type, question, options, correct_answer, user_answer, is_correct, explanation')
+    .select('id, question_number, type, question, options, correct_answer, user_answer, is_correct, partial_score, explanation')
     .eq('exam_id', examId)
     .order('question_number', { ascending: true });
 

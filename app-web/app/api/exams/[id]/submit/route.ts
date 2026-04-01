@@ -40,6 +40,8 @@ export async function POST(
 
   const contentType = req.headers.get('content-type') ?? '';
 
+  let timeSpentSeconds: number | null = null;
+
   if (contentType.includes('multipart/form-data')) {
     let formData: FormData;
     try {
@@ -56,6 +58,12 @@ export async function POST(
       answers = JSON.parse(answersRaw);
     } catch {
       return NextResponse.json({ error: 'answers must be valid JSON' }, { status: 400 });
+    }
+
+    const tspRaw = formData.get('time_spent_seconds');
+    if (tspRaw !== null) {
+      const parsed = Number(tspRaw);
+      if (Number.isFinite(parsed) && parsed >= 0) timeSpentSeconds = Math.round(parsed);
     }
 
     // Upload each photo file to Supabase Storage
@@ -98,7 +106,11 @@ export async function POST(
   } else {
     // Plain JSON body
     const body = await req.json().catch(() => ({}));
-    answers = (body as { answers?: AnswerPayload[] }).answers ?? [];
+    const typedBody = body as { answers?: AnswerPayload[]; time_spent_seconds?: number };
+    answers = typedBody.answers ?? [];
+    if (typeof typedBody.time_spent_seconds === 'number' && Number.isFinite(typedBody.time_spent_seconds) && typedBody.time_spent_seconds >= 0) {
+      timeSpentSeconds = Math.round(typedBody.time_spent_seconds);
+    }
   }
 
   if (!Array.isArray(answers) || answers.length === 0) {
@@ -116,7 +128,7 @@ export async function POST(
   // --- Verify exam ownership and status ---
   const { data: exam, error: examError } = await supabase
     .from('exams')
-    .select('id, user_id, status, title, subject, level, grading_mode, question_count, score, created_at, completed_at')
+    .select('id, user_id, status, title, subject, level, grading_mode, question_count, score, created_at, completed_at, cognitive_distribution')
     .eq('id', examId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -273,11 +285,20 @@ export async function POST(
     : 0;
   const completedAt = new Date().toISOString();
 
+  const examUpdatePayload: Record<string, unknown> = {
+    status: 'completed',
+    score: scorePercentage,
+    completed_at: completedAt,
+  };
+  if (timeSpentSeconds !== null) {
+    examUpdatePayload.time_spent_seconds = timeSpentSeconds;
+  }
+
   const { data: updatedExam, error: examUpdateError } = await supabase
     .from('exams')
-    .update({ status: 'completed', score: scorePercentage, completed_at: completedAt })
+    .update(examUpdatePayload)
     .eq('id', examId)
-    .select('id, user_id, title, subject, level, grading_mode, question_count, score, status, created_at, completed_at')
+    .select('id, user_id, title, subject, level, grading_mode, question_count, score, status, created_at, completed_at, time_spent_seconds')
     .single();
 
   if (examUpdateError || !updatedExam) {
@@ -285,6 +306,55 @@ export async function POST(
       { error: `Failed to complete exam: ${examUpdateError?.message}` },
       { status: 500 }
     );
+  }
+
+  // --- Cognitive breakdown (if exam was generated with cognitive_distribution) ---
+  // cognitive_distribution keys: memory | logic | application
+  // Map question index (modulo over categories) to infer which cognitive type each question targets.
+  // Since the API doesn't tag individual questions with a cognitive type, we use the distribution
+  // proportions to bucket questions in round-robin order (same order the AI received them).
+  type CognitiveDist = { memory?: number; logic?: number; application?: number };
+  const cogDist = (exam as typeof exam & { cognitive_distribution?: CognitiveDist }).cognitive_distribution;
+
+  let cognitiveBreakdown: Record<string, { total: number; correct: number; pct: number }> | null = null;
+  if (cogDist && typeof cogDist === 'object') {
+    // Build ordered list of cognitive slots based on distribution percentages
+    const categories = (['memory', 'logic', 'application'] as const).filter(
+      (k) => typeof cogDist[k] === 'number' && (cogDist[k] ?? 0) > 0
+    );
+    if (categories.length > 0) {
+      const total = evaluatedQuestions.length;
+      // Assign each question a cognitive category proportionally
+      const slots: string[] = [];
+      for (const cat of categories) {
+        const count = Math.round(((cogDist[cat] ?? 0) / 100) * total);
+        for (let i = 0; i < count; i++) slots.push(cat);
+      }
+      // Pad or trim to match total
+      while (slots.length < total) slots.push(categories[slots.length % categories.length]);
+      slots.splice(total);
+
+      const breakdown: Record<string, { total: number; correct: number }> = {};
+      for (const cat of categories) breakdown[cat] = { total: 0, correct: 0 };
+
+      evaluatedQuestions.forEach((q, idx) => {
+        const cat = slots[idx];
+        if (!cat || !breakdown[cat]) return;
+        breakdown[cat].total += 1;
+        if (q.type === 'fill_in' && q.partial_score !== null) {
+          breakdown[cat].correct += q.partial_score;
+        } else if (q.is_correct === true) {
+          breakdown[cat].correct += 1;
+        }
+      });
+
+      cognitiveBreakdown = Object.fromEntries(
+        categories.map((cat) => {
+          const b = breakdown[cat];
+          return [cat, { total: b.total, correct: Math.round(b.correct * 100) / 100, pct: b.total > 0 ? Math.round((b.correct / b.total) * 100) : 0 }];
+        })
+      );
+    }
   }
 
   // --- Return full result including correct answers and explanations ---
@@ -300,6 +370,8 @@ export async function POST(
       ).length,
       unanswered: evaluatedQuestions.filter((q) => q.user_answer === null && !q.answer_image_url).length,
       score_percentage: scorePercentage,
+      time_spent_seconds: timeSpentSeconds,
+      cognitive_breakdown: cognitiveBreakdown,
     },
   });
 }

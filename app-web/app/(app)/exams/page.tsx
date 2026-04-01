@@ -12,6 +12,10 @@ import ExamStats, { type ExamStatsHandle } from './_components/ExamStats';
 
 type Screen = 'setup' | 'loading' | 'exam' | 'submitting' | 'results';
 
+interface CognitiveBreakdown {
+  [key: string]: { total: number; correct: number; pct: number };
+}
+
 interface ExamSessionStats {
   total_questions: number;
   correct_answers: number;
@@ -19,6 +23,8 @@ interface ExamSessionStats {
   wrong_answers: number;
   unanswered: number;
   score_percentage: number;
+  time_spent_seconds: number | null;
+  cognitive_breakdown: CognitiveBreakdown | null;
 }
 
 interface State {
@@ -155,7 +161,8 @@ export default function ExamsPage() {
   // --- Submit exam ---
   async function handleSubmit(
     answers: { question_id: string; answer: string }[],
-    photos: Record<string, File>
+    photos: Record<string, File>,
+    timeSpentSeconds: number
   ) {
     if (!state.exam) return;
     dispatch({ type: 'SUBMIT_START' });
@@ -169,6 +176,7 @@ export default function ExamsPage() {
         // Use FormData when photos are present so files can be transported
         const formData = new FormData();
         formData.append('answers', JSON.stringify(answers));
+        formData.append('time_spent_seconds', String(timeSpentSeconds));
         for (const [questionId, file] of photoEntries) {
           formData.append(`photo_${questionId}`, file);
         }
@@ -180,7 +188,7 @@ export default function ExamsPage() {
         res = await fetch(`/api/exams/${state.exam.id}/submit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answers }),
+          body: JSON.stringify({ answers, time_spent_seconds: timeSpentSeconds }),
         });
       }
 

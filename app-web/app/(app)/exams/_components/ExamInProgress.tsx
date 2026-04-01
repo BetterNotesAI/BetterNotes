@@ -27,7 +27,8 @@ interface ExamInProgressProps {
   error: string | null;
   onSubmit: (
     answers: { question_id: string; answer: string }[],
-    photos: Record<string, File>
+    photos: Record<string, File>,
+    timeSpentSeconds: number
   ) => void;
   timerEnabled?: boolean;
   timerSeconds?: number;
@@ -69,6 +70,9 @@ export default function ExamInProgress({
   timerEnabled = false,
   timerSeconds,
 }: ExamInProgressProps) {
+  // Track start time to calculate elapsed on submit
+  const startTimeRef = useRef<number>(Date.now());
+
   // Local answers map: question id -> answer string
   const [answers, setAnswers] = useState<Record<string, string>>({});
   // Photo files map: question id -> File
@@ -118,7 +122,8 @@ export default function ExamInProgress({
             question_id: q.id,
             answer: answersRef.current[q.id] ?? '',
           }));
-          onSubmitRef.current(payload, photoFilesRef.current);
+          const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+          onSubmitRef.current(payload, photoFilesRef.current, elapsed);
         }
       }
     }, 500);
@@ -191,7 +196,8 @@ export default function ExamInProgress({
       question_id: q.id,
       answer: answers[q.id] ?? '',
     }));
-    onSubmit(payload, photoFiles);
+    const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+    onSubmit(payload, photoFiles, elapsed);
   }
 
   if (!currentQuestion) return null;

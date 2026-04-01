@@ -5,51 +5,47 @@ import { createClient } from '@/lib/supabase/server';
  * GET /api/exams/stats
  *
  * Returns aggregate statistics for the authenticated user's completed exams.
+ * Aggregation (total_exams, avg_score, avg_time_seconds, per-subject stats) is
+ * delegated to the Supabase RPC `get_exam_stats` so we avoid pulling every row
+ * across the network.
+ *
+ * Streak and per-subject history[] are still computed in Node because they
+ * require timezone-aware calendar-day resolution that is simpler in JavaScript.
  *
  * Response shape:
  * {
- *   total_exams: number,
- *   avg_score: number,
- *   subjects: SubjectStat[],
- *   recent: RecentAttempt[],
- *   streak: number
+ *   total_exams:       number,
+ *   avg_score:         number,
+ *   avg_time_seconds:  number | null,
+ *   subjects:          SubjectStat[],
+ *   recent:            RecentAttempt[],
+ *   streak:            number
  * }
  */
 
-interface CompletedExam {
-  id: string;
+interface SubjectStatRPC {
   subject: string;
-  level: string;
-  language: string;
-  score: number;
-  question_count: number;
-  completed_at: string;
-  time_spent_seconds: number | null;
+  attempts: number;
+  avg_score: number;
+  best_score: number;
+  last_attempt: string;
 }
 
-interface SubjectExam {
-  exam_id: string;
-  score: number;
-  level: string;
-  language: string;
-  completed_at: string;
-  time_spent_seconds: number | null;
+interface RPCResult {
+  total_exams: number;
+  avg_score: number | null;
+  avg_time_seconds: number | null;
+  subjects: SubjectStatRPC[];
+}
+
+interface SubjectStat extends SubjectStatRPC {
+  history: HistoryPoint[];
 }
 
 interface HistoryPoint {
   date: string;
   score: number;
   level: string;
-}
-
-interface SubjectStat {
-  subject: string;
-  attempts: number;
-  avg_score: number;
-  best_score: number;
-  last_attempt: string;
-  exams: SubjectExam[];
-  history: HistoryPoint[];
 }
 
 interface RecentAttempt {
@@ -59,6 +55,16 @@ interface RecentAttempt {
   level: string;
   language: string;
   completed_at: string;
+}
+
+interface CompletedExamRow {
+  id: string;
+  subject: string;
+  level: string;
+  language: string;
+  score: number;
+  completed_at: string;
+  time_spent_seconds: number | null;
 }
 
 /**
@@ -97,9 +103,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Timezone for streak calculation — accept header X-Timezone or query param tz
+  // Timezone for streak calculation — accept query param tz or header X-Timezone
   const tz = req.nextUrl.searchParams.get('tz') ?? req.headers.get('x-timezone') ?? 'UTC';
-  // Validate timezone — fallback to UTC if invalid
   let resolvedTz = 'UTC';
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
@@ -108,22 +113,18 @@ export async function GET(req: NextRequest) {
     // Invalid timezone — use UTC
   }
 
-  const { data: exams, error } = await supabase
-    .from('exams')
-    .select('id, subject, level, language, score, question_count, completed_at, time_spent_seconds')
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .not('score', 'is', null)
-    .not('completed_at', 'is', null)
-    .order('completed_at', { ascending: false });
+  // ── Call RPC for aggregated totals and per-subject stats ────────────────────
+  const { data: rpcData, error: rpcError } = await supabase
+    .rpc('get_exam_stats', { p_user_id: user.id })
+    .single() as { data: RPCResult | null; error: { message: string } | null };
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (rpcError) {
+    return NextResponse.json({ error: rpcError.message }, { status: 500 });
   }
 
-  const rows = (exams ?? []) as CompletedExam[];
+  const rpc = rpcData as RPCResult | null;
 
-  if (rows.length === 0) {
+  if (!rpc || !rpc.total_exams || rpc.total_exams === 0) {
     return NextResponse.json({
       total_exams: 0,
       avg_score: 0,
@@ -134,67 +135,25 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // ─── Total and average ────────────────────────────────────────────────────
+  // ── Fetch lightweight rows for streak + history + recent ───────────────────
+  // We only need: id, subject, level, language, score, completed_at, time_spent_seconds
+  const { data: rows, error: rowsError } = await supabase
+    .from('exams')
+    .select('id, subject, level, language, score, completed_at, time_spent_seconds')
+    .eq('user_id', user.id)
+    .eq('status', 'completed')
+    .not('score', 'is', null)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false });
 
-  const total_exams = rows.length;
-  const avg_score = Math.round(rows.reduce((sum, r) => sum + r.score, 0) / total_exams);
-
-  const timedRows = rows.filter((r) => r.time_spent_seconds !== null);
-  const avg_time_seconds = timedRows.length > 0
-    ? Math.round(timedRows.reduce((sum, r) => sum + (r.time_spent_seconds ?? 0), 0) / timedRows.length)
-    : null;
-
-  // ─── Per-subject aggregation ──────────────────────────────────────────────
-
-  const subjectMap = new Map<
-    string,
-    { scores: number[]; last_attempt: string; exams: SubjectExam[] }
-  >();
-
-  for (const row of rows) {
-    const key = row.subject || 'Unknown';
-    const existing = subjectMap.get(key);
-    const entry: SubjectExam = {
-      exam_id: row.id,
-      score: row.score,
-      level: row.level,
-      language: row.language,
-      completed_at: row.completed_at,
-      time_spent_seconds: row.time_spent_seconds ?? null,
-    };
-    if (existing) {
-      existing.scores.push(row.score);
-      existing.exams.push(entry);
-    } else {
-      subjectMap.set(key, {
-        scores: [row.score],
-        last_attempt: row.completed_at,
-        exams: [entry],
-      });
-    }
+  if (rowsError) {
+    return NextResponse.json({ error: rowsError.message }, { status: 500 });
   }
 
-  const subjects: SubjectStat[] = Array.from(subjectMap.entries())
-    .map(([subject, { scores, last_attempt, exams }]) => {
-      // history: sorted by date ascending for the chart
-      const history: HistoryPoint[] = [...exams]
-        .sort((a, b) => a.completed_at.localeCompare(b.completed_at))
-        .map((e) => ({ date: e.completed_at, score: e.score, level: e.level }));
-      return {
-        subject,
-        attempts: scores.length,
-        avg_score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
-        best_score: Math.max(...scores),
-        last_attempt,
-        exams,
-        history,
-      };
-    })
-    .sort((a, b) => b.avg_score - a.avg_score);
+  const examRows = (rows ?? []) as CompletedExamRow[];
 
-  // ─── Recent 10 ────────────────────────────────────────────────────────────
-
-  const recent: RecentAttempt[] = rows.slice(0, 10).map((r) => ({
+  // ── Recent 10 ──────────────────────────────────────────────────────────────
+  const recent: RecentAttempt[] = examRows.slice(0, 10).map((r) => ({
     exam_id: r.id,
     subject: r.subject || 'Unknown',
     score: r.score,
@@ -203,10 +162,21 @@ export async function GET(req: NextRequest) {
     completed_at: r.completed_at,
   }));
 
-  // ─── Streak — consecutive calendar days with at least one exam (up to today) ──
-  // Uses resolvedTz so users in e.g. GMT+2 don't lose their streak at midnight UTC.
+  // ── Per-subject history[] (for chart) — built from local rows ─────────────
+  const historyMap = new Map<string, HistoryPoint[]>();
+  for (const r of [...examRows].reverse()) {
+    // reversed so we can push in ascending order
+    const key = r.subject || 'Unknown';
+    if (!historyMap.has(key)) historyMap.set(key, []);
+    historyMap.get(key)!.push({ date: r.completed_at, score: r.score, level: r.level });
+  }
 
-  // Helper: get "YYYY-MM-DD" for a UTC timestamp interpreted in the given timezone
+  const subjects: SubjectStat[] = (rpc.subjects ?? []).map((s) => ({
+    ...s,
+    history: historyMap.get(s.subject) ?? [],
+  }));
+
+  // ── Streak — consecutive calendar days with at least one exam ─────────────
   const toLocalDateKey = (isoString: string, timezone: string): string => {
     try {
       return new Intl.DateTimeFormat('en-CA', {
@@ -221,29 +191,24 @@ export async function GET(req: NextRequest) {
   };
 
   const dateDone = new Set<string>(
-    rows.map((r) => toLocalDateKey(r.completed_at, resolvedTz))
+    examRows.map((r) => toLocalDateKey(r.completed_at, resolvedTz))
   );
 
-  // Today's date in user's timezone
   const todayKey = toLocalDateKey(new Date().toISOString(), resolvedTz);
-
   let streak = 0;
-  // Walk backwards day-by-day
-  const cursorDate = new Date(todayKey + 'T12:00:00Z'); // noon UTC ensures stable date math
-  // If today has no exam, start from yesterday
+  const cursorDate = new Date(todayKey + 'T12:00:00Z');
   if (!dateDone.has(toLocalDateKey(cursorDate.toISOString(), resolvedTz))) {
     cursorDate.setUTCDate(cursorDate.getUTCDate() - 1);
   }
-
   while (dateDone.has(toLocalDateKey(cursorDate.toISOString(), resolvedTz))) {
     streak += 1;
     cursorDate.setUTCDate(cursorDate.getUTCDate() - 1);
   }
 
   return NextResponse.json({
-    total_exams,
-    avg_score,
-    avg_time_seconds,
+    total_exams: rpc.total_exams,
+    avg_score: rpc.avg_score !== null ? Math.round(rpc.avg_score) : 0,
+    avg_time_seconds: rpc.avg_time_seconds !== null ? Math.round(rpc.avg_time_seconds) : null,
     subjects,
     recent,
     streak,

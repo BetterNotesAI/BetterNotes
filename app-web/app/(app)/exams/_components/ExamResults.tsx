@@ -4,6 +4,12 @@ import type { Exam, ExamQuestion } from '../_types';
 import { getLetterGrade, getGradeColor } from '../_utils';
 import MathText from './MathText';
 
+interface CognitiveBreakdownEntry {
+  total: number;
+  correct: number;
+  pct: number;
+}
+
 interface ExamResultsProps {
   exam: Exam;
   questions: ExamQuestion[];
@@ -14,6 +20,8 @@ interface ExamResultsProps {
     wrong_answers: number;
     unanswered: number;
     score_percentage: number;
+    time_spent_seconds?: number | null;
+    cognitive_breakdown?: Record<string, CognitiveBreakdownEntry> | null;
   };
   onNewExam: () => void;
   onPublish: () => void;
@@ -110,6 +118,19 @@ function QuestionReview({ question, index }: { question: ExamQuestion; index: nu
   );
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+const COGNITIVE_LABELS: Record<string, string> = {
+  memory: 'Memory',
+  logic: 'Logic',
+  application: 'Application',
+};
+
 export default function ExamResults({
   exam,
   questions,
@@ -174,7 +195,54 @@ export default function ExamResults({
             <p className="text-[11px] text-white/40 mt-0.5">Skipped</p>
           </div>
         </div>
+
+        {/* Time spent */}
+        {stats.time_spent_seconds != null && stats.time_spent_seconds > 0 && (
+          <div className="mt-3 pt-3 border-t border-white/8 flex items-center justify-center gap-1.5 text-xs text-white/40">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Completed in{' '}
+            <span className="font-medium text-white/60">{formatDuration(stats.time_spent_seconds)}</span>
+          </div>
+        )}
       </div>
+
+      {/* Cognitive Breakdown */}
+      {stats.cognitive_breakdown && Object.keys(stats.cognitive_breakdown).length > 0 && (
+        <div className="bg-white/4 border border-white/10 rounded-2xl p-4 mb-6">
+          <h3 className="text-xs font-medium text-white/45 uppercase tracking-wide mb-3">Cognitive Breakdown</h3>
+          <div className="space-y-2.5">
+            {Object.entries(stats.cognitive_breakdown).map(([key, val]) => (
+              <div key={key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-white/60">{COGNITIVE_LABELS[key] ?? key}</span>
+                  <span className="text-xs font-semibold text-white/80 tabular-nums">{val.pct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${val.pct}%`,
+                      background:
+                        val.pct >= 80
+                          ? 'rgb(74 222 128)'
+                          : val.pct >= 60
+                          ? 'rgb(96 165 250)'
+                          : val.pct >= 40
+                          ? 'rgb(250 204 21)'
+                          : 'rgb(248 113 113)',
+                    }}
+                  />
+                </div>
+                <p className="text-[10px] text-white/25 mt-0.5">
+                  {Math.round(val.correct)} / {val.total} questions
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-3 mb-8">
