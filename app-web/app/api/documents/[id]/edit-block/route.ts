@@ -2,12 +2,14 @@
  * POST /api/documents/[id]/edit-block
  * F3-M4.3 — calls app-api /latex/edit-block to get the modified block latex.
  * F3-M4.6 — "apply" mode: replaces the block in the full .tex, compiles, persists new version.
+ * IA-M1   — sourceStart/sourceEnd substitution, chat_messages persistence, conversationHistory.
  *
  * Body (edit/preview mode):
- *   { blockId, blockLatex, blockType, adjacentBlocks[], userPrompt, fullLatex }
+ *   { blockId, blockLatex, blockType, adjacentBlocks[], userPrompt, fullLatex,
+ *     sourceStart?, sourceEnd?, conversationHistory? }
  *
  * Body (apply mode — adds `apply: true` + `modifiedLatex`):
- *   { blockId, blockLatex, modifiedLatex, fullLatex }
+ *   { blockId, blockLatex, modifiedLatex, fullLatex, sourceStart?, sourceEnd? }
  *
  * Response (preview):  { modifiedLatex: string }
  * Response (apply):    { versionId: string, pdfUrl: string | null, latex: string }
@@ -57,6 +59,11 @@ export async function POST(
     adjacentBlocks,
     userPrompt,
     fullLatex,
+    // Offset-based substitution (IA-M1)
+    sourceStart,
+    sourceEnd,
+    // Conversation history for multi-turn block editing (IA-M1)
+    conversationHistory,
     // Apply mode
     apply,
     modifiedLatex: providedModifiedLatex,
@@ -67,6 +74,9 @@ export async function POST(
     adjacentBlocks?: Array<{ blockId: string; blockType: string; latex_source: string }>;
     userPrompt?: string;
     fullLatex?: string;
+    sourceStart?: number;
+    sourceEnd?: number;
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
     apply?: boolean;
     modifiedLatex?: string;
   };
@@ -84,16 +94,45 @@ export async function POST(
       return NextResponse.json({ error: 'fullLatex is required for apply' }, { status: 400 });
     }
 
-    // 1. Exact-string replacement of blockLatex inside fullLatex
-    if (!fullLatex.includes(blockLatex)) {
-      return NextResponse.json(
-        { error: 'Block not found in document LaTeX — source may have changed. Reload and try again.' },
-        { status: 409 }
-      );
-    }
+    // 1. Substitute the block in fullLatex.
+    // Strategy A (preferred): use sourceStart/sourceEnd offsets from the parser for a
+    // byte-exact, unambiguous replacement that handles duplicate blocks gracefully.
+    // Strategy B (fallback): first-occurrence string replace (original behaviour).
+    let newFullLatex: string;
+    const hasOffsets =
+      typeof sourceStart === 'number' &&
+      typeof sourceEnd === 'number' &&
+      sourceStart >= 0 &&
+      sourceEnd > sourceStart;
 
-    // Replace ONLY the first occurrence (blocks are unique by latex_source in practice)
-    const newFullLatex = fullLatex.replace(blockLatex, providedModifiedLatex);
+    if (hasOffsets) {
+      // Validate that the slice at the offsets matches blockLatex (sanity check)
+      const sliceAtOffset = fullLatex.slice(sourceStart, sourceEnd);
+      if (sliceAtOffset !== blockLatex) {
+        // Offsets stale — fall back to string replace with overlap check
+        if (!fullLatex.includes(blockLatex)) {
+          return NextResponse.json(
+            { error: 'Block not found in document LaTeX — source may have changed. Reload and try again.' },
+            { status: 409 }
+          );
+        }
+        newFullLatex = fullLatex.replace(blockLatex, providedModifiedLatex);
+      } else {
+        newFullLatex =
+          fullLatex.slice(0, sourceStart) +
+          providedModifiedLatex +
+          fullLatex.slice(sourceEnd);
+      }
+    } else {
+      // Fallback: string replace (original strategy)
+      if (!fullLatex.includes(blockLatex)) {
+        return NextResponse.json(
+          { error: 'Block not found in document LaTeX — source may have changed. Reload and try again.' },
+          { status: 409 }
+        );
+      }
+      newFullLatex = fullLatex.replace(blockLatex, providedModifiedLatex);
+    }
 
     // 2. Compile via app-api compile-only
     let pdfBuffer: ArrayBuffer;
@@ -177,7 +216,31 @@ export async function POST(
       .update({ current_version_id: version.id, updated_at: new Date().toISOString() })
       .eq('id', documentId);
 
-    // 7. Return signed PDF URL
+    // 7. Persist block-edit exchange in chat_messages (IA-M1)
+    // The userPrompt comes from the conversationHistory last user turn (or blockId label as fallback).
+    // We save the final state as a succinct pair so history is queryable later.
+    const blockEditUserText =
+      (conversationHistory ?? []).filter((t) => t.role === 'user').slice(-1)[0]?.content ??
+      `[block-edit applied] block: ${(blockId ?? '').slice(0, 40)}`;
+    const blockEditAssistantText = `[block-edit applied] ${providedModifiedLatex.slice(0, 200)}`;
+    await supabase.from('chat_messages').insert([
+      {
+        document_id: documentId,
+        user_id: user.id,
+        role: 'user',
+        content: blockEditUserText,
+        version_id: version.id,
+      },
+      {
+        document_id: documentId,
+        user_id: user.id,
+        role: 'assistant',
+        content: blockEditAssistantText,
+        version_id: version.id,
+      },
+    ]);
+
+    // 8. Return signed PDF URL
     const { data: signedData } = await supabase.storage
       .from('documents-output')
       .createSignedUrl(storagePath, 3600);
@@ -212,6 +275,7 @@ export async function POST(
         adjacentBlocks: adjacentBlocks ?? [],
         userPrompt,
         fullLatex: fullLatex ?? '',
+        conversationHistory: conversationHistory ?? [],
       }),
     });
 

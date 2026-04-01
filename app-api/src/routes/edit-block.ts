@@ -12,7 +12,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { AIProvider } from '../lib/ai/types';
+import { AIProvider, ConversationTurn } from '../lib/ai/types';
 
 export interface EditBlockRouterOptions {
   aiProvider: AIProvider;
@@ -31,6 +31,8 @@ export interface EditBlockBody {
   adjacentBlocks?: AdjacentBlock[];
   userPrompt?: string;
   fullLatex?: string;
+  /** Prior conversation turns for multi-turn block editing (max 6 used). */
+  conversationHistory?: ConversationTurn[];
 }
 
 export function createEditBlockRouter(opts: EditBlockRouterOptions): Router {
@@ -47,6 +49,7 @@ export function createEditBlockRouter(opts: EditBlockRouterOptions): Router {
         adjacentBlocks = [],
         userPrompt,
         fullLatex,
+        conversationHistory = [],
       } = req.body as EditBlockBody;
 
       if (!blockLatex || typeof blockLatex !== 'string') {
@@ -65,6 +68,7 @@ export function createEditBlockRouter(opts: EditBlockRouterOptions): Router {
         adjacentBlocks,
         userPrompt,
         fullLatex: fullLatex ?? '',
+        conversationHistory,
       });
 
       res.json({ ok: true, modifiedLatex });

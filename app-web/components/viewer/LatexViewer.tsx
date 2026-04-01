@@ -15,9 +15,10 @@
  */
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { parseLatex } from '@/lib/latex-parser';
-import type { Block, BlockType } from '@/lib/latex-parser';
+import { parseLatex, reconstructLatexFromBlocks, newBlockLatex } from '@/lib/latex-parser';
+import type { Block, BlockType, NewBlockType } from '@/lib/latex-parser';
 import LatexBlock from './LatexBlock';
+import { getTemplateProfile } from '@/lib/template-profiles';
 
 // ─── F3-M4.2: BlockReference type ────────────────────────────────────────────
 
@@ -27,41 +28,28 @@ export interface BlockReference {
   latex_source: string;
   /** Up to 2 blocks before/after for AI context */
   adjacentBlocks: Array<{ blockId: string; blockType: string; latex_source: string }>;
+  /**
+   * IA-M1: character offsets of this block in the original LaTeX source (after preamble strip).
+   * When present, the edit-block API uses them for unambiguous offset-based substitution.
+   */
+  sourceStart?: number;
+  sourceEnd?: number;
 }
 
 // ─── F3-M4.7: undo/redo history ──────────────────────────────────────────────
 
 const MAX_HISTORY = 20;
 
-// ─── template layout config ───────────────────────────────────────────────────
-
-const BLOCKS_PER_PAGE: Record<string, number> = {
-  lecture_notes: 12,
-  '2cols_portrait': 16,
-  study_form: 20,
-  landscape_3col_maths: 20,
-};
-const DEFAULT_BLOCKS_PER_PAGE = 15;
-
-function getLayoutClass(templateId: string | undefined): string {
-  switch (templateId) {
-    case 'lecture_notes':
-      return 'max-w-2xl mx-auto';
-    case '2cols_portrait':
-      return 'grid grid-cols-2 gap-x-6 items-start max-w-5xl mx-auto';
-    case 'study_form':
-      return 'grid grid-cols-3 gap-x-5 items-start max-w-6xl mx-auto';
-    case 'landscape_3col_maths':
-      return 'grid grid-cols-3 gap-x-5 items-start w-full';
-    default:
-      return 'max-w-2xl mx-auto';
-  }
-}
-
 // ─── zoom presets ─────────────────────────────────────────────────────────────
 
 const ZOOM_PRESETS = [75, 100, 125, 150] as const;
 type ZoomPreset = typeof ZOOM_PRESETS[number];
+
+/** Determine the appropriate initial zoom based on viewport width. */
+function getInitialZoom(): ZoomPreset {
+  if (typeof window !== 'undefined' && window.innerWidth < 900) return 75;
+  return 100;
+}
 
 // ─── M3.7: block-type label for toolbar context ───────────────────────────────
 
@@ -289,6 +277,18 @@ interface LatexViewerProps {
    * Replace block with blockId using newBlockLatex.
    */
   applyBlockEdit?: { blockId: string; newBlockLatex: string; token: number } | null;
+  /**
+   * Document-level AI edit preview (Flujo C).
+   * When non-null, the viewer renders this LaTeX instead of latexSource,
+   * and shows an "AI preview" banner at the top of the sheet.
+   */
+  pendingDocumentEdit?: string | null;
+  /**
+   * IA-M2: called when a structural block mutation (add, delete, reorder) produces
+   * a new full LaTeX string. Unlike onLatexChange (which is used for block AI edits),
+   * this callback triggers a direct compile + persist cycle in the parent.
+   */
+  onBlockMutation?: (newLatex: string) => void;
 }
 
 export default function LatexViewer({
@@ -299,14 +299,29 @@ export default function LatexViewer({
   onReferenceInChat,
   onLatexChange,
   applyBlockEdit,
+  pendingDocumentEdit,
+  onBlockMutation,
 }: LatexViewerProps) {
+  // ── Active source: preview takes priority over persisted source ───────────
+  const activeLatexSource = pendingDocumentEdit ?? latexSource;
+
   // ── Parse blocks (mutable state for inline editing) ──────────────────────
-  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(latexSource));
+  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(activeLatexSource));
 
   // ── F3-M4.7: undo/redo history ────────────────────────────────────────────
   // History stores past blocks snapshots; pointer starts at -1 (no history yet)
   const historyRef = useRef<Block[][]>([]);
   const historyIndexRef = useRef<number>(-1);
+
+  // Mejora C: undo/redo step counts for the toolbar indicator
+  const [undoCount, setUndoCount] = useState(0);
+  const [redoCount, setRedoCount] = useState(0);
+
+  // Helper to sync undo/redo counts after history mutations
+  const syncHistoryCounts = useCallback(() => {
+    setUndoCount(historyIndexRef.current + 1);
+    setRedoCount(historyRef.current.length - 1 - historyIndexRef.current);
+  }, []);
 
   // Push current blocks to history before a mutation
   const pushHistory = useCallback((snapshot: Block[]) => {
@@ -317,6 +332,8 @@ export default function LatexViewer({
       historyRef.current.shift();
     }
     historyIndexRef.current = historyRef.current.length - 1;
+    setUndoCount(historyIndexRef.current + 1);
+    setRedoCount(0);
   }, []);
 
   const undo = useCallback(() => {
@@ -324,6 +341,8 @@ export default function LatexViewer({
     historyIndexRef.current -= 1;
     const snapshot = historyRef.current[historyIndexRef.current];
     if (snapshot) setBlocks(snapshot);
+    setUndoCount(historyIndexRef.current + 1);
+    setRedoCount(historyRef.current.length - 1 - historyIndexRef.current);
   }, []);
 
   const redo = useCallback(() => {
@@ -331,6 +350,8 @@ export default function LatexViewer({
     historyIndexRef.current += 1;
     const snapshot = historyRef.current[historyIndexRef.current];
     if (snapshot) setBlocks(snapshot);
+    setUndoCount(historyIndexRef.current + 1);
+    setRedoCount(historyRef.current.length - 1 - historyIndexRef.current);
   }, []);
 
   // Keyboard shortcut Ctrl+Z / Ctrl+Y
@@ -355,37 +376,28 @@ export default function LatexViewer({
     return () => window.removeEventListener('keydown', handleKey);
   }, [undo, redo]);
 
-  // Re-parse when external source changes
+  // Re-parse when the active source changes (preview or persisted)
   useEffect(() => {
-    const parsed = parseLatex(latexSource);
+    const parsed = parseLatex(activeLatexSource);
     setBlocks(parsed);
     // Reset history when a completely new source is loaded
     historyRef.current = [];
     historyIndexRef.current = -1;
-  }, [latexSource]);
+    setUndoCount(0);
+  }, [activeLatexSource]);
 
-  // ── Pagination & zoom ─────────────────────────────────────────────────────
-  const blocksPerPage = BLOCKS_PER_PAGE[templateId ?? ''] ?? DEFAULT_BLOCKS_PER_PAGE;
-  const totalPages = Math.max(1, Math.ceil(blocks.length / blocksPerPage));
+  // ── Template profile ──────────────────────────────────────────────────────
+  const profile = useMemo(() => getTemplateProfile(templateId), [templateId]);
 
-  const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState<ZoomPreset>(100);
+  // ── Zoom (persisted across source changes) ────────────────────────────────
+  const [zoom, setZoom] = useState<ZoomPreset>(() => getInitialZoom());
 
-  const goToPrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
-  const goToNext = useCallback(
-    () => setPage((p) => Math.min(totalPages, p + 1)),
-    [totalPages]
-  );
+  // All blocks are rendered on a single scrollable A4 sheet (no pagination)
+  // The page indicator in the toolbar is removed; all blocks visible at once.
 
-  // Reset page when source changes
-  useEffect(() => {
-    setPage(1);
-  }, [latexSource]);
-
-  const pageBlocks = useMemo(() => {
-    const start = (page - 1) * blocksPerPage;
-    return blocks.slice(start, start + blocksPerPage);
-  }, [blocks, page, blocksPerPage]);
+  // Scroll-to-block ref (Mejora D)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastEditedBlockIdRef = useRef<string | null>(null);
 
   // ── M3.1/M3.2/M3.3: interaction state ────────────────────────────────────
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
@@ -437,6 +449,99 @@ export default function LatexViewer({
     setEditingBlockId(null);
     setFocusedBlockId(id);
   }, []);
+
+  // ── IA-M2: block management helpers ──────────────────────────────────────
+
+  /**
+   * Reconstruct the full LaTeX from the current block array and notify the parent.
+   * Called after every structural mutation (add, delete, reorder).
+   * Uses onBlockMutation (IA-M2) if available, otherwise falls back to onLatexChange.
+   */
+  const commitBlockMutation = useCallback(
+    (newBlocks: Block[]) => {
+      const notify = onBlockMutation ?? onLatexChange;
+      if (notify) {
+        const reconstructed = reconstructLatexFromBlocks(newBlocks, activeLatexSource);
+        notify(reconstructed);
+      }
+    },
+    [onBlockMutation, onLatexChange, activeLatexSource]
+  );
+
+  /**
+   * Add a new block of the given type after (position='after') or before
+   * (position='before') the block with id `anchorId`.
+   */
+  const handleAddBlock = useCallback(
+    (anchorId: string, type: NewBlockType, position: 'before' | 'after') => {
+      setBlocks((prev) => {
+        pushHistory(prev);
+        const idx = prev.findIndex((b) => b.id === anchorId);
+        if (idx === -1) return prev;
+        const insertAt = position === 'after' ? idx + 1 : idx;
+        const idSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const newBlock: Block = {
+          id: `${type}-${idSuffix}`,
+          type: type === 'formula' ? 'formula-block' : type === 'list' ? 'list' : type === 'section' ? 'section' : 'paragraph',
+          latex_source: newBlockLatex(type),
+          level: type === 'section' ? 1 : undefined,
+        };
+        const next = [...prev.slice(0, insertAt), newBlock, ...prev.slice(insertAt)];
+        // Defer onLatexChange so state updates first
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+    },
+    [pushHistory, commitBlockMutation]
+  );
+
+  /** Delete the block with the given id. Cannot delete col-start/col-end markers. */
+  const handleDeleteBlock = useCallback(
+    (id: string) => {
+      setBlocks((prev) => {
+        const target = prev.find((b) => b.id === id);
+        if (!target || target.type === 'col-start' || target.type === 'col-end') return prev;
+        pushHistory(prev);
+        const next = prev.filter((b) => b.id !== id);
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+      setFocusedBlockId(null);
+      setEditingBlockId(null);
+    },
+    [pushHistory, commitBlockMutation]
+  );
+
+  /**
+   * Move the block with `id` up (direction=-1) or down (direction=1) by one position.
+   * Skips over col-start/col-end markers to avoid breaking multicols structure.
+   */
+  const handleMoveBlock = useCallback(
+    (id: string, direction: -1 | 1) => {
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        if (idx === -1) return prev;
+
+        // Find the target swap index (skip structural markers)
+        let targetIdx = idx + direction;
+        while (
+          targetIdx >= 0 &&
+          targetIdx < prev.length &&
+          (prev[targetIdx].type === 'col-start' || prev[targetIdx].type === 'col-end')
+        ) {
+          targetIdx += direction;
+        }
+        if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+
+        pushHistory(prev);
+        const next = [...prev];
+        [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+        setTimeout(() => commitBlockMutation(next), 0);
+        return next;
+      });
+    },
+    [pushHistory, commitBlockMutation]
+  );
 
   // ── M3.6: apply format action to focused block ────────────────────────────
   const handleApplyFormat = useCallback(
@@ -512,7 +617,7 @@ export default function LatexViewer({
     return () => document.removeEventListener('contextmenu', handleContextMenu);
   }, []);
 
-  // ── F3-M4.5: apply block edit from ChatPanel ─────────────────────────────
+  // ── F3-M4.5: apply block edit from ChatPanel (Mejora E: robust replace) ──
   const appliedTokenRef = useRef<number>(-1);
   useEffect(() => {
     if (!applyBlockEdit) return;
@@ -528,18 +633,65 @@ export default function LatexViewer({
           ? { ...b, latex_source: applyBlockEdit.newBlockLatex }
           : b
       );
-      // Notify parent so it can reconstruct the full latex and persist
+
+      // Mejora E: reconstruct full latex by iterating over updated blocks
+      // instead of fragile string.replace(). For each block we find its contribution
+      // in the original source; for the edited block we substitute the new latex.
       if (onLatexChange) {
-        // Reconstruct full latex: replace the old block latex_source in latexSource
-        const newFullLatex = latexSource.replace(
-          target.latex_source,
-          applyBlockEdit.newBlockLatex
-        );
-        onLatexChange(newFullLatex);
+        // Strategy: find the block's original latex_source in the full string and
+        // replace only the first occurrence that exactly matches (searching from
+        // left-to-right in block order reduces the chance of an ambiguous match).
+        let reconstructed = activeLatexSource;
+        const originalSource = target.latex_source;
+        const newSource = applyBlockEdit.newBlockLatex;
+
+        // Robust replace: find the Nth occurrence of the original source, where N is the
+        // number of preceding blocks with the same latex_source. This correctly handles
+        // documents with duplicate blocks (e.g. two identical formulas or paragraphs).
+        const targetIdx = prev.indexOf(target);
+        const precedingDuplicates = prev
+          .slice(0, targetIdx)
+          .filter((b) => b.latex_source === originalSource).length;
+
+        let searchFrom = 0;
+        let idx = -1;
+        for (let occurrence = 0; occurrence <= precedingDuplicates; occurrence++) {
+          const found = reconstructed.indexOf(originalSource, searchFrom);
+          if (found === -1) break;
+          idx = found;
+          searchFrom = found + 1;
+        }
+
+        if (idx !== -1) {
+          reconstructed =
+            reconstructed.slice(0, idx) +
+            newSource +
+            reconstructed.slice(idx + originalSource.length);
+        }
+        // If not found at all, latexSource stays unchanged (safer than a broken replace)
+        onLatexChange(reconstructed);
       }
+
+      // Mejora D: schedule scroll to the edited block
+      lastEditedBlockIdRef.current = applyBlockEdit.blockId;
+
       return next;
     });
-  }, [applyBlockEdit, latexSource, onLatexChange, pushHistory]);
+  }, [applyBlockEdit, activeLatexSource, onLatexChange, pushHistory]);
+
+  // Mejora D: scroll to last edited block after blocks state updates
+  useEffect(() => {
+    const blockId = lastEditedBlockIdRef.current;
+    if (!blockId || !scrollContainerRef.current) return;
+    lastEditedBlockIdRef.current = null;
+    // Use a short rAF delay so the DOM has updated before we query
+    requestAnimationFrame(() => {
+      const el = scrollContainerRef.current?.querySelector(`[data-block-id="${blockId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }, [blocks]);
 
   // ── Helper: build BlockReference for a given blockId ─────────────────────
   const buildBlockReference = useCallback(
@@ -555,7 +707,15 @@ export default function LatexViewer({
           adjacent.push({ blockId: nb.id, blockType: nb.type, latex_source: nb.latex_source });
         }
       }
-      return { blockId: b.id, blockType: b.type, latex_source: b.latex_source, adjacentBlocks: adjacent };
+      return {
+        blockId: b.id,
+        blockType: b.type,
+        latex_source: b.latex_source,
+        adjacentBlocks: adjacent,
+        // IA-M1: include parser offsets for robust substitution
+        sourceStart: b.sourceStart,
+        sourceEnd: b.sourceEnd,
+      };
     },
     [blocks]
   );
@@ -568,37 +728,62 @@ export default function LatexViewer({
     );
   }
 
+  // Compute CSS custom properties from the nested template profile
+  const profileCssVars = {
+    '--accent': profile.colors.accentColor,
+    '--thm-color': profile.colors.thmColor,
+    '--def-color': profile.colors.defColor,
+    '--prop-color': profile.colors.propColor,
+  } as React.CSSProperties;
+
+  // Derive sheet height from aspectRatio ("W / H" string)
+  const [arW, arH] = profile.geometry.aspectRatio.split('/').map((s) => parseFloat(s.trim()));
+  const sheetHeightPx = Math.round(profile.geometry.widthPx * (arH / arW));
+
+  // Zoom wrapper: two-div approach so the scroll container sees the correct visual height.
+  // Outer div has the scaled dimensions (for correct scroll height calculation).
+  // Inner div applies the transform and has the natural sheet dimensions.
+  const zoomScale = zoom / 100;
+  const zoomOuterStyle: React.CSSProperties = {
+    width: profile.geometry.widthPx,
+    height: Math.round(sheetHeightPx * zoomScale),
+    flexShrink: 0,
+    position: 'relative',
+  };
+  const zoomInnerStyle: React.CSSProperties = {
+    transform: `scale(${zoomScale})`,
+    transformOrigin: 'top left',
+    width: profile.geometry.widthPx,
+    height: sheetHeightPx,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  };
+
+  const sheetStyle: React.CSSProperties = {
+    width: profile.geometry.widthPx,
+    minHeight: sheetHeightPx,
+    background: 'white',
+    color: '#111111',
+    boxShadow: pendingDocumentEdit
+      ? '0 4px 32px rgba(0,0,0,0.18), 0 0 0 2px rgba(99,102,241,0.35)'
+      : '0 4px 32px rgba(0,0,0,0.18)',
+    paddingTop: `${profile.geometry.margins.top}rem`,
+    paddingRight: `${profile.geometry.margins.right}rem`,
+    paddingBottom: `${profile.geometry.margins.bottom}rem`,
+    paddingLeft: `${profile.geometry.margins.left}rem`,
+    fontSize: profile.typography.baseFontSize,
+    lineHeight: profile.typography.lineSpread,
+    fontFamily: profile.typography.fontFamily,
+    boxSizing: 'border-box',
+    ...profileCssVars,
+  };
+
   return (
     <div className={`flex flex-col h-full ${className ?? ''}`}>
-      {/* ── Navigation + zoom toolbar ── */}
+      {/* ── Zoom + undo toolbar ── */}
       {!hideToolbar && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 shrink-0 bg-gray-50">
-          {/* Page navigation */}
-          <button
-            onClick={goToPrev}
-            disabled={page <= 1}
-            className="w-7 h-7 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800
-              text-sm transition-colors flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Previous page"
-          >
-            ‹
-          </button>
-          <span className="text-gray-500 text-xs tabular-nums whitespace-nowrap min-w-[52px] text-center">
-            {page} / {totalPages}
-          </span>
-          <button
-            onClick={goToNext}
-            disabled={page >= totalPages}
-            className="w-7 h-7 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800
-              text-sm transition-colors flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Next page"
-          >
-            ›
-          </button>
-
-          {/* Separator */}
-          <div className="w-px h-4 bg-gray-300 mx-1" />
-
           {/* Zoom presets */}
           <div className="flex items-center gap-1">
             {ZOOM_PRESETS.map((z) => (
@@ -616,7 +801,41 @@ export default function LatexViewer({
             ))}
           </div>
 
-          {/* Hint when no block is focused */}
+          {/* Separator */}
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+
+          {/* Mejora C: undo step indicator */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={undo}
+              disabled={undoCount <= 0}
+              title={undoCount > 0 ? `Undo (${undoCount} step${undoCount !== 1 ? 's' : ''} available)` : 'Nothing to undo'}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
+                disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:text-gray-700 hover:bg-gray-200 disabled:hover:bg-transparent"
+              aria-label={`Undo — ${undoCount} step${undoCount !== 1 ? 's' : ''} available`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a4 4 0 010 8H7m-4-8l4-4-4 4z" />
+              </svg>
+              {undoCount > 0 && (
+                <span className="tabular-nums text-[10px] text-indigo-600 font-semibold">{undoCount}</span>
+              )}
+            </button>
+            <button
+              onClick={redo}
+              disabled={redoCount <= 0}
+              title={redoCount > 0 ? `Redo (${redoCount} step${redoCount !== 1 ? 's' : ''} available)` : 'Nothing to redo'}
+              aria-label={`Redo — ${redoCount} step${redoCount !== 1 ? 's' : ''} available`}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
+                disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:text-gray-700 hover:bg-gray-200 disabled:hover:bg-transparent"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a4 4 0 000 8h6m4-8l-4-4 4 4z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Hint */}
           <div className="flex-1" />
           {!focusedBlockId && (
             <span className="text-[10px] text-gray-400 hidden sm:inline">
@@ -631,31 +850,75 @@ export default function LatexViewer({
         </div>
       )}
 
-      {/* ── M3.6: Format toolbar — always visible, context-aware ── */}
-      <FormatToolbar
-        focusedBlockType={focusedBlockType}
-        onApplyFormat={handleApplyFormat}
-      />
+      {/* ── M3.6: Format toolbar (only when main toolbar is visible) ── */}
+      {!hideToolbar && (
+        <FormatToolbar
+          focusedBlockType={focusedBlockType}
+          onApplyFormat={handleApplyFormat}
+        />
+      )}
 
-      {/* ── Content area ── */}
-      <div className="flex-1 overflow-auto" ref={contentRef}>
-        <div style={{ fontSize: `${zoom}%` }} className="px-6 py-5 font-sans text-gray-900">
-          <BlockRegionRenderer
-            blocks={pageBlocks}
-            hoveredBlockId={hoveredBlockId}
-            focusedBlockId={focusedBlockId}
-            editingBlockId={editingBlockId}
-            onHover={setHoveredBlockId}
-            onFocus={setFocusedBlockId}
-            onEdit={setEditingBlockId}
-            onConfirm={handleConfirm}
-            onCancel={handleCancelEdit}
-          />
-          {pageBlocks.length === 0 && (
-            <div className="text-gray-400 italic text-sm">
-              Parser returned no blocks. Check the LaTeX source.
-            </div>
-          )}
+      {/* ── Transparent scroll container → white A4 sheet ── */}
+      <div
+        className="flex-1 overflow-auto flex justify-center py-6"
+        style={{ background: 'transparent' }}
+        ref={scrollContainerRef}
+      >
+        {/* Zoom outer: has the visual (scaled) dimensions so scroll height is correct */}
+        <div style={zoomOuterStyle}>
+          {/* Zoom inner: applies the CSS transform */}
+          <div style={zoomInnerStyle}>
+          {/* White A4 / landscape sheet */}
+          <div style={sheetStyle} ref={contentRef}>
+            {/* AI preview banner — shown when pendingDocumentEdit is active */}
+            {pendingDocumentEdit && (
+              <div
+                style={{
+                  margin: `-${profile.geometry.margins.top}rem -${profile.geometry.margins.right}rem 0.75rem -${profile.geometry.margins.left}rem`,
+                  padding: '0.35rem 0.75rem',
+                  background: 'rgba(238,242,255,0.95)',
+                  borderBottom: '1px solid rgba(99,102,241,0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <svg
+                  style={{ width: '0.875rem', height: '0.875rem', color: 'rgb(99,102,241)', flexShrink: 0 }}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span style={{ fontSize: '0.6875rem', color: 'rgb(79,70,229)', fontWeight: 500, fontFamily: 'sans-serif' }}>
+                  AI preview — Apply or Discard in the chat
+                </span>
+              </div>
+            )}
+            <BlockRegionRenderer
+              blocks={blocks}
+              hoveredBlockId={hoveredBlockId}
+              focusedBlockId={focusedBlockId}
+              editingBlockId={editingBlockId}
+              onHover={setHoveredBlockId}
+              onFocus={setFocusedBlockId}
+              onEdit={setEditingBlockId}
+              onConfirm={handleConfirm}
+              onCancel={handleCancelEdit}
+              columnGap={profile.layout.columnGap}
+              onAddBlock={handleAddBlock}
+              onDeleteBlock={handleDeleteBlock}
+              onMoveBlock={handleMoveBlock}
+            />
+            {blocks.length === 0 && (
+              <div className="text-gray-400 italic text-sm">
+                Parser returned no blocks. Check the LaTeX source.
+              </div>
+            )}
+          </div>
+          </div>
         </div>
       </div>
 
@@ -686,6 +949,11 @@ interface BlockRegionRendererProps {
   onEdit: (id: string) => void;
   onConfirm: (id: string, newSource: string) => void;
   onCancel: (id: string) => void;
+  columnGap?: string;
+  // IA-M2: block management
+  onAddBlock?: (id: string, type: NewBlockType, position: 'before' | 'after') => void;
+  onDeleteBlock?: (id: string) => void;
+  onMoveBlock?: (id: string, direction: -1 | 1) => void;
 }
 
 function BlockRegionRenderer({
@@ -698,7 +966,18 @@ function BlockRegionRenderer({
   onEdit,
   onConfirm,
   onCancel,
+  columnGap = '1.5rem',
+  onAddBlock,
+  onDeleteBlock,
+  onMoveBlock,
 }: BlockRegionRendererProps) {
+  // IA-M2: precompute which indices are first/last non-structural blocks for move buttons
+  const interactiveIndices = blocks
+    .map((b, idx) => ({ b, idx }))
+    .filter(({ b }) => b.type !== 'col-start' && b.type !== 'col-end' && b.type !== 'hr');
+  const firstInteractiveIdx = interactiveIndices[0]?.idx ?? -1;
+  const lastInteractiveIdx = interactiveIndices[interactiveIndices.length - 1]?.idx ?? -1;
+
   const regions: React.ReactNode[] = [];
   let i = 0;
 
@@ -711,6 +990,7 @@ function BlockRegionRenderer({
       i++;
       while (i < blocks.length && blocks[i].type !== 'col-end') {
         const b = blocks[i];
+        const bIdx = blocks.indexOf(b);
         inner.push(
           <LatexBlock
             key={b.id}
@@ -723,6 +1003,11 @@ function BlockRegionRenderer({
             onEdit={onEdit}
             onConfirm={onConfirm}
             onCancel={onCancel}
+            onAddBlock={onAddBlock}
+            onDeleteBlock={onDeleteBlock}
+            onMoveBlock={onMoveBlock}
+            canMoveUp={bIdx > firstInteractiveIdx}
+            canMoveDown={bIdx < lastInteractiveIdx}
           />
         );
         i++;
@@ -730,7 +1015,7 @@ function BlockRegionRenderer({
       regions.push(
         <div
           key={block.id}
-          style={{ columnCount: colCount, columnGap: '1.5rem' }}
+          style={{ columnCount: colCount, columnGap }}
           className="w-full"
         >
           {inner}
@@ -750,6 +1035,11 @@ function BlockRegionRenderer({
           onEdit={onEdit}
           onConfirm={onConfirm}
           onCancel={onCancel}
+          onAddBlock={onAddBlock}
+          onDeleteBlock={onDeleteBlock}
+          onMoveBlock={onMoveBlock}
+          canMoveUp={i > firstInteractiveIdx}
+          canMoveDown={i < lastInteractiveIdx}
         />
       );
       i++;

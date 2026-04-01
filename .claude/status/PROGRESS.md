@@ -4,47 +4,30 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
-## Sesion 2026-03-31 — Modulo Exams: features + polish post-commit
+## Sesion 2026-03-31 — Visor PDF-like + perfiles de plantilla + AI document-level edits
 
-**Completado (features principales — antes del commit de exams):**
-- Color theme del modulo de examen cambiado de amarillo a indigo en todos los componentes: ExamSetup, ExamStats, ExamResults, ExamReportModal, ExamInProgress, ExamFlashcards y generateExamPDF
-- Formatos mutuamente exclusivos: seleccionar Flashcard deselecciona los demas formatos y viceversa
-- Partial credit para preguntas fill_in: opcion strict/partial en ExamSetup; la IA asigna score 0.0–1.0; columna `partial_score real` en `exam_questions`; calculo de nota proporcional
-- Grading delegado a app-api: endpoint `POST /exams/grade-fill-in` en app-api; el submit route de app-web ya no llama a OpenAI directamente
-- canonical_subject en ingles: la IA normaliza el nombre del tema en ingles para agrupar correctamente en stats cross-idioma
-- Validacion de grounding: segunda llamada a la IA cuando hay documento adjunto para verificar que las preguntas estan basadas en el documento
-- Cognitive Distribution en Advanced: seccion colapsable con toggle (estilo timer), steppers de cuenta de preguntas (no porcentajes), barra proporcional, auto-distribucion, validacion con status bar verde/naranja + boton auto-distribute + submit deshabilitado si invalido
-- Deteccion de matematicas (has_math): la IA marca preguntas con `has_math: boolean`; columna en DB; teclado virtual de simbolos matematicos (Basic/Greek/Calculus/Chemistry) en preguntas fill_in
-- Subida de foto de procedimiento: para preguntas fill_in, boton "Upload photo of handwritten work"; preview local; submit via FormData; upload a Supabase Storage bucket privado `exam-answers`; signed URL 300s para la IA; GPT-4o vision evalua la foto; columna `answer_image_url text` en DB
-- Migraciones SQL aplicadas: `grading_mode text` en `exams`, `language text` en `exams`, `partial_score real` en `exam_questions`, `has_math boolean` en `exam_questions`, `answer_image_url text` en `exam_questions`, bucket privado `exam-answers` con RLS policies
-
-**Completado (polish post-commit — cambios de UI no incluidos en el commit de exams):**
-- MathText component: componente que parsea `$...$` inline y renderiza con KaTeX; aplicado en ExamInProgress (enunciado + opciones de multiple choice) y ExamResults (pregunta, respuesta del alumno, correccion de la IA, explicacion); la IA genera formulas con delimitador `$...$`
-- LangBadge: badges de texto EN/ES/CA/FR/DE/PT/IT en lugar de emojis de bandera — los emojis de bandera no tienen representacion visual en Windows; los badges de texto son universales
-- Alineacion vertical: `flex items-center` y `flex items-baseline` aplicados de forma consistente en todos los componentes del modulo de examen para eliminar desalineaciones entre icono, label y controles
-- Toggles: `top-[3px] left-[3px]` para centrado perfecto de la bolita dentro del track en todos los toggles del modulo
-- Language selector: `grid grid-cols-4` en lugar de `flex flex-wrap` para que las 4 opciones de idioma queden en una sola fila alineada
-- Headers h-14: altura unificada a `h-14` en los headers de Home, Exams, My Documents y Templates para que queden alineados con la sidebar
-- New Document button: `w-full` en el div contenedor para que el boton quede en el extremo derecho del header
-- Sort by updated_at: "Newest first" ahora ordena por `updated_at` (ultima modificacion) en lugar de `created_at` (fecha de creacion)
-- gitignore fix: `/exams/` (con slash inicial) en lugar de `exams/` en .gitignore para que la regla solo afecte al directorio raiz y no bloquee `app/(app)/exams/`
-- Custom Instructions en Advanced: textarea libre para instrucciones adicionales; se inyectan al final del prompt del sistema con prioridad maxima para que la IA las respete sobre cualquier otra instruccion
+**Completado:**
+- `lib/template-profiles.ts`: interface TemplateProfile con geometria, tipografia, colores, layout y chrome. Perfiles reales derivados de los preambles LaTeX de las 4 plantillas activas (lecture_notes, 2cols_portrait, landscape_3col_maths, study_form) + default.
+- LatexViewer: layout A4 PDF-like (hoja blanca sobre fondo neutro, estilo visor PDF real). Zoom via `transform: scale()` con wrapper two-div para que scroll height sea correcto. CSS custom properties inyectadas por plantilla. Fix color texto negro sobre fondo blanco.
+- Mejora A: `lib/katex-macros.ts` — constante KATEX_MACROS compartida entre LatexBlock y ChatPanel.
+- Mejora B: preview KaTeX renderizado en chips de BlockReference.
+- Mejora C: indicadores de pasos undo/redo en toolbar con contadores en estado React.
+- Mejora D: scroll automatico al bloque editado tras Apply.
+- Mejora E: fix replace fragil — estrategia Nth-occurrence para bloques con latex_source identico.
+- Fixes del reviewer: FormatToolbar movida dentro de !hideToolbar, IDs duplicados en multicols (parseLatexInternal no resetea _idCounter), boton redo usa redoCount state en lugar de ref.current.
+- AI edita el documento via prompts del chat: `editDocument()` en AIProvider con JSON mode para clasificar automaticamente entre edicion de documento y respuesta conversacional. Ruta `POST /latex/edit-document` en app-api. Route handler `POST /api/documents/[id]/chat-edit` en app-web (guarda mensajes en DB). LatexViewer: prop `pendingDocumentEdit` con banner "AI preview" y outline indigo. ChatPanel: `DocumentEditPreviewCard` con Apply/Discard. page.tsx: estado y wiring completo.
 
 **Decisiones tomadas:**
-- Grading delegado a app-api (no OpenAI directo desde Next.js) para centralizar logica de evaluacion y no exponer la API key en el cliente
-- LangBadge con texto en lugar de emojis de bandera: los emojis de bandera no tienen representacion visual en Windows; los badges de texto son universales y semanticamente equivalentes
-- canonical_subject normalizado en ingles por la IA: garantiza agrupacion correcta en stats cuando el usuario mezcla idiomas entre sesiones
-- Foto de procedimiento con signed URL de 300s: el bucket es privado por seguridad; la URL efimera se pasa directamente a GPT-4o vision en la misma llamada de grading
-- Sort por updated_at en lugar de created_at: refleja mejor el orden de trabajo real del usuario; un documento editado hoy aparece antes que uno creado ayer pero no tocado
-- gitignore con slash inicial `/exams/`: la regla `exams/` sin slash afectaba a cualquier carpeta llamada exams en cualquier nivel del arbol, bloqueando la ruta de Next.js `app/(app)/exams/`
+- JSON mode en editDocument(): clasifica automaticamente el mensaje del usuario entre edicion de documento (devuelve nuevo latex_source) o respuesta conversacional (devuelve mensaje de texto). El clasificador esta en el propio prompt de sistema.
+- Commits separados por feature: d1c00c6 (visor PDF-like + mejoras A-E) y d5f1668 (AI document-level edit).
 
 **Problemas encontrados:**
-- Emojis de bandera en Windows no tienen representacion visual — resuelto con LangBadge de texto
-- .gitignore bloqueaba `app/(app)/exams/` porque la regla `exams/` era demasiado amplia — resuelto cambiando a `/exams/`
+- Calidad de AI edits parcial: la IA no aplica cambios en todas las instancias del documento consistentemente (ej: cambiar color de ecuaciones no afecta a todas). Pendiente mejora de prompt o estrategia de edicion.
+- app-api en modo Docker no tiene los nuevos endpoints. Usuario debe rebuildar imagen o usar `npm run dev` directamente.
 
 **Lecciones capturadas:** no
 
-**Siguiente:** Verificar el modulo de examen en navegador end-to-end (flujo completo: crear examen → responder → grading → resultados → PDF) y aplicar las migraciones SQL pendientes en Supabase si aun no estan aplicadas
+**Siguiente:** F4-M1 Problem Solver (primera feature de Fase 4)
 
 ---
 

@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-30 (apertura sesión F4-M1) — Fase 3 COMPLETA ✅. F4-M1 Problem Solver descompuesto en sub-milestones F4-M1.1 a F4-M1.5. Fase 4 abierta._
+_Última actualización: 2026-03-31 (cierre de sesión) — IA-M1 (fundamentos robustos de edición IA) e IA-M2 (gestión dinámica de bloques) completados. Pendiente verificación funcional por el usuario. Pendiente operacional: migración SQL F3-M5 en Supabase + OPENAI_API_KEY en Vercel + rebuild Docker app-api. IA-M3 (multi-modelo) queda para sesión futura._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -235,103 +235,47 @@ _Criterio de aceptación: Documento publicable a My Studies con keywords auto-ge
 
 ---
 
+## Extensiones post-F3 — IA Visor Interactivo
+
+### IA-M1 — Fundamentos robustos de edición IA ✅ COMPLETADO (2026-03-31)
+
+- [x] Sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser)
+- [x] Prevalidación LaTeX en Flujo C: chat-edit route compila antes de retornar el preview
+- [x] Persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant)
+- [x] Historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory)
+
+_Pendiente: verificación funcional en navegador por el usuario._
+
+---
+
+### IA-M2 — Gestión dinámica de bloques ✅ COMPLETADO (2026-03-31)
+
+- [x] BlockActionBar en LatexBlock: añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección)
+- [x] Eliminar bloque con confirmación
+- [x] Reordenar bloques (subir/bajar)
+- [x] reconstructLatexFromBlocks() en parser: reconstituye LaTeX completo desde Block[]
+- [x] newBlockLatex() genera placeholders por tipo
+- [x] onBlockMutation prop en LatexViewer: dispara compile+persist vía /api/documents/[id]/compile
+
+_Pendiente: verificación funcional en navegador por el usuario._
+
+---
+
+### IA-M3 — Multi-modelo
+_Para sesión futura._
+
+Permitir al usuario elegir modelo IA (gpt-4o-mini, gpt-4o, Claude, etc.) por documento o globalmente. Requiere refactor del AIProvider para soportar múltiples proveedores.
+
+---
+
 ## Fase 4 — ECOSISTEMA DE ESTUDIO
 
-### F4-M1 — Problem Solver ✅ COMPLETADO (2026-03-30)
+### F4-M1 — Problem Solver
 _Prerrequisito: Visor interactivo (F3) completado_
-_Prioridad: 🔴 Alta_
-_Agente principal: fullstack_
 
 Importar PDF con problema → IA resuelve detalladamente con soporte visual (tablas, diagramas).
 Sub-chats minimizables que el usuario puede abrir en mitad de una solución para preguntas
 específicas sin perder el hilo principal. Botón "Publish to My Studies".
-
-#### Arquitectura de la feature
-
-**Página nueva:** `/problem-solver` (ya existe como placeholder) — layout en dos columnas:
-- Izquierda: PDF viewer del problema importado (reutiliza PdfViewer.tsx)
-- Derecha: Solución IA renderizada con Markdown enriquecido (tablas, KaTeX) + controles
-
-**Componentes nuevos:**
-- `ProblemUploadZone.tsx` — dropzone específico para importar PDFs de problemas
-- `SolutionPanel.tsx` — panel de solución con Markdown+KaTeX renderer, streaming
-- `SubChatDrawer.tsx` — drawer/panel de sub-chat minimizable (overlay sobre la solución)
-- `SubChatBubble.tsx` — burbuja flotante para re-abrir un sub-chat minimizado
-
-**Componentes reutilizados:**
-- `PdfViewer.tsx` — visor del PDF del problema (lado izquierdo)
-- `ChatPanel.tsx` — base para el sub-chat (sin BlockReference, sin Apply/Discard)
-- `PublishModal.tsx` — publicar sesión a My Studies (sin cambios)
-- `AttachmentDropzone.tsx` — lógica de upload de archivos
-
-**Endpoints nuevos (Next.js Route Handlers):**
-- `POST /api/problem-solver/sessions` — crear sesión (user_id, título auto, pdf_path)
-- `GET /api/problem-solver/sessions` — listar sesiones del usuario
-- `GET /api/problem-solver/sessions/[id]` — obtener sesión con solución y sub-chats
-- `POST /api/problem-solver/sessions/[id]/solve` — IA resuelve el problema (streaming)
-- `POST /api/problem-solver/sessions/[id]/sub-chats` — crear sub-chat dentro de la sesión
-- `POST /api/problem-solver/sessions/[id]/sub-chats/[scId]/messages` — mensaje en sub-chat
-
-**Tablas nuevas (Supabase):**
-- `problem_solver_sessions` — id, user_id, title, pdf_storage_path, solution_markdown, status, is_published, created_at, updated_at
-- `problem_solver_sub_chats` — id, session_id, title, is_minimized, position_order, created_at
-- `problem_solver_messages` — id, sub_chat_id, role, content, created_at
-
-**PDF parsing (nuevo):**
-- Extraer texto del PDF en el Route Handler vía `pdf-parse` (npm) antes de enviarlo a GPT-4o
-- El texto extraído se pasa como contexto en el prompt de solución
-
----
-
-#### Sub-milestones
-
-- [x] F4-M1.1 🔴 DB + backend base · Agente: backend · ~2h
-  > Migración SQL: tablas `problem_solver_sessions`, `problem_solver_sub_chats`, `problem_solver_messages`.
-  > RLS policies: usuario ve solo sus sesiones.
-  > Endpoints CRUD básicos: POST /sessions, GET /sessions, GET /sessions/[id].
-  > Criterio: migración aplicable, endpoints devuelven 200 con datos mock.
-
-- [x] F4-M1.2 🔴 PDF upload + extracción de texto · Agente: backend · ~2h
-  > Reutilizar lógica de `/api/attachments/upload` para subir el PDF del problema a Supabase Storage (bucket `problem-solver-pdfs`).
-  > Integrar `pdf-parse` en el Route Handler POST /sessions para extraer texto del PDF en el momento de creación.
-  > Guardar `pdf_storage_path` + `extracted_text` en la sesión.
-  > Criterio: POST /sessions recibe PDF, extrae texto, persiste en DB.
-
-- [x] F4-M1.3 🔴 Solve endpoint + SolutionPanel · Agente: fullstack · ~2h
-  > POST /api/problem-solver/sessions/[id]/solve: llama a GPT-4o con prompt especializado (problema + texto extraído → solución detallada en Markdown con KaTeX).
-  > Streaming de la respuesta al cliente (ReadableStream / SSE).
-  > `SolutionPanel.tsx`: renderiza Markdown con react-markdown + rehype-katex (soporte tablas GFM, fórmulas LaTeX).
-  > Criterio: solución se muestra en tiempo real con fórmulas y tablas renderizadas.
-
-- [x] F4-M1.4 🔴 Layout página + PDF viewer + upload zone · Agente: frontend · ~1.5h
-  > Reemplazar placeholder de `/problem-solver` con layout real de dos columnas.
-  > `ProblemUploadZone.tsx`: dropzone centrado (estado vacío), acepta PDF, llama POST /sessions, navega a sesión.
-  > Ruta `/problem-solver/[id]` para la sesión activa: columna izquierda PDF viewer (reutiliza PdfViewer.tsx), columna derecha SolutionPanel.
-  > Header con título editable y botón "Publish to My Studies".
-  > Criterio: usuario puede subir PDF, ver el PDF y la solución en pantalla dividida.
-
-- [x] F4-M1.5 🔴 Sub-chats minimizables · Agente: frontend · ~2.5h
-  > `SubChatDrawer.tsx`: panel lateral deslizante (drawer) sobre la solución, usa ChatPanel.tsx en modo "sub-chat" (sin BlockReference).
-  > Botón "Ask a question" flotante en la solución para abrir nuevo sub-chat.
-  > `SubChatBubble.tsx`: burbuja flotante sticky en la esquina inferior derecha con contador de sub-chats minimizados; hover muestra lista, click reabre el sub-chat.
-  > Cada sub-chat tiene título (auto-generado del primer mensaje) y estado open/minimized.
-  > POST /sub-chats y POST /sub-chats/[scId]/messages conectados.
-  > Criterio: usuario puede abrir un sub-chat, hacer preguntas, minimizarlo, seguir leyendo la solución y reabrirlo desde la burbuja.
-
-- [x] F4-M1.6 🟡 Publish to My Studies · Agente: frontend · ~1h
-  > Reutilizar PublishModal.tsx existente apuntando a un nuevo endpoint POST /api/problem-solver/sessions/[id]/publish.
-  > El endpoint reutiliza la lógica de publish de documentos (is_published, university, degree, subject, visibility, keywords[]).
-  > Botón "Publish" en el header de la sesión.
-  > Criterio: sesión publicable con keywords auto-generadas. Aparece en My Studies.
-
-- [x] F4-M1.7 🟡 Listado de sesiones + empty state · Agente: frontend · ~1h
-  > En `/problem-solver` (antes del upload): si el usuario tiene sesiones previas, mostrar grid de cards (título, fecha, estado). Botón "New Problem" para iniciar nueva sesión.
-  > Empty state mejorado con instrucciones claras.
-  > Criterio: usuario ve sus sesiones anteriores al entrar a Problem Solver.
-
-_Criterio de aceptación del milestone: El usuario puede importar un PDF con un problema, la IA genera una solución detallada con fórmulas y tablas, puede abrir sub-chats de dudas minimizables sin perder la solución, y puede publicar el resultado a My Studies._
-
-_Estimación total: ~12h de implementación en 2-3 sesiones._
 
 ---
 

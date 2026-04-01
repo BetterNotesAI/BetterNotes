@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetterNotes — Cierre de sesión 2026-03-31</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --surface3: #222222;
+    --border: #2a2a2a;
+    --border-light: #333333;
+    --text: #e8e8e8;
+    --text-muted: #888888;
+    --text-dim: #555555;
+    --indigo: #6366f1;
+    --indigo-light: #818cf8;
+    --indigo-dim: #1e1e3f;
+    --fuchsia: #d946ef;
+    --fuchsia-dim: #2d1a30;
+    --emerald: #10b981;
+    --emerald-dim: #0a1f18;
+    --amber: #f59e0b;
+    --amber-dim: #1f1a0a;
+    --red: #ef4444;
+    --red-dim: #1f0a0a;
+    --sky: #38bdf8;
+    --sky-dim: #0a1a2f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ---- HERO ---- */
+  .hero {
+    background: linear-gradient(135deg, #0f0f2e 0%, #1a0a1f 50%, #0a1f0f 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 32px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(99,102,241,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(217,70,239,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--indigo-light);
+    margin-bottom: 12px;
+  }
+  .hero-title {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+  .hero-title span { color: var(--indigo-light); }
+  .hero-subtitle {
+    font-size: 15px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+  .hero-badges {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .badge-emerald { background: var(--emerald-dim); border-color: rgba(16,185,129,0.3); color: var(--emerald); }
+  .badge-indigo  { background: var(--indigo-dim);  border-color: rgba(99,102,241,0.3);  color: var(--indigo-light); }
+  .badge-amber   { background: var(--amber-dim);   border-color: rgba(245,158,11,0.3);  color: var(--amber); }
+  .badge-fuchsia { background: var(--fuchsia-dim); border-color: rgba(217,70,239,0.3);  color: var(--fuchsia); }
+  .badge-sky     { background: var(--sky-dim);     border-color: rgba(56,189,248,0.3);  color: var(--sky); }
+  .badge-red     { background: var(--red-dim);     border-color: rgba(239,68,68,0.3);   color: var(--red); }
+
+  /* ---- LAYOUT ---- */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* ---- SECTION ---- */
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ---- CARDS ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .icon-indigo  { background: var(--indigo-dim);  }
+  .icon-fuchsia { background: var(--fuchsia-dim); }
+  .icon-emerald { background: var(--emerald-dim); }
+  .icon-amber   { background: var(--amber-dim);   }
+  .icon-sky     { background: var(--sky-dim);     }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.3;
+  }
+  .card-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .card-body {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .card-body ul {
+    list-style: none;
+    padding: 0;
+  }
+  .card-body ul li {
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .card-body ul li::before {
+    content: '–';
+    position: absolute;
+    left: 0;
+    color: var(--text-dim);
+  }
+  .card-body p { margin-bottom: 8px; }
+
+  /* ---- HIGHLIGHT CARD ---- */
+  .card-highlight {
+    background: var(--indigo-dim);
+    border-color: rgba(99,102,241,0.25);
+  }
+  .card-highlight .card-title { color: var(--indigo-light); }
+
+  /* ---- FEATURE GRID ---- */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  /* ---- DECISION TABLE ---- */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--surface2); }
+  tr:last-child td { border-bottom: none; }
+  td code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11.5px;
+    background: var(--surface3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--indigo-light);
+  }
+
+  /* ---- PROGRESS BAR ---- */
+  .progress-block { margin-bottom: 12px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .progress-label span:last-child { color: var(--text); font-weight: 600; }
+  .progress-track {
+    height: 6px;
+    background: var(--surface3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .fill-emerald { background: linear-gradient(90deg, var(--emerald), #34d399); }
+  .fill-indigo  { background: linear-gradient(90deg, var(--indigo), var(--indigo-light)); }
+  .fill-amber   { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+
+  /* ---- COMMITS ---- */
+  .commit-list { display: flex; flex-direction: column; gap: 8px; }
+  .commit-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .commit-hash {
+    font-family: 'SF Mono', monospace;
+    font-size: 11px;
+    color: var(--indigo-light);
+    background: var(--indigo-dim);
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .commit-msg { color: var(--text); line-height: 1.4; }
+
+  /* ---- CALLOUT ---- */
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid transparent;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout-amber { background: var(--amber-dim); border-color: rgba(245,158,11,0.25); color: #d4a017; }
+  .callout-emerald { background: var(--emerald-dim); border-color: rgba(16,185,129,0.25); color: #6ee7b7; }
+  .callout-indigo { background: var(--indigo-dim); border-color: rgba(99,102,241,0.25); color: #a5b4fc; }
+  .callout-red { background: var(--red-dim); border-color: rgba(239,68,68,0.25); color: #fca5a5; }
+
+  /* ---- STATUS CHIPS ---- */
+  .status-done    { color: var(--emerald); font-weight: 600; }
+  .status-partial { color: var(--amber);   font-weight: 600; }
+  .status-pending { color: var(--text-dim); }
+
+  /* ---- TWO COL ---- */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ---- FOOTER ---- */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 32px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .footer strong { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">BetterNotes v2 — Informe de sesion</div>
+  <h1 class="hero-title">Cierre de sesion <span>2026-03-31</span></h1>
+  <p class="hero-subtitle">Visor PDF-like + perfiles de plantilla + AI edita el documento via chat</p>
+  <div class="hero-badges">
+    <span class="badge badge-emerald">Fase 3 activa (post-F3)</span>
+    <span class="badge badge-indigo">2 commits mergeados</span>
+    <span class="badge badge-fuchsia">AI document edits</span>
+    <span class="badge badge-sky">Visor PDF-like</span>
+    <span class="badge badge-amber">F4-M1 siguiente</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="container">
+
+  <!-- PROGRESO GLOBAL -->
+  <div class="section">
+    <div class="section-title">Progreso del proyecto</div>
+    <div class="card">
+      <div class="progress-block">
+        <div class="progress-label"><span>Fase 1 — MVP</span><span>Completa</span></div>
+        <div class="progress-track"><div class="progress-fill fill-emerald" style="width:100%"></div></div>
+      </div>
+      <div class="progress-block">
+        <div class="progress-label"><span>Fase 2 — Rediseno y organizacion</span><span>Completa</span></div>
+        <div class="progress-track"><div class="progress-fill fill-emerald" style="width:100%"></div></div>
+      </div>
+      <div class="progress-block">
+        <div class="progress-label"><span>Fase 3 — Visor interactivo</span><span>Completa + extensiones 2026-03-31</span></div>
+        <div class="progress-track"><div class="progress-fill fill-emerald" style="width:100%"></div></div>
+      </div>
+      <div class="progress-block">
+        <div class="progress-label"><span>Fase 4 — Ecosistema de estudio</span><span>0%</span></div>
+        <div class="progress-track"><div class="progress-fill fill-indigo" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMMITS DE LA SESION -->
+  <div class="section">
+    <div class="section-title">Commits de esta sesion</div>
+    <div class="commit-list">
+      <div class="commit-item">
+        <span class="commit-hash">d1c00c6</span>
+        <span class="commit-msg">feat(viewer): visor PDF-like con perfiles de plantilla + mejoras A-E (KaTeX macros compartidas, preview en chips, contadores undo/redo, auto-scroll, fix Nth-occurrence replace)</span>
+      </div>
+      <div class="commit-item">
+        <span class="commit-hash">d5f1668</span>
+        <span class="commit-msg">feat(viewer): AI edits document via chat prompts with preview + confirm/discard</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LO QUE SE HIZO -->
+  <div class="section">
+    <div class="section-title">Que se construyo en esta sesion</div>
+
+    <!-- Feature 1 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon icon-indigo">&#128196;</div>
+        <div>
+          <div class="card-title">Visor PDF-like con perfiles de plantilla</div>
+          <div class="card-sub">lib/template-profiles.ts + LatexViewer refactor</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Nueva interfaz <code>TemplateProfile</code> con geometria (margenes, columnas), tipografia (fuentes, tamanos), colores (accent, fondo, headings) y layout por plantilla.</li>
+          <li>Perfiles reales derivados de los preambles LaTeX de las 4 plantillas activas: <code>lecture_notes</code>, <code>2cols_portrait</code>, <code>landscape_3col_maths</code>, <code>study_form</code> + perfil default.</li>
+          <li>LatexViewer muestra una hoja blanca A4 sobre fondo neutro oscuro, igual que un visor PDF real. El texto es negro sobre blanco (fix <code>color: '#111111'</code>).</li>
+          <li>Zoom via <code>transform: scale()</code> con patron two-div: el div exterior fija el espacio visual (altura × escala), el interior aplica la transformacion. Resuelve el problema de scroll height con zoom negativo.</li>
+          <li>CSS custom properties (<code>--accent</code>, <code>--heading-color</code>, etc.) inyectadas por plantilla activa. Los section headings y theorem environments las consumen automaticamente.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Feature 2 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon icon-sky">&#128295;</div>
+        <div>
+          <div class="card-title">Mejoras A–E al visor interactivo</div>
+          <div class="card-sub">5 mejoras independientes de calidad y UX</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><strong>A — KaTeX macros compartidas:</strong> constante <code>KATEX_MACROS</code> extraida a <code>lib/katex-macros.ts</code> y reutilizada en <code>LatexBlock</code> y <code>ChatPanel</code> sin duplicacion.</li>
+          <li><strong>B — Preview KaTeX en chips BlockReference:</strong> el chip que aparece en el chat cuando el usuario referencia un bloque ahora muestra el latex renderizado, no el codigo fuente crudo.</li>
+          <li><strong>C — Contadores undo/redo en toolbar:</strong> la barra superior muestra cuantos pasos atras y adelante estan disponibles en tiempo real. Implementado con estado React (<code>undoCount</code>, <code>redoCount</code>) en lugar de refs.</li>
+          <li><strong>D — Scroll automatico tras Apply:</strong> al aplicar una sugerencia de IA, el visor hace scroll automatico hasta el bloque modificado para que el usuario vea el resultado inmediatamente.</li>
+          <li><strong>E — Fix replace Nth-occurrence:</strong> cuando dos bloques tienen el mismo <code>latex_source</code> identico, el replace anterior era fragil (reemplazaba la primera ocurrencia siempre). Nueva estrategia: busca la Nth ocurrencia del string por posicion de bloque en el documento.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Feature 3 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon icon-emerald">&#128736;</div>
+        <div>
+          <div class="card-title">Fixes del reviewer</div>
+          <div class="card-sub">4 bugs corregidos tras revision de codigo</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><strong>Zoom wrapper height:</strong> la altura visual del wrapper exterior se calcula explicitamente como <code>naturalHeight × scale</code> en lugar de depender de <code>marginBottom</code> negativo (que era fragil y causaba solapamientos).</li>
+          <li><strong>FormatToolbar dentro de !hideToolbar:</strong> la toolbar de formato se movia fuera del bloque condicional, apareciendo aunque el bloque no estuviera en modo edicion.</li>
+          <li><strong>IDs duplicados en multicols:</strong> <code>parseLatexInternal</code> no resetea el contador <code>_idCounter</code> al re-parsear — los IDs de bloque eran diferentes entre renders, causando problemas de reconciliacion React y en el Nth-occurrence replace.</li>
+          <li><strong>Boton redo usa redoCount state:</strong> el boton redo consultaba <code>ref.current</code> directamente en lugar del estado React, por lo que el UI no se actualizaba al cambiar.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Feature 4 -->
+    <div class="card card-highlight">
+      <div class="card-header">
+        <div class="card-icon icon-fuchsia">&#129504;</div>
+        <div>
+          <div class="card-title">AI edita el documento completo via prompts del chat</div>
+          <div class="card-sub">Flujo C: document-level AI edit con preview y confirm/discard</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>El usuario puede escribir en el chat cosas como "cambia el color de las ecuaciones a rojo" y la IA genera un nuevo <code>latex_source</code> completo del documento. El visor muestra un banner "AI Preview" con outline indigo y el usuario puede Aplicar o Descartar.</p>
+        <ul>
+          <li><strong>AIProvider — editDocument():</strong> metodo nuevo con JSON mode. En un solo LLM call clasifica si el mensaje del usuario es una edicion del documento (devuelve nuevo <code>latex_source</code>) o una respuesta conversacional (devuelve texto). El clasificador esta en el prompt de sistema.</li>
+          <li><strong>app-api — POST /latex/edit-document:</strong> nueva ruta que recibe el <code>latex_source</code> actual + el mensaje del usuario y devuelve el resultado clasificado.</li>
+          <li><strong>app-web — POST /api/documents/[id]/chat-edit:</strong> route handler que guarda los mensajes en DB (historial de chat) y retransmite la respuesta de app-api.</li>
+          <li><strong>LatexViewer — prop pendingDocumentEdit:</strong> cuando el estado es activo, el visor muestra un banner amarillo/indigo "AI Preview" y un outline en el documento para indicar que hay cambios pendientes de confirmar.</li>
+          <li><strong>ChatPanel — DocumentEditPreviewCard:</strong> nuevo componente de preview con botones Apply y Discard. Al aplicar, llama al mismo flujo de persistencia que las ediciones de bloque (compilacion PDF + nueva version en DB).</li>
+          <li><strong>page.tsx:</strong> estado <code>pendingDocumentEdit</code> y wiring completo entre ChatPanel y LatexViewer.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- DECISIONES CLAVE -->
+  <div class="section">
+    <div class="section-title">Decisiones tecnicas tomadas</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Que se eligio</th>
+            <th>Por que</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Clasificador AI (edicion vs chat)</td>
+            <td>JSON mode en un solo LLM call dentro de <code>editDocument()</code></td>
+            <td>Evita dos round-trips (uno para clasificar, otro para editar). El modelo es suficientemente bueno en clasificar con el contexto del prompt de sistema.</td>
+          </tr>
+          <tr>
+            <td>Zoom en visor</td>
+            <td>Two-div wrapper con altura calculada explicitamente</td>
+            <td>El patron <code>transform: scale()</code> no altera el layout flow — el div exterior reserva el espacio visual correcto para que el scroll funcione.</td>
+          </tr>
+          <tr>
+            <td>IDs de bloque en multicols</td>
+            <td><code>parseLatexInternal</code> mantiene el contador entre llamadas</td>
+            <td>Los IDs deben ser estables entre renders para que React reconcilie correctamente y el Nth-occurrence replace encuentre el bloque correcto.</td>
+          </tr>
+          <tr>
+            <td>KaTeX macros</td>
+            <td>Constante compartida en <code>lib/katex-macros.ts</code></td>
+            <td>Eliminacion de duplicacion entre <code>LatexBlock</code> y <code>ChatPanel</code>. Una sola fuente de verdad para las macros (<code>\dd</code>, <code>\real</code>, <code>\cplex</code>).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PROBLEMAS Y ESTADO -->
+  <div class="section">
+    <div class="section-title">Problemas encontrados</div>
+
+    <div class="callout callout-amber">
+      <span class="callout-icon">&#9888;</span>
+      <div>
+        <strong>Calidad de AI document edits — parcial.</strong> La feature funciona: el usuario puede pedir cambios al documento y verlos en preview antes de confirmar. Sin embargo, la IA no siempre aplica el cambio a todas las instancias. Ejemplo: pedir "cambia el color de las ecuaciones a rojo" modifico solo algunas ecuaciones, no todas. Esto es un problema de calidad del prompt y estrategia de edicion, no un bug de arquitectura. Pendiente mejorar en proxima sesion o como parte de F4.
+      </div>
+    </div>
+
+    <div class="callout callout-amber">
+      <span class="callout-icon">&#9888;</span>
+      <div>
+        <strong>app-api Docker desactualizado.</strong> La imagen Docker de app-api no incluye el endpoint <code>POST /latex/edit-document</code> hasta que se rebuilde. Para usar la feature en local: <code>npm run dev</code> directamente en <code>app-api/</code>.
+      </div>
+    </div>
+
+    <div class="callout callout-emerald">
+      <span class="callout-icon">&#10003;</span>
+      <div>
+        <strong>Todos los demas fixes sin incidencias.</strong> Los 4 bugs del reviewer (zoom height, FormatToolbar, duplicate IDs, redo state) quedaron resueltos sin regresiones conocidas.
+      </div>
+    </div>
+  </div>
+
+  <!-- ESTADO ACTUAL Y PENDIENTES -->
+  <div class="section">
+    <div class="section-title">Estado al cierre de sesion</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px; color: var(--emerald);">Completado y mergeado</div>
+        <div class="card-body">
+          <ul>
+            <li>Visor PDF-like con perfiles de plantilla</li>
+            <li>Mejoras A-E al visor interactivo</li>
+            <li>Fixes del reviewer (4 bugs)</li>
+            <li>AI document-level edit con preview/confirm</li>
+            <li>Commits d1c00c6, d5f1668 en main</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px; color: var(--amber);">Pendiente operacional</div>
+        <div class="card-body">
+          <ul>
+            <li>Migración SQL de F3-M5 en Supabase Dashboard</li>
+            <li>OPENAI_API_KEY en variables de Vercel</li>
+            <li>Rebuild imagen Docker de app-api</li>
+            <li>Mejorar calidad prompt AI document edits</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGUIENTE PASO -->
+  <div class="section">
+    <div class="section-title">Siguiente paso</div>
+    <div class="callout callout-indigo">
+      <span class="callout-icon">&#128204;</span>
+      <div>
+        <strong>F4-M1 — Problem Solver.</strong> Importar PDF con un problema matematico/cientifico → la IA lo resuelve paso a paso con soporte visual (tablas, diagramas, KaTeX). Sub-chats minimizables para preguntas especificas sin perder el hilo principal. Boton "Publish to My Studies". Este es el primer milestone de Fase 4 y la siguiente feature estrategica del roadmap.
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLA DE ENTREGABLES -->
+  <div class="section">
+    <div class="section-title">Archivos clave de la sesion</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Archivo</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>lib/template-profiles.ts</code></td>
+            <td>Nuevo</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>lib/katex-macros.ts</code></td>
+            <td>Nuevo</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>components/viewer/LatexViewer.tsx</code></td>
+            <td>Modificado (PDF-like layout, zoom, template profiles, pendingDocumentEdit)</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>components/viewer/LatexBlock.tsx</code></td>
+            <td>Modificado (CSS vars, scroll-to, katex-macros)</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>components/viewer/ChatPanel.tsx</code></td>
+            <td>Modificado (DocumentEditPreviewCard, flujo documento-nivel)</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>app-api/src/routes/latex.ts</code></td>
+            <td>Modificado (POST /latex/edit-document)</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>app-web/app/api/documents/[id]/chat-edit/route.ts</code></td>
+            <td>Nuevo</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+          <tr>
+            <td><code>app-web/app/(app)/documents/[id]/page.tsx</code></td>
+            <td>Modificado (pendingDocumentEdit state + wiring)</td>
+            <td><span class="status-done">Mergeado</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <strong>BetterNotes v2</strong> — Informe generado por Reporter (claude-sonnet-4-6) — 2026-03-31
+  <br>Rama: main — Commits: d1c00c6, d5f1668
+</div>
+
+</body>
+</html>

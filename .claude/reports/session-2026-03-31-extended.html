@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterNotes — Cierre Sesion 2026-03-31 (Extendida) — IA-M1 + IA-M2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f11;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    header {
+      border-left: 4px solid #6366f1;
+      padding-left: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    header .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6366f1;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.2;
+    }
+    header .meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .badge.green  { background: #14532d; color: #4ade80; }
+    .badge.yellow { background: #713f12; color: #fbbf24; }
+    .badge.blue   { background: #1e3a5f; color: #60a5fa; }
+    .badge.purple { background: #3b0764; color: #c084fc; }
+
+    .section {
+      background: #1a1a24;
+      border: 1px solid #2a2a3c;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .section h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #2a2a3c;
+    }
+    .section h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin: 1rem 0 0.5rem;
+    }
+
+    .milestone {
+      background: #12121a;
+      border: 1px solid #2a2a3c;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .milestone:last-child { margin-bottom: 0; }
+    .milestone-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .milestone-title h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0;
+    }
+    .tick { color: #4ade80; font-size: 1.1rem; }
+    .pending-icon { color: #fbbf24; font-size: 1rem; }
+
+    ul.checklist {
+      list-style: none;
+      padding: 0;
+    }
+    ul.checklist li {
+      padding: 0.3rem 0;
+      font-size: 0.88rem;
+      color: #94a3b8;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+    ul.checklist li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #4ade80;
+      font-weight: 700;
+    }
+    ul.checklist li.pending::before { content: '○'; color: #fbbf24; }
+
+    .note {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.85rem;
+      background: #0f172a;
+      border-left: 3px solid #6366f1;
+      border-radius: 4px;
+      font-size: 0.83rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    .pending-section {
+      background: #1c1407;
+      border: 1px solid #713f12;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .pending-section h3 {
+      color: #fbbf24;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .pending-section ul {
+      list-style: none;
+      padding: 0;
+    }
+    .pending-section ul li {
+      padding: 0.3rem 0 0.3rem 1.5rem;
+      font-size: 0.88rem;
+      color: #fcd34d;
+      position: relative;
+    }
+    .pending-section ul li::before {
+      content: '!';
+      position: absolute;
+      left: 0;
+      color: #fbbf24;
+      font-weight: 700;
+    }
+
+    .next-section {
+      background: #0c1a2e;
+      border: 1px solid #1e3a5f;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .next-section h3 {
+      color: #60a5fa;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .next-section ul {
+      list-style: none;
+      padding: 0;
+    }
+    .next-section ul li {
+      padding: 0.3rem 0 0.3rem 1.5rem;
+      font-size: 0.88rem;
+      color: #93c5fd;
+      position: relative;
+    }
+    .next-section ul li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #3b82f6;
+    }
+
+    .commit-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .commit-tag {
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      background: #1e293b;
+      color: #7dd3fc;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid #334155;
+    }
+
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="label">BetterNotes v2 — Informe de Sesion</div>
+    <h1>Cierre Sesion 2026-03-31 (Extendida)<br>IA-M1 + IA-M2 Completados</h1>
+    <div class="meta">Rama: session/2026-03-31 &nbsp;·&nbsp; Fecha: 31 marzo 2026 &nbsp;·&nbsp; Director: 🎯 DIRECTOR</div>
+  </header>
+
+  <div class="status-bar">
+    <span class="badge green">Fase 3 COMPLETA</span>
+    <span class="badge green">IA-M1 Completado</span>
+    <span class="badge green">IA-M2 Completado</span>
+    <span class="badge yellow">Pendiente verificacion usuario</span>
+    <span class="badge purple">IA-M3 Futuro</span>
+  </div>
+
+  <!-- MILESTONES COMPLETADOS -->
+  <div class="section">
+    <h2>Milestones Completados Esta Sesion</h2>
+
+    <div class="milestone">
+      <div class="milestone-title">
+        <span class="tick">✓</span>
+        <h3>IA-M1 — Fundamentos Robustos de Edicion IA</h3>
+      </div>
+      <ul class="checklist">
+        <li>Sustitucion de bloques por offsets <code>sourceStart</code>/<code>sourceEnd</code> — <code>annotateBlockOffsets()</code> en parser, garantiza reemplazo correcto aunque el bloque tenga texto identico a otro</li>
+        <li>Prevalidacion LaTeX en Flujo C — la ruta <code>chat-edit</code> compila el LaTeX antes de retornar el preview; el usuario nunca ve un preview que no compila</li>
+        <li>Persistencia de mensajes block-edit — la ruta <code>apply</code> guarda tanto el mensaje del usuario como la respuesta del asistente en <code>chat_messages</code></li>
+        <li>Historial de conversacion en <code>editBlock()</code> — <code>ConversationTurn[]</code> en <code>EditBlockArgs</code>; ChatPanel acumula <code>blockEditHistory</code> y lo pasa a cada llamada sucesiva sobre el mismo bloque</li>
+      </ul>
+      <div class="note">Pendiente: verificacion funcional en navegador por el usuario.</div>
+    </div>
+
+    <div class="milestone">
+      <div class="milestone-title">
+        <span class="tick">✓</span>
+        <h3>IA-M2 — Gestion Dinamica de Bloques</h3>
+      </div>
+      <ul class="checklist">
+        <li><code>BlockActionBar</code> integrado en <code>LatexBlock</code>: barra de acciones por bloque (anadir arriba/abajo, eliminar, subir, bajar)</li>
+        <li>Anadir bloque: picker de tipo (parrafo, formula, lista, seccion) → <code>newBlockLatex()</code> genera placeholder LaTeX correcto por tipo</li>
+        <li>Eliminar bloque con dialogo de confirmacion (no se puede deshacer sin undo)</li>
+        <li>Reordenar bloques (subir/bajar) con actualizacion optimista en el visor</li>
+        <li><code>reconstructLatexFromBlocks()</code> en parser: reconstituye el LaTeX completo desde el array de <code>Block[]</code> tras cualquier mutacion</li>
+        <li>Prop <code>onBlockMutation</code> en <code>LatexViewer</code>: dispara compile+persist via <code>POST /api/documents/[id]/compile</code> en <code>page.tsx</code></li>
+      </ul>
+      <div class="note">Pendiente: verificacion funcional en navegador por el usuario.</div>
+    </div>
+  </div>
+
+  <!-- COMMITS -->
+  <div class="section">
+    <h2>Historial de Commits de la Sesion</h2>
+    <div class="commit-bar">
+      <span class="commit-tag">d1c00c6 — visor PDF-like + perfiles de plantilla</span>
+      <span class="commit-tag">d5f1668 — AI edits document via chat</span>
+      <span class="commit-tag">2ce523e — cierre sesion 2026-03-31 (primera parte)</span>
+      <span class="commit-tag">9837350 — IA-M1 robust block edit + IA-M2 dynamic block management</span>
+    </div>
+  </div>
+
+  <!-- PENDIENTES OPERACIONALES -->
+  <div class="section">
+    <h2>Pendientes Operacionales (No Bloqueantes)</h2>
+    <div class="pending-section">
+      <h3>Infraestructura</h3>
+      <ul>
+        <li>Aplicar migracion SQL de F3-M5 en Supabase Dashboard (columnas: is_published, published_at, university, degree, subject, visibility, keywords[])</li>
+        <li>Anadir OPENAI_API_KEY a variables de entorno de Vercel</li>
+        <li>Rebuildar imagen Docker de app-api para incluir endpoints /latex/edit-document (o usar npm run dev directamente en Railway)</li>
+      </ul>
+    </div>
+    <div class="pending-section" style="background:#1a0f1f; border-color:#6b21a8;">
+      <h3 style="color:#c084fc;">Calidad de IA (conocido, no bloqueante)</h3>
+      <ul style="color:#d8b4fe;">
+        <li>La IA no siempre aplica cambios en todas las instancias del documento en edicion a nivel de documento. Mejora pendiente en proxima sesion o como parte de F4.</li>
+        <li>IA-M1 e IA-M2 requieren verificacion funcional en navegador antes de cerrar definitivamente.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PROXIMOS PASOS -->
+  <div class="section">
+    <h2>Siguientes Pasos</h2>
+    <div class="next-section">
+      <h3>Opciones para la proxima sesion</h3>
+      <ul>
+        <li>Verificar IA-M1 e IA-M2 en navegador (flujo completo: editar bloque con historial, anadir/eliminar/reordenar bloques)</li>
+        <li>IA-M3 — Multi-modelo: refactor AIProvider para soportar multiples proveedores (gpt-4o, Claude, etc.)</li>
+        <li>F4-M1 — Problem Solver: importar PDF con problema, IA resuelve con soporte visual, sub-chats minimizables</li>
+        <li>Deuda operacional: migracion SQL + OPENAI_API_KEY + rebuild Docker</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    BetterNotes v2 &nbsp;·&nbsp; Informe generado por 📊 REPORTER &nbsp;·&nbsp; 2026-03-31
+  </footer>
+
+</div>
+</body>
+</html>

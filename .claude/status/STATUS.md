@@ -7,38 +7,30 @@
 
 ## Estado actual
 
-**Fase:** 4 — Ecosistema de Estudio — EN CURSO
-**Milestone activo:** F4-M3 — Exams v2 (en curso)
-**Último hito cerrado:** F4-M2 — Exams v1 ✅ (2026-03-31)
-
-**Completado sesión 2026-04-01 — F4-M3 Exams v2:**
-- Flashcards: YA IMPLEMENTADO (sesión anterior)
-- Temporizador: YA IMPLEMENTADO (sesión anterior)
-- Sistema de dificultad rediseñado: Secondary / High School / University × Basic / Intermediate / Advanced (9 valores)
-- Fix LEVEL_LABELS (9 nuevos valores) + 3 legacy fallbacks
-- Timer persistence: time_spent_seconds calculado en ExamInProgress/ExamFlashcards y enviado al submit
-- Columnas BD: time_spent_seconds INTEGER + cognitive_distribution JSONB (migraciones en supabase/migrations/)
-- Stats route: RPC get_exam_stats() para agregación SQL, avg_time_seconds, history[] por subject, timezone-aware streak
-- ExamResults: "Completed in Xm Ys" + Cognitive Breakdown con barras de progreso
-- ExamStats: Avg Time card, mini SVG line chart de evolución por subject
-- PDF: fondo blanco, html2canvas + iframe, Unicode/KaTeX, estado parcial (amarillo), alineación círculo/badge corregida
-- Bugs corregidos: stats tab en blanc (columnes BD inexistents), exams[] per subject perdut en refactor RPC
+**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones de sesión 2026-03-31
+**Milestone activo:** IA-M2 completado (sesión 2026-03-31 continuada)
+**Tarea activa:** ninguna — IA-M1 e IA-M2 completados. Siguiente: IA-M3 (multi-modelo, futuro) o F4-M1 Problem Solver
+**Último hito cerrado:** IA-M2 ✅ (2026-03-31) — gestión dinámica de bloques
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
-**Rama activa:** f3-m4-chat-contextual (SIN merge a main — pendiente verificación)
-**Bloqueantes:** ninguno técnico. Pendiente de verificación manual en navegador.
+**Rama activa:** session/2026-03-31
+**Bloqueantes:** ninguno técnico.
 
-**Pendiente crítico antes de mergear a main:**
-- Verificar en navegador que el visor interactivo funciona end-to-end: edición de bloques (patrón Typora), chat contextual con chip de referencia, Apply/Discard de sugerencias IA, undo/redo (Ctrl+Z/Y)
-- Verificar que "Saved X ago" aparece en header tras Apply
-- Verificar PublishModal y My Studies page
+**Completado sesión 2026-03-31:**
+- Visor PDF-like con perfiles de plantilla (`lib/template-profiles.ts`): TemplateProfile interface con geometría, tipografía, colores, layout y chrome para las 4 plantillas activas + default. Layout A4 blanco sobre fondo neutro (estilo PDF viewer real). Zoom via `transform: scale()` con wrapper two-div para scroll height correcto. CSS custom properties inyectadas por plantilla.
+- Mejoras A-E al visor: (A) `lib/katex-macros.ts` constante compartida, (B) preview KaTeX en chips BlockReference, (C) contadores undo/redo en toolbar, (D) scroll automático al bloque editado tras Apply, (E) fix replace Nth-occurrence para bloques con latex_source idéntico.
+- Fixes del reviewer: zoom wrapper con altura visual explícita, FormatToolbar dentro de !hideToolbar, IDs duplicados en multicols corregidos, botón redo usa redoCount state, fix color texto negro sobre hoja blanca.
+- AI edita el documento vía prompts del chat: método `editDocument()` en AIProvider con JSON mode (clasifica entre edición de documento y respuesta conversacional), ruta `POST /latex/edit-document` en app-api, route handler `POST /api/documents/[id]/chat-edit` en app-web, LatexViewer prop `pendingDocumentEdit` con banner "AI preview" + outline indigo, ChatPanel con `DocumentEditPreviewCard` (Apply/Discard), page.tsx con estado y wiring completo.
+
+**Completado sesión 2026-03-31 (continuada) — IA-M1 e IA-M2:**
+- IA-M1 Fundamentos robustos: sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser), prevalidación LaTeX del Flujo C antes de mostrar preview (chat-edit route compila antes de retornar), persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant), historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory).
+- IA-M2 Gestión dinámica de bloques: UI en el visor (BlockActionBar en LatexBlock) para añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección), eliminar bloque (con confirmación), reordenar (subir/bajar), reconstructLatexFromBlocks() en parser reconstituye LaTeX completo desde Block[], newBlockLatex() genera placeholders, onBlockMutation prop en LatexViewer dispara compile+persist vía /api/documents/[id]/compile en page.tsx.
 
 **Pendiente operacional (no bloqueante para Fase 4):**
 - Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])
 - Añadir OPENAI_API_KEY a las variables de entorno de Vercel
+- Rebuildar imagen Docker de app-api para incluir endpoints `/latex/edit-document` (o usar `npm run dev` directamente)
 
-**Completado sesión 2026-03-28:**
-- F3-M4: chip visual BlockReference, preview KaTeX en BlockEditPreviewCard, Apply/Discard con actualización optimista, /api/documents/[id]/edit-block, undo/redo hasta 20 estados (Ctrl+Z/Y/Shift+Z)
-- F3-M5: migración SQL publish, POST /publish, POST /suggest-keywords (GPT-4o directo desde Next.js), GET /api/documents/published, PublishModal.tsx (keywords chips + AI suggest), botón Publish en header workspace, My Studies page grid, accesibilidad LatexBlock (tabIndex/role/aria/Enter), skeleton loader visor, "Saved X ago" en header (onApplyPersisted), transition-opacity al cambiar viewerTab
+**Calidad de AI edits:** funcional pero parcial — la IA no siempre aplica cambios en todas las instancias del documento. Pendiente mejora en próxima sesión o como parte de F4.
 
 ---
 
@@ -99,4 +91,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-04-01 — F4-M3 Exams v2 en curso. Flashcards y temporizador ya implementados (sesión anterior). Esta sesión: sistema de dificultad por tiers, stats con RPC SQL, PDF blanc amb html2canvas, time_spent_seconds i cognitive_distribution a BD. Pendent: animacions estil Duolingo, pantalla de resultats celebració.*
+*Última actualización: 2026-03-31 (cierre de sesión extendida) — IA-M1 (sustitución offset-based, prevalidación LaTeX, historial conversación, persistencia chat_messages) e IA-M2 (BlockActionBar, add/delete/reorder bloques, reconstructLatexFromBlocks) completados. Commits: d1c00c6, d5f1668, 9837350. Pendiente verificación funcional por usuario. Siguiente: verificar IA-M1/M2 en navegador → F4-M1 Problem Solver o IA-M3 multi-modelo.*

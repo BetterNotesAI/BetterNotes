@@ -18,13 +18,7 @@ import React, { useMemo, useRef, useEffect, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '@/lib/latex-parser';
-
-// ─── KaTeX macros — custom commands from landscape_3col_maths template ────────
-const KATEX_MACROS: Record<string, string> = {
-  '\\dd': '\\mathrm{d}',
-  '\\real': '\\mathbb{R}',
-  '\\cplex': '\\mathbb{C}',
-};
+import { KATEX_MACROS } from '@/lib/katex-macros';
 
 // ─── render a single KaTeX formula string ─────────────────────────────────────
 
@@ -34,6 +28,8 @@ function renderKatex(formula: string, displayMode: boolean): string {
       displayMode,
       throwOnError: false,
       macros: KATEX_MACROS,
+      // KaTeX supports \textcolor and \color natively without trust.
+      // trust stays false to block \url, \href, \htmlStyle etc.
       trust: false,
     });
   } catch {
@@ -112,8 +108,8 @@ function renderLatexCommands(text: string): string {
     .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>')
     // \emph{...}
     .replace(/\\emph\{([^}]*)\}/g, '<em>$1</em>')
-    // \textcolor{color}{text} → drop color
-    .replace(/\\textcolor\{[^}]*\}\{([^}]*)\}/g, '$1')
+    // \textcolor{color}{text} → render with inline color style
+    .replace(/\\textcolor\{([^}]*)\}\{([^}]*)\}/g, '<span style="color:$1">$2</span>')
     // \text{...}
     .replace(/\\text\{([^}]*)\}/g, '$1')
     // ___newline___ marker → line break (produced by parser from \\ at end of line)
@@ -201,7 +197,183 @@ function renderTable(latex: string): React.ReactElement {
   );
 }
 
+// ─── IA-M2: block action bar ──────────────────────────────────────────────────
+
+interface BlockActionBarProps {
+  blockId: string;
+  onAddBlock?: (id: string, type: AddBlockType, position: 'before' | 'after') => void;
+  onDeleteBlock?: (id: string) => void;
+  onMoveBlock?: (id: string, direction: -1 | 1) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+}
+
+/** Tiny action bar shown when a block is focused. */
+function BlockActionBar({
+  blockId,
+  onAddBlock,
+  onDeleteBlock,
+  onMoveBlock,
+  canMoveUp,
+  canMoveDown,
+}: BlockActionBarProps) {
+  const [showAddMenu, setShowAddMenu] = useState<'before' | 'after' | null>(null);
+
+  const btnBase =
+    'flex items-center justify-center w-5 h-5 rounded text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors text-[10px] font-medium select-none';
+  const btnDisabled = 'opacity-30 cursor-not-allowed pointer-events-none';
+
+  function stopProp(e: React.MouseEvent) {
+    e.stopPropagation();
+  }
+
+  return (
+    <div
+      className="absolute right-0 top-0 translate-x-full pl-0.5 flex flex-col items-center gap-0.5 z-10"
+      onMouseDown={stopProp}
+      onClick={stopProp}
+      style={{ pointerEvents: 'auto' }}
+    >
+      {/* Move up */}
+      <button
+        title="Move block up"
+        className={`${btnBase} ${!canMoveUp ? btnDisabled : ''}`}
+        onClick={() => canMoveUp && onMoveBlock?.(blockId, -1)}
+        tabIndex={-1}
+        aria-label="Move block up"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+
+      {/* Move down */}
+      <button
+        title="Move block down"
+        className={`${btnBase} ${!canMoveDown ? btnDisabled : ''}`}
+        onClick={() => canMoveDown && onMoveBlock?.(blockId, 1)}
+        tabIndex={-1}
+        aria-label="Move block down"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Add above */}
+      <div className="relative">
+        <button
+          title="Add block above"
+          className={btnBase}
+          onClick={() => setShowAddMenu((m) => (m === 'before' ? null : 'before'))}
+          tabIndex={-1}
+          aria-label="Add block above"
+        >
+          +↑
+        </button>
+        {showAddMenu === 'before' && (
+          <AddBlockMenu
+            blockId={blockId}
+            position="before"
+            onAdd={(id, type, pos) => { onAddBlock?.(id, type, pos); setShowAddMenu(null); }}
+            onClose={() => setShowAddMenu(null)}
+          />
+        )}
+      </div>
+
+      {/* Add below */}
+      <div className="relative">
+        <button
+          title="Add block below"
+          className={btnBase}
+          onClick={() => setShowAddMenu((m) => (m === 'after' ? null : 'after'))}
+          tabIndex={-1}
+          aria-label="Add block below"
+        >
+          +↓
+        </button>
+        {showAddMenu === 'after' && (
+          <AddBlockMenu
+            blockId={blockId}
+            position="after"
+            onAdd={(id, type, pos) => { onAddBlock?.(id, type, pos); setShowAddMenu(null); }}
+            onClose={() => setShowAddMenu(null)}
+          />
+        )}
+      </div>
+
+      {/* Delete */}
+      <button
+        title="Delete block"
+        className={`${btnBase} hover:text-red-600 hover:bg-red-50`}
+        onClick={() => {
+          if (confirm('Delete this block? This action can be undone with Ctrl+Z.')) {
+            onDeleteBlock?.(blockId);
+          }
+        }}
+        tabIndex={-1}
+        aria-label="Delete block"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+interface AddBlockMenuProps {
+  blockId: string;
+  position: 'before' | 'after';
+  onAdd: (id: string, type: AddBlockType, position: 'before' | 'after') => void;
+  onClose: () => void;
+}
+
+const ADD_BLOCK_OPTIONS: Array<{ type: AddBlockType; label: string }> = [
+  { type: 'paragraph', label: 'Paragraph' },
+  { type: 'formula', label: 'Formula' },
+  { type: 'list', label: 'List' },
+  { type: 'section', label: 'Section' },
+];
+
+function AddBlockMenu({ blockId, position, onAdd, onClose }: AddBlockMenuProps) {
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute left-full top-0 ml-0.5 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[100px] z-50"
+      style={{ fontSize: '11px' }}
+    >
+      <div className="px-2 py-0.5 text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+        {position === 'before' ? 'Add above' : 'Add below'}
+      </div>
+      {ADD_BLOCK_OPTIONS.map(({ type, label }) => (
+        <button
+          key={type}
+          className="w-full text-left px-2.5 py-1 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+          onClick={() => onAdd(blockId, type, position)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
+
+export type AddBlockType = 'paragraph' | 'formula' | 'list' | 'section';
 
 export interface LatexBlockInteractiveProps {
   /** Whether this block is hovered */
@@ -216,6 +388,17 @@ export interface LatexBlockInteractiveProps {
   /** Confirm edit: new latex_source value */
   onConfirm?: (id: string, newSource: string) => void;
   onCancel?: (id: string) => void;
+  // ── IA-M2: block management ────────────────────────────────────────────
+  /** Add a new block before or after this block. */
+  onAddBlock?: (id: string, type: AddBlockType, position: 'before' | 'after') => void;
+  /** Delete this block. */
+  onDeleteBlock?: (id: string) => void;
+  /** Move this block up (-1) or down (+1). */
+  onMoveBlock?: (id: string, direction: -1 | 1) => void;
+  /** Whether this block can move up (not first in list). */
+  canMoveUp?: boolean;
+  /** Whether this block can move down (not last in list). */
+  canMoveDown?: boolean;
 }
 
 interface LatexBlockProps extends LatexBlockInteractiveProps {
@@ -232,6 +415,11 @@ export default function LatexBlock({
   onEdit,
   onConfirm,
   onCancel,
+  onAddBlock,
+  onDeleteBlock,
+  onMoveBlock,
+  canMoveUp = true,
+  canMoveDown = true,
 }: LatexBlockProps) {
   const [editValue, setEditValue] = useState(block.latex_source);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -352,6 +540,20 @@ export default function LatexBlock({
       }
     : {};
 
+  // IA-M2: action bar (only for interactive, non-structural blocks when focused)
+  const isInteractiveForActions =
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end';
+  const actionBar = isInteractiveForActions && isFocused && !isEditing && (
+    <BlockActionBar
+      blockId={block.id}
+      onAddBlock={onAddBlock}
+      onDeleteBlock={onDeleteBlock}
+      onMoveBlock={onMoveBlock}
+      canMoveUp={canMoveUp}
+      canMoveDown={canMoveDown}
+    />
+  );
+
   // ── Inline editor overlay — shown when isEditing ───────────────────────────
   if (isEditing) {
     return (
@@ -382,15 +584,16 @@ export default function LatexBlock({
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
       const headingClass =
         block.level === 1
-          ? 'text-xl font-bold mt-6 mb-2 border-b border-gray-300 pb-1'
+          ? 'text-xl font-bold mt-6 mb-2 border-b pb-1'
           : block.level === 2
           ? 'text-lg font-semibold mt-4 mb-1'
           : 'text-base font-semibold mt-3 mb-1';
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
-          <HeadingTag className={headingClass}>
+        <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+          <HeadingTag className={headingClass} style={{ color: 'var(--accent, #333)' }}>
             {block.latex_source}
           </HeadingTag>
+          {actionBar}
         </div>
       );
     }
@@ -398,54 +601,75 @@ export default function LatexBlock({
     case 'formula-block':
       return (
         <div
-          className={`my-4 overflow-x-auto text-center ${interactiveClass}`}
+          className={`my-4 text-center ${interactiveClass}`}
+          style={{ overflow: 'visible' }}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
-          dangerouslySetInnerHTML={{ __html: rendered! }}
-        />
+        >
+          <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered! }} />
+          {actionBar}
+        </div>
       );
 
     case 'formula-inline':
     case 'paragraph':
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           <p
             className="my-2 text-sm leading-relaxed"
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
+          {actionBar}
         </div>
       );
 
     case 'list':
       return (
-        <div className={`my-2 ${interactiveClass}`} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div className={`my-2 ${interactiveClass}`} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderList(block.latex_source)}
+          {actionBar}
         </div>
       );
 
     case 'table':
       return (
-        <div className={interactiveClass} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderTable(block.latex_source)}
+          {actionBar}
         </div>
       );
 
     case 'hr':
       return <hr className="my-2 border-gray-400" style={{ breakBefore: 'avoid' }} />;
 
-    case 'box':
+    case 'box': {
+      // Choose border-left colour based on subtype, falling back to accent
+      const boxBorderVar =
+        block.boxSubtype === 'definition'
+          ? 'var(--def-color, #0891B2)'
+          : block.boxSubtype === 'theorem'
+          ? 'var(--thm-color, #7C3AED)'
+          : block.boxSubtype === 'proposition'
+          ? 'var(--prop-color, #059669)'
+          : block.boxSubtype === 'observation'
+          ? 'var(--accent, #374151)'
+          : block.boxSubtype === 'example'
+          ? 'var(--accent, #374151)'
+          : 'var(--accent, #374151)';
       return (
         <div
-          style={{ breakInside: 'avoid' }}
-          className={`my-2 border border-gray-400 rounded px-3 py-2 bg-gray-50 text-sm ${interactiveClass}`}
+          style={{ breakInside: 'avoid', borderLeftColor: boxBorderVar, borderLeftWidth: '3px', borderLeftStyle: 'solid', overflow: 'visible' }}
+          className={`my-2 border border-gray-200 rounded-r px-3 py-2 bg-gray-50/70 text-sm ${interactiveClass}`}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
         >
           <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
+          {actionBar}
         </div>
       );
+    }
 
     case 'col-start':
     case 'col-end':
