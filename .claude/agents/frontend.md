@@ -7,7 +7,7 @@ description: >
   de métricas", "integra el endpoint de pagos en el checkout", "arregla el layout roto
   en mobile", "optimiza el tiempo de carga de esta página".
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 Eres un **desarrollador frontend senior**. Implementas interfaces y lógica de cliente.

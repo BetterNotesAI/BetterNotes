@@ -97,9 +97,15 @@ export function Sidebar() {
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [colorPickerFolderId, setColorPickerFolderId] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
 
   const newFolderInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const feedbackTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Hydrate from localStorage
   useEffect(() => {
@@ -153,7 +159,6 @@ export function Sidebar() {
     loadFolders();
     window.addEventListener('folders:updated', loadFolders);
     return () => window.removeEventListener('folders:updated', loadFolders);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -205,6 +210,22 @@ export function Sidebar() {
   useEffect(() => {
     if (renamingFolderId) renameInputRef.current?.focus();
   }, [renamingFolderId]);
+
+  useEffect(() => {
+    if (!isFeedbackOpen) return;
+    setTimeout(() => feedbackTextareaRef.current?.focus(), 0);
+  }, [isFeedbackOpen]);
+
+  useEffect(() => {
+    if (!isFeedbackOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !isSubmittingFeedback) {
+        setIsFeedbackOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFeedbackOpen, isSubmittingFeedback]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -294,6 +315,59 @@ export function Sidebar() {
     const rect = dotEl.getBoundingClientRect();
     setColorPickerFolderId(id);
     setColorPickerPos({ top: rect.bottom + 6, left: rect.left });
+  }
+
+  function openFeedbackModal() {
+    setIsFeedbackOpen(true);
+    setFeedbackError(null);
+    setFeedbackSuccess(null);
+  }
+
+  function closeFeedbackModal() {
+    if (isSubmittingFeedback) return;
+    setIsFeedbackOpen(false);
+  }
+
+  async function handleSubmitFeedback(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const message = feedbackMessage.trim();
+    if (message.length < 5) {
+      setFeedbackError('Please write at least 5 characters.');
+      setFeedbackSuccess(null);
+      return;
+    }
+    if (message.length > 2000) {
+      setFeedbackError('Feedback is too long (max 2000 chars).');
+      setFeedbackSuccess(null);
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setFeedbackError(null);
+    setFeedbackSuccess(null);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          pagePath: pathname,
+          source: 'sidebar',
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? 'Failed to send feedback');
+      }
+
+      setFeedbackMessage('');
+      setFeedbackSuccess('Thanks. Your feedback has been sent.');
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : 'Failed to send feedback');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
   }
 
   const initial = email ? email[0].toUpperCase() : 'U';
@@ -628,6 +702,19 @@ export function Sidebar() {
               ))}
             </>
           )}
+
+          {/* ── Feedback section ── */}
+          <SectionDivider label="Feedback" collapsed={collapsed} />
+          <button
+            onClick={openFeedbackModal}
+            title={collapsed ? 'Suggestions' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } text-white/60 hover:bg-white/10 hover:text-white`}
+          >
+            <FeedbackIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">Suggestions</span>}
+          </button>
         </nav>
 
         {/* Profile footer */}
@@ -697,6 +784,81 @@ export function Sidebar() {
                 title={color}
               />
             ))}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Feedback modal */}
+      {isFeedbackOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close feedback modal"
+            onClick={closeFeedbackModal}
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+          />
+
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-neutral-900/95 shadow-2xl p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm font-semibold text-white">Send Suggestions</h3>
+              <button
+                type="button"
+                onClick={closeFeedbackModal}
+                disabled={isSubmittingFeedback}
+                className="w-7 h-7 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-xs text-white/50 mb-3">
+              Tell us what we should improve.
+            </p>
+
+            <form onSubmit={handleSubmitFeedback} className="space-y-3">
+              <textarea
+                ref={feedbackTextareaRef}
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                placeholder="Example: It would be great if..."
+                rows={5}
+                maxLength={2000}
+                disabled={isSubmittingFeedback}
+                className="w-full resize-none appearance-none rounded-xl bg-[#1f1f1f] border border-white/15 px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-indigo-400/60 transition-colors disabled:opacity-60"
+              />
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-white/35">{feedbackMessage.length}/2000</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={closeFeedbackModal}
+                    disabled={isSubmittingFeedback}
+                    className="px-3 py-1.5 rounded-lg border border-white/15 text-white/60 hover:text-white hover:border-white/30 transition-colors text-xs disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFeedback || feedbackMessage.trim().length < 5}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                  >
+                    {isSubmittingFeedback ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
+              </div>
+
+              {feedbackError && (
+                <p className="text-xs text-red-400">{feedbackError}</p>
+              )}
+              {feedbackSuccess && (
+                <p className="text-xs text-emerald-400">{feedbackSuccess}</p>
+              )}
+            </form>
           </div>
         </div>,
         document.body
@@ -824,6 +986,13 @@ function MyStudiesIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+    </svg>
+  );
+}
+function FeedbackIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3h6m-9.75 8.25h11.379a3.375 3.375 0 002.385-.988l2.487-2.487a3.375 3.375 0 00.988-2.386V6.375A3.375 3.375 0 0018.614 3H5.386A3.375 3.375 0 002.01 6.375v9.75A3.375 3.375 0 005.386 19.5H3.75z" />
     </svg>
   );
 }

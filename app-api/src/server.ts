@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
+import { createProblemSolverRouter } from './routes/problem-solver';
 import { createExamsRouter } from './routes/exams';
 import { createAIProvider } from './lib/ai';
 
@@ -36,6 +37,12 @@ app.use('/latex', createLatexRouter({
 
 // F3-M4.3: block editing endpoint
 app.use('/latex', createEditBlockRouter({ aiProvider }));
+
+// F4-M1.3: problem solver SSE streaming endpoint
+app.use('/problem-solver', createProblemSolverRouter({
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o',
+}));
 
 // Exam generation endpoint
 app.use('/exams', createExamsRouter({ aiProvider }));
