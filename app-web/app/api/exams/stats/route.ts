@@ -24,6 +24,7 @@ interface CompletedExam {
   score: number;
   question_count: number;
   completed_at: string;
+  time_spent_seconds: number | null;
 }
 
 interface SubjectExam {
@@ -32,6 +33,7 @@ interface SubjectExam {
   level: string;
   language: string;
   completed_at: string;
+  time_spent_seconds: number | null;
 }
 
 interface HistoryPoint {
@@ -108,7 +110,7 @@ export async function GET(req: NextRequest) {
 
   const { data: exams, error } = await supabase
     .from('exams')
-    .select('id, subject, level, language, score, question_count, completed_at')
+    .select('id, subject, level, language, score, question_count, completed_at, time_spent_seconds')
     .eq('user_id', user.id)
     .eq('status', 'completed')
     .not('score', 'is', null)
@@ -137,7 +139,10 @@ export async function GET(req: NextRequest) {
   const total_exams = rows.length;
   const avg_score = Math.round(rows.reduce((sum, r) => sum + r.score, 0) / total_exams);
 
-  const avg_time_seconds = null;
+  const timedRows = rows.filter((r) => r.time_spent_seconds !== null);
+  const avg_time_seconds = timedRows.length > 0
+    ? Math.round(timedRows.reduce((sum, r) => sum + (r.time_spent_seconds ?? 0), 0) / timedRows.length)
+    : null;
 
   // ─── Per-subject aggregation ──────────────────────────────────────────────
 
@@ -155,6 +160,7 @@ export async function GET(req: NextRequest) {
       level: row.level,
       language: row.language,
       completed_at: row.completed_at,
+      time_spent_seconds: row.time_spent_seconds ?? null,
     };
     if (existing) {
       existing.scores.push(row.score);

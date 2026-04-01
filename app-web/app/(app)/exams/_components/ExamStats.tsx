@@ -12,6 +12,7 @@ interface SubjectExam {
   level: string;
   language: string;
   completed_at: string;
+  time_spent_seconds: number | null;
 }
 
 interface HistoryPoint {
@@ -44,6 +45,7 @@ interface RecentAttempt {
 interface StatsData {
   total_exams: number;
   avg_score: number;
+  avg_time_seconds: number | null;
   subjects: SubjectStat[];
   recent: RecentAttempt[];
   streak: number;
@@ -216,7 +218,7 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
       ) : data ? (
         <div className="space-y-5">
           {/* ── Summary cards ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <SummaryCard
               label="Total Exams"
               value={String(data.total_exams)}
@@ -231,6 +233,10 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
               value={String(data.streak)}
               suffix={data.streak === 1 ? 'day' : 'days'}
               highlight={data.streak >= 3}
+            />
+            <SummaryCard
+              label="Avg Time"
+              value={data.avg_time_seconds !== null ? formatDuration(data.avg_time_seconds) : '—'}
             />
           </div>
 

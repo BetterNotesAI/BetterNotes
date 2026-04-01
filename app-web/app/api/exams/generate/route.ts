@@ -189,6 +189,7 @@ export async function POST(req: NextRequest) {
       question_count: generatedQuestions.length,
       status: 'pending',
       grading_mode: grading_mode === 'partial' ? 'partial' : 'strict',
+      cognitive_distribution: cognitive_distribution ?? null,
     })
     .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
     .single();
