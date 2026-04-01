@@ -314,31 +314,43 @@ async function buildExamPDFAsync(report: ExamReport): Promise<jsPDF> {
   // 1. Build HTML
   const html = await buildReportHTML(report);
 
-  // 2. Mount off-screen container
-  const container = document.createElement('div');
-  container.style.cssText = [
+  // 2. Mount off-screen iframe so the full HTML document (head + styles + KaTeX CSS) renders correctly
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = [
     `position:fixed`,
     `top:0`,
-    `left:-${A4_WIDTH_PX + 100}px`,
+    `left:-${A4_WIDTH_PX + 200}px`,
     `width:${A4_WIDTH_PX}px`,
-    `z-index:-9999`,
+    `height:${A4_HEIGHT_PX}px`,
+    `border:none`,
     `pointer-events:none`,
+    `z-index:-9999`,
   ].join(';');
-  container.innerHTML = html;
-  document.body.appendChild(container);
+  document.body.appendChild(iframe);
 
-  // 3. Wait for fonts / KaTeX CSS to load
-  await document.fonts.ready;
-  // Small delay to allow KaTeX CSS to apply (it's loaded via <link> inside iframe-like html)
-  await new Promise((r) => setTimeout(r, 300));
+  // Write the full HTML document into the iframe
+  const iframeDoc = iframe.contentDocument!;
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+
+  // 3. Wait for iframe fonts and external CSS (KaTeX) to load
+  await new Promise<void>((resolve) => {
+    iframe.onload = () => resolve();
+    // Fallback: resolve after 1s even if onload doesn't fire
+    setTimeout(resolve, 1000);
+  });
+  await iframeDoc.fonts.ready;
+  // Extra tick for KaTeX CSS paint
+  await new Promise((r) => setTimeout(r, 150));
 
   let pdf!: jsPDF;
   try {
     // 4. Capture with html2canvas
     const html2canvas: typeof Html2CanvasType = (await import('html2canvas')).default;
-    const canvas = await html2canvas(container.firstElementChild as HTMLElement, {
-      scale: 2,            // 2x for crisp text
-      useCORS: true,       // needed for CDN KaTeX CSS
+    const canvas = await html2canvas(iframeDoc.body, {
+      scale: 2,
+      useCORS: true,
       logging: false,
       backgroundColor: '#09090b',
       windowWidth: A4_WIDTH_PX,
@@ -389,7 +401,7 @@ async function buildExamPDFAsync(report: ExamReport): Promise<jsPDF> {
       pdf.text(`${p} / ${totalPagesNum}`, pdfW - 10, pdfH - 5, { align: 'right' });
     }
   } finally {
-    document.body.removeChild(container);
+    document.body.removeChild(iframe);
   }
 
   return pdf;
