@@ -28,6 +28,8 @@ function renderKatex(formula: string, displayMode: boolean): string {
       displayMode,
       throwOnError: false,
       macros: KATEX_MACROS,
+      // KaTeX supports \textcolor and \color natively without trust.
+      // trust stays false to block \url, \href, \htmlStyle etc.
       trust: false,
     });
   } catch {
@@ -106,8 +108,8 @@ function renderLatexCommands(text: string): string {
     .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>')
     // \emph{...}
     .replace(/\\emph\{([^}]*)\}/g, '<em>$1</em>')
-    // \textcolor{color}{text} → drop color
-    .replace(/\\textcolor\{[^}]*\}\{([^}]*)\}/g, '$1')
+    // \textcolor{color}{text} → render with inline color style
+    .replace(/\\textcolor\{([^}]*)\}\{([^}]*)\}/g, '<span style="color:$1">$2</span>')
     // \text{...}
     .replace(/\\text\{([^}]*)\}/g, '$1')
     // ___newline___ marker → line break (produced by parser from \\ at end of line)

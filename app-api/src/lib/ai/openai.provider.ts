@@ -266,6 +266,7 @@ export class OpenAIProvider implements AIProvider {
       '- Preserve the preamble, \\documentclass, and overall structure unless the instruction explicitly asks to change them.',
       '- Apply the change precisely and minimally.',
       '- "summary" must be a short plain-English sentence (max 20 words) describing what changed.',
+      '- COLOR RULE: To color equations or text in the interactive viewer (KaTeX renderer), always use \\textcolor{colorname}{content} — e.g. \\textcolor{red}{E=mc^2}. NEVER write colorname{content} without the backslash and \\textcolor command.',
       '',
       'OUTPUT: Valid JSON only. No markdown fences. No explanation outside the JSON.',
     ].join('\n');
@@ -336,6 +337,11 @@ export class OpenAIProvider implements AIProvider {
       '- When there is conversation history, the most recent assistant turn represents the current state of the block; apply the new instruction on top of it.',
       '- If the instruction is unclear or impossible, return the original block unchanged.',
       '- NEVER output explanations, only LaTeX source.',
+      'COLOR RULES (for the interactive viewer — uses KaTeX):',
+      '- To color a formula or part of it, use \\textcolor{colorname}{content} — e.g. \\textcolor{red}{E=mc^2}.',
+      '- Valid color names: red, blue, green, orange, purple, cyan, magenta, brown, gray, black, white, or any CSS/HTML color name.',
+      '- NEVER write just the color name followed by braces like red{...} — always include the backslash: \\textcolor{red}{...}.',
+      '- For coloring text in a paragraph block, use \\textcolor{colorname}{text}.',
     ].join('\n');
 
     const adjacentContext =
