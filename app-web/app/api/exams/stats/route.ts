@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -34,6 +34,12 @@ interface SubjectExam {
   completed_at: string;
 }
 
+interface HistoryPoint {
+  date: string;
+  score: number;
+  level: string;
+}
+
 interface SubjectStat {
   subject: string;
   attempts: number;
@@ -41,6 +47,7 @@ interface SubjectStat {
   best_score: number;
   last_attempt: string;
   exams: SubjectExam[];
+  history: HistoryPoint[];
 }
 
 interface RecentAttempt {
@@ -77,7 +84,7 @@ export async function DELETE() {
   return NextResponse.json({ ok: true });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -86,6 +93,17 @@ export async function GET() {
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Timezone for streak calculation — accept header X-Timezone or query param tz
+  const tz = req.nextUrl.searchParams.get('tz') ?? req.headers.get('x-timezone') ?? 'UTC';
+  // Validate timezone — fallback to UTC if invalid
+  let resolvedTz = 'UTC';
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    resolvedTz = tz;
+  } catch {
+    // Invalid timezone — use UTC
   }
 
   const { data: exams, error } = await supabase
@@ -107,6 +125,7 @@ export async function GET() {
     return NextResponse.json({
       total_exams: 0,
       avg_score: 0,
+      avg_time_seconds: null,
       subjects: [],
       recent: [],
       streak: 0,
@@ -118,6 +137,8 @@ export async function GET() {
   const total_exams = rows.length;
   const avg_score = Math.round(rows.reduce((sum, r) => sum + r.score, 0) / total_exams);
 
+  const avg_time_seconds = null;
+
   // ─── Per-subject aggregation ──────────────────────────────────────────────
 
   const subjectMap = new Map<
@@ -128,7 +149,13 @@ export async function GET() {
   for (const row of rows) {
     const key = row.subject || 'Unknown';
     const existing = subjectMap.get(key);
-    const entry: SubjectExam = { exam_id: row.id, score: row.score, level: row.level, language: row.language, completed_at: row.completed_at };
+    const entry: SubjectExam = {
+      exam_id: row.id,
+      score: row.score,
+      level: row.level,
+      language: row.language,
+      completed_at: row.completed_at,
+    };
     if (existing) {
       existing.scores.push(row.score);
       existing.exams.push(entry);
@@ -142,14 +169,21 @@ export async function GET() {
   }
 
   const subjects: SubjectStat[] = Array.from(subjectMap.entries())
-    .map(([subject, { scores, last_attempt, exams }]) => ({
-      subject,
-      attempts: scores.length,
-      avg_score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
-      best_score: Math.max(...scores),
-      last_attempt,
-      exams,
-    }))
+    .map(([subject, { scores, last_attempt, exams }]) => {
+      // history: sorted by date ascending for the chart
+      const history: HistoryPoint[] = [...exams]
+        .sort((a, b) => a.completed_at.localeCompare(b.completed_at))
+        .map((e) => ({ date: e.completed_at, score: e.score, level: e.level }));
+      return {
+        subject,
+        attempts: scores.length,
+        avg_score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
+        best_score: Math.max(...scores),
+        last_attempt,
+        exams,
+        history,
+      };
+    })
     .sort((a, b) => b.avg_score - a.avg_score);
 
   // ─── Recent 10 ────────────────────────────────────────────────────────────
@@ -164,33 +198,46 @@ export async function GET() {
   }));
 
   // ─── Streak — consecutive calendar days with at least one exam (up to today) ──
+  // Uses resolvedTz so users in e.g. GMT+2 don't lose their streak at midnight UTC.
 
-  // Build a set of unique date strings "YYYY-MM-DD" for completed exams
+  // Helper: get "YYYY-MM-DD" for a UTC timestamp interpreted in the given timezone
+  const toLocalDateKey = (isoString: string, timezone: string): string => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(isoString));
+    } catch {
+      return isoString.slice(0, 10);
+    }
+  };
+
   const dateDone = new Set<string>(
-    rows.map((r) => r.completed_at.slice(0, 10))
+    rows.map((r) => toLocalDateKey(r.completed_at, resolvedTz))
   );
 
-  let streak = 0;
-  // Use current UTC date as reference (server-side)
-  const today = new Date();
-  const toKey = (d: Date) =>
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  // Today's date in user's timezone
+  const todayKey = toLocalDateKey(new Date().toISOString(), resolvedTz);
 
-  // Start from today; if today has no exam, check yesterday as the streak start
-  let cursor = new Date(today);
-  // If today has no exam, the streak can still be active from yesterday
-  if (!dateDone.has(toKey(cursor))) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  let streak = 0;
+  // Walk backwards day-by-day
+  const cursorDate = new Date(todayKey + 'T12:00:00Z'); // noon UTC ensures stable date math
+  // If today has no exam, start from yesterday
+  if (!dateDone.has(toLocalDateKey(cursorDate.toISOString(), resolvedTz))) {
+    cursorDate.setUTCDate(cursorDate.getUTCDate() - 1);
   }
 
-  while (dateDone.has(toKey(cursor))) {
+  while (dateDone.has(toLocalDateKey(cursorDate.toISOString(), resolvedTz))) {
     streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    cursorDate.setUTCDate(cursorDate.getUTCDate() - 1);
   }
 
   return NextResponse.json({
     total_exams,
     avg_score,
+    avg_time_seconds,
     subjects,
     recent,
     streak,

@@ -14,6 +14,12 @@ interface SubjectExam {
   completed_at: string;
 }
 
+interface HistoryPoint {
+  date: string;
+  score: number;
+  level: string;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SubjectStat {
@@ -23,6 +29,7 @@ interface SubjectStat {
   best_score: number;
   last_attempt: string;
   exams: SubjectExam[];
+  history: HistoryPoint[];
 }
 
 interface RecentAttempt {
@@ -49,6 +56,17 @@ export interface ExamStatsHandle {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const LEVEL_LABELS: Record<string, string> = {
+  // Current values
+  secondary_basic: 'Secondary · Basic',
+  secondary_intermediate: 'Secondary · Intermediate',
+  secondary_advanced: 'Secondary · Advanced',
+  highschool_basic: 'High School · Basic',
+  highschool_intermediate: 'High School · Intermediate',
+  highschool_advanced: 'High School · Advanced',
+  university_basic: 'University · Basic',
+  university_intermediate: 'University · Intermediate',
+  university_advanced: 'University · Advanced',
+  // Legacy fallbacks
   beginner: 'Beginner',
   intermediate: 'Intermediate',
   advanced: 'Advanced',
@@ -123,21 +141,24 @@ function StatsEmpty() {
 const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [previewExamId, setPreviewExamId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
-      const res = await fetch('/api/exams/stats');
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const url = `/api/exams/stats?tz=${encodeURIComponent(tz)}`;
+      const res = await fetch(url);
       if (!res.ok) {
-        setData(null);
+        setFetchError(true);
         return;
       }
       const json = (await res.json()) as StatsData;
       setData(json);
     } catch {
-      // Silent failure — stats section simply does not render
-      setData(null);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -148,9 +169,6 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
   }, [load]);
 
   useImperativeHandle(ref, () => ({ refresh: load }), [load]);
-
-  // If loading failed silently, render nothing
-  if (!loading && data === null) return null;
 
   const isEmpty = !loading && data !== null && data.total_exams === 0;
 
@@ -182,6 +200,17 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
 
       {loading ? (
         <StatsSkeleton />
+      ) : fetchError ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+          <p className="text-sm font-medium text-white/50">Could not load stats</p>
+          <button
+            type="button"
+            onClick={load}
+            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
+            Try again
+          </button>
+        </div>
       ) : isEmpty ? (
         <StatsEmpty />
       ) : data ? (
@@ -288,6 +317,17 @@ function SummaryCard({
 }
 
 const LEVEL_LABELS_ROW: Record<string, string> = {
+  // Current values
+  secondary_basic: 'Secondary · Basic',
+  secondary_intermediate: 'Secondary · Intermediate',
+  secondary_advanced: 'Secondary · Advanced',
+  highschool_basic: 'High School · Basic',
+  highschool_intermediate: 'High School · Intermediate',
+  highschool_advanced: 'High School · Advanced',
+  university_basic: 'University · Basic',
+  university_intermediate: 'University · Intermediate',
+  university_advanced: 'University · Advanced',
+  // Legacy fallbacks
   beginner: 'Beginner',
   intermediate: 'Intermediate',
   advanced: 'Advanced',
@@ -356,11 +396,19 @@ function SubjectRow({ stat, onOpen }: { stat: SubjectStat; onOpen: (id: string) 
 
       {/* Expanded exam list */}
       {open && (
-        <ul className="border-t border-white/6 bg-white/2">
-          {stat.exams.map((ex, i) => (
-            <ExamRow key={i} exam={ex} onOpen={onOpen} />
-          ))}
-        </ul>
+        <div className="border-t border-white/6 bg-white/2">
+          {/* Score history chart — only if 2+ attempts */}
+          {stat.history && stat.history.length >= 2 && (
+            <div className="px-4 pt-3 pb-1">
+              <ScoreHistoryChart history={stat.history} />
+            </div>
+          )}
+          <ul>
+            {stat.exams.map((ex, i) => (
+              <ExamRow key={i} exam={ex} onOpen={onOpen} />
+            ))}
+          </ul>
+        </div>
       )}
     </li>
   );
@@ -437,7 +485,83 @@ function RecentRow({ attempt, onOpen }: { attempt: RecentAttempt; onOpen: (id: s
 function scoreToBarColor(score: number): string {
   if (score >= 90) return 'rgb(74 222 128)';   // green-400
   if (score >= 80) return 'rgb(96 165 250)';   // blue-400
-  if (score >= 70) return 'rgb(250 204 21)';   // indigo-400
+  if (score >= 70) return 'rgb(250 204 21)';   // yellow-400
   if (score >= 60) return 'rgb(251 146 60)';   // orange-400
   return 'rgb(248 113 113)';                    // red-400
+}
+
+/** Formats seconds into "Xm Ys" or "Xs" */
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+// ── ScoreHistoryChart — inline SVG line chart ─────────────────────────────────
+
+function ScoreHistoryChart({ history }: { history: HistoryPoint[] }) {
+  if (history.length < 2) return null;
+
+  const W = 280;
+  const H = 48;
+  const PAD = 6;
+
+  const scores = history.map((h) => h.score);
+  const minScore = Math.max(0, Math.min(...scores) - 5);
+  const maxScore = Math.min(100, Math.max(...scores) + 5);
+  const range = maxScore - minScore || 1;
+
+  const toX = (i: number) => PAD + ((W - PAD * 2) * i) / (history.length - 1);
+  const toY = (score: number) => PAD + (H - PAD * 2) * (1 - (score - minScore) / range);
+
+  const points = history.map((h, i) => ({ x: toX(i), y: toY(h.score), score: h.score }));
+
+  // Build polyline path
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  // Build filled area path
+  const areaPath = `${linePath} L${points[points.length - 1].x.toFixed(1)},${(H - PAD).toFixed(1)} L${points[0].x.toFixed(1)},${(H - PAD).toFixed(1)} Z`;
+
+  const lastScore = scores[scores.length - 1];
+  const lineColor = scoreToBarColor(lastScore);
+
+  return (
+    <div className="ml-5 mt-2 mb-1">
+      <p className="text-[9px] text-white/25 uppercase tracking-wide mb-1">Score history</p>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        className="overflow-visible"
+        aria-label="Score history chart"
+      >
+        {/* Area fill */}
+        <path d={areaPath} fill={lineColor} fillOpacity="0.08" />
+        {/* Line */}
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        {/* Dots */}
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="2.5" fill={lineColor} fillOpacity="0.9" />
+        ))}
+        {/* Score labels on first and last point */}
+        {[0, points.length - 1].map((i) => {
+          const p = points[i];
+          const anchor = i === 0 ? 'start' : 'end';
+          const dy = p.y < PAD + 10 ? 12 : -4;
+          return (
+            <text
+              key={i}
+              x={p.x}
+              y={p.y + dy}
+              textAnchor={anchor}
+              fontSize="8"
+              fill="rgba(255,255,255,0.4)"
+              fontFamily="ui-monospace, monospace"
+            >
+              {p.score}%
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
