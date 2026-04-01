@@ -39,6 +39,7 @@ interface RPCResult {
 }
 
 interface SubjectStat extends SubjectStatRPC {
+  exams: SubjectExam[];
   history: HistoryPoint[];
 }
 
@@ -162,17 +163,28 @@ export async function GET(req: NextRequest) {
     completed_at: r.completed_at,
   }));
 
-  // ── Per-subject history[] (for chart) — built from local rows ─────────────
+  // ── Per-subject history[] and exams[] — built from local rows ────────────
   const historyMap = new Map<string, HistoryPoint[]>();
+  const examsMap = new Map<string, SubjectExam[]>();
+
   for (const r of [...examRows].reverse()) {
-    // reversed so we can push in ascending order
     const key = r.subject || 'Unknown';
     if (!historyMap.has(key)) historyMap.set(key, []);
     historyMap.get(key)!.push({ date: r.completed_at, score: r.score, level: r.level });
+    if (!examsMap.has(key)) examsMap.set(key, []);
+    examsMap.get(key)!.push({
+      exam_id: r.id,
+      score: r.score,
+      level: r.level,
+      language: r.language,
+      completed_at: r.completed_at,
+      time_spent_seconds: r.time_spent_seconds ?? null,
+    });
   }
 
   const subjects: SubjectStat[] = (rpc.subjects ?? []).map((s) => ({
     ...s,
+    exams: examsMap.get(s.subject) ?? [],
     history: historyMap.get(s.subject) ?? [],
   }));
 
