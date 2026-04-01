@@ -17,6 +17,7 @@
     "jspdf": "^4.2.1",
     "katex": "^0.16.43",
     "next": "^15.0.0",
+    "pdf-parse": "^1.1.4",
     "pdfjs-dist": "^3.11.174",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/katex": "^0.16.8",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.0",
