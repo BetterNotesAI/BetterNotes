@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterNotes — Cierre Sesion 2026-04-01</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f11;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    header {
+      border-left: 4px solid #6366f1;
+      padding-left: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    header .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6366f1;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+    }
+    header .subtitle {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    .section {
+      margin-bottom: 2.5rem;
+    }
+    .section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #64748b;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .card {
+      background: #161820;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #c7d2fe;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-body {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .card-body ul {
+      list-style: none;
+      padding: 0;
+    }
+    .card-body ul li {
+      padding: 0.2rem 0;
+      padding-left: 1.1rem;
+      position: relative;
+    }
+    .card-body ul li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: #334155;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+    .badge-green  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+    .badge-yellow { background: #422006; color: #fbbf24; border: 1px solid #92400e; }
+    .badge-red    { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
+    .badge-blue   { background: #0c1a3a; color: #60a5fa; border: 1px solid #1e3a8a; }
+    .badge-purple { background: #1e1b4b; color: #a5b4fc; border: 1px solid #3730a3; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #1a1f2e;
+      font-size: 0.875rem;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-row .label-col { color: #cbd5e1; }
+    .status-row .value-col { color: #94a3b8; font-size: 0.8rem; }
+
+    .blockers {
+      background: #1a0a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .blockers .blocker-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #f87171;
+      margin-bottom: 0.75rem;
+    }
+    .blocker-item {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #2d1515;
+      font-size: 0.85rem;
+      color: #fca5a5;
+    }
+    .blocker-item:last-child { border-bottom: none; }
+    .blocker-item .num {
+      color: #ef4444;
+      font-weight: 700;
+      min-width: 1.2rem;
+    }
+
+    .pending-item {
+      background: #0f1a2e;
+      border: 1px solid #1e3a5f;
+      border-radius: 8px;
+      padding: 0.85rem 1.1rem;
+      margin-bottom: 0.6rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .pending-item .pnum {
+      color: #3b82f6;
+      font-weight: 700;
+      font-size: 0.8rem;
+      min-width: 1.5rem;
+      margin-top: 0.1rem;
+    }
+    .pending-item .ptext {
+      font-size: 0.85rem;
+      color: #93c5fd;
+      line-height: 1.5;
+    }
+    .pending-item .pnote {
+      font-size: 0.78rem;
+      color: #475569;
+      margin-top: 0.2rem;
+    }
+
+    .decision-row {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 1rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #1a1f2e;
+      font-size: 0.85rem;
+    }
+    .decision-row:last-child { border-bottom: none; }
+    .decision-row .dkey { color: #cbd5e1; font-weight: 500; }
+    .decision-row .dval { color: #64748b; }
+
+    .next-card {
+      background: #0d1f12;
+      border: 1px solid #14532d;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+    }
+    .next-card .next-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #4ade80;
+      margin-bottom: 0.75rem;
+    }
+    .next-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .next-card ul li {
+      padding: 0.3rem 0;
+      padding-left: 1.1rem;
+      position: relative;
+      font-size: 0.875rem;
+      color: #86efac;
+    }
+    .next-card ul li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #166534;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #1e293b;
+      color: #334155;
+      font-size: 0.75rem;
+      text-align: center;
+    }
+
+    code {
+      background: #1e293b;
+      color: #a5b4fc;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.82em;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="label">BetterNotes v2 — Informe de sesion</div>
+    <h1>Cierre de sesion<br>2026-04-01</h1>
+    <div class="subtitle">Verificacion IA-M1/M2 + fix LaTeX color + merge a main</div>
+  </header>
+
+  <!-- Estado del proyecto -->
+  <div class="section">
+    <div class="section-title">Estado del proyecto</div>
+    <div class="card">
+      <div class="status-row">
+        <span class="label-col">Fase activa</span>
+        <span class="value-col"><span class="badge badge-green">F3 COMPLETA</span> &nbsp; Siguiente: Fase 4</span>
+      </div>
+      <div class="status-row">
+        <span class="label-col">Milestone activo</span>
+        <span class="value-col">Ninguno — esperando confirmacion usuario para F4-M1</span>
+      </div>
+      <div class="status-row">
+        <span class="label-col">Ultimo hito cerrado</span>
+        <span class="value-col">IA-M2 gestion dinamica de bloques <span class="badge badge-green">verificado</span></span>
+      </div>
+      <div class="status-row">
+        <span class="label-col">Rama activa</span>
+        <span class="value-col"><code>main</code> — merge completado 2026-04-01 (commit 4ece957)</span>
+      </div>
+      <div class="status-row">
+        <span class="label-col">Bloqueantes tecnicos</span>
+        <span class="value-col"><span class="badge badge-green">ninguno</span></span>
+      </div>
+      <div class="status-row">
+        <span class="label-col">Pendiente operacional</span>
+        <span class="value-col"><span class="badge badge-yellow">manual — ver seccion pendientes</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lo que se hizo -->
+  <div class="section">
+    <div class="section-title">Trabajo realizado en esta sesion</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-green">verificado</span> IA-M1 e IA-M2 — Confirmacion funcional</div>
+      <div class="card-body">
+        <ul>
+          <li>Verificacion en navegador de IA-M1: sustitucion por offsets sourceStart/sourceEnd, prevalidacion LaTeX antes del preview, historial de conversacion en editBlock, persistencia de mensajes en chat_messages</li>
+          <li>Verificacion en navegador de IA-M2: BlockActionBar operativa (add / delete / reorder bloques), reconstructLatexFromBlocks() correcto, compile+persist via <code>/api/documents/[id]/compile</code></li>
+          <li>Sin blockers — ambos milestones declarados estables</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-blue">bugfix</span> Color ecuaciones LaTeX — <code>\textcolor</code></div>
+      <div class="card-body">
+        <ul>
+          <li>Problema: <code>\textcolor{color}{text}</code> en parrafos ordinarios descartaba el color y renderizaba el texto sin estilo</li>
+          <li>Fix en <code>LatexBlock.tsx</code>: el parser ahora detecta <code>\textcolor{COLOR}{TEXTO}</code> y emite <code>&lt;span style="color:..."&gt;</code> en lugar de ignorarlo</li>
+          <li>KaTeX lo soporta nativamente para formulas matematicas — el fix cubre el caso de parrafos de texto plano</li>
+          <li>Prompts de editBlock y editDocument actualizados: la IA ya no genera <code>red{...}</code> sin backslash</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-purple">git</span> Merge session/2026-03-30 → main</div>
+      <div class="card-body">
+        <ul>
+          <li>Rama <code>session/2026-03-30</code> mergeada a <code>main</code> — commit <code>4ece957</code></li>
+          <li>Incluye todo el trabajo de IA-M1, IA-M2 y los fixes de sesiones anteriores</li>
+          <li>El push a <code>origin/main</code> queda pendiente para que el usuario lo ejecute manualmente</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-blue">docs</span> Documentacion pendientes operacionales</div>
+      <div class="card-body">
+        <ul>
+          <li>Creado <code>.claude/reports/operational-pending-2026-04-01.md</code> con lista detallada de pasos manuales que el usuario debe ejecutar antes del siguiente deploy</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pendientes operacionales -->
+  <div class="section">
+    <div class="section-title">Pendientes operacionales (accion manual requerida)</div>
+
+    <div class="pending-item">
+      <div class="pnum">P1</div>
+      <div>
+        <div class="ptext"><strong>git push origin main</strong> — publicar el merge a GitHub</div>
+        <div class="pnote">Ejecutar desde terminal: <code>git push origin main</code></div>
+      </div>
+    </div>
+
+    <div class="pending-item">
+      <div class="pnum">P2</div>
+      <div>
+        <div class="ptext"><strong>OPENAI_API_KEY</strong> — anadir a variables de entorno de Vercel y Railway</div>
+        <div class="pnote">Sin esta variable la IA no funcionara en produccion. Configurar en Vercel Dashboard y Railway Service Settings.</div>
+      </div>
+    </div>
+
+    <div class="pending-item">
+      <div class="pnum">P3</div>
+      <div>
+        <div class="ptext"><strong>Rebuild Docker app-api en Railway</strong> — tras el merge a main</div>
+        <div class="pnote">Necesario para que el endpoint <code>POST /latex/edit-document</code> y los demas cambios de app-api queden desplegados. Ejecutar deploy manual desde Railway Dashboard.</div>
+      </div>
+    </div>
+
+    <div class="pending-item">
+      <div class="pnum">P4</div>
+      <div>
+        <div class="ptext"><strong>Migracion SQL F3-M5</strong> en Supabase Dashboard</div>
+        <div class="pnote">Columnas pendientes: <code>is_published</code>, <code>published_at</code>, <code>university</code>, <code>degree</code>, <code>subject</code>, <code>visibility</code>, <code>keywords[]</code>. Ver archivo de migracion en <code>supabase/migrations/</code>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decisiones -->
+  <div class="section">
+    <div class="section-title">Decisiones confirmadas esta sesion</div>
+    <div class="card">
+      <div class="decision-row">
+        <div class="dkey">Color en parrafos LaTeX</div>
+        <div class="dval">Implementado via <code>\textcolor{COLOR}{TEXTO}</code> → <code>&lt;span style="color"&gt;</code> en LatexBlock.tsx</div>
+      </div>
+      <div class="decision-row">
+        <div class="dkey">Prompts de IA</div>
+        <div class="dval">Restriccion explicitada: la IA debe usar <code>\textcolor{red}{...}</code> nunca <code>red{...}</code></div>
+      </div>
+      <div class="decision-row">
+        <div class="dkey">IA-M1 / IA-M2</div>
+        <div class="dval">Verificados funcionales — sin cambios de codigo adicionales requeridos</div>
+      </div>
+      <div class="decision-row">
+        <div class="dkey">Siguiente milestone</div>
+        <div class="dval">F4-M1 Problem Solver — pendiente confirmacion del usuario al inicio de proxima sesion</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proxima sesion -->
+  <div class="section">
+    <div class="section-title">Proxima sesion</div>
+    <div class="next-card">
+      <div class="next-title">F4-M1 — Problem Solver</div>
+      <ul>
+        <li>Confirmar que los pendientes operacionales P1-P4 han sido ejecutados</li>
+        <li>Arrancar F4-M1: arquitectura de la pagina /problem-solver</li>
+        <li>Alternativamente: IA-M3 multi-modelo si el usuario prefiere continuar con extensiones IA</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    BetterNotes v2 — Sesion 2026-04-01 — Generado por Reporter &nbsp;|&nbsp; Director: claude-sonnet-4-6
+  </footer>
+
+</div>
+</body>
+</html>

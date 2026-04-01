@@ -15,25 +15,22 @@
 **Rama activa:** main (merge completado 2026-04-01, commit 4ece957)
 **Bloqueantes:** ninguno técnico.
 
-**Fix aplicado sesión 2026-04-01:**
-- Bug color ecuaciones: `\textcolor{color}{text}` en párrafos ahora renderiza `<span style="color:...">` en lugar de descartar el color. KaTeX lo soporta nativamente para fórmulas. Prompt de editBlock/editDocument actualizado para prevenir que la IA genere `red{...}` sin backslash.
+**Sesion 2026-04-01 — cerrada:**
+- Verificacion funcional de IA-M1 e IA-M2 completada — sin blockers
+- Fix bug color ecuaciones: `\textcolor{color}{text}` en parrafos renderiza `<span style="color:...">` en LatexBlock.tsx. Prompts de IA actualizados.
+- Merge session/2026-03-30 → main (commit 4ece957)
+- Pendiente operacional documentado en `.claude/reports/operational-pending-2026-04-01.md`
 
-**Completado sesión 2026-03-31:**
-- Visor PDF-like con perfiles de plantilla (`lib/template-profiles.ts`): TemplateProfile interface con geometría, tipografía, colores, layout y chrome para las 4 plantillas activas + default. Layout A4 blanco sobre fondo neutro (estilo PDF viewer real). Zoom via `transform: scale()` con wrapper two-div para scroll height correcto. CSS custom properties inyectadas por plantilla.
-- Mejoras A-E al visor: (A) `lib/katex-macros.ts` constante compartida, (B) preview KaTeX en chips BlockReference, (C) contadores undo/redo en toolbar, (D) scroll automático al bloque editado tras Apply, (E) fix replace Nth-occurrence para bloques con latex_source idéntico.
-- Fixes del reviewer: zoom wrapper con altura visual explícita, FormatToolbar dentro de !hideToolbar, IDs duplicados en multicols corregidos, botón redo usa redoCount state, fix color texto negro sobre hoja blanca.
-- AI edita el documento vía prompts del chat: método `editDocument()` en AIProvider con JSON mode (clasifica entre edición de documento y respuesta conversacional), ruta `POST /latex/edit-document` en app-api, route handler `POST /api/documents/[id]/chat-edit` en app-web, LatexViewer prop `pendingDocumentEdit` con banner "AI preview" + outline indigo, ChatPanel con `DocumentEditPreviewCard` (Apply/Discard), page.tsx con estado y wiring completo.
-
-**Completado sesión 2026-03-31 (continuada) — IA-M1 e IA-M2:**
-- IA-M1 Fundamentos robustos: sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser), prevalidación LaTeX del Flujo C antes de mostrar preview (chat-edit route compila antes de retornar), persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant), historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory).
-- IA-M2 Gestión dinámica de bloques: UI en el visor (BlockActionBar en LatexBlock) para añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección), eliminar bloque (con confirmación), reordenar (subir/bajar), reconstructLatexFromBlocks() en parser reconstituye LaTeX completo desde Block[], newBlockLatex() genera placeholders, onBlockMutation prop en LatexViewer dispara compile+persist vía /api/documents/[id]/compile en page.tsx.
+**Sesion 2026-03-31 — cerrada:**
+- Visor PDF-like + perfiles de plantilla, mejoras A-E, AI document-level edits, IA-M1 y IA-M2
 
 **Pendiente operacional (manual — ver `.claude/reports/operational-pending-2026-04-01.md`):**
-- Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])
-- Añadir OPENAI_API_KEY a las variables de entorno de Vercel/Railway
-- Rebuildar imagen Docker de app-api en Railway tras el merge a main
+- `git push origin main` (usuario)
+- Añadir OPENAI_API_KEY a Vercel/Railway
+- Rebuildar imagen Docker de app-api en Railway
+- Aplicar migración SQL de F3-M5 en Supabase Dashboard
 
-**Calidad de AI edits:** funcional pero parcial — la IA no siempre aplica cambios en todas las instancias del documento. Pendiente mejora en próxima sesión o como parte de F4.
+**Calidad de AI edits:** funcional pero parcial — la IA no siempre aplica cambios en todas las instancias del documento. Pendiente mejora como parte de F4.
 
 ---
 
@@ -94,4 +91,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-03-31 (cierre de sesión extendida) — IA-M1 (sustitución offset-based, prevalidación LaTeX, historial conversación, persistencia chat_messages) e IA-M2 (BlockActionBar, add/delete/reorder bloques, reconstructLatexFromBlocks) completados. Commits: d1c00c6, d5f1668, 9837350. Pendiente verificación funcional por usuario. Siguiente: verificar IA-M1/M2 en navegador → F4-M1 Problem Solver o IA-M3 multi-modelo.*
+*Última actualización: 2026-04-01 (cierre de sesión) — IA-M1 e IA-M2 verificados sin blockers. Fix color ecuaciones LaTeX (\textcolor en parrafos). Merge session/2026-03-30 → main (commit 4ece957). Pendientes operacionales documentados. Siguiente: F4-M1 Problem Solver (confirmar al inicio de proxima sesion).*

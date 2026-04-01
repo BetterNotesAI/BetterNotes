@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-03-31 (cierre de sesión) — IA-M1 (fundamentos robustos de edición IA) e IA-M2 (gestión dinámica de bloques) completados. Pendiente verificación funcional por el usuario. Pendiente operacional: migración SQL F3-M5 en Supabase + OPENAI_API_KEY en Vercel + rebuild Docker app-api. IA-M3 (multi-modelo) queda para sesión futura._
+_Última actualización: 2026-04-01 (cierre de sesión) — IA-M1 e IA-M2 verificados funcionales. Fix color ecuaciones LaTeX aplicado. Merge a main completado (commit 4ece957). Pendiente operacional: git push origin main + OPENAI_API_KEY en Vercel/Railway + rebuild Docker app-api + migración SQL F3-M5 en Supabase. Siguiente: F4-M1 Problem Solver._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---

@@ -4,6 +4,36 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-04-01 — Verificacion IA-M1/M2 + fix LaTeX color + merge a main
+
+**Completado:**
+- Verificacion funcional de IA-M1 (sustitución offset-based, prevalidacion LaTeX, historial conversacion, persistencia chat_messages) — sin blockers
+- Verificacion funcional de IA-M2 (BlockActionBar, add/delete/reorder bloques, reconstructLatexFromBlocks) — sin blockers
+- Fix bug color ecuaciones: `\textcolor{color}{text}` en parrafos ahora renderiza `<span style="color:...">` en LatexBlock.tsx. KaTeX lo soporta nativamente para formulas matematicas; el fix cubre parrafos de texto plano.
+- Prompts de editBlock y editDocument actualizados para que la IA genere `\textcolor{red}{...}` correctamente
+- Merge de `session/2026-03-30` a `main` — commit 4ece957
+- Documentacion pendientes operacionales en `.claude/reports/operational-pending-2026-04-01.md`
+
+**Decisiones tomadas:**
+- IA-M1 e IA-M2 declarados estables — no requieren cambios adicionales
+- Color en parrafos LaTeX: implementado via deteccion de `\textcolor` → `<span style="color">` en el parser de LatexBlock.tsx
+- Siguiente milestone: F4-M1 Problem Solver (pendiente confirmacion usuario proxima sesion)
+
+**Problemas encontrados:**
+- Calidad de AI edits sigue siendo parcial (issue conocido, no bloqueante para avanzar a F4)
+
+**Pendientes operacionales (manual):**
+- `git push origin main` (usuario)
+- OPENAI_API_KEY en Vercel/Railway (usuario)
+- Rebuild Docker app-api en Railway (usuario)
+- Migracion SQL F3-M5 en Supabase Dashboard (usuario)
+
+**Lecciones capturadas:** no
+
+**Siguiente:** F4-M1 Problem Solver — iniciar proxima sesion
+
+---
+
 ## Sesion 2026-03-31 — Visor PDF-like + perfiles de plantilla + AI document-level edits
 
 **Completado:**

@@ -7,7 +7,7 @@ description: >
   "añade autenticación JWT", "crea el worker que envía emails", "integra Stripe para
   pagos", "implementa el rate limiting", "arregla este error 500".
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: opus
+model: sonnet
 ---
 
 Eres un **desarrollador backend senior**. Implementas APIs, lógica de negocio y servicios

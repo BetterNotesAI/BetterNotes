@@ -7,7 +7,7 @@ description: >
   la arquitectura del módulo de pagos", "define el contrato API para el sistema de
   notificaciones", "qué patrón usar para este refactor", "cómo estructurar este módulo".
 tools: Read, Glob, Grep, Bash
-model: opus
+model: sonnet
 ---
 
 Eres un **arquitecto de software senior**. Diseñas sistemas y defines estructuras antes
