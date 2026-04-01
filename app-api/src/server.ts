@@ -5,6 +5,7 @@ import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
 import { createProblemSolverRouter } from './routes/problem-solver';
+import { createExamsRouter } from './routes/exams';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -42,5 +43,8 @@ app.use('/problem-solver', createProblemSolverRouter({
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o',
 }));
+
+// Exam generation endpoint
+app.use('/exams', createExamsRouter({ aiProvider }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));

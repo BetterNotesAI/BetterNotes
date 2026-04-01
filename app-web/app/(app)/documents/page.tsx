@@ -461,10 +461,10 @@ export default function DocumentsPage() {
       </Suspense>
 
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 shrink-0">
+      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
         {activeFolderId ? (
           /* Breadcrumb when inside a folder */
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 w-full">
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
@@ -505,7 +505,7 @@ export default function DocumentsPage() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 w-full">
             <h1 className="text-xl font-semibold">My Documents</h1>
             <button
               onClick={() => setShowNewDocModal(true)}

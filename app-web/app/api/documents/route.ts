@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   switch (sort) {
     case 'date_asc':
-      query = query.order('created_at', { ascending: true });
+      query = query.order('updated_at', { ascending: true });
       break;
     case 'title_asc':
       query = query.order('title', { ascending: true });
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       break;
     case 'date_desc':
     default:
-      query = query.order('created_at', { ascending: false });
+      query = query.order('updated_at', { ascending: false });
       break;
   }
 

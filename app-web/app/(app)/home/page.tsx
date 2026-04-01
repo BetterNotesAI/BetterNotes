@@ -100,7 +100,7 @@ export default function HomePage() {
     <>
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 shrink-0">
+      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
         <h1 className="text-xl font-semibold">Home</h1>
       </div>
 

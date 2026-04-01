@@ -92,7 +92,13 @@ export async function GET(
   const zipArrayBuffer = Uint8Array.from(zipped).buffer;
   const safeFolderName = folder.name.replace(/[/\\:*?"<>|]/g, '_');
 
-  return new Response(zipArrayBuffer, {
+  return new Response(zipped, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${safeFolderName}.zip"`,
+    },
+  });
+  
     headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${safeFolderName}.zip"`,
