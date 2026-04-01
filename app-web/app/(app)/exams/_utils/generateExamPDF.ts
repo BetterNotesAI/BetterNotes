@@ -222,17 +222,18 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
         <!-- Question header -->
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
           <div style="
-            min-width:22px;height:22px;border-radius:50%;background:${colors.circle};
-            display:flex;align-items:center;justify-content:center;
-            font-size:11px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px;">
+            min-width:22px;width:22px;height:22px;border-radius:50%;background:${colors.circle};
+            text-align:center;line-height:22px;
+            font-size:11px;font-weight:700;color:#fff;flex-shrink:0;">
             ${q.question_number}
           </div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:600;color:#111827;line-height:1.5;">${questionHtml}</div>
           </div>
           <div style="
-            padding:3px 8px;border-radius:999px;font-size:10px;font-weight:600;
-            background:${colors.badge};color:${colors.badgeText};white-space:nowrap;flex-shrink:0;margin-top:1px;">
+            display:inline-block;padding:0 8px;height:20px;line-height:20px;
+            border-radius:999px;font-size:10px;font-weight:600;
+            background:${colors.badge};color:${colors.badgeText};white-space:nowrap;flex-shrink:0;">
             ${stateLabel}
           </div>
         </div>
