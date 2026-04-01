@@ -7,13 +7,16 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones de sesión 2026-03-31
-**Milestone activo:** IA-M2 completado (sesión 2026-03-31 continuada)
-**Tarea activa:** ninguna — IA-M1 e IA-M2 completados. Siguiente: IA-M3 (multi-modelo, futuro) o F4-M1 Problem Solver
-**Último hito cerrado:** IA-M2 ✅ (2026-03-31) — gestión dinámica de bloques
+**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones IA-M1/M2
+**Milestone activo:** ninguno — IA-M1 e IA-M2 verificados y mergeados a main (2026-04-01)
+**Tarea activa:** ninguna. Siguiente: F4-M1 Problem Solver o IA-M3 multi-modelo
+**Último hito cerrado:** IA-M2 ✅ — gestión dinámica de bloques
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
-**Rama activa:** session/2026-03-31
+**Rama activa:** main (merge completado 2026-04-01, commit 4ece957)
 **Bloqueantes:** ninguno técnico.
+
+**Fix aplicado sesión 2026-04-01:**
+- Bug color ecuaciones: `\textcolor{color}{text}` en párrafos ahora renderiza `<span style="color:...">` en lugar de descartar el color. KaTeX lo soporta nativamente para fórmulas. Prompt de editBlock/editDocument actualizado para prevenir que la IA genere `red{...}` sin backslash.
 
 **Completado sesión 2026-03-31:**
 - Visor PDF-like con perfiles de plantilla (`lib/template-profiles.ts`): TemplateProfile interface con geometría, tipografía, colores, layout y chrome para las 4 plantillas activas + default. Layout A4 blanco sobre fondo neutro (estilo PDF viewer real). Zoom via `transform: scale()` con wrapper two-div para scroll height correcto. CSS custom properties inyectadas por plantilla.
@@ -25,10 +28,10 @@
 - IA-M1 Fundamentos robustos: sustitución de bloques por offsets sourceStart/sourceEnd (annotateBlockOffsets en parser), prevalidación LaTeX del Flujo C antes de mostrar preview (chat-edit route compila antes de retornar), persistencia de mensajes block-edit en chat_messages (route apply guarda user+assistant), historial de conversación al prompt de editBlock (ConversationTurn[] en EditBlockArgs, ChatPanel acumula blockEditHistory).
 - IA-M2 Gestión dinámica de bloques: UI en el visor (BlockActionBar en LatexBlock) para añadir bloque (arriba/abajo, tipos: párrafo, fórmula, lista, sección), eliminar bloque (con confirmación), reordenar (subir/bajar), reconstructLatexFromBlocks() en parser reconstituye LaTeX completo desde Block[], newBlockLatex() genera placeholders, onBlockMutation prop en LatexViewer dispara compile+persist vía /api/documents/[id]/compile en page.tsx.
 
-**Pendiente operacional (no bloqueante para Fase 4):**
+**Pendiente operacional (manual — ver `.claude/reports/operational-pending-2026-04-01.md`):**
 - Aplicar migración SQL de F3-M5 en Supabase Dashboard (is_published, published_at, university, degree, subject, visibility, keywords[])
-- Añadir OPENAI_API_KEY a las variables de entorno de Vercel
-- Rebuildar imagen Docker de app-api para incluir endpoints `/latex/edit-document` (o usar `npm run dev` directamente)
+- Añadir OPENAI_API_KEY a las variables de entorno de Vercel/Railway
+- Rebuildar imagen Docker de app-api en Railway tras el merge a main
 
 **Calidad de AI edits:** funcional pero parcial — la IA no siempre aplica cambios en todas las instancias del documento. Pendiente mejora en próxima sesión o como parte de F4.
 
