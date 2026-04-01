@@ -140,10 +140,10 @@ function questionState(q: ExamReportQuestion): 'correct' | 'partial' | 'wrong' |
 
 // Colour tokens per state
 const STATE_COLORS = {
-  correct:    { circle: '#22c55e', text: '#22c55e', badge: '#14532d', badgeText: '#86efac' },
-  partial:    { circle: '#f59e0b', text: '#f59e0b', badge: '#451a03', badgeText: '#fcd34d' },
-  wrong:      { circle: '#ef4444', text: '#ef4444', badge: '#450a0a', badgeText: '#fca5a5' },
-  unanswered: { circle: '#6b7280', text: '#9ca3af', badge: '#1f2937', badgeText: '#9ca3af' },
+  correct:    { circle: '#16a34a', text: '#16a34a', badge: '#dcfce7', badgeText: '#15803d' },
+  partial:    { circle: '#d97706', text: '#d97706', badge: '#fef3c7', badgeText: '#b45309' },
+  wrong:      { circle: '#dc2626', text: '#dc2626', badge: '#fee2e2', badgeText: '#b91c1c' },
+  unanswered: { circle: '#9ca3af', text: '#6b7280', badge: '#f3f4f6', badgeText: '#6b7280' },
 };
 
 // ─── HTML builder ─────────────────────────────────────────────────────────────
@@ -202,8 +202,8 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
     if ((state === 'wrong' || unanswered) && q.type !== 'multiple_choice') {
       correctAnswerSection = `
         <div style="margin-top:6px;">
-          <div style="font-size:11px;color:#6b7280;font-weight:600;margin-bottom:3px;">Correct answer</div>
-          <div style="color:#22c55e;font-size:13px;">${correctAnswerHtml}</div>
+          <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:3px;">Correct answer</div>
+          <div style="color:#16a34a;font-size:13px;">${correctAnswerHtml}</div>
         </div>`;
     }
 
@@ -211,28 +211,28 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
     let explanationSection = '';
     if (explanationHtml) {
       explanationSection = `
-        <div style="margin-top:10px;background:#1c1c1e;border-radius:6px;padding:10px 12px;">
-          <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Explanation</div>
-          <div style="color:#d1d5db;font-size:12.5px;line-height:1.6;">${explanationHtml}</div>
+        <div style="margin-top:10px;background:#f9fafb;border-radius:6px;padding:10px 12px;border:1px solid #e5e7eb;">
+          <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Explanation</div>
+          <div style="color:#374151;font-size:12.5px;line-height:1.6;">${explanationHtml}</div>
         </div>`;
     }
 
     questionBlocks.push(`
-      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #27272a;">
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #e5e7eb;">
         <!-- Question header -->
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
           <div style="
-            min-width:24px;height:24px;border-radius:50%;background:${colors.circle};
+            min-width:22px;height:22px;border-radius:50%;background:${colors.circle};
             display:flex;align-items:center;justify-content:center;
-            font-size:11px;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px;">
+            font-size:11px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px;">
             ${q.question_number}
           </div>
           <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;color:#f4f4f5;line-height:1.5;">${questionHtml}</div>
+            <div style="font-size:14px;font-weight:600;color:#111827;line-height:1.5;">${questionHtml}</div>
           </div>
           <div style="
-            padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;
-            background:${colors.badge};color:${colors.badgeText};white-space:nowrap;flex-shrink:0;">
+            padding:3px 8px;border-radius:999px;font-size:10px;font-weight:600;
+            background:${colors.badge};color:${colors.badgeText};white-space:nowrap;flex-shrink:0;margin-top:1px;">
             ${stateLabel}
           </div>
         </div>
@@ -241,9 +241,9 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
 
         <!-- User answer -->
         <div style="margin-top:6px;">
-          <div style="font-size:11px;color:#6b7280;font-weight:600;margin-bottom:3px;">Your answer</div>
+          <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:3px;">Your answer</div>
           ${unanswered
-            ? `<div style="color:#6b7280;font-style:italic;font-size:13px;">(no answer given)</div>`
+            ? `<div style="color:#9ca3af;font-style:italic;font-size:13px;">(no answer given)</div>`
             : `<div style="color:${colors.text};font-size:13px;">${userAnswerHtml}</div>`
           }
         </div>
@@ -268,8 +268,8 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-          background: #09090b;
-          color: #f4f4f5;
+          background: #ffffff;
+          color: #111827;
           width: ${A4_WIDTH_PX}px;
           padding: 40px 48px;
           line-height: 1.5;
@@ -296,7 +296,7 @@ async function buildReportHTML(report: ExamReport): Promise<string> {
       ${questionBlocks.join('')}
 
       <!-- Footer -->
-      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #27272a;font-size:10px;color:#52525b;text-align:center;">
+      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center;">
         BetterNotes — ${esc(report.exam.subject || report.exam.title)}
       </div>
     </body>
@@ -352,7 +352,7 @@ async function buildExamPDFAsync(report: ExamReport): Promise<jsPDF> {
       scale: 2,
       useCORS: true,
       logging: false,
-      backgroundColor: '#09090b',
+      backgroundColor: '#ffffff',
       windowWidth: A4_WIDTH_PX,
     });
 
