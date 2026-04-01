@@ -25,6 +25,40 @@ function isLatex(text: string): boolean {
   );
 }
 
+/**
+ * Sanitize a raw JSON string returned by the AI before passing it to JSON.parse.
+ *
+ * Problem: JSON escape sequences like \f (form feed), \n, \t, \r, \b, \v are
+ * interpreted by JSON.parse as control characters. When the AI writes a LaTeX
+ * command such as \frac inside a JSON string using a single backslash, JSON.parse
+ * turns \f into the form-feed character (ASCII 12) and leaves "rac{1}{x}" — which
+ * renders as a garbage symbol in the UI.
+ *
+ * Strategy: inside JSON string values, replace any lone backslash that is followed
+ * by a letter (i.e. a LaTeX command) with a double backslash, but only when that
+ * backslash is not already escaped (i.e. not preceded by another backslash).
+ * Standard JSON two-character escapes (\n, \t, \r, \b, \f, \uXXXX, \\, \", \/)
+ * are left intact only when the AI intentionally used them for control characters —
+ * but in practice all of those in LaTeX are commands, so we double them all.
+ *
+ * The regex walks character-by-character inside JSON string literals and doubles
+ * any backslash that is not already doubled.
+ */
+function sanitizeLatexInJsonString(raw: string): string {
+  // Replace every occurrence of a single backslash (not already doubled) followed
+  // by a letter, digit, or common LaTeX special char with a doubled backslash.
+  // We process the raw JSON string before parsing so we operate on the serialised
+  // text, not on parsed values.
+  //
+  // Approach: only replace \X sequences where X is a letter (a-z A-Z) because
+  // those are the problematic LaTeX commands. We must NOT touch \\ (already
+  // escaped), \", \/, and numeric \uXXXX sequences.
+  //
+  // The negative lookbehind (?<!\\) ensures we don't double an already-doubled
+  // backslash such as \\frac (which is already correct).
+  return raw.replace(/(?<!\\)\\([a-zA-Z])/g, '\\\\$1');
+}
+
 function applyLatexFallbacks(latex: string): string {
   // Ensure document is properly terminated
   const trimmed = latex.trim();
@@ -281,7 +315,7 @@ export class OpenAIProvider implements AIProvider {
 
     const typeRules: string[] = [];
     if (format.includes('multiple_choice')) {
-      typeRules.push('• multiple_choice: "options" must be an array of exactly 4 distinct strings (only one correct); "correct_answer" must be the full text of the correct option.');
+      typeRules.push('• multiple_choice: "options" must be an array of exactly 4 distinct strings (only one correct); "correct_answer" must be the full text of the correct option — it must match one of the strings in "options" exactly.');
     }
     if (format.includes('true_false')) {
       typeRules.push('• true_false: "options" must be null; "correct_answer" must be exactly "True" or "False".');
@@ -292,11 +326,15 @@ export class OpenAIProvider implements AIProvider {
     if (format.includes('flashcard')) {
       typeRules.push('• flashcard: "options" must be null; "correct_answer" must be a concise but complete answer (1–3 sentences) that makes sense when shown on the back of a flashcard.');
     }
+    typeRules.push(
+      '• COHERENCE RULE (applies to all types): the value of "correct_answer" must be the exact same answer that "explanation" concludes as correct. Never let these two fields disagree. If the question involves a calculation, perform the calculation explicitly before writing any field, then copy the verified result into both "correct_answer" (or the matching option) and "explanation".',
+      '• MATH VERIFICATION: for any question requiring arithmetic, algebra, calculus, or any numerical computation, show the calculation mentally step by step first, confirm the numeric result, and only then write "correct_answer". A mismatch between "correct_answer" and "explanation" is a critical error.'
+    );
 
     const levelDesc = LEVEL_DESCRIPTIONS[level] ?? level;
 
     const systemMessage =
-      'You are an expert educator and exam designer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences. When a question, option, or answer contains a mathematical expression, equation, or formula, wrap it in $...$ delimiters (e.g. $x^2 + 2x + 1$, $\\frac{a}{b}$, $\\sqrt{n}$). Plain text must never be wrapped in $...$.';
+      'You are an expert educator and exam designer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences. When a question, option, or answer contains a mathematical expression, equation, or formula, wrap it in $...$ delimiters (e.g. $x^2 + 2x + 1$, $\\\\frac{a}{b}$, $\\\\sqrt{n}$). Plain text must never be wrapped in $...$. CRITICAL JSON RULE: inside JSON string values, ALL LaTeX backslash commands MUST use a double backslash. For example: write \\\\frac, \\\\sqrt, \\\\sum, \\\\int, \\\\alpha, \\\\beta, \\\\times, \\\\cdot, \\\\vec, \\\\hat, \\\\bar, \\\\left, \\\\right, \\\\text, \\\\mathrm — never a single backslash before any LaTeX command inside a JSON string. A single \\f in JSON is a form-feed control character, not the LaTeX \\frac command. Always double every backslash in JSON string values.';
 
     const taskLine = documentContext
       ? [
@@ -354,7 +392,9 @@ ${customInstructions}
     const raw: string = resp.choices?.[0]?.message?.content ?? '{}';
 
     let parsed: unknown;
-    const cleaned = raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+    const cleaned = sanitizeLatexInJsonString(
+      raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim()
+    );
     parsed = JSON.parse(cleaned);
 
     let questions: GenerateExamQuestion[];
@@ -422,7 +462,9 @@ ${JSON.stringify(questions, null, 2)}`;
 
       try {
         const rawV = validationResp.choices?.[0]?.message?.content ?? '{}';
-        const cleanedV = rawV.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+        const cleanedV = sanitizeLatexInJsonString(
+          rawV.replace(/```(?:json)?/g, '').replace(/```/g, '').trim()
+        );
         const parsedV = JSON.parse(cleanedV) as { questions?: GenerateExamQuestion[] };
         if (Array.isArray(parsedV.questions) && parsedV.questions.length === questions.length) {
           questions = parsedV.questions;
