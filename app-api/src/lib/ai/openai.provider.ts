@@ -467,13 +467,21 @@ export class OpenAIProvider implements AIProvider {
     }
     typeRules.push(
       '• COHERENCE RULE (applies to all types): the value of "correct_answer" must be the exact same answer that "explanation" concludes as correct. Never let these two fields disagree. If the question involves a calculation, perform the calculation explicitly before writing any field, then copy the verified result into both "correct_answer" (or the matching option) and "explanation".',
-      '• MATH VERIFICATION: for any question requiring arithmetic, algebra, calculus, or any numerical computation, work through every step explicitly before writing any field. For DERIVATIVES: differentiate each term individually using the power rule d/dx[xⁿ] = n·xⁿ⁻¹, never skip or combine terms. For SECOND DERIVATIVES: apply the power rule again term-by-term to the first derivative result — do not reuse the original function terms. For example, if f\'(x) = 4x³ − 12x² + 12x, then f\'\'(x) = 12x² − 24x + 12 (each term differentiated individually). Triple-check: differentiate every term, subtract 1 from each exponent, multiply by the original exponent. A wrong derivative in "correct_answer" or "explanation" is a critical error.'
+      '• MATH VERIFICATION — MANDATORY SCRATCHPAD: before writing any JSON field for a math question, work through the full calculation in a private scratchpad (you may include it as a comment before the JSON). Steps: (1) identify every sub-expression, (2) compute each step numerically or symbolically, (3) verify the result by substituting back or by an independent method, (4) only then write "correct_answer" and "explanation". A result that has not been independently verified must not appear in the output.',
+      '• DERIVATIVES: differentiate each term individually using the power rule d/dx[xⁿ] = n·xⁿ⁻¹. Never skip or combine terms. For SECOND DERIVATIVES apply the power rule again term-by-term to the first derivative — never reuse the original function. Example: if f\'(x) = 4x³ − 12x² + 12x then f\'\'(x) = 12x² − 24x + 12. Triple-check every exponent and coefficient.',
+      '• INTEGRALS: compute the antiderivative term-by-term, apply limits if definite, verify by differentiating the result. For indefinite integrals always include + C.',
+      '• ARITHMETIC AND ALGEBRA: perform every arithmetic operation explicitly (no mental shortcuts). For equations, isolate the variable step by step and verify by substituting the solution back into the original equation.',
+      '• LIMITS AND SERIES: evaluate limits by the appropriate technique (substitution, L\'Hôpital, factoring); state which rule is applied.',
+      '• WRONG MATH IS A CRITICAL ERROR: an incorrect numerical result in "correct_answer" or "explanation" — regardless of how well the question is written — renders the entire question invalid. Prefer a simpler question you can verify over a complex question you cannot.'
     );
 
     const levelDesc = LEVEL_DESCRIPTIONS[level] ?? level;
 
     const systemMessage =
-      'You are an expert educator and exam designer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences. When a question, option, or answer contains a mathematical expression, equation, or formula, wrap it in $...$ delimiters (e.g. $x^2 + 2x + 1$, $\\\\frac{a}{b}$, $\\\\sqrt{n}$). Plain text must never be wrapped in $...$. CRITICAL JSON RULE: inside JSON string values, ALL LaTeX backslash commands MUST use a double backslash. For example: write \\\\frac, \\\\sqrt, \\\\sum, \\\\int, \\\\alpha, \\\\beta, \\\\times, \\\\cdot, \\\\vec, \\\\hat, \\\\bar, \\\\left, \\\\right, \\\\text, \\\\mathrm — never a single backslash before any LaTeX command inside a JSON string. A single \\f in JSON is a form-feed control character, not the LaTeX \\frac command. Always double every backslash in JSON string values.';
+      'You are an expert educator and exam designer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences.' +
+      ' MATH ACCURACY IS YOUR HIGHEST PRIORITY: before writing any question that involves calculation, carry out every arithmetic or algebraic step explicitly in your internal reasoning, verify the result independently (e.g. substitute back, differentiate the integral, check with a different method), and only then write the JSON fields. If you cannot verify a result with certainty, simplify the question until you can.' +
+      ' LATEX MATH FORMAT: every mathematical expression, formula, equation, or symbol — including single variables used in a mathematical sense (e.g. $x$, $n$, $f(x)$) — must be wrapped in $...$ for inline math or $$...$$ for display math. Plain prose must never be wrapped in $...$.' +
+      ' CRITICAL JSON RULE: inside JSON string values ALL LaTeX backslash commands MUST use a double backslash. Write \\\\frac, \\\\sqrt, \\\\sum, \\\\int, \\\\alpha, \\\\beta, \\\\times, \\\\cdot, \\\\vec, \\\\hat, \\\\bar, \\\\left, \\\\right, \\\\text, \\\\mathrm, \\\\lim, \\\\infty, \\\\partial, \\\\nabla, \\\\pm, \\\\leq, \\\\geq, \\\\neq, \\\\approx, \\\\equiv, \\\\in, \\\\subset, \\\\cup, \\\\cap, \\\\forall, \\\\exists — never a single backslash. A single \\f in JSON is a form-feed control character, not the LaTeX \\frac command. Always double every backslash in JSON string values.';
 
     const taskLine = documentContext
       ? [
@@ -507,7 +515,15 @@ Spread these proportionally across question types. A 0-count category means no q
 ${customInstructions ? `CUSTOM INSTRUCTIONS (highest priority — override any default behaviour if there is a conflict):
 ${customInstructions}
 
-` : ''}OUTPUT: Return a JSON object with exactly two keys:
+` : ''}MATH PRE-COMPUTATION STEP (mandatory for any math question):
+Before writing the JSON, reason through each math question like this:
+  [QUESTION PLAN] What concept is tested?
+  [CALCULATION] Work every step explicitly: compute intermediate values, apply rules term-by-term.
+  [VERIFICATION] Check: substitute the answer back, differentiate the integral, or use an independent method.
+  [CONFIRMED RESULT] Only after verification, write this value into "correct_answer" and "explanation".
+If a calculation cannot be fully verified, replace the question with one that can.
+
+OUTPUT: Return a JSON object with exactly two keys:
 - "canonical_subject": the normalized, canonical name of the subject **always in English**, regardless of the exam language (e.g. "World War 2", "ww2", "WWII" → "World War II"; "fotosíntesis", "fotosíntesi", "photosynthèse" → "Photosynthesis"; "historia" → "History"). Use proper English capitalization. This is used for cross-language grouping in statistics.
 - "questions": an array of exactly ${totalQuestions} objects, each with:
   - "question": string

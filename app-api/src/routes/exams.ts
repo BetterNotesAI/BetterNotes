@@ -274,19 +274,6 @@ function buildExamMarkdown(report: ExamReportForExport): string {
   lines.push(`date: "${date}"`);
   lines.push('geometry: "margin=2.5cm"');
   lines.push('fontsize: 11pt');
-  lines.push('mainfont: "Latin Modern Roman"');
-  lines.push('header-includes:');
-  lines.push('  - \\usepackage{amsmath}');
-  lines.push('  - \\usepackage{amssymb}');
-  lines.push('  - \\usepackage{enumitem}');
-  lines.push('  - \\usepackage{xcolor}');
-  lines.push('  - \\usepackage{mdframed}');
-  lines.push('  - \\usepackage{fancyhdr}');
-  lines.push('  - \\pagestyle{fancy}');
-  lines.push(`  - \\fancyhead[L]{${latexEscape(subject)}}`);
-  lines.push(`  - \\fancyhead[R]{Score: ${score}}`);
-  lines.push('  - \\fancyfoot[C]{\\thepage}');
-  lines.push('  - \\renewcommand{\\headrulewidth}{0.4pt}');
   lines.push('---');
   lines.push('');
 
@@ -307,48 +294,48 @@ function buildExamMarkdown(report: ExamReportForExport): string {
 
   for (const q of questions) {
     const state = questionState(q);
-    const stateEmoji =
-      state === 'correct'    ? '\\textcolor{green!60!black}{\\textbf{Correct}}' :
-      state === 'partial'    ? `\\textcolor{orange}{\\textbf{Partial — ${Math.round((q.partial_score ?? 0) * 100)}\\%}}` :
-      state === 'wrong'      ? '\\textcolor{red!70!black}{\\textbf{Incorrect}}' :
-                               '\\textcolor{gray}{\\textbf{No answer}}';
+    const stateLabel =
+      state === 'correct'    ? '[Correct]' :
+      state === 'partial'    ? `[Partial — ${Math.round((q.partial_score ?? 0) * 100)}%]` :
+      state === 'wrong'      ? '[Incorrect]' :
+                               '[No answer]';
 
-    lines.push(`### Question ${q.question_number} — ${stateEmoji}`);
+    lines.push(`### Question ${q.question_number} — ${stateLabel}`);
     lines.push('');
-    // Question text — preserve inline math ($...$) as-is for Pandoc
-    lines.push(q.question);
+    // Question text — ensure bare LaTeX commands are wrapped in math mode
+    lines.push(ensureMathDelimiters(q.question));
     lines.push('');
 
     // Options for multiple choice
     if (q.type === 'multiple_choice' && Array.isArray(q.options) && q.options.length > 0) {
       const labels = ['A', 'B', 'C', 'D'];
       q.options.forEach((opt, i) => {
-        const label  = labels[i] ?? String(i + 1);
+        const label     = labels[i] ?? String(i + 1);
         const isUser    = opt === q.user_answer;
         const isCorrect = opt === q.correct_answer;
-        let prefix = `${label}.`;
-        if (isUser && state === 'correct')  prefix = `\\textcolor{green!60!black}{${label}.}`;
-        else if (isUser && state === 'wrong')  prefix = `\\textcolor{red!70!black}{${label}.}`;
-        else if (isUser && state === 'partial') prefix = `\\textcolor{orange}{${label}.}`;
-        else if (isCorrect && state === 'wrong') prefix = `\\textcolor{green!60!black}{${label}.}`;
-        lines.push(`- ${prefix} ${opt}`);
+        let marker = '';
+        if (isUser && state === 'correct')       marker = ' [your answer - correct]';
+        else if (isUser && state === 'wrong')    marker = ' [your answer - wrong]';
+        else if (isUser && state === 'partial')  marker = ' [your answer - partial]';
+        else if (isCorrect && state === 'wrong') marker = ' [correct answer]';
+        lines.push(`- **${label}.** ${ensureMathDelimiters(opt)}${marker}`);
       });
       lines.push('');
     }
 
     // User answer
-    const ua = q.user_answer && q.user_answer.trim() !== '' ? q.user_answer : '_No answer given_';
+    const ua = q.user_answer && q.user_answer.trim() !== '' ? ensureMathDelimiters(q.user_answer) : '_No answer given_';
     lines.push(`**Your answer:** ${ua}  `);
 
     // Correct answer (for wrong/unanswered non-MC)
     if ((state === 'wrong' || state === 'unanswered') && q.type !== 'multiple_choice') {
-      lines.push(`**Correct answer:** ${q.correct_answer}  `);
+      lines.push(`**Correct answer:** ${ensureMathDelimiters(q.correct_answer)}  `);
     }
 
     // Explanation
     if (q.explanation) {
       lines.push('');
-      lines.push('> **Explanation:** ' + q.explanation);
+      lines.push('> **Explanation:** ' + ensureMathDelimiters(q.explanation));
     }
 
     lines.push('');
@@ -357,6 +344,20 @@ function buildExamMarkdown(report: ExamReportForExport): string {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Ensures LaTeX commands outside of math delimiters are wrapped in $...$.
+ * The AI sometimes omits $ around expressions like \ln(x), \frac{a}{b}, etc.
+ */
+function ensureMathDelimiters(text: string): string {
+  // Split on existing math blocks to avoid double-processing
+  const segments = text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/);
+  return segments.map((seg, idx) => {
+    if (idx % 2 === 1) return seg; // already a math block, keep as-is
+    // Non-math segment: wrap any \commandName occurrences in $...$
+    return seg.replace(/\\[a-zA-Z]+(?:\{[^}]*\}|\[[^\]]*\]|\([^)]*\))*/g, (m) => `$${m}$`);
+  }).join('');
 }
 
 /**
@@ -380,7 +381,7 @@ function runPandoc(mdPath: string, pdfPath: string): Promise<void> {
     const args = [
       mdPath,
       '-o', pdfPath,
-      '--pdf-engine=xelatex',
+      '--pdf-engine=pdflatex',
       '--standalone',
     ];
 
