@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { ExamReport } from '../_utils/generateExamPDF';
 
 interface ExamReportModalProps {
   examId: string;
@@ -11,25 +10,44 @@ interface ExamReportModalProps {
 export default function ExamReportModal({ examId, onClose }: ExamReportModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<ExamReport | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [examTitle, setExamTitle] = useState<string>('');
+  const [examScore, setExamScore] = useState<number | null>(null);
+  const [questionCount, setQuestionCount] = useState<number>(0);
   const [downloading, setDownloading] = useState(false);
   const urlRef = useRef<string | null>(null);
 
-  // Fetch report + generate blob URL
+  // Fetch PDF from backend and create a blob URL for the iframe preview
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       try {
-        const res = await fetch(`/api/exams/${examId}/report`);
-        if (!res.ok) throw new Error('Could not load exam report');
-        const data: ExamReport = await res.json();
+        // First fetch the report metadata for the header display
+        const metaRes = await fetch(`/api/exams/${examId}/report`);
+        if (!metaRes.ok) throw new Error('Could not load exam report');
+        const meta = await metaRes.json();
         if (cancelled) return;
-        setReport(data);
+        setExamTitle(meta.exam?.title ?? 'Exam Report');
+        setExamScore(meta.exam?.score ?? null);
+        setQuestionCount(meta.questions?.length ?? 0);
 
-        const { getExamPDFBlobUrl } = await import('../_utils/generateExamPDF');
+        // Then fetch the PDF from the backend (Pandoc-generated)
+        const pdfRes = await fetch(`/api/exams/${examId}/export-pdf`);
+        if (!pdfRes.ok) {
+          // Fall back gracefully: show error without crashing
+          const errText = await pdfRes.text().catch(() => '');
+          let msg = 'PDF generation failed';
+          try {
+            const parsed = JSON.parse(errText);
+            if (parsed.error) msg = parsed.error;
+          } catch { /* not JSON */ }
+          throw new Error(msg);
+        }
         if (cancelled) return;
-        const url = await getExamPDFBlobUrl(data);
+
+        const blob = await pdfRes.blob();
+        const url = URL.createObjectURL(blob);
         urlRef.current = url;
         setPdfUrl(url);
       } catch (e) {
@@ -41,7 +59,6 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
 
     return () => {
       cancelled = true;
-      // Revoke blob URL on unmount
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     };
   }, [examId]);
@@ -56,11 +73,15 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
   }, [onClose]);
 
   async function handleDownload() {
-    if (!report) return;
+    if (!pdfUrl) return;
     setDownloading(true);
     try {
-      const { downloadExamPDF } = await import('../_utils/generateExamPDF');
-      await downloadExamPDF(report);
+      const a = document.createElement('a');
+      a.href = pdfUrl;
+      a.download = `${(examTitle || 'exam').replace(/[/\\:*?"<>|]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     } finally {
       setDownloading(false);
     }
@@ -83,13 +104,17 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white truncate">
-                {report?.exam.title ?? 'Exam Report'}
+                {examTitle || 'Exam Report'}
               </p>
-              {report && (
+              {questionCount > 0 && (
                 <div className="flex items-center gap-1.5 text-xs text-white/40">
-                  <span>{report.questions.length} questions</span>
-                  <span className="opacity-40">·</span>
-                  <span>{report.exam.score ?? '—'}%</span>
+                  <span>{questionCount} questions</span>
+                  {examScore !== null && (
+                    <>
+                      <span className="opacity-40">·</span>
+                      <span>{examScore}%</span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -100,7 +125,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
             <button
               type="button"
               onClick={handleDownload}
-              disabled={!report || downloading}
+              disabled={!pdfUrl || downloading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/12 bg-white/5
                 text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white
                 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -134,7 +159,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
           {loading && (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-white/40">
               <div className="w-8 h-8 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-              <p className="text-sm">Generating report...</p>
+              <p className="text-sm">Generating PDF report...</p>
             </div>
           )}
 

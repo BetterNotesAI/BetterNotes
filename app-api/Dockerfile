@@ -9,8 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-science \
     texlive-pictures \
     texlive-luatex \
+    texlive-xetex \
     lmodern \
     latexmk \
+    pandoc \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

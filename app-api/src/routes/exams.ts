@@ -1,6 +1,7 @@
 /**
  * exams.ts
  * POST /exams/generate
+ * POST /exams/export-pdf
  *
  * Receives exam generation parameters from app-web, calls the AI provider,
  * and returns the generated questions.
@@ -13,6 +14,10 @@
 
 import { Router, Request, Response } from 'express';
 import { AIProvider } from '../lib/ai/types';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 export interface ExamsRouterOptions {
   aiProvider: AIProvider;
@@ -151,5 +156,249 @@ export function createExamsRouter(opts: ExamsRouterOptions): Router {
     }
   });
 
+  // POST /exams/export-pdf
+  // Receives an ExamReport and returns a PDF file generated via Pandoc + XeLaTeX.
+  router.post('/export-pdf', async (req: Request, res: Response) => {
+    const report = req.body as ExamReportForExport | undefined;
+
+    if (!report || !report.exam || !Array.isArray(report.questions)) {
+      res.status(400).json({ ok: false, error: 'Invalid exam report payload' });
+      return;
+    }
+
+    let tmpDir: string | undefined;
+    try {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bn-exam-'));
+      const mdPath  = path.join(tmpDir, 'exam.md');
+      const pdfPath = path.join(tmpDir, 'exam.pdf');
+
+      const md = buildExamMarkdown(report);
+      fs.writeFileSync(mdPath, md, 'utf-8');
+
+      await runPandoc(mdPath, pdfPath);
+
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      const safeName = (report.exam.subject || report.exam.title || 'exam')
+        .replace(/[/\\:*?"<>|]/g, '_');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.end(pdfBuffer);
+    } catch (err: any) {
+      console.error('[export-pdf] error:', err?.message ?? err);
+      res.status(500).json({
+        ok: false,
+        error: err?.message ?? 'PDF generation failed',
+      });
+    } finally {
+      if (tmpDir) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+    }
+  });
+
   return router;
+}
+
+// ─── Types for export-pdf ─────────────────────────────────────────────────────
+
+interface ExamReportQuestionExport {
+  question_number: number;
+  type: string;
+  question: string;
+  options: string[] | null;
+  correct_answer: string;
+  user_answer: string | null;
+  is_correct: boolean | null;
+  partial_score?: number | null;
+  explanation: string | null;
+}
+
+interface ExamReportForExport {
+  exam: {
+    title: string;
+    subject: string;
+    level: string;
+    score: number | null;
+    completed_at: string | null;
+  };
+  questions: ExamReportQuestionExport[];
+}
+
+// ─── Markdown builder ─────────────────────────────────────────────────────────
+
+const LEVEL_LABELS: Record<string, string> = {
+  secondary_basic:          'Secondary — Basic',
+  secondary_intermediate:   'Secondary — Intermediate',
+  secondary_advanced:       'Secondary — Advanced',
+  highschool_basic:         'High School — Basic',
+  highschool_intermediate:  'High School — Intermediate',
+  highschool_advanced:      'High School — Advanced',
+  university_basic:         'University — Basic',
+  university_intermediate:  'University — Intermediate',
+  university_advanced:      'University — Advanced',
+};
+
+function questionState(q: ExamReportQuestionExport): 'correct' | 'partial' | 'wrong' | 'unanswered' {
+  if (!q.user_answer || q.user_answer.trim() === '') return 'unanswered';
+  if (q.is_correct === true) return 'correct';
+  if (q.partial_score != null && q.partial_score > 0 && q.partial_score < 1) return 'partial';
+  return 'wrong';
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
+
+/**
+ * Wraps bare $...$ math so it survives Pandoc's Markdown parser.
+ * Pandoc already handles $...$ and $$...$$ natively with --mathml or
+ * the default LaTeX math pass-through, so we just ensure the text is
+ * passed through unchanged.
+ */
+function buildExamMarkdown(report: ExamReportForExport): string {
+  const { exam, questions } = report;
+  const level   = LEVEL_LABELS[exam.level] ?? exam.level;
+  const date    = exam.completed_at ? formatDate(exam.completed_at) : 'N/A';
+  const score   = exam.score !== null ? `${exam.score}%` : 'N/A';
+  const subject = exam.subject || exam.title;
+
+  const lines: string[] = [];
+
+  // ── YAML front-matter for Pandoc ──────────────────────────────────────────
+  lines.push('---');
+  lines.push(`title: "${subject.replace(/"/g, "'")}"`);
+  lines.push(`date: "${date}"`);
+  lines.push('geometry: "margin=2.5cm"');
+  lines.push('fontsize: 11pt');
+  lines.push('mainfont: "Latin Modern Roman"');
+  lines.push('header-includes:');
+  lines.push('  - \\usepackage{amsmath}');
+  lines.push('  - \\usepackage{amssymb}');
+  lines.push('  - \\usepackage{enumitem}');
+  lines.push('  - \\usepackage{xcolor}');
+  lines.push('  - \\usepackage{mdframed}');
+  lines.push('  - \\usepackage{fancyhdr}');
+  lines.push('  - \\pagestyle{fancy}');
+  lines.push(`  - \\fancyhead[L]{${latexEscape(subject)}}`);
+  lines.push(`  - \\fancyhead[R]{Score: ${score}}`);
+  lines.push('  - \\fancyfoot[C]{\\thepage}');
+  lines.push('  - \\renewcommand{\\headrulewidth}{0.4pt}');
+  lines.push('---');
+  lines.push('');
+
+  // ── Cover block ───────────────────────────────────────────────────────────
+  lines.push(`# ${latexEscape(subject)}`);
+  lines.push('');
+  lines.push(`**Level:** ${latexEscape(level)}  `);
+  lines.push(`**Date:** ${latexEscape(date)}  `);
+  lines.push(`**Score:** ${score}  `);
+  lines.push(`**Questions:** ${questions.length}`);
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  // ── Questions ─────────────────────────────────────────────────────────────
+  lines.push('## Answer Review');
+  lines.push('');
+
+  for (const q of questions) {
+    const state = questionState(q);
+    const stateEmoji =
+      state === 'correct'    ? '\\textcolor{green!60!black}{\\textbf{Correct}}' :
+      state === 'partial'    ? `\\textcolor{orange}{\\textbf{Partial — ${Math.round((q.partial_score ?? 0) * 100)}\\%}}` :
+      state === 'wrong'      ? '\\textcolor{red!70!black}{\\textbf{Incorrect}}' :
+                               '\\textcolor{gray}{\\textbf{No answer}}';
+
+    lines.push(`### Question ${q.question_number} — ${stateEmoji}`);
+    lines.push('');
+    // Question text — preserve inline math ($...$) as-is for Pandoc
+    lines.push(q.question);
+    lines.push('');
+
+    // Options for multiple choice
+    if (q.type === 'multiple_choice' && Array.isArray(q.options) && q.options.length > 0) {
+      const labels = ['A', 'B', 'C', 'D'];
+      q.options.forEach((opt, i) => {
+        const label  = labels[i] ?? String(i + 1);
+        const isUser    = opt === q.user_answer;
+        const isCorrect = opt === q.correct_answer;
+        let prefix = `${label}.`;
+        if (isUser && state === 'correct')  prefix = `\\textcolor{green!60!black}{${label}.}`;
+        else if (isUser && state === 'wrong')  prefix = `\\textcolor{red!70!black}{${label}.}`;
+        else if (isUser && state === 'partial') prefix = `\\textcolor{orange}{${label}.}`;
+        else if (isCorrect && state === 'wrong') prefix = `\\textcolor{green!60!black}{${label}.}`;
+        lines.push(`- ${prefix} ${opt}`);
+      });
+      lines.push('');
+    }
+
+    // User answer
+    const ua = q.user_answer && q.user_answer.trim() !== '' ? q.user_answer : '_No answer given_';
+    lines.push(`**Your answer:** ${ua}  `);
+
+    // Correct answer (for wrong/unanswered non-MC)
+    if ((state === 'wrong' || state === 'unanswered') && q.type !== 'multiple_choice') {
+      lines.push(`**Correct answer:** ${q.correct_answer}  `);
+    }
+
+    // Explanation
+    if (q.explanation) {
+      lines.push('');
+      lines.push('> **Explanation:** ' + q.explanation);
+    }
+
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Escapes special LaTeX characters in plain text segments (not math).
+ * We only use this for metadata strings (title, level, date).
+ */
+function latexEscape(s: string): string {
+  return s
+    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/[&%$#_{}]/g, (c) => `\\${c}`)
+    .replace(/\[/g, '{[}')
+    .replace(/\]/g, '{]}')
+    .replace(/\^/g, '\\textasciicircum{}')
+    .replace(/~/g, '\\textasciitilde{}');
+}
+
+// ─── Pandoc runner ────────────────────────────────────────────────────────────
+
+function runPandoc(mdPath: string, pdfPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      mdPath,
+      '-o', pdfPath,
+      '--pdf-engine=xelatex',
+      '--standalone',
+    ];
+
+    const proc = spawn('pandoc', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    proc.on('error', (err) => {
+      reject(new Error(`pandoc not found or failed to start: ${err.message}`));
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`pandoc exited with code ${code}. stderr: ${stderr.slice(0, 500)}`));
+      }
+    });
+  });
 }
