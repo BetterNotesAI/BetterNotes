@@ -5,6 +5,7 @@ import cors from 'cors';
 import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
 import { createEditDocumentRouter } from './routes/edit-document';
+import { createExamsRouter } from './routes/exams';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -39,5 +40,8 @@ app.use('/latex', createEditBlockRouter({ aiProvider }));
 
 // Document-level AI edit endpoint
 app.use('/latex', createEditDocumentRouter({ aiProvider }));
+
+// Exams
+app.use('/exams', createExamsRouter({ aiProvider }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));

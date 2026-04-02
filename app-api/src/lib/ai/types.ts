@@ -56,6 +56,58 @@ export interface EditBlockArgs {
   conversationHistory?: ConversationTurn[];
 }
 
+// ─── Exam generation ─────────────────────────────────────────────────────────
+
+export interface GenerateExamQuestion {
+  question: string;
+  type: 'multiple_choice' | 'true_false' | 'fill_in' | 'flashcard';
+  options: string[] | null;
+  correct_answer: string;
+  explanation: string;
+  has_math?: boolean;
+}
+
+export interface CognitiveDistribution {
+  memory: number;
+  logic: number;
+  application: number;
+}
+
+export interface GenerateExamArgs {
+  subject: string;
+  level: string;
+  language: string;
+  distribution: Record<string, number>;
+  format: string[];
+  documentContext: string;
+  cognitiveDistribution?: CognitiveDistribution;
+  customInstructions?: string;
+}
+
+export interface GenerateExamResult {
+  questions: GenerateExamQuestion[];
+  canonical_subject?: string;
+}
+
+// ─── Fill-in grading ─────────────────────────────────────────────────────────
+
+export interface GradeFillInItem {
+  id: string;
+  question: string;
+  correct_answer: string;
+  user_answer: string;
+  image_url?: string;
+}
+
+export interface GradeFillInArgs {
+  items: GradeFillInItem[];
+  gradingMode: 'strict' | 'partial';
+}
+
+export interface GradeFillInResult {
+  scores: Array<{ id: string; score: number }>;
+}
+
 // ─── Document-level AI edit ──────────────────────────────────────────────────
 
 export interface EditDocumentArgs {
@@ -75,4 +127,6 @@ export interface AIProvider {
   editBlock(args: EditBlockArgs): Promise<string>;
   /** Document-level AI edit. Returns either a full modified LaTeX or a conversational message. */
   editDocument(args: EditDocumentArgs): Promise<EditDocumentResult>;
+  generateExam(args: GenerateExamArgs): Promise<GenerateExamResult>;
+  gradeFillIn(args: GradeFillInArgs): Promise<GradeFillInResult>;
 }
