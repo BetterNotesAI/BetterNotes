@@ -536,7 +536,7 @@ OUTPUT: Return a JSON object with exactly two keys:
     const resp = await this.client.chat.completions.create({
       model: this.model,
       temperature: 0.4,
-      max_tokens: 4000,
+      max_tokens: 16000,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemMessage },
@@ -579,6 +579,49 @@ OUTPUT: Return a JSON object with exactly two keys:
       throw Object.assign(new Error('AI returned no questions'), { statusCode: 502 });
     }
 
+    // ── Step 1b: top-up missing questions if AI returned fewer than requested ──
+    const missing = totalQuestions - questions.length;
+    if (missing > 0) {
+      const topUpMessage = `You are an exam question generator.
+The exam already has ${questions.length} questions on the subject "${args.subject}" at level "${args.level}".
+Generate exactly ${missing} MORE questions to complete the exam. Do NOT repeat existing questions.
+Use the same language: ${language}.
+Use the same format types: ${format.join(', ')}.
+Return ONLY a JSON object with key "questions": an array of exactly ${missing} objects, each with:
+- "question": string
+- "type": one of ${format.map((f) => `"${f}"`).join(' | ')}
+- "options": string[] (4 items) or null
+- "correct_answer": string
+- "explanation": string (1–2 sentences)
+- "has_math": boolean
+
+EXISTING QUESTIONS (do not repeat):
+${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
+
+      try {
+        const topUpResp = await this.client.chat.completions.create({
+          model: this.model,
+          temperature: 0.4,
+          max_tokens: Math.max(2000, missing * 400),
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: 'You are an expert educator. Always respond with a valid JSON object and nothing else.' },
+            { role: 'user', content: topUpMessage },
+          ],
+        });
+        const rawTopUp = topUpResp.choices?.[0]?.message?.content ?? '{}';
+        const cleanedTopUp = sanitizeLatexInJsonString(
+          restoreLatexControlChars(rawTopUp.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
+        );
+        const parsedTopUp = JSON.parse(cleanedTopUp) as { questions?: GenerateExamQuestion[] };
+        if (Array.isArray(parsedTopUp.questions) && parsedTopUp.questions.length > 0) {
+          questions = [...questions, ...parsedTopUp.questions].slice(0, totalQuestions);
+        }
+      } catch {
+        // If top-up fails, continue with the questions we have
+      }
+    }
+
     // ── Step 2: validate grounding when a document was provided ──────────────
     if (documentContext) {
       const validationMessage = `You are a strict exam quality reviewer.
@@ -607,7 +650,7 @@ ${JSON.stringify(questions, null, 2)}`;
       const validationResp = await this.client.chat.completions.create({
         model: this.model,
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 16000,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: 'You are an exam quality reviewer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences.' },
