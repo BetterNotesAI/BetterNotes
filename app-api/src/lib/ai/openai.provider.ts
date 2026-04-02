@@ -467,7 +467,7 @@ export class OpenAIProvider implements AIProvider {
     }
     typeRules.push(
       '• COHERENCE RULE (applies to all types): the value of "correct_answer" must be the exact same answer that "explanation" concludes as correct. Never let these two fields disagree. If the question involves a calculation, perform the calculation explicitly before writing any field, then copy the verified result into both "correct_answer" (or the matching option) and "explanation".',
-      '• MATH VERIFICATION: for any question requiring arithmetic, algebra, calculus, or any numerical computation, show the calculation mentally step by step first, confirm the numeric result, and only then write "correct_answer". A mismatch between "correct_answer" and "explanation" is a critical error.'
+      '• MATH VERIFICATION: for any question requiring arithmetic, algebra, calculus, or any numerical computation, work through every step explicitly before writing any field. For DERIVATIVES: differentiate each term individually using the power rule d/dx[xⁿ] = n·xⁿ⁻¹, never skip or combine terms. For SECOND DERIVATIVES: apply the power rule again term-by-term to the first derivative result — do not reuse the original function terms. For example, if f\'(x) = 4x³ − 12x² + 12x, then f\'\'(x) = 12x² − 24x + 12 (each term differentiated individually). Triple-check: differentiate every term, subtract 1 from each exponent, multiply by the original exponent. A wrong derivative in "correct_answer" or "explanation" is a critical error.'
     );
 
     const levelDesc = LEVEL_DESCRIPTIONS[level] ?? level;
