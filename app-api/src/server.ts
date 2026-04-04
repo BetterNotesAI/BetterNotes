@@ -6,6 +6,7 @@ import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
 import { createEditDocumentRouter } from './routes/edit-document';
 import { createExamsRouter } from './routes/exams';
+import { createProblemSolverRouter } from './routes/problem-solver';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -43,5 +44,11 @@ app.use('/latex', createEditDocumentRouter({ aiProvider }));
 
 // Exams
 app.use('/exams', createExamsRouter({ aiProvider }));
+
+// Problem Solver
+app.use('/problem-solver', createProblemSolverRouter({
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o',
+}));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT}`));
