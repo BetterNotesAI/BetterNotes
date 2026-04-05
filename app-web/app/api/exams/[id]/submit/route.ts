@@ -211,6 +211,14 @@ export async function POST(
 
   // --- Evaluate all answers ---
   const normalize = (s: string) => s.trim().toLowerCase();
+  const normalizeMath = (s: string) => s
+    .replace(/`([A-Za-zÀ-ÿ])/g, '$1').replace(/([A-Za-zÀ-ÿ])`/g, '$1')
+    .replace(/\$+/g, '')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\left|\\right|\\,|\\;|\\!|\\cdot/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
 
   const evaluatedQuestions = questions.map((q) => {
     const userAnswer = answerMap.get(q.id) ?? null;
@@ -234,7 +242,8 @@ export async function POST(
           partialScore = isCorrect ? 1 : 0;
         }
       } else {
-        isCorrect = userAnswer === q.correct_answer;
+        isCorrect = userAnswer === q.correct_answer ||
+          normalizeMath(userAnswer ?? '') === normalizeMath(q.correct_answer);
       }
     }
 

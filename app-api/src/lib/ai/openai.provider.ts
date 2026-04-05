@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput, ConversationTurn, GenerateExamArgs, GenerateExamResult, GenerateExamQuestion, GradeFillInArgs, GradeFillInResult } from './types';
+import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput, ConversationTurn, GenerateExamArgs, GenerateExamResult, GenerateExamQuestion, GradeFillInArgs, GradeFillInResult, SolveMathArgs, SolveMathResult, SolveMathBatchArgs, SolveMathBatchResult } from './types';
 import type { ProcessedAttachment } from '../attachments';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
@@ -30,13 +30,17 @@ function restoreLatexControlChars(s: string): string {
 }
 
 /**
- * Pre-parse sanitizer: doubles lone backslashes before a letter so that
- * \alpha, \{, etc. (invalid JSON escapes) don't cause SyntaxError.
+ * Pre-parse sanitizer: doubles lone backslashes that are not valid JSON escape sequences.
+ * Consumes both characters of each \X pair so that the second backslash of an already-
+ * doubled \\ is never accidentally re-doubled (which would corrupt valid \\alpha → \\\alpha).
+ * Valid JSON escapes kept as-is: \" \\ \/ \b \f \n \r \t
+ * Everything else (e.g. \alpha, \underbrace, \,) is doubled to \\alpha, \\underbrace, \\,
  */
 function sanitizeLatexInJsonString(raw: string): string {
-  return raw
-    .replace(/(?<!\\)\\([a-zA-Z])/g, '\\\\$1')
-    .replace(/(?<!\\)\\([{}[\]|^_])/g, '\\\\$1');
+  return raw.replace(/\\([\s\S])/g, (_match, next: string) => {
+    if ('"\\\/bfnrt'.includes(next)) return '\\' + next; // valid JSON escape — keep
+    return '\\\\' + next;                                  // lone backslash — double it
+  });
 }
 
 function isLatex(text: string): boolean {
@@ -130,8 +134,14 @@ export class OpenAIProvider implements AIProvider {
   private client: OpenAI;
   private model: string;
 
-  constructor(apiKey: string, model = 'gpt-4o') {
-    this.client = new OpenAI({ apiKey });
+  /**
+   * @param apiKey   API key for the provider
+   * @param model    Model ID to use
+   * @param baseURL  Optional base URL for OpenAI-compatible providers
+   *                 (Groq, OpenRouter, Google AI Studio, etc.)
+   */
+  constructor(apiKey: string, model = 'gpt-4o', baseURL?: string) {
+    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     this.model = model;
   }
 
@@ -466,27 +476,25 @@ export class OpenAIProvider implements AIProvider {
       typeRules.push('• flashcard: "options" must be null; "correct_answer" must be a concise but complete answer (1–3 sentences) that makes sense when shown on the back of a flashcard.');
     }
     typeRules.push(
-      '• COHERENCE RULE (applies to all types): the value of "correct_answer" must be the exact same answer that "explanation" concludes as correct. Never let these two fields disagree. If the question involves a calculation, perform the calculation explicitly before writing any field, then copy the verified result into both "correct_answer" (or the matching option) and "explanation".',
-      '• MATH VERIFICATION — MANDATORY SCRATCHPAD: before writing any JSON field for a math question, work through the full calculation in a private scratchpad (you may include it as a comment before the JSON). Steps: (1) identify every sub-expression, (2) compute each step numerically or symbolically, (3) verify the result by substituting back or by an independent method, (4) only then write "correct_answer" and "explanation". A result that has not been independently verified must not appear in the output.',
-      '• DERIVATIVES: differentiate each term individually using the power rule d/dx[xⁿ] = n·xⁿ⁻¹. Never skip or combine terms. For SECOND DERIVATIVES apply the power rule again term-by-term to the first derivative — never reuse the original function. Example: if f\'(x) = 4x³ − 12x² + 12x then f\'\'(x) = 12x² − 24x + 12. Triple-check every exponent and coefficient.',
-      '• INTEGRALS: compute the antiderivative term-by-term, apply limits if definite, verify by differentiating the result. For indefinite integrals always include + C.',
-      '• ARITHMETIC AND ALGEBRA: perform every arithmetic operation explicitly (no mental shortcuts). For equations, isolate the variable step by step and verify by substituting the solution back into the original equation.',
-      '• LIMITS AND SERIES: evaluate limits by the appropriate technique (substitution, L\'Hôpital, factoring); state which rule is applied.',
-      '• WRONG MATH IS A CRITICAL ERROR: an incorrect numerical result in "correct_answer" or "explanation" — regardless of how well the question is written — renders the entire question invalid. Prefer a simpler question you can verify over a complex question you cannot.'
+      '• COHERENCE RULE (applies to non-math questions only): the value of "correct_answer" must be the exact same answer that "explanation" concludes as correct. Never let these two fields disagree.',
+      '• MATH DELEGATION RULE: for any question where "has_math" is true — set "correct_answer" to "" and "explanation" to "". A dedicated math solver will fill them in. Do NOT attempt to solve, verify, or provide an answer for math questions. Only write the question statement and, for multiple_choice, 4 plausible options.',
+      '• For multiple_choice math questions: you MUST generate exactly 4 distinct, plausible distractor options. Even though "correct_answer" will be empty, the options array is required so the solver can identify which one is correct.'
     );
 
     const levelDesc = LEVEL_DESCRIPTIONS[level] ?? level;
 
     const systemMessage =
       'You are an expert educator and exam designer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences.' +
-      ' MATH ACCURACY IS YOUR HIGHEST PRIORITY: before writing any question that involves calculation, carry out every arithmetic or algebraic step explicitly in your internal reasoning, verify the result independently (e.g. substitute back, differentiate the integral, check with a different method), and only then write the JSON fields. If you cannot verify a result with certainty, simplify the question until you can.' +
-      ' LATEX MATH FORMAT: every mathematical expression, formula, equation, or symbol — including single variables used in a mathematical sense (e.g. $x$, $n$, $f(x)$) — must be wrapped in $...$ for inline math or $$...$$ for display math. Plain prose must never be wrapped in $...$.' +
+      ' MATH QUESTIONS (has_math: true): write only the question statement and, for multiple_choice, the 4 options. Leave "correct_answer" and "explanation" as empty strings — a dedicated math solver will complete them. Do NOT attempt to solve math questions yourself.' +
+      ' NON-MATH QUESTIONS: provide full "correct_answer" and "explanation" as normal.' +
+      ' LATEX MATH FORMAT (applies to question text, options, correct_answer and explanation): ALWAYS use single dollar signs $...$ for ALL mathematical expressions — inline or display. NEVER use double dollar signs $$...$$. Examples: $x^3$, $\\frac{1}{2}$, $\\int_0^1 x\\,dx$, $f(x) = x^2 + 3x$. Even full equations must use single $...$. Plain prose must never be wrapped in $...$. NEVER use spacing commands like \\, \\; \\! inside math — they cause JSON errors.' +
       ' CRITICAL JSON RULE: inside JSON string values ALL LaTeX backslash commands MUST use a double backslash. Write \\\\frac, \\\\sqrt, \\\\sum, \\\\int, \\\\alpha, \\\\beta, \\\\times, \\\\cdot, \\\\vec, \\\\hat, \\\\bar, \\\\left, \\\\right, \\\\text, \\\\mathrm, \\\\lim, \\\\infty, \\\\partial, \\\\nabla, \\\\pm, \\\\leq, \\\\geq, \\\\neq, \\\\approx, \\\\equiv, \\\\in, \\\\subset, \\\\cup, \\\\cap, \\\\forall, \\\\exists — never a single backslash. A single \\f in JSON is a form-feed control character, not the LaTeX \\frac command. Always double every backslash in JSON string values.';
 
     const taskLine = documentContext
       ? [
           'Create an exam based strictly on the document content provided below.',
           subject ? `Focus specifically on: "${subject}".` : '',
+          'GROUNDING RULE: every single question must be fully answerable using ONLY the provided document — no outside knowledge. If the document does not contain enough material for a question type, use simpler questions that are still grounded.',
         ].filter(Boolean).join(' ')
       : `Create an exam about "${subject}".`;
 
@@ -515,13 +523,9 @@ Spread these proportionally across question types. A 0-count category means no q
 ${customInstructions ? `CUSTOM INSTRUCTIONS (highest priority — override any default behaviour if there is a conflict):
 ${customInstructions}
 
-` : ''}MATH PRE-COMPUTATION STEP (mandatory for any math question):
-Before writing the JSON, reason through each math question like this:
-  [QUESTION PLAN] What concept is tested?
-  [CALCULATION] Work every step explicitly: compute intermediate values, apply rules term-by-term.
-  [VERIFICATION] Check: substitute the answer back, differentiate the integral, or use an independent method.
-  [CONFIRMED RESULT] Only after verification, write this value into "correct_answer" and "explanation".
-If a calculation cannot be fully verified, replace the question with one that can.
+` : ''}EXACT COUNT REQUIREMENT: you MUST return EXACTLY ${totalQuestions} questions — not one more, not one less. Count them before writing the JSON. If you reach the end and have fewer, add more questions of any allowed type. If you have more, trim the last ones.
+
+MATH QUESTION RULE: for any question where has_math is true, set "correct_answer" to "" and "explanation" to "". A dedicated math solver will complete those fields. Only write the question statement (and options for multiple_choice).
 
 OUTPUT: Return a JSON object with exactly two keys:
 - "canonical_subject": the normalized, canonical name of the subject **always in English**, regardless of the exam language (e.g. "World War 2", "ww2", "WWII" → "World War II"; "fotosíntesis", "fotosíntesi", "photosynthèse" → "Photosynthesis"; "historia" → "History"). Use proper English capitalization. This is used for cross-language grouping in statistics.
@@ -529,13 +533,13 @@ OUTPUT: Return a JSON object with exactly two keys:
   - "question": string
   - "type": one of ${format.map((f) => `"${f}"`).join(' | ')}
   - "options": string[] (4 items) or null
-  - "correct_answer": string
-  - "explanation": string (1–2 sentences explaining why the answer is correct)
-  - "has_math": boolean — set to true if the question or its answer involves mathematical formulas, equations, algebraic expressions, calculus, quantitative physics, chemistry with molecular formulas, or any content where the student would need to type mathematical symbols (e.g. exponents, Greek letters, integrals, fractions). Set to false otherwise.`;
+  - "correct_answer": string — empty string "" if has_math is true
+  - "explanation": string — empty string "" if has_math is true; otherwise 1–2 sentences explaining why the answer is correct
+  - "has_math": boolean — set to true if the question involves mathematical formulas, equations, algebraic expressions, calculus, quantitative physics, chemistry with molecular formulas, or any content where the student would need to type mathematical symbols (e.g. exponents, Greek letters, integrals, fractions). Set to false otherwise.`;
 
     const resp = await this.client.chat.completions.create({
       model: this.model,
-      temperature: 0.4,
+      temperature: 0.9,
       max_tokens: 16000,
       response_format: { type: 'json_object' },
       messages: [
@@ -579,100 +583,148 @@ OUTPUT: Return a JSON object with exactly two keys:
       throw Object.assign(new Error('AI returned no questions'), { statusCode: 502 });
     }
 
-    // ── Step 1b: top-up missing questions if AI returned fewer than requested ──
-    const missing = totalQuestions - questions.length;
-    if (missing > 0) {
-      const topUpMessage = `You are an exam question generator.
-The exam already has ${questions.length} questions on the subject "${args.subject}" at level "${args.level}".
-Generate exactly ${missing} MORE questions to complete the exam. Do NOT repeat existing questions.
-Use the same language: ${language}.
-Use the same format types: ${format.join(', ')}.
-Return ONLY a JSON object with key "questions": an array of exactly ${missing} objects, each with:
-- "question": string
-- "type": one of ${format.map((f) => `"${f}"`).join(' | ')}
-- "options": string[] (4 items) or null
-- "correct_answer": string
-- "explanation": string (1–2 sentences)
-- "has_math": boolean
+    return { questions, canonical_subject };
+  }
 
-EXISTING QUESTIONS (do not repeat):
-${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`;
+  async solveMath(args: SolveMathArgs): Promise<SolveMathResult> {
+    const { question, type, options, language } = args;
 
-      try {
-        const topUpResp = await this.client.chat.completions.create({
-          model: this.model,
-          temperature: 0.4,
-          max_tokens: Math.max(2000, missing * 400),
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: 'You are an expert educator. Always respond with a valid JSON object and nothing else.' },
-            { role: 'user', content: topUpMessage },
-          ],
-        });
-        const rawTopUp = topUpResp.choices?.[0]?.message?.content ?? '{}';
-        const cleanedTopUp = sanitizeLatexInJsonString(
-          restoreLatexControlChars(rawTopUp.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
-        );
-        const parsedTopUp = JSON.parse(cleanedTopUp) as { questions?: GenerateExamQuestion[] };
-        if (Array.isArray(parsedTopUp.questions) && parsedTopUp.questions.length > 0) {
-          questions = [...questions, ...parsedTopUp.questions].slice(0, totalQuestions);
-        }
-      } catch {
-        // If top-up fails, continue with the questions we have
-      }
-    }
+    const optionsText = type === 'multiple_choice' && options?.length
+      ? `\nOptions:\nA. ${options[0]}\nB. ${options[1]}\nC. ${options[2]}\nD. ${options[3]}\n\nIdentify which option is mathematically correct.`
+      : '';
 
-    // ── Step 2: validate grounding when a document was provided ──────────────
-    if (documentContext) {
-      const validationMessage = `You are a strict exam quality reviewer.
+    const prompt = `You are an expert mathematician. Solve this problem step by step. Show every calculation explicitly.
 
-You will receive a list of exam questions and the source document they were generated from.
+Question: ${question}${optionsText}
 
-Your task:
-1. For each question, check whether it can be fully answered using ONLY the provided document text.
-2. If a question IS grounded in the document — keep it exactly as-is.
-3. If a question is NOT grounded (uses outside knowledge, is too generic, or cannot be verified from the text) — replace it with a new question on the same topic that IS directly answerable from the document.
+INSTRUCTIONS:
+1. Work through the full solution showing every step
+2. For integrals: compute antiderivative term by term, apply limits if definite, verify by differentiating
+3. For derivatives: apply rules term by term, show intermediate steps
+4. For algebra: isolate variables step by step, verify by substitution
+5. State the final answer clearly
+
+${type === 'multiple_choice' ? 'For multiple choice: your correct_answer must be the FULL TEXT of the correct option (not just the letter A/B/C/D). If no option matches exactly, pick the closest one.' : ''}
+${type === 'true_false' ? 'Your correct_answer must be exactly "True" or "False".' : ''}
+
+Write the explanation in ${language}.
+
+Return ONLY a valid JSON object:
+{
+  "correct_answer": "the exact answer",
+  "explanation": "step-by-step solution with all calculations shown (minimum 2-3 sentences)"
+}`;
+
+    const resp = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0,
+      max_tokens: 2500,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = resp.choices?.[0]?.message?.content ?? '{}';
+    const cleaned = sanitizeLatexInJsonString(
+      restoreLatexControlChars(raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
+    );
+    const parsed = JSON.parse(cleaned) as { correct_answer?: string; explanation?: string };
+
+    return {
+      correct_answer: parsed.correct_answer ?? '',
+      explanation: parsed.explanation ?? '',
+    };
+  }
+
+  async solveMathBatch(args: SolveMathBatchArgs): Promise<SolveMathBatchResult> {
+    const { items, language } = args;
+
+    const questionsBlock = items.map((item, n) => {
+      const labels = ['A', 'B', 'C', 'D'];
+      const optionsText = item.type === 'multiple_choice' && item.options?.length
+        ? '\n' + item.options.map((o, i) => `  ${labels[i]}. ${o}`).join('\n')
+        : '';
+      const typeHint =
+        item.type === 'multiple_choice' ? '(multiple choice — pick the correct option)' :
+        item.type === 'true_false'      ? '(true/false — answer must be exactly "True" or "False")' :
+        item.type === 'fill_in'         ? '(fill in the blank)' : '(flashcard)';
+      return `[${n + 1}] ${typeHint}\n${item.question}${optionsText}`;
+    }).join('\n\n');
+
+    const mcInstructions = items.some((i) => i.type === 'multiple_choice')
+      ? '\n- For multiple choice: correct_answer must be COPIED EXACTLY character by character from one of the options listed — same LaTeX, same symbols, same spacing. Do NOT rephrase, simplify, or change notation. Do NOT include the letter prefix (A/B/C/D).'
+      : '';
+    const tfInstructions = items.some((i) => i.type === 'true_false')
+      ? '\n- For true/false: correct_answer must be exactly "True" or "False".'
+      : '';
+
+    const prompt = `You are an expert mathematician and physicist. Solve each problem below step by step, showing every calculation explicitly.
+
+${questionsBlock}
 
 RULES:
-- Return the exact same JSON structure: an object with key "questions" containing an array of exactly ${questions.length} objects.
-- Every object must have: "question", "type", "options", "correct_answer", "explanation", "has_math".
-- Keep the same "type" for each question when replacing.
-- Preserve the "has_math" value from the original question unless you replace the question entirely; if you replace a question, set "has_math" to true if the new question involves mathematical formulas, equations, or symbols, false otherwise.
-- Write all questions in ${language}.
-- Do not add, remove, or reorder questions — only replace ungrounded ones in place.
+- Work through each problem fully before writing the answer.
+- For integrals: compute antiderivative term by term, apply limits if definite, verify by differentiating.
+- For derivatives: apply rules term by term, show all steps.
+- For algebra: isolate variables step by step, verify by substituting back.${mcInstructions}${tfInstructions}
+- Write all explanations in ${language}.
+- LATEX FORMAT: use ONLY single $...$ for all math expressions. NEVER use $$...$$. Examples: $x^3$, $\\\\frac{1}{2}$, $\\\\int_0^1 x\\,dx$.
+- CRITICAL JSON RULE: inside JSON string values all LaTeX backslash commands MUST use double backslash (\\\\frac, \\\\sqrt, \\\\int, etc.).
 
-SOURCE DOCUMENT:
-${documentContext}
+Return ONLY a valid JSON object with this exact shape — one entry per question, in the same order:
+{
+  "solutions": [
+    { "correct_answer": "...", "explanation": "..." },
+    { "correct_answer": "...", "explanation": "..." }
+  ]
+}
 
-QUESTIONS TO VALIDATE:
-${JSON.stringify(questions, null, 2)}`;
+RULES FOR explanation:
+- Maximum 3 sentences. Be concise and direct.
+- Show the key calculation steps only — do NOT repeat or re-verify the same step multiple times.
+- If your result does not match any option exactly, pick the closest option and state why in one sentence. Do NOT loop.`;
 
-      const validationResp = await this.client.chat.completions.create({
-        model: this.model,
-        temperature: 0.2,
-        max_tokens: 16000,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: 'You are an exam quality reviewer. You always respond with a valid JSON object and nothing else — no markdown, no prose, no code fences.' },
-          { role: 'user', content: validationMessage },
-        ],
-      });
+    const resp = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0,
+      max_tokens: Math.min(6000, Math.max(1200, items.length * 500)),
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }],
+    });
 
-      try {
-        const rawV = validationResp.choices?.[0]?.message?.content ?? '{}';
-        const cleanedV = sanitizeLatexInJsonString(
-          restoreLatexControlChars(rawV.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
+    const raw = resp.choices?.[0]?.message?.content ?? '{}';
+    const cleaned = sanitizeLatexInJsonString(
+      restoreLatexControlChars(raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
+    );
+    const parsed = JSON.parse(cleaned) as { solutions?: Array<{ correct_answer: string; explanation: string }> };
+
+    // Map by position — Groq returns solutions in the same order as the input items
+    const solutions = (parsed.solutions ?? []).map((sol, n) => {
+      const item = items[n];
+      let answer = sol.correct_answer ?? '';
+      // Strip backticks Groq sometimes adds around accented chars (e.g. `È` → È, `à` → à)
+      answer = answer.replace(/`([A-Za-zÀ-ÿ])/g, '$1').replace(/([A-Za-zÀ-ÿ])`/g, '$1');
+      // Strip leading letter prefix "A. ", "B.", "A) " etc. that Groq sometimes adds
+      answer = answer.replace(/^[A-D][.)]\s*/i, '').trim();
+      // For multiple_choice: find the exact option that matches (handles math notation differences)
+      if (item?.type === 'multiple_choice' && item.options?.length) {
+        const normalize = (s: string) => s
+          .replace(/^[A-D][.)]\s*/i, '')
+          .replace(/\$+/g, '')
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+          .replace(/\\left|\\right|\\,|\\;|\\!/g, '')
+          .replace(/\s+/g, '')
+          .trim()
+          .toLowerCase();
+        const normalizedAnswer = normalize(answer);
+        const match = item.options.find((o) =>
+          normalize(o) === normalizedAnswer || o.replace(/^[A-D][.)]\s*/i, '').trim() === answer
         );
-        const parsedV = JSON.parse(cleanedV) as { questions?: GenerateExamQuestion[] };
-        if (Array.isArray(parsedV.questions) && parsedV.questions.length === questions.length) {
-          questions = parsedV.questions;
-        }
-      } catch {
-        // If validation parse fails, keep original questions
+        if (match) answer = match.replace(/^[A-D][.)]\s*/i, '').trim();
       }
-    }
+      return { index: item?.index ?? n, correct_answer: answer, explanation: sol.explanation ?? '' };
+    }).filter((sol) => sol.correct_answer !== '');
 
-    return { questions, canonical_subject };
+    return { solutions };
   }
 
   async gradeFillIn(args: GradeFillInArgs): Promise<GradeFillInResult> {
@@ -686,11 +738,15 @@ ${JSON.stringify(questions, null, 2)}`;
 
     // ── Batch text-only items ────────────────────────────────────────────────
     if (textItems.length > 0) {
+      const mathEquivalenceRule = `MATH EQUIVALENCE (critical): different notations for the same mathematical result must be scored as fully correct. Examples: "a/b" = "\\frac{a}{b}", "x^2" = "x²", "sqrt(x)" = "\\sqrt{x}", "pi" = "π", "e^x" = "exp(x)", "ln(x)" = "log_e(x)". If the student's answer is mathematically equivalent to the correct answer — even with different notation — give full score.`;
+
       const prompt = gradingMode === 'partial'
         ? `You are a strict but fair exam grader. For each item, assign a score from 0.0 to 1.0 based on how correct the answer is.
 
+${mathEquivalenceRule}
+
 Scoring guide:
-- 1.0 — fully correct (semantically equivalent, minor spelling OK)
+- 1.0 — fully correct (semantically or mathematically equivalent, minor spelling OK)
 - 0.7–0.9 — mostly correct but imprecise, incomplete, or with minor conceptual gaps
 - 0.4–0.6 — shows some understanding but missing key elements
 - 0.1–0.3 — barely related or mostly wrong but shows minimal knowledge
@@ -700,7 +756,7 @@ Return ONLY a valid JSON object: { "scores": [{ "id": "...", "score": <number 0.
 
 Items:
 ${JSON.stringify(textItems, null, 2)}`
-        : `You are a strict but fair exam grader. For each item, decide if the user's answer is semantically correct (equivalent meaning, minor spelling errors acceptable).
+        : `You are a strict but fair exam grader. For each item, decide if the user's answer is semantically correct (equivalent meaning, minor spelling errors acceptable). ${mathEquivalenceRule}
 
 Return ONLY a valid JSON object: { "scores": [{ "id": "...", "score": 1.0 }] } for correct or { "scores": [{ "id": "...", "score": 0.0 }] } for wrong.
 
@@ -737,15 +793,17 @@ ${JSON.stringify(textItems, null, 2)}`;
     for (const item of visionItems) {
       try {
         const scoringGuide = gradingMode === 'partial'
-          ? `Scoring guide:
-- 1.0 — fully correct (semantically equivalent, minor spelling OK)
+          ? `MATH EQUIVALENCE: different notations for the same result are fully correct ("a/b" = "\\frac{a}{b}", "x^2" = "x²", etc.).
+
+Scoring guide:
+- 1.0 — fully correct (semantically or mathematically equivalent, minor spelling OK)
 - 0.7–0.9 — mostly correct but imprecise, incomplete, or with minor conceptual gaps
 - 0.4–0.6 — shows some understanding but missing key elements
 - 0.1–0.3 — barely related or mostly wrong but shows minimal knowledge
 - 0.0 — completely wrong, off-topic, or no answer
 
 Assign a score from 0.0 to 1.0.`
-          : `Decide if the student's work is semantically correct (score 1.0) or wrong (score 0.0). Minor spelling errors are acceptable.`;
+          : `Decide if the student's work is semantically correct (score 1.0) or wrong (score 0.0). Minor spelling errors are acceptable. MATH EQUIVALENCE: different notations for the same result count as correct ("a/b" = "\\frac{a}{b}", "x^2" = "x²", etc.).`;
 
         const hasTextAnswer = item.user_answer && item.user_answer.trim().length > 0;
 

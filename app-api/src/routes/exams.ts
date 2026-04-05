@@ -21,6 +21,7 @@ import * as os from 'os';
 
 export interface ExamsRouterOptions {
   aiProvider: AIProvider;
+  mathProvider?: AIProvider;  // Groq — resolves math questions
 }
 
 const VALID_LEVELS = [
@@ -43,7 +44,7 @@ interface GenerateExamBody {
 
 export function createExamsRouter(opts: ExamsRouterOptions): Router {
   const router = Router();
-  const { aiProvider } = opts;
+  const { aiProvider, mathProvider } = opts;
 
   // POST /exams/generate
   router.post('/generate', async (req: Request, res: Response) => {
@@ -121,7 +122,52 @@ export function createExamsRouter(opts: ExamsRouterOptions): Router {
         customInstructions: (customInstructions ?? '').trim() || undefined,
       });
 
-      res.json({ ok: true, questions: result.questions, canonical_subject: result.canonical_subject });
+      let { questions, canonical_subject } = result;
+
+      // Resolve all math questions with Groq in a single batch call
+      if (mathProvider) {
+        const allMath = isMathSubject(subjectTrimmed);
+        const mathItems = questions
+          .map((q, i) => ({ q, i }))
+          .filter(({ q }) =>
+            allMath ||
+            q.has_math === true ||
+            q.correct_answer === '' ||
+            hasMathContent(q.question)
+          )
+          .map(({ q, i }) => ({ index: i, question: q.question, type: q.type, options: q.options }));
+
+        console.log(`[exams] subject="${subjectTrimmed}" allMath=${allMath} mathItems=${mathItems.length}/${questions.length}`);
+
+        if (mathItems.length > 0) {
+          try {
+            const CHUNK_SIZE = 5;
+            const allSolutions: Array<{ index: number; correct_answer: string; explanation: string }> = [];
+
+            for (let i = 0; i < mathItems.length; i += CHUNK_SIZE) {
+              const chunk = mathItems.slice(i, i + CHUNK_SIZE);
+              console.log(`[exams] calling Groq batch chunk ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} questions)`);
+              const { solutions } = await mathProvider.solveMathBatch({ items: chunk as any, language: lang });
+              allSolutions.push(...solutions);
+            }
+
+            console.log(`[exams] Groq returned ${allSolutions.length} solutions total`);
+            for (const sol of allSolutions) {
+              if (sol.index >= 0 && sol.index < questions.length && sol.correct_answer) {
+                questions[sol.index] = {
+                  ...questions[sol.index],
+                  correct_answer: sol.correct_answer,
+                  explanation: sol.explanation,
+                };
+              }
+            }
+          } catch (err) {
+            console.error('[exams] solveMathBatch failed:', err);
+          }
+        }
+      }
+
+      res.json({ ok: true, questions, canonical_subject });
     } catch (err: any) {
       const status = err?.statusCode ?? err?.status ?? 500;
       res.status(status).json({
@@ -350,6 +396,19 @@ function buildExamMarkdown(report: ExamReportForExport): string {
  * Ensures LaTeX commands outside of math delimiters are wrapped in $...$.
  * The AI sometimes omits $ around expressions like \ln(x), \frac{a}{b}, etc.
  */
+/** Detects if a question contains mathematical content by looking for LaTeX commands or math symbols. */
+function hasMathContent(text: string): boolean {
+  return /\\(?:int|frac|sum|prod|sqrt|lim|partial|nabla|alpha|beta|gamma|delta|theta|lambda|sigma|omega|pi|mu|infty|times|cdot|vec|hat|bar|left|right|begin|end)\b/.test(text)
+    || /\$[\s\S]+?\$/.test(text)
+    || /\d+\s*[\^\/]\s*\d+/.test(text);
+}
+
+/** Returns true if the subject is inherently mathematical — all questions should go to Groq. */
+function isMathSubject(subject: string): boolean {
+  const s = subject.toLowerCase();
+  return /c[àa]lcul|calculus|c[áa]lculo|integral|derivad|derivative|[\s,]math|matem[àa]tic|algebra|àlgebra|trigonometr|probabilit|estad[íi]stic|statistic|geometr|f[íi]sic|physic|linear algebra|equaci[oó]|ecuaci[oó]n|equation/.test(s);
+}
+
 function ensureMathDelimiters(text: string): string {
   // Split on existing math blocks to avoid double-processing
   const segments = text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/);

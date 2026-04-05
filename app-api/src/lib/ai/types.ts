@@ -89,6 +89,36 @@ export interface GenerateExamResult {
   canonical_subject?: string;
 }
 
+// ─── Math solving ─────────────────────────────────────────────────────────────
+
+export interface SolveMathArgs {
+  question: string;
+  type: 'multiple_choice' | 'true_false' | 'fill_in' | 'flashcard';
+  options: string[] | null;
+  language: string;
+}
+
+export interface SolveMathResult {
+  correct_answer: string;
+  explanation: string;
+}
+
+export interface SolveMathBatchItem {
+  index: number;  // position in the original questions array
+  question: string;
+  type: 'multiple_choice' | 'true_false' | 'fill_in' | 'flashcard';
+  options: string[] | null;
+}
+
+export interface SolveMathBatchArgs {
+  items: SolveMathBatchItem[];
+  language: string;
+}
+
+export interface SolveMathBatchResult {
+  solutions: Array<{ index: number; correct_answer: string; explanation: string }>;
+}
+
 // ─── Fill-in grading ─────────────────────────────────────────────────────────
 
 export interface GradeFillInItem {
@@ -129,4 +159,8 @@ export interface AIProvider {
   editDocument(args: EditDocumentArgs): Promise<EditDocumentResult>;
   generateExam(args: GenerateExamArgs): Promise<GenerateExamResult>;
   gradeFillIn(args: GradeFillInArgs): Promise<GradeFillInResult>;
+  /** Dedicated math solver — resolves a single question using a reasoning-focused model. */
+  solveMath(args: SolveMathArgs): Promise<SolveMathResult>;
+  /** Batch math solver — resolves all math questions in a single API call. */
+  solveMathBatch(args: SolveMathBatchArgs): Promise<SolveMathBatchResult>;
 }

@@ -26,11 +26,16 @@ If the question involves math, use LaTeX: inline with $...$ and display with $$.
 export interface ProblemSolverRouterOptions {
   openaiApiKey: string;
   openaiModel?: string;
+  /** Optional base URL for OpenAI-compatible providers (Groq, OpenRouter, Google AI Studio). */
+  openaiBaseURL?: string;
 }
 
 export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Router {
   const router = Router();
-  const openai = new OpenAI({ apiKey: opts.openaiApiKey });
+  const openai = new OpenAI({
+    apiKey: opts.openaiApiKey,
+    ...(opts.openaiBaseURL ? { baseURL: opts.openaiBaseURL } : {}),
+  });
   const model = opts.openaiModel ?? 'gpt-4o';
 
   // ─── POST /problem-solver/solve ───────────────────────────────────────────────
