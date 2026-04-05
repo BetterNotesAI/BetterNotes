@@ -78,11 +78,17 @@ app.use('/latex', createEditBlockRouter({ aiProvider }));
 // Document-level AI edit endpoint
 app.use('/latex', createEditDocumentRouter({ aiProvider }));
 
-// Exams — Gemini for question generation + Groq for math solving
-const examsProvider = createAIProvider('google', {
-  googleApiKey: process.env.GOOGLE_AI_API_KEY,
-  googleModel:  process.env.GOOGLE_AI_MODEL,
-});
+// Exams — Prefer Gemini for question generation, but do not crash startup if key is missing.
+const examsProvider = process.env.GOOGLE_AI_API_KEY
+  ? createAIProvider('google', {
+      googleApiKey: process.env.GOOGLE_AI_API_KEY,
+      googleModel:  process.env.GOOGLE_AI_MODEL,
+    })
+  : aiProvider;
+
+if (!process.env.GOOGLE_AI_API_KEY) {
+  console.warn('[app-api] GOOGLE_AI_API_KEY is missing, /exams will use the active AI_PROVIDER');
+}
 
 // Math solver — uses Groq (Llama 3.3 70b, best math benchmark) when key is available
 const mathSolverProvider = process.env.GROQ_API_KEY
