@@ -371,7 +371,7 @@ export default function ProblemSessionPage() {
     };
 
     function isInsidePdfPanel(target: EventTarget | null): target is Node {
-      return target instanceof Node && container.contains(target);
+      return target instanceof Node && container!.contains(target);
     }
 
     function onWheel(e: WheelEvent) {
