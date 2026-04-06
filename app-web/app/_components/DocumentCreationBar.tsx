@@ -50,7 +50,7 @@ export function DocumentCreationBar({
   onTemplateChange,
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const [prompt, setPrompt]   = useState('');
   const [templateId, setTemplateId] = useState<string | null>(initialTemplateId ?? null);
   const [pages, setPages]     = useState(2);

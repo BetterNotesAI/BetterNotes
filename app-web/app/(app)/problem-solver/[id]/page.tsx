@@ -61,7 +61,7 @@ function StatusBadge({ status }: { status: SessionStatus }) {
 
 export default function ProblemSessionPage() {
   const params = useParams<{ id: string }>();
-  const sessionId = params.id;
+  const sessionId = params?.id ?? '';
   const router = useRouter();
 
   // Session data

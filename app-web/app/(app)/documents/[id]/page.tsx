@@ -53,7 +53,7 @@ function InitialPromptSender({
 
   useEffect(() => {
     if (!isDraft || !isDocReady || sentRef.current) return;
-    const prompt = searchParams.get('prompt');
+    const prompt = searchParams?.get('prompt');
     if (!prompt) return;
     sentRef.current = true;
     router.replace(window.location.pathname, { scroll: false });
@@ -64,9 +64,9 @@ function InitialPromptSender({
 }
 
 export default function DocumentWorkspacePage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const documentId = params.id as string;
+  const documentId = params?.id ?? '';
 
   const {
     document: docData,
@@ -144,7 +144,7 @@ export default function DocumentWorkspacePage() {
     keywords?: string[];
   } | undefined>(undefined);
   const searchParamsDoc = useSearchParams();
-  const [showHistory, setShowHistory] = useState(() => searchParamsDoc.get('history') === '1');
+  const [showHistory, setShowHistory] = useState(() => searchParamsDoc?.get('history') === '1');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
