@@ -49,6 +49,15 @@ interface HistoryPoint {
   level: string;
 }
 
+interface SubjectExam {
+  exam_id: string;
+  score: number;
+  level: string;
+  language: string;
+  completed_at: string;
+  time_spent_seconds: number | null;
+}
+
 interface RecentAttempt {
   exam_id: string;
   subject: string;
