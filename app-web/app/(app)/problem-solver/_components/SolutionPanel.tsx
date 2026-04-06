@@ -1,15 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { InlineChat } from './InlineChat';
+import { SubChat } from './SubChat';
 
 // ---------------------------------------------------------------------------
-// Minimal Markdown → HTML renderer (no external lib)
-// Handles: h1-h3, bold, italic, inline code, fenced code blocks,
-//          display math ($$...$$), inline math ($...$), paragraphs
+// Minimal Markdown → HTML renderer helpers
 // ---------------------------------------------------------------------------
 
 function escapeHtml(s: string): string {
@@ -31,45 +30,50 @@ function renderKatex(math: string, displayMode: boolean): string {
   }
 }
 
-/** Replace math expressions before HTML-escaping to avoid escaping LaTeX */
 function renderInlineMath(text: string): string {
-  // Display math: $$...$$ (avoid dotAll flag for ES2017 compat — use [\s\S])
+  // Display math: $$...$$
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) =>
+    renderKatex(math, true)
+  );
+  // Display math: \[...\]
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, math) =>
     renderKatex(math, true)
   );
   // Inline math: $...$
   text = text.replace(/\$([^$\n]+?)\$/g, (_, math) =>
     renderKatex(math, false)
   );
+  // Inline math: \(...\)
+  text = text.replace(/\\\((.+?)\\\)/g, (_, math) =>
+    renderKatex(math, false)
+  );
   return text;
 }
 
 function renderInline(text: string): string {
-  // Bold + italic: ***...***
   text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  // Bold: **...**
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic: *...*
   text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // Inline code: `...`
   text = text.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
   return text;
 }
 
-function markdownToHtml(md: string): string {
+// ---------------------------------------------------------------------------
+// Block-based markdown renderer
+// Each block is a logical unit (heading, paragraph, list item, code, math, hr)
+// ---------------------------------------------------------------------------
+
+interface SolutionBlock {
+  html: string;
+  text: string;
+}
+
+function markdownToBlocks(md: string): SolutionBlock[] {
   const lines = md.split('\n');
-  const html: string[] = [];
+  const blocks: SolutionBlock[] = [];
   let inCodeBlock = false;
   let codeLang = '';
   let codeLines: string[] = [];
-  let inParagraph = false;
-
-  function closeParagraph() {
-    if (inParagraph) {
-      html.push('</p>');
-      inParagraph = false;
-    }
-  }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -77,14 +81,17 @@ function markdownToHtml(md: string): string {
     // Fenced code block
     if (raw.startsWith('```')) {
       if (!inCodeBlock) {
-        closeParagraph();
         inCodeBlock = true;
         codeLang = raw.slice(3).trim();
         codeLines = [];
       } else {
         inCodeBlock = false;
+        const text = codeLines.join('\n');
         const langAttr = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
-        html.push(`<pre class="code-block" data-solution-block="true"><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+        blocks.push({
+          html: `<pre class="code-block"><code${langAttr}>${escapeHtml(text)}</code></pre>`,
+          text,
+        });
         codeLines = [];
         codeLang = '';
       }
@@ -96,29 +103,60 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
-    // Display math block: line is exactly $$
-    if (raw.trim() === '$$' || raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim().length > 4) {
-      closeParagraph();
+    // Display math block: $$...$$
+    if (raw.trim() === '$$' || (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim().length > 4)) {
       // Single-line display: $$...$$
       if (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim() !== '$$') {
         const math = raw.trim().slice(2, -2);
-        html.push(`<div class="math-display" data-solution-block="true">${renderKatex(math, true)}</div>`);
+        blocks.push({
+          html: `<div class="math-display">${renderKatex(math, true)}</div>`,
+          text: `$$${math}$$`,
+        });
         continue;
       }
-      // Multi-line display math block starting with $$ alone
+
+      // Multi-line display math block
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '$$') {
         mathLines.push(lines[i]);
         i++;
       }
-      html.push(`<div class="math-display" data-solution-block="true">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      const mathText = mathLines.join('\n');
+      blocks.push({
+        html: `<div class="math-display">${renderKatex(mathText, true)}</div>`,
+        text: `$$${mathText}$$`,
+      });
       continue;
     }
 
-    // Blank line
+    // Display math block: \[...\]
+    if (raw.trim() === '\\[' || (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim().length > 4)) {
+      if (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim() !== '\\[') {
+        const math = raw.trim().slice(2, -2);
+        blocks.push({
+          html: `<div class="math-display">${renderKatex(math, true)}</div>`,
+          text: `\\[${math}\\]`,
+        });
+        continue;
+      }
+
+      const mathLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '\\]') {
+        mathLines.push(lines[i]);
+        i++;
+      }
+      const mathText = mathLines.join('\n');
+      blocks.push({
+        html: `<div class="math-display">${renderKatex(mathText, true)}</div>`,
+        text: `\\[${mathText}\\]`,
+      });
+      continue;
+    }
+
+    // Blank line — skip
     if (raw.trim() === '') {
-      closeParagraph();
       continue;
     }
 
@@ -127,52 +165,71 @@ function markdownToHtml(md: string): string {
     const h2 = raw.match(/^## (.+)/);
     const h1 = raw.match(/^# (.+)/);
     if (h1 || h2 || h3) {
-      closeParagraph();
       const level = h1 ? 1 : h2 ? 2 : 3;
       const text = (h1 ?? h2 ?? h3)![1];
       const processed = renderInline(renderInlineMath(text));
-      html.push(`<h${level} class="md-h${level}" data-solution-block="true">${processed}</h${level}>`);
+      blocks.push({
+        html: `<h${level} class="md-h${level}">${processed}</h${level}>`,
+        text,
+      });
       continue;
     }
 
     // Horizontal rule
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(raw.trim())) {
-      closeParagraph();
-      html.push('<hr class="md-hr" />');
+      blocks.push({ html: '<hr class="md-hr" />', text: '---' });
       continue;
     }
 
     // Unordered list item
-    const ulMatch = raw.match(/^[\s]*[-*+] (.+)/);
+    const ulMatch = raw.match(/^[\s]*[-*+•] (.+)/);
     if (ulMatch) {
-      closeParagraph();
-      const text = renderInline(renderInlineMath(ulMatch[1]));
-      html.push(`<li class="md-li" data-solution-block="true">${text}</li>`);
+      const processed = renderInline(renderInlineMath(ulMatch[1]));
+      blocks.push({
+        html: `<li class="md-li">${processed}</li>`,
+        text: ulMatch[1],
+      });
       continue;
     }
 
     // Ordered list item
     const olMatch = raw.match(/^[\s]*\d+\. (.+)/);
     if (olMatch) {
-      closeParagraph();
-      const text = renderInline(renderInlineMath(olMatch[1]));
-      html.push(`<li class="md-li md-oli" data-solution-block="true">${text}</li>`);
+      const processed = renderInline(renderInlineMath(olMatch[1]));
+      blocks.push({
+        html: `<li class="md-li md-oli">${processed}</li>`,
+        text: olMatch[1],
+      });
       continue;
     }
 
-    // Regular text → paragraph
-    const processed = renderInline(renderInlineMath(raw));
-    if (!inParagraph) {
-      html.push('<p class="md-p" data-solution-block="true">');
-      inParagraph = true;
-    } else {
-      html.push('<br />');
-    }
-    html.push(processed);
+    // Regular text → one block per source line.
+    // This keeps subchat insertion visually close to the selected line.
+    const paraText = raw;
+    const paraHtml = renderInline(renderInlineMath(raw));
+    blocks.push({
+      html: `<p class="md-p">${paraHtml}</p>`,
+      text: paraText,
+    });
   }
 
-  closeParagraph();
-  return html.join('');
+  return blocks;
+}
+
+// ---------------------------------------------------------------------------
+// Subchat data types
+// ---------------------------------------------------------------------------
+
+interface SubchatData {
+  id: string;
+  blockIndex: number;
+  contextText: string;
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    created_at: string;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +264,11 @@ export function SolutionPanel({
 
   // Selection tooltip
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<{ id: string; text: string } | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<{
+    id: string;
+    text: string;
+    blockIndex: number;
+  } | null>(null);
   const [pendingOutlineRects, setPendingOutlineRects] = useState<Array<{
     left: number;
     top: number;
@@ -215,6 +276,70 @@ export function SolutionPanel({
     height: number;
   }>>([]);
   const pendingHighlightedBlocksRef = useRef<HTMLElement[]>([]);
+
+  // Subchats state
+  const [subchatsMap, setSubchatsMap] = useState<Map<number, SubchatData>>(new Map());
+  const [creatingSubchatBlock, setCreatingSubchatBlock] = useState<number | null>(null);
+  const [subchatActionError, setSubchatActionError] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Load subchats
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    setSubchatsMap(new Map());
+    setCreatingSubchatBlock(null);
+    setSubchatActionError(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (status !== 'done') return;
+    let cancelled = false;
+
+    async function loadSubchats() {
+      try {
+        const res = await fetch(`/api/problem-solver/sessions/${sessionId}/subchats`);
+        if (!res.ok) return;
+        if (cancelled) return;
+
+        const data = await res.json() as {
+          subchats: Array<{
+            id: string;
+            block_index: number;
+            context_text: string;
+            messages: Array<{ id: string; role: string; content: string; created_at: string }>;
+          }>;
+        };
+
+        setSubchatsMap((prev) => {
+          const next = new Map(prev);
+          for (const sc of data.subchats) {
+            next.set(sc.block_index, {
+              id: sc.id,
+              blockIndex: sc.block_index,
+              contextText: sc.context_text,
+              messages: sc.messages.map((m) => ({
+                ...m,
+                role: m.role as 'user' | 'assistant',
+              })),
+            });
+          }
+          return next;
+        });
+      } catch {
+        // Non-critical
+      }
+    }
+
+    loadSubchats();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, status]);
+
+  // ---------------------------------------------------------------------------
+  // Selection helpers
+  // ---------------------------------------------------------------------------
 
   const clearHighlightFromBlocks = useCallback((blocks: HTMLElement[], className: string) => {
     for (const block of blocks) {
@@ -264,6 +389,15 @@ export function SolutionPanel({
         return false;
       }
     });
+  }, []);
+
+  const getClosestSolutionBlock = useCallback((node: Node | null) => {
+    if (!node) return null;
+    const baseEl = node.nodeType === Node.ELEMENT_NODE
+      ? (node as Element)
+      : node.parentElement;
+    if (!baseEl) return null;
+    return baseEl.closest('[data-solution-block="true"]') as HTMLElement | null;
   }, []);
 
   const getRectFromBlocks = useCallback((blocks: HTMLElement[]) => {
@@ -331,6 +465,10 @@ export function SolutionPanel({
     }
   }, [solutionMd, isStreaming]);
 
+  // ---------------------------------------------------------------------------
+  // Text selection handler
+  // ---------------------------------------------------------------------------
+
   const handleTextSelection = useCallback(() => {
     if (isStreaming) {
       hideSelectionTooltip();
@@ -360,6 +498,7 @@ export function SolutionPanel({
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
     let outlineRect: { left: number; top: number; width: number; height: number } | null = null;
+    let anchorBlockIndex = -1;
 
     if (blocks.length > 0) {
       clearPendingHighlight();
@@ -374,7 +513,22 @@ export function SolutionPanel({
       );
       if (blockText) contextText = blockText;
 
-      // Position tooltip at the top-right of the first block
+      const blockIndices = blocks
+        .map((b) => parseInt(b.getAttribute('data-block-index') ?? '-1', 10))
+        .filter((i) => i >= 0);
+      const endBlock = getClosestSolutionBlock(range.endContainer);
+      const startBlock = getClosestSolutionBlock(range.startContainer);
+      const endIndex = parseInt(endBlock?.getAttribute('data-block-index') ?? '-1', 10);
+      const startIndex = parseInt(startBlock?.getAttribute('data-block-index') ?? '-1', 10);
+
+      if (endIndex >= 0) {
+        anchorBlockIndex = endIndex;
+      } else if (startIndex >= 0) {
+        anchorBlockIndex = startIndex;
+      } else if (blockIndices.length > 0) {
+        anchorBlockIndex = Math.max(...blockIndices);
+      }
+
       const firstRect = blocks[0].getBoundingClientRect();
       if (firstRect.width > 0 || firstRect.height > 0) {
         tooltipX = firstRect.right;
@@ -397,12 +551,13 @@ export function SolutionPanel({
     }
 
     setTooltipPos({ x: tooltipX, y: tooltipY });
-    setPendingSelection({ id: createSelectionId(), text: contextText });
+    setPendingSelection({ id: createSelectionId(), text: contextText, blockIndex: anchorBlockIndex });
     setPendingOutlineRects(outlineRect ? [outlineRect] : []);
   }, [
     applyHighlightToBlocks,
     createSelectionId,
     clearPendingHighlight,
+    getClosestSolutionBlock,
     getRectFromBlocks,
     getRectFromRange,
     getIntersectingBlocks,
@@ -440,6 +595,10 @@ export function SolutionPanel({
     };
   }, [clearPendingHighlight]);
 
+  // ---------------------------------------------------------------------------
+  // Action handlers
+  // ---------------------------------------------------------------------------
+
   function handleAddToChat() {
     if (!pendingSelection) return;
 
@@ -455,7 +614,143 @@ export function SolutionPanel({
     hideSelectionTooltip();
   }
 
-  const html = solutionMd ? markdownToHtml(solutionMd) : null;
+  async function handleCreateSubchat() {
+    if (!pendingSelection || pendingSelection.blockIndex < 0) return;
+
+    const blockIndex = pendingSelection.blockIndex;
+    const contextText = pendingSelection.text;
+    const scrollToSubchat = (targetBlockIndex: number) => {
+      requestAnimationFrame(() => {
+        const anchor = solutionRef.current?.querySelector<HTMLElement>(
+          `[data-subchat-anchor="${targetBlockIndex}"]`,
+        );
+        anchor?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    };
+
+    if (subchatsMap.has(blockIndex) || creatingSubchatBlock === blockIndex) {
+      window.getSelection()?.removeAllRanges();
+      hideSelectionTooltip();
+      scrollToSubchat(blockIndex);
+      return;
+    }
+
+    setSubchatActionError(null);
+    setCreatingSubchatBlock(blockIndex);
+    scrollToSubchat(blockIndex);
+
+    try {
+      const res = await fetch(`/api/problem-solver/sessions/${sessionId}/subchats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blockIndex,
+          contextText,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({})) as {
+        error?: string;
+        subchat: {
+          id: string;
+          block_index: number;
+          context_text: string;
+          messages?: Array<{ id: string; role: string; content: string; created_at: string }>;
+        };
+      };
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to create subchat');
+      }
+
+      setSubchatsMap((prev) => {
+        const next = new Map(prev);
+        const resolvedBlockIndex = data.subchat.block_index;
+        next.set(resolvedBlockIndex, {
+          id: data.subchat.id,
+          blockIndex: resolvedBlockIndex,
+          contextText: data.subchat.context_text || contextText,
+          messages: (data.subchat.messages ?? []).map((m) => ({
+            ...m,
+            role: m.role as 'user' | 'assistant',
+          })),
+        });
+        return next;
+      });
+      window.getSelection()?.removeAllRanges();
+      hideSelectionTooltip();
+      scrollToSubchat(data.subchat.block_index);
+    } catch (err: unknown) {
+      setSubchatActionError(err instanceof Error ? err.message : 'Failed to create subchat');
+    } finally {
+      setCreatingSubchatBlock((current) => (current === blockIndex ? null : current));
+    }
+  }
+
+  async function handleDeleteSubchat(subchatId: string, blockIndex: number) {
+    try {
+      await fetch(
+        `/api/problem-solver/sessions/${sessionId}/subchats/${subchatId}`,
+        { method: 'DELETE' },
+      );
+    } catch {
+      // Continue with optimistic removal
+    }
+
+    setSubchatsMap((prev) => {
+      const next = new Map(prev);
+      next.delete(blockIndex);
+      return next;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render helpers
+  // ---------------------------------------------------------------------------
+
+  const blocks = useMemo(() => (solutionMd ? markdownToBlocks(solutionMd) : null), [solutionMd]);
+  const showSubchats = status === 'done' && !isStreaming;
+
+  function renderBlocks(blockList: SolutionBlock[]) {
+    return (
+      <div
+        ref={solutionRef}
+        className="solution-md"
+        onMouseUp={handleTextSelectionDeferred}
+        onTouchEnd={handleTextSelectionDeferred}
+      >
+        {blockList.map((block, idx) => {
+          const subchat = subchatsMap.get(idx);
+          return (
+            <React.Fragment key={idx}>
+              <div
+                data-solution-block="true"
+                data-block-index={idx}
+                dangerouslySetInnerHTML={{ __html: block.html }}
+              />
+              <div data-subchat-anchor={idx}>
+                {showSubchats && subchat && (
+                  <SubChat
+                    subchatId={subchat.id}
+                    sessionId={sessionId}
+                    contextText={subchat.contextText}
+                    initialMessages={subchat.messages}
+                    onDelete={() => handleDeleteSubchat(subchat.id, idx)}
+                  />
+                )}
+                {showSubchats && creatingSubchatBlock === idx && !subchat && (
+                  <div className="subchat-creating">
+                    <span className="subchat-creating-dot" />
+                    Creating subchat...
+                  </div>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -498,15 +793,9 @@ export function SolutionPanel({
         {/* SOLVING / STREAMING state */}
         {(status === 'solving' || isStreaming) && (
           <div>
-            {html ? (
+            {blocks ? (
               <>
-                <div
-                  ref={solutionRef}
-                  className="solution-md"
-                  onMouseUp={handleTextSelectionDeferred}
-                  onTouchEnd={handleTextSelectionDeferred}
-                  dangerouslySetInnerHTML={{ __html: html }}
-                />
+                {renderBlocks(blocks)}
                 {/* Blinking cursor */}
                 <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-middle" />
               </>
@@ -523,15 +812,7 @@ export function SolutionPanel({
         )}
 
         {/* DONE state */}
-        {status === 'done' && html && !isStreaming && (
-          <div
-            ref={solutionRef}
-            className="solution-md"
-            onMouseUp={handleTextSelectionDeferred}
-            onTouchEnd={handleTextSelectionDeferred}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        )}
+        {status === 'done' && blocks && !isStreaming && renderBlocks(blocks)}
 
         {/* ERROR state */}
         {status === 'error' && (
@@ -552,6 +833,12 @@ export function SolutionPanel({
           </div>
         )}
 
+        {subchatActionError && (
+          <div className="mb-3 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
+            {subchatActionError}
+          </div>
+        )}
+
         {/* Inline chat — below the solution */}
         {(status === 'done' || (status === 'solving' && solutionMd)) && (
           <InlineChat
@@ -566,7 +853,7 @@ export function SolutionPanel({
         <div ref={bottomRef} />
       </div>
 
-      {/* Selection outline overlay (in-situ) */}
+      {/* Selection outline overlay */}
       {pendingOutlineRects.length > 0 && typeof document !== 'undefined' && createPortal(
         <>
           {pendingOutlineRects.map((rect, index) => (
@@ -589,7 +876,7 @@ export function SolutionPanel({
         document.body,
       )}
 
-      {/* Selection tooltip — positioned at top-right of the recuadro */}
+      {/* Selection tooltip — 2 buttons: Add to chat + Subchat */}
       {tooltipPos && pendingSelection && typeof document !== 'undefined' && createPortal(
         <div
           id="selection-tooltip"
@@ -601,15 +888,66 @@ export function SolutionPanel({
             zIndex: 2147483646,
           }}
         >
-          <button
-            onClick={handleAddToChat}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-500/90 hover:bg-orange-400 text-white text-[11px] font-semibold shadow-lg shadow-orange-500/30 transition-all whitespace-nowrap backdrop-blur-sm"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            Add to chat
-          </button>
+          <div className="flex items-center gap-0.5 rounded-xl bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40 border border-white/10 p-[3px]">
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddToChat();
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-orange-500/15 text-white/70 hover:text-orange-300 text-[11px] font-medium transition-all whitespace-nowrap"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              Add to chat
+            </button>
+            {pendingSelection.blockIndex >= 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <button
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCreateSubchat();
+                  }}
+                  disabled={creatingSubchatBlock === pendingSelection.blockIndex}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
+                    creatingSubchatBlock === pendingSelection.blockIndex
+                      ? 'bg-white/10 text-white/40 cursor-not-allowed'
+                      : 'hover:bg-orange-500/15 text-white/70 hover:text-orange-300'
+                  }`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                  {creatingSubchatBlock === pendingSelection.blockIndex ? 'Creating...' : 'Subchat'}
+                </button>
+              </>
+            )}
+          </div>
+          {subchatActionError && (
+            <p className="max-w-[280px] px-2 pb-1 pt-1 text-[10px] text-red-300">
+              {subchatActionError}
+            </p>
+          )}
         </div>,
         document.body,
       )}
@@ -630,7 +968,7 @@ export function SolutionPanel({
           color: #fff;
         }
         .solution-md [data-solution-block="true"] {
-          transition: background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease, margin 0.2s ease;
+          transition: background-color 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
           border-radius: 8px;
         }
         .solution-md .solution-context-pending {
@@ -640,11 +978,32 @@ export function SolutionPanel({
           box-shadow:
             0 0 0 1px rgba(255, 255, 255, 0.14) inset,
             0 8px 30px rgba(249, 115, 22, 0.38) !important;
-          padding: 8px 12px;
-          margin-left: -12px;
-          margin-right: -12px;
           position: relative;
           z-index: 3;
+        }
+        .subchat-creating {
+          margin: 10px 0;
+          border-radius: 12px;
+          border: 1px solid rgba(249, 115, 22, 0.18);
+          border-left: 2px solid rgba(249, 115, 22, 0.5);
+          background: rgba(249, 115, 22, 0.03);
+          padding: 9px 12px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 11px;
+        }
+        .subchat-creating-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 9999px;
+          background: rgba(251, 146, 60, 0.8);
+          animation: subchatPulse 1.1s ease-in-out infinite;
+        }
+        @keyframes subchatPulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1); opacity: 1; }
         }
         .solution-md .md-h1 {
           font-size: 1.35rem;

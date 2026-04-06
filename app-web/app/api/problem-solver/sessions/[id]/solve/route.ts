@@ -17,7 +17,7 @@ const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: RouteContext,
 ) {
   const supabase = await createClient();
@@ -36,6 +36,15 @@ export async function POST(
   }
 
   const { id: sessionId } = await params;
+
+  // Read optional provider from request body
+  let preferredProvider: string | undefined;
+  try {
+    const body = await req.json().catch(() => ({})) as { provider?: string };
+    preferredProvider = body.provider;
+  } catch {
+    // No body or invalid JSON — proceed without provider preference
+  }
 
   // ── 2. Ownership check ───────────────────────────────────────────────────────
   const { data: session, error: sessionError } = await supabase
@@ -90,7 +99,10 @@ export async function POST(
             ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` }
             : {}),
         },
-        body: JSON.stringify({ pdfText: session.pdf_text }),
+        body: JSON.stringify({
+          pdfText: session.pdf_text,
+          ...(preferredProvider ? { provider: preferredProvider } : {}),
+        }),
       });
 
       if (!apiResp.ok || !apiResp.body) {

@@ -77,7 +77,7 @@ function PlaceholderNavItem({
 }
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
@@ -439,12 +439,20 @@ export function Sidebar() {
             label="Cheat Sheets"
             collapsed={collapsed}
           />
-          <PlaceholderNavItem
+          <Link
             href="/problem-solver"
-            icon={<ProblemSolverIcon className="w-4 h-4 shrink-0" />}
-            label="Problem Solver"
-            collapsed={collapsed}
-          />
+            title={collapsed ? 'Problem Solver' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/problem-solver')
+                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <ProblemSolverIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">Problem Solver</span>}
+          </Link>
           <Link
             href="/exams"
             title={collapsed ? 'Exams' : undefined}

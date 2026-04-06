@@ -95,6 +95,11 @@ export default function ProblemSessionPage() {
   // Publish modal
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
+  // Model selector
+  const [availableProviders, setAvailableProviders] = useState<Array<{ name: string; model: string }>>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+
   // Inline chat — selected text contexts (multiple selections)
   const [selectedContexts, setSelectedContexts] = useState<SelectedContextItem[]>([]);
 
@@ -102,6 +107,24 @@ export default function ProblemSessionPage() {
   const [rightPanelWidthPct, setRightPanelWidthPct] = useState(DEFAULT_RIGHT_PANEL_WIDTH_PCT);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
   const splitLayoutRef = useRef<HTMLDivElement>(null);
+
+  // ---------------------------------------------------------------------------
+  // Load available providers
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    async function loadProviders() {
+      try {
+        const res = await fetch('/api/problem-solver/providers');
+        if (!res.ok) return;
+        const data = await res.json() as { providers: Array<{ name: string; model: string }> };
+        setAvailableProviders(data.providers ?? []);
+      } catch {
+        // Non-critical
+      }
+    }
+    loadProviders();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Load session
@@ -168,6 +191,8 @@ export default function ProblemSessionPage() {
     try {
       const res = await fetch(`/api/problem-solver/sessions/${sessionId}/solve`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedProvider ? { provider: selectedProvider } : {}),
         signal: ctrl.signal,
       });
 
@@ -221,7 +246,7 @@ export default function ProblemSessionPage() {
       setIsStreaming(false);
       setSession((prev) => prev ? { ...prev, status: 'error' } : prev);
     }
-  }, [session, sessionId]);
+  }, [session, sessionId, selectedProvider]);
 
   // Clean up stream on unmount
   useEffect(() => {
@@ -557,8 +582,78 @@ export default function ProblemSessionPage() {
           <StatusBadge status={activeStatus} />
         </div>
 
-        {/* Right: PDF controls + Publish */}
+        {/* Right: Model selector + PDF controls + Publish */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Model selector dropdown */}
+          {availableProviders.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/15
+                  hover:border-orange-500/40 bg-white/4 hover:bg-orange-500/10 text-white/60
+                  hover:text-orange-300 text-[11px] font-medium transition-all duration-200"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+                </svg>
+                {selectedProvider
+                  ? (availableProviders.find((p) => p.name === selectedProvider)?.model ?? selectedProvider)
+                  : 'Auto'}
+                <svg className={`w-2.5 h-2.5 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isModelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setIsModelDropdownOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-40 w-72 rounded-xl border border-white/15
+                    bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40 p-1.5 space-y-0.5">
+                    {/* Auto option */}
+                    <button
+                      onClick={() => { setSelectedProvider(''); setIsModelDropdownOpen(false); }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-[11px] transition-colors ${
+                        !selectedProvider
+                          ? 'bg-orange-500/15 text-orange-300'
+                          : 'text-white/60 hover:bg-white/8 hover:text-white/80'
+                      }`}
+                    >
+                      <div className="font-medium">Auto (cadena de fallback)</div>
+                      <div className="text-[10px] text-white/35 mt-0.5">
+                        Prueba cada modelo en orden hasta que uno responda
+                      </div>
+                    </button>
+
+                    <div className="h-px bg-white/8 mx-2 my-1" />
+
+                    {availableProviders.map((p) => (
+                      <button
+                        key={p.name}
+                        onClick={() => { setSelectedProvider(p.name); setIsModelDropdownOpen(false); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-[11px] transition-colors ${
+                          selectedProvider === p.name
+                            ? 'bg-orange-500/15 text-orange-300'
+                            : 'text-white/60 hover:bg-white/8 hover:text-white/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{p.model}</span>
+                          <span className="text-[9px] text-white/25 uppercase tracking-wider">{p.name}</span>
+                        </div>
+                        <div className="text-[10px] text-white/35 mt-0.5">
+                          {p.name === 'openrouter' && 'Bueno para razonamiento general. Gratuito'}
+                          {p.name === 'google' && 'Rapido y ligero. Ideal para problemas simples'}
+                          {p.name === 'openai' && 'Alta calidad. Mejor en matematicas complejas'}
+                          {p.name === 'groq' && 'Muy rapido. Bueno para problemas de logica'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {/* PDF zoom controls */}
           {pdfUrl && (
             <div className="flex items-center gap-1 text-white/50">
