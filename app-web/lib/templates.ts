@@ -2,11 +2,12 @@
 // The actual LaTeX generation is now fully instruction-based (see app-api/src/lib/templates.ts).
 // This file contains only the UI-relevant metadata: name, description, preview, and Pro flag.
 
-export interface TemplateDef {
+export interface Template {
   id: string;
   name: string;
-  format: string;
-  publicPath: string;
+  category: string;
+  format?: string;
+  publicPath?: string;
   previewPath: string;
   thumbnailPath: string;
   description: string;
@@ -16,7 +17,9 @@ export interface TemplateDef {
   scaffoldFiles?: string[];
 }
 
-export const templates: TemplateDef[] = [
+export type TemplateDef = Template;
+
+export const templates: Template[] = [
   // ==================== FREE ====================
   {
     id: "landscape_3col_maths",
@@ -39,6 +42,7 @@ export const templates: TemplateDef[] = [
   {
     id: "long_template",
     name: "Long Template (Chapters)",
+    category: "report",
     format: "latex",
     publicPath: "/templates/longTemplate/main.tex",
     previewPath: "/templates/longTemplate/ShowTemplate/Template_Long_Subject.pdf",
