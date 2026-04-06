@@ -429,7 +429,7 @@ async function buildExamPDFAsync(report: ExamReport): Promise<jsPDF> {
     }
 
     // 8. Stamp page numbers on every page
-    const totalPages = (pdf.internal as { getNumberOfPages: () => number }).getNumberOfPages();
+    const totalPages = (pdf.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
       pdf.setPage(p);
       pdf.setFont('helvetica', 'normal');
