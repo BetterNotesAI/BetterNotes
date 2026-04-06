@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { SubChat } from './SubChat';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,6 +25,15 @@ interface InlineChatProps {
   onClearAllContexts: () => void;
 }
 
+interface InlineSubchatData {
+  id: string;
+  assistantIndex: number;
+  contextText: string;
+  messages: ChatMessage[];
+}
+
+const INLINE_SUBCHAT_BASE_BLOCK_INDEX = 1_000_000;
+
 // ---------------------------------------------------------------------------
 // Markdown + KaTeX renderer (same approach as SolutionPanel)
 // ---------------------------------------------------------------------------
@@ -41,8 +51,14 @@ function renderKatex(math: string, displayMode: boolean): string {
 }
 
 function renderInlineMath(text: string): string {
+  // Display math: $$...$$
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => renderKatex(math, true));
+  // Display math: \[...\]
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, math) => renderKatex(math, true));
+  // Inline math: $...$
   text = text.replace(/\$([^$\n]+?)\$/g, (_, math) => renderKatex(math, false));
+  // Inline math: \(...\)
+  text = text.replace(/\\\((.+?)\\\)/g, (_, math) => renderKatex(math, false));
   return text;
 }
 
@@ -99,6 +115,20 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
+    // Display math block: \[...\]
+    if (raw.trim() === '\\[' || (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim().length > 4)) {
+      closeParagraph();
+      if (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim() !== '\\[') {
+        html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
+        continue;
+      }
+      const mathLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '\\]') { mathLines.push(lines[i]); i++; }
+      html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      continue;
+    }
+
     if (raw.trim() === '') { closeParagraph(); continue; }
 
     const h3 = raw.match(/^### (.+)/);
@@ -114,15 +144,15 @@ function markdownToHtml(md: string): string {
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(raw.trim())) { closeParagraph(); html.push('<hr class="ic-md-hr" />'); continue; }
 
-    const ulMatch = raw.match(/^[\s]*[-*+] (.+)/);
+    const ulMatch = raw.match(/^[\s]*[-*+•] (.+)/);
     if (ulMatch) { closeParagraph(); html.push(`<li class="ic-md-li" data-chat-block="true">${renderInline(renderInlineMath(ulMatch[1]))}</li>`); continue; }
 
     const olMatch = raw.match(/^[\s]*\d+\. (.+)/);
     if (olMatch) { closeParagraph(); html.push(`<li class="ic-md-li ic-md-oli" data-chat-block="true">${renderInline(renderInlineMath(olMatch[1]))}</li>`); continue; }
 
     const processed = renderInline(renderInlineMath(raw));
-    if (!inParagraph) { html.push('<p class="ic-md-p" data-chat-block="true">'); inParagraph = true; } else { html.push('<br />'); }
-    html.push(processed);
+    closeParagraph();
+    html.push(`<p class="ic-md-p" data-chat-block="true">${processed}</p>`);
   }
 
   closeParagraph();
@@ -181,13 +211,20 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<{ id: string; text: string } | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<{
+    id: string;
+    text: string;
+    assistantIndex: number;
+  } | null>(null);
   const [pendingOutlineRects, setPendingOutlineRects] = useState<Array<{
     left: number;
     top: number;
     width: number;
     height: number;
   }>>([]);
+  const [inlineSubchatsMap, setInlineSubchatsMap] = useState<Map<number, InlineSubchatData>>(new Map());
+  const [creatingInlineSubchatIndex, setCreatingInlineSubchatIndex] = useState<number | null>(null);
+  const [subchatActionError, setSubchatActionError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -254,10 +291,68 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     load();
   }, [sessionId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInlineSubchats() {
+      try {
+        const res = await fetch(`/api/problem-solver/sessions/${sessionId}/subchats`);
+        if (!res.ok) return;
+        if (cancelled) return;
+
+        const data = await res.json() as {
+          subchats: Array<{
+            id: string;
+            block_index: number;
+            context_text: string;
+            messages: Array<{ id: string; role: string; content: string; created_at: string }>;
+          }>;
+        };
+
+        const next = new Map<number, InlineSubchatData>();
+        for (const sc of data.subchats ?? []) {
+          if (sc.block_index < INLINE_SUBCHAT_BASE_BLOCK_INDEX) continue;
+          const assistantIndex = sc.block_index - INLINE_SUBCHAT_BASE_BLOCK_INDEX;
+          if (assistantIndex < 0) continue;
+
+          next.set(assistantIndex, {
+            id: sc.id,
+            assistantIndex,
+            contextText: sc.context_text,
+            messages: (sc.messages ?? []).map((m) => ({
+              ...m,
+              role: m.role as 'user' | 'assistant',
+            })),
+          });
+        }
+        setInlineSubchatsMap(next);
+      } catch {
+        // Non-critical
+      }
+    }
+
+    loadInlineSubchats();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isSending]);
+
+  const assistantIndexByMessageId = useMemo(() => {
+    const map = new Map<string, number>();
+    let index = 0;
+    for (const msg of messages) {
+      if (msg.role === 'assistant') {
+        map.set(msg.id, index);
+        index += 1;
+      }
+    }
+    return map;
+  }, [messages]);
 
   const getClosestAssistantContainer = useCallback((node: Node | null) => {
     if (!node) return null;
@@ -356,6 +451,8 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     }
 
     const blocks = getIntersectingBlocks(range, assistantContainer);
+    const assistantIndexAttr = assistantContainer.getAttribute('data-chat-assistant-index');
+    const assistantIndex = assistantIndexAttr ? Number.parseInt(assistantIndexAttr, 10) : -1;
     let contextText = rawSelection;
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
@@ -396,7 +493,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     }
 
     setTooltipPos({ x: tooltipX, y: tooltipY });
-    setPendingSelection({ id: createSelectionId(), text: contextText });
+    setPendingSelection({ id: createSelectionId(), text: contextText, assistantIndex });
     setPendingOutlineRects(outlineRect ? [outlineRect] : []);
   }, [
     applyHighlightToBlocks,
@@ -444,6 +541,96 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     onTextSelect(pendingSelection);
     window.getSelection()?.removeAllRanges();
     hideSelectionTooltip();
+  }
+
+  async function handleCreateSubchatFromSelection() {
+    if (!pendingSelection || pendingSelection.assistantIndex < 0) return;
+
+    const assistantIndex = pendingSelection.assistantIndex;
+    const contextText = pendingSelection.text;
+    const scrollToInlineSubchat = (targetAssistantIndex: number) => {
+      requestAnimationFrame(() => {
+        const anchor = document.querySelector<HTMLElement>(
+          `[data-inline-subchat-anchor="${targetAssistantIndex}"]`,
+        );
+        anchor?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    };
+
+    if (inlineSubchatsMap.has(assistantIndex) || creatingInlineSubchatIndex === assistantIndex) {
+      window.getSelection()?.removeAllRanges();
+      hideSelectionTooltip();
+      scrollToInlineSubchat(assistantIndex);
+      return;
+    }
+
+    setSubchatActionError(null);
+    setCreatingInlineSubchatIndex(assistantIndex);
+    scrollToInlineSubchat(assistantIndex);
+
+    try {
+      const blockIndex = INLINE_SUBCHAT_BASE_BLOCK_INDEX + assistantIndex;
+
+      const res = await fetch(`/api/problem-solver/sessions/${sessionId}/subchats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blockIndex,
+          contextText,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({})) as {
+        error?: string;
+        subchat: {
+          id: string;
+          block_index: number;
+          context_text: string;
+          messages?: Array<{ id: string; role: string; content: string; created_at: string }>;
+        };
+      };
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to create subchat');
+      }
+
+      setInlineSubchatsMap((prev) => {
+        const next = new Map(prev);
+        next.set(assistantIndex, {
+          id: data.subchat.id,
+          assistantIndex,
+          contextText: data.subchat.context_text || contextText,
+          messages: (data.subchat.messages ?? []).map((m) => ({
+            ...m,
+            role: m.role as 'user' | 'assistant',
+          })),
+        });
+        return next;
+      });
+      window.getSelection()?.removeAllRanges();
+      hideSelectionTooltip();
+      scrollToInlineSubchat(assistantIndex);
+    } catch (err: unknown) {
+      setSubchatActionError(err instanceof Error ? err.message : 'Failed to create subchat');
+    } finally {
+      setCreatingInlineSubchatIndex((current) => (current === assistantIndex ? null : current));
+    }
+  }
+
+  async function handleDeleteInlineSubchat(subchatId: string, assistantIndex: number) {
+    try {
+      await fetch(`/api/problem-solver/sessions/${sessionId}/subchats/${subchatId}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // Keep optimistic removal
+    }
+
+    setInlineSubchatsMap((prev) => {
+      const next = new Map(prev);
+      next.delete(assistantIndex);
+      return next;
+    });
   }
 
   async function handleSend() {
@@ -576,6 +763,9 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
             );
           }
 
+          const assistantIndex = assistantIndexByMessageId.get(msg.id) ?? -1;
+          const inlineSubchat = assistantIndex >= 0 ? inlineSubchatsMap.get(assistantIndex) : undefined;
+
           return (
             <div key={msg.id} className="flex justify-start">
               <div className="max-w-[90%]">
@@ -583,10 +773,30 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
                   className="ic-message-md"
                   data-chat-assistant="true"
                   data-chat-message-id={msg.id}
+                  data-chat-assistant-index={assistantIndex >= 0 ? assistantIndex : undefined}
                   onMouseUp={handleAssistantSelectionDeferred}
                   onTouchEnd={handleAssistantSelectionDeferred}
                   dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
                 />
+
+                <div data-inline-subchat-anchor={assistantIndex >= 0 ? assistantIndex : undefined}>
+                  {inlineSubchat && (
+                    <SubChat
+                      subchatId={inlineSubchat.id}
+                      sessionId={sessionId}
+                      contextText={inlineSubchat.contextText}
+                      initialMessages={inlineSubchat.messages}
+                      onDelete={() => handleDeleteInlineSubchat(inlineSubchat.id, assistantIndex)}
+                    />
+                  )}
+
+                  {creatingInlineSubchatIndex === assistantIndex && !inlineSubchat && (
+                    <div className="inline-subchat-creating">
+                      <span className="inline-subchat-creating-dot" />
+                      Creating subchat...
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -605,6 +815,9 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
 
         {error && (
           <p className="text-red-400 text-xs px-1">{error}</p>
+        )}
+        {subchatActionError && (
+          <p className="text-red-400 text-xs px-1">{subchatActionError}</p>
         )}
 
         <div ref={bottomRef} />
@@ -645,15 +858,66 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
             zIndex: 2147483646,
           }}
         >
-          <button
-            onClick={handleAddSelectionToContext}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-500/90 hover:bg-orange-400 text-white text-[11px] font-semibold shadow-lg shadow-orange-500/30 transition-all whitespace-nowrap backdrop-blur-sm"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            Add to chat
-          </button>
+          <div className="flex items-center gap-0.5 rounded-xl bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40 border border-white/10 p-[3px]">
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddSelectionToContext();
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-orange-500/15 text-white/70 hover:text-orange-300 text-[11px] font-medium transition-all whitespace-nowrap"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              Add to chat
+            </button>
+            {pendingSelection.assistantIndex >= 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <button
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCreateSubchatFromSelection();
+                  }}
+                  disabled={creatingInlineSubchatIndex === pendingSelection.assistantIndex}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
+                    creatingInlineSubchatIndex === pendingSelection.assistantIndex
+                      ? 'bg-white/10 text-white/40 cursor-not-allowed'
+                      : 'hover:bg-orange-500/15 text-white/70 hover:text-orange-300'
+                  }`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                  {creatingInlineSubchatIndex === pendingSelection.assistantIndex ? 'Creating...' : 'Subchat'}
+                </button>
+              </>
+            )}
+          </div>
+          {subchatActionError && (
+            <p className="max-w-[280px] px-2 pb-1 pt-1 text-[10px] text-red-300">
+              {subchatActionError}
+            </p>
+          )}
         </div>,
         document.body,
       )}
@@ -752,6 +1016,30 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
           margin-right: -10px;
           position: relative;
           z-index: 3;
+        }
+        .inline-subchat-creating {
+          margin: 10px 0;
+          border-radius: 12px;
+          border: 1px solid rgba(249, 115, 22, 0.18);
+          border-left: 2px solid rgba(249, 115, 22, 0.5);
+          background: rgba(249, 115, 22, 0.03);
+          padding: 9px 12px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 11px;
+        }
+        .inline-subchat-creating-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 9999px;
+          background: rgba(251, 146, 60, 0.8);
+          animation: inlineSubchatPulse 1.1s ease-in-out infinite;
+        }
+        @keyframes inlineSubchatPulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1); opacity: 1; }
         }
         .ic-message-md .ic-md-h1 { font-size: 1rem; font-weight: 700; color: #fff; margin: 0.8em 0 0.3em; }
         .ic-message-md .ic-md-h2 { font-size: 0.9rem; font-weight: 600; color: #fff; margin: 0.7em 0 0.3em; padding-bottom: 0.2em; border-bottom: 1px solid rgba(255,255,255,0.08); }

@@ -40,8 +40,14 @@ function renderKatex(math: string, displayMode: boolean): string {
 }
 
 function renderInlineMath(text: string): string {
+  // Display math: $$...$$
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => renderKatex(math, true));
+  // Display math: \[...\]
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, math) => renderKatex(math, true));
+  // Inline math: $...$
   text = text.replace(/\$([^$\n]+?)\$/g, (_, math) => renderKatex(math, false));
+  // Inline math: \(...\)
+  text = text.replace(/\\\((.+?)\\\)/g, (_, math) => renderKatex(math, false));
   return text;
 }
 
@@ -90,6 +96,20 @@ function markdownToHtml(md: string): string {
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '$$') { mathLines.push(lines[i]); i++; }
+      html.push(`<div class="sc-math-display">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      continue;
+    }
+
+    // Display math block: \[...\]
+    if (raw.trim() === '\\[' || (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim().length > 4)) {
+      closeParagraph();
+      if (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim() !== '\\[') {
+        html.push(`<div class="sc-math-display">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
+        continue;
+      }
+      const mathLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '\\]') { mathLines.push(lines[i]); i++; }
       html.push(`<div class="sc-math-display">${renderKatex(mathLines.join('\n'), true)}</div>`);
       continue;
     }

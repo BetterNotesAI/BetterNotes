@@ -11,7 +11,14 @@ Your job is to solve it completely, step by step, showing all work clearly.
 Guidelines:
 - Structure your solution with clear sections using Markdown headers (## Problem 1, ## Solution, etc.)
 - Show ALL steps of mathematical derivations
-- Use LaTeX for ALL math: inline with $...$ and display with $$...$$
+- CRITICAL — Math formatting rules (follow these EXACTLY):
+  - Inline math: wrap with dollar signs like $x^2 + y^2 = r^2$
+  - Display math: wrap with double dollar signs on their own lines:
+    $$
+    \\int_a^b f(x)\\,dx = F(b) - F(a)
+    $$
+  - NEVER use \\(...\\) or \\[...\\] delimiters — ONLY use $ and $$
+  - NEVER use \\begin{equation} or \\begin{align} outside of $$ blocks
 - Use tables (Markdown) for comparisons, summaries, or data
 - Use **bold** for key concepts and *italic* for definitions
 - For physics/engineering problems: draw ASCII diagrams if helpful
@@ -21,31 +28,83 @@ Guidelines:
 
 const SUB_CHAT_SYSTEM_PROMPT = `You are a helpful study assistant. The student is working on a problem that has already been solved.
 You have access to the full solution. Answer the student's follow-up questions clearly and concisely.
-If the question involves math, use LaTeX: inline with $...$ and display with $$...$$`;
+Math formatting: use $...$ for inline math and $$...$$ for display math. NEVER use \\(...\\) or \\[...\\] delimiters.`;
 
 export interface ProblemSolverRouterOptions {
-  openaiApiKey: string;
+  openaiApiKey?: string;
   openaiModel?: string;
   /** Optional base URL for OpenAI-compatible providers (Groq, OpenRouter, Google AI Studio). */
   openaiBaseURL?: string;
+  /** Preferred provider chain with fallback order. */
+  providers?: ProblemSolverProviderConfig[];
+}
+
+export interface ProblemSolverProviderConfig {
+  name: string;
+  apiKey: string;
+  model: string;
+  openaiBaseURL?: string;
+}
+
+interface ProviderRuntime {
+  name: string;
+  model: string;
+  client: OpenAI;
+}
+
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Unexpected error';
+}
+
+function buildProviderChain(opts: ProblemSolverRouterOptions): ProviderRuntime[] {
+  const fromProviders = (opts.providers ?? [])
+    .filter((p) => p.apiKey?.trim() && p.model?.trim())
+    .map((p) => ({
+      name: p.name,
+      model: p.model,
+      client: new OpenAI({
+        apiKey: p.apiKey,
+        ...(p.openaiBaseURL ? { baseURL: p.openaiBaseURL } : {}),
+      }),
+    }));
+
+  if (fromProviders.length > 0) return fromProviders;
+
+  if (!opts.openaiApiKey?.trim()) return [];
+  return [{
+    name: 'openai',
+    model: opts.openaiModel ?? 'gpt-4o',
+    client: new OpenAI({
+      apiKey: opts.openaiApiKey,
+      ...(opts.openaiBaseURL ? { baseURL: opts.openaiBaseURL } : {}),
+    }),
+  }];
 }
 
 export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Router {
   const router = Router();
-  const openai = new OpenAI({
-    apiKey: opts.openaiApiKey,
-    ...(opts.openaiBaseURL ? { baseURL: opts.openaiBaseURL } : {}),
+  const providerChain = buildProviderChain(opts);
+
+  // ─── GET /problem-solver/providers ──────────────────────────────────────────
+  // Returns the list of available providers for the model selector UI.
+  router.get('/providers', (_req: Request, res: Response) => {
+    const available = providerChain.map((p) => ({
+      name: p.name,
+      model: p.model,
+    }));
+    res.json({ providers: available });
   });
-  const model = opts.openaiModel ?? 'gpt-4o';
 
   // ─── POST /problem-solver/solve ───────────────────────────────────────────────
-  // Accepts { pdfText: string }, streams the solution as SSE.
+  // Accepts { pdfText: string, provider?: string }, streams the solution as SSE.
+  // If provider is specified, uses that provider only. Otherwise uses fallback chain.
   // Events:
   //   data: {"chunk": "..."}  — incremental text
   //   data: {"done": true}    — end of stream
   //   data: {"error": "..."}  — error during stream
   router.post('/solve', async (req: Request, res: Response) => {
-    const { pdfText } = req.body as { pdfText?: string };
+    const { pdfText, provider: preferredProvider } = req.body as { pdfText?: string; provider?: string };
 
     if (!pdfText || typeof pdfText !== 'string' || !pdfText.trim()) {
       res.status(400).json({ ok: false, error: 'pdfText is required' });
@@ -65,26 +124,68 @@ export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Rou
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    try {
-      const completion = await openai.chat.completions.create({
-        model,
-        stream: true,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Solve the following problem:\n\n${pdfText}` },
-        ],
-      });
+    if (providerChain.length === 0) {
+      sendEvent({ error: 'No Problem Solver providers configured.' });
+      res.end();
+      return;
+    }
 
-      for await (const chunk of completion) {
-        const text = chunk.choices[0]?.delta?.content ?? '';
-        if (text) {
-          sendEvent({ chunk: text });
+    // If a specific provider is requested, use only that one
+    const activeChain = preferredProvider
+      ? providerChain.filter((p) => p.name === preferredProvider)
+      : providerChain;
+
+    if (activeChain.length === 0) {
+      sendEvent({ error: `Provider "${preferredProvider}" not found or not configured.` });
+      res.end();
+      return;
+    }
+
+    let lastError: unknown = null;
+    try {
+      for (const provider of activeChain) {
+        try {
+          const completion = await provider.client.chat.completions.create({
+            model: provider.model,
+            stream: true,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: `Solve the following problem:\n\n${pdfText}` },
+            ],
+          });
+
+          let emittedAnyChunk = false;
+          try {
+            for await (const chunk of completion) {
+              const text = chunk.choices[0]?.delta?.content ?? '';
+              if (text) {
+                emittedAnyChunk = true;
+                sendEvent({ chunk: text });
+              }
+            }
+            sendEvent({ done: true });
+            return;
+          } catch (streamErr: unknown) {
+            if (!emittedAnyChunk) {
+              lastError = streamErr;
+              continue;
+            }
+            sendEvent({
+              error: `Streaming failed on ${provider.name}: ${toErrorMessage(streamErr)}`,
+            });
+            return;
+          }
+        } catch (providerErr: unknown) {
+          lastError = providerErr;
+          continue;
         }
       }
 
-      sendEvent({ done: true });
+      sendEvent({
+        error: `All providers failed. Last error: ${toErrorMessage(lastError)}`,
+      });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unexpected error during streaming';
+      const message = toErrorMessage(err);
       sendEvent({ error: message });
     } finally {
       res.end();
@@ -95,10 +196,11 @@ export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Rou
   // Non-streaming. Accepts { solutionMd, history, userMessage }, returns { reply }.
   // history: array of { role: 'user' | 'assistant'; content: string }
   router.post('/chat', async (req: Request, res: Response) => {
-    const { solutionMd, history, userMessage } = req.body as {
+    const { solutionMd, history, userMessage, provider: preferredProvider } = req.body as {
       solutionMd?: string;
       history?: Array<{ role: 'user' | 'assistant'; content: string }>;
       userMessage?: string;
+      provider?: string;
     };
 
     if (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) {
@@ -122,20 +224,48 @@ export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Rou
       .filter(Boolean)
       .join('');
 
-    try {
-      const completion = await openai.chat.completions.create({
-        model,
-        stream: false,
-        messages: [
-          { role: 'system', content: SUB_CHAT_SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-      });
+    if (providerChain.length === 0) {
+      res.status(500).json({ ok: false, error: 'No Problem Solver providers configured.' });
+      return;
+    }
 
-      const reply = completion.choices[0]?.message?.content ?? '';
-      res.json({ reply });
+    const activeChain = preferredProvider
+      ? providerChain.filter((p) => p.name === preferredProvider)
+      : providerChain;
+
+    if (activeChain.length === 0) {
+      res.status(400).json({ ok: false, error: `Provider "${preferredProvider}" not found.` });
+      return;
+    }
+
+    let lastError: unknown = null;
+    try {
+      for (const provider of activeChain) {
+        try {
+          const completion = await provider.client.chat.completions.create({
+            model: provider.model,
+            stream: false,
+            messages: [
+              { role: 'system', content: SUB_CHAT_SYSTEM_PROMPT },
+              { role: 'user', content: userContent },
+            ],
+          });
+
+          const reply = completion.choices[0]?.message?.content ?? '';
+          res.json({ reply });
+          return;
+        } catch (providerErr: unknown) {
+          lastError = providerErr;
+          continue;
+        }
+      }
+
+      res.status(502).json({
+        ok: false,
+        error: `All providers failed. Last error: ${toErrorMessage(lastError)}`,
+      });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unexpected error';
+      const message = toErrorMessage(err);
       res.status(500).json({ ok: false, error: message });
     }
   });

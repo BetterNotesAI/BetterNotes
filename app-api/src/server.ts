@@ -6,7 +6,7 @@ import { createLatexRouter } from './routes/latex';
 import { createEditBlockRouter } from './routes/edit-block';
 import { createEditDocumentRouter } from './routes/edit-document';
 import { createExamsRouter } from './routes/exams';
-import { createProblemSolverRouter } from './routes/problem-solver';
+import { createProblemSolverRouter, ProblemSolverProviderConfig } from './routes/problem-solver';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -42,7 +42,7 @@ const aiProvider = createAIProvider(providerName, {
   googleModel:   process.env.GOOGLE_AI_MODEL,
 });
 
-// ─── Resolve active credentials for problem-solver (uses streaming directly) ──
+// ─── Resolve Problem Solver provider fallback chain ───────────────────────────
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1',
@@ -50,20 +50,52 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
   google: 'https://generativelanguage.googleapis.com/v1beta/openai/',
 };
 
-function resolveProblemSolverConfig(): { apiKey: string; model: string; baseURL?: string } {
-  switch (providerName) {
-    case 'groq':
-      return { apiKey: process.env.GROQ_API_KEY ?? '', model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile', baseURL: PROVIDER_BASE_URLS.groq };
-    case 'openrouter':
-      return { apiKey: process.env.OPENROUTER_API_KEY ?? '', model: process.env.OPENROUTER_MODEL ?? 'qwen/qwen3.6-plus:free', baseURL: PROVIDER_BASE_URLS.openrouter };
-    case 'google':
-      return { apiKey: process.env.GOOGLE_AI_API_KEY ?? '', model: process.env.GOOGLE_AI_MODEL ?? 'gemini-3.1-flash-lite-preview', baseURL: PROVIDER_BASE_URLS.google };
-    default:
-      return { apiKey: process.env.OPENAI_API_KEY ?? '', model: process.env.OPENAI_MODEL ?? 'gpt-4o' };
-  }
+function resolveProblemSolverProviders(): ProblemSolverProviderConfig[] {
+  const ordered: Array<ProblemSolverProviderConfig | null> = [
+    // Primary: OpenRouter (Qwen)
+    process.env.OPENROUTER_API_KEY?.trim() && process.env.OPENROUTER_MODEL?.trim()
+      ? {
+          name: 'openrouter',
+          apiKey: process.env.OPENROUTER_API_KEY,
+          model: process.env.OPENROUTER_MODEL,
+          openaiBaseURL: PROVIDER_BASE_URLS.openrouter,
+        }
+      : null,
+    // Fallback 1: Groq (fast inference)
+    process.env.GROQ_API_KEY?.trim() && process.env.GROQ_MODEL?.trim()
+      ? {
+          name: 'groq',
+          apiKey: process.env.GROQ_API_KEY,
+          model: process.env.GROQ_MODEL,
+          openaiBaseURL: PROVIDER_BASE_URLS.groq,
+        }
+      : null,
+    // Fallback 2: Google
+    process.env.GOOGLE_AI_API_KEY?.trim() && process.env.GOOGLE_AI_MODEL?.trim()
+      ? {
+          name: 'google',
+          apiKey: process.env.GOOGLE_AI_API_KEY,
+          model: process.env.GOOGLE_AI_MODEL,
+          openaiBaseURL: PROVIDER_BASE_URLS.google,
+        }
+      : null,
+    // Fallback 3: OpenAI
+    process.env.OPENAI_API_KEY?.trim() && process.env.OPENAI_MODEL?.trim()
+      ? {
+          name: 'openai',
+          apiKey: process.env.OPENAI_API_KEY,
+          model: process.env.OPENAI_MODEL,
+        }
+      : null,
+  ];
+
+  return ordered.filter((p): p is ProblemSolverProviderConfig => Boolean(p));
 }
 
-const psConfig = resolveProblemSolverConfig();
+const psProviders = resolveProblemSolverProviders();
+if (psProviders.length === 0) {
+  console.warn('[app-api] No Problem Solver providers configured; /problem-solver will fail requests');
+}
 
 // ─── Routers ─────────────────────────────────────────────────────────────────
 
@@ -105,9 +137,7 @@ app.use('/exams', createExamsRouter({
 
 // Problem Solver
 app.use('/problem-solver', createProblemSolverRouter({
-  openaiApiKey:  psConfig.apiKey,
-  openaiModel:   psConfig.model,
-  openaiBaseURL: psConfig.baseURL,
+  providers: psProviders,
 }));
 
 app.listen(PORT, () => console.log(`[app-api] listening on :${PORT} — provider: ${providerName}`));
