@@ -98,10 +98,4 @@ export async function GET(
       'Content-Disposition': `attachment; filename="${safeFolderName}.zip"`,
     },
   });
-  
-    headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${safeFolderName}.zip"`,
-    },
-  });
 }
