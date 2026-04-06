@@ -16,7 +16,7 @@ interface UsageData {
 function BillingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const successParam = searchParams.get('success');
+  const successParam = searchParams?.get('success');
 
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);

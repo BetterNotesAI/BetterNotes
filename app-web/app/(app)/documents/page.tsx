@@ -49,7 +49,7 @@ function NewDocumentWatcher({ onTrigger }: { onTrigger: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   useEffect(() => {
-    if (searchParams.get('new') === '1') {
+    if (searchParams?.get('new') === '1') {
       onTrigger();
       router.replace('/documents', { scroll: false });
     }

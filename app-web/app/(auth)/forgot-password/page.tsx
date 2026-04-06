@@ -9,7 +9,7 @@ import Background from '@/app/components/Background'
 
 function ForgotPasswordForm() {
   const searchParams = useSearchParams()
-  const expiredError = searchParams.get('error') === 'link_expired'
+  const expiredError = searchParams?.get('error') === 'link_expired'
 
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(expiredError ? 'Your reset link has expired. Please request a new one.' : null)
