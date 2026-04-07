@@ -1,6 +1,7 @@
 'use client';
 
-import { useReducer, useRef, useState } from 'react';
+import { useReducer, useRef, useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import type { Exam, ExamQuestion, ExamQuestionType } from './_types';
 import ExamSetup, { type ExamSetupValues } from './_components/ExamSetup';
 import ExamInProgress, { type ActiveQuestion } from './_components/ExamInProgress';
@@ -36,6 +37,7 @@ interface State {
   generateError: string | null;
   submitError: string | null;
   isPublishing: boolean;
+  publishedUrl: string | null;
 }
 
 type Action =
@@ -51,7 +53,8 @@ type Action =
     }
   | { type: 'SUBMIT_ERROR'; error: string }
   | { type: 'PUBLISH_START' }
-  | { type: 'PUBLISH_DONE' }
+  | { type: 'PUBLISH_DONE'; shareUrl: string; exam: Exam }
+  | { type: 'UNPUBLISH_DONE'; exam: Exam }
   | { type: 'RESET' };
 
 const initialState: State = {
@@ -63,6 +66,7 @@ const initialState: State = {
   generateError: null,
   submitError: null,
   isPublishing: false,
+  publishedUrl: null,
 };
 
 function reducer(state: State, action: Action): State {
@@ -95,7 +99,9 @@ function reducer(state: State, action: Action): State {
     case 'PUBLISH_START':
       return { ...state, isPublishing: true };
     case 'PUBLISH_DONE':
-      return { ...state, isPublishing: false };
+      return { ...state, isPublishing: false, publishedUrl: action.shareUrl, exam: action.exam };
+    case 'UNPUBLISH_DONE':
+      return { ...state, publishedUrl: null, exam: action.exam };
     case 'RESET':
       return initialState;
     default:
@@ -117,6 +123,34 @@ export default function ExamsPage() {
   });
   const [resetConfirm, setResetConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // --- Load shared exam from ?shared=examId query param ---
+  useEffect(() => {
+    const sharedExamId = searchParams?.get('shared');
+    if (!sharedExamId) return;
+
+    // Remove the query param from the URL cleanly
+    router.replace('/exams', { scroll: false });
+
+    dispatch({ type: 'GENERATE_START' });
+    fetch(`/api/exams/${sharedExamId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error || !data.exam) {
+          dispatch({ type: 'GENERATE_ERROR', error: data.error ?? 'Failed to load exam' });
+          return;
+        }
+        dispatch({
+          type: 'GENERATE_SUCCESS',
+          exam: data.exam as Exam,
+          questions: (data.questions ?? []) as ActiveQuestion[],
+        });
+      })
+      .catch(() => dispatch({ type: 'GENERATE_ERROR', error: 'Network error. Please try again.' }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Generate exam ---
   async function handleGenerate(values: ExamSetupValues) {
@@ -225,12 +259,43 @@ export default function ExamsPage() {
     }
   }
 
-  // --- Publish to My Studies (placeholder) ---
+  // --- Publish exam (generate share link) ---
   async function handlePublish() {
+    if (!state.exam) return;
     dispatch({ type: 'PUBLISH_START' });
-    // Placeholder — actual integration with /api/studies TBD
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    dispatch({ type: 'PUBLISH_DONE' });
+    try {
+      const res = await fetch(`/api/exams/${state.exam.id}/publish`, { method: 'PATCH' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        dispatch({ type: 'PUBLISH_DONE', shareUrl: '', exam: state.exam });
+        return;
+      }
+      // Merge new fields into exam
+      const updatedExam: Exam = {
+        ...state.exam,
+        is_published: true,
+        share_token: data.share_token,
+      } as Exam;
+      dispatch({ type: 'PUBLISH_DONE', shareUrl: data.share_url ?? '', exam: updatedExam });
+    } catch {
+      dispatch({ type: 'PUBLISH_DONE', shareUrl: '', exam: state.exam });
+    }
+  }
+
+  // --- Unpublish exam (revoke share link) ---
+  async function handleUnpublish() {
+    if (!state.exam) return;
+    try {
+      await fetch(`/api/exams/${state.exam.id}/unpublish`, { method: 'PATCH' });
+      const updatedExam: Exam = {
+        ...state.exam,
+        is_published: false,
+        share_token: undefined,
+      } as Exam;
+      dispatch({ type: 'UNPUBLISH_DONE', exam: updatedExam });
+    } catch {
+      // silently fail
+    }
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -386,7 +451,9 @@ export default function ExamsPage() {
             stats={state.stats}
             onNewExam={() => dispatch({ type: 'RESET' })}
             onPublish={handlePublish}
+            onUnpublish={handleUnpublish}
             isPublishing={state.isPublishing}
+            publishedUrl={state.publishedUrl}
           />
         )}
 

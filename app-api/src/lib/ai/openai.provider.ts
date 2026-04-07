@@ -583,6 +583,28 @@ OUTPUT: Return a JSON object with exactly two keys:
       throw Object.assign(new Error('AI returned no questions'), { statusCode: 502 });
     }
 
+    // Post-process: strip letter prefixes (e.g. "A. ", "B)") from correct_answer for multiple_choice.
+    // The AI occasionally returns "A. Paris" instead of "Paris" despite the prompt instructions.
+    const normalizeOpt = (s: string) => s
+      .replace(/^[A-D][.)]\s*/i, '')
+      .replace(/\$+/g, '')
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\left|\\right|\\,|\\;|\\!/g, '')
+      .replace(/\s+/g, '')
+      .trim()
+      .toLowerCase();
+
+    questions = questions.map((q) => {
+      if (q.type !== 'multiple_choice' || !Array.isArray(q.options) || !q.correct_answer) return q;
+      let answer = q.correct_answer.replace(/^[A-D][.)]\s*/i, '').trim();
+      const normalizedAnswer = normalizeOpt(answer);
+      const match = q.options.find((o) =>
+        normalizeOpt(o) === normalizedAnswer || o.replace(/^[A-D][.)]\s*/i, '').trim() === answer
+      );
+      if (match) answer = match.replace(/^[A-D][.)]\s*/i, '').trim();
+      return { ...q, correct_answer: answer };
+    });
+
     return { questions, canonical_subject };
   }
 
@@ -679,22 +701,27 @@ Return ONLY a valid JSON object with this exact shape — one entry per question
 }
 
 RULES FOR explanation:
-- Maximum 3 sentences. Be concise and direct.
-- Show the key calculation steps only — do NOT repeat or re-verify the same step multiple times.
-- If your result does not match any option exactly, pick the closest option and state why in one sentence. Do NOT loop.`;
+- Show the full step-by-step solution with all calculations.
+- You may verify your answer internally, but write ONLY the clean final solution in the explanation — never include re-checks, revisions, or correction notes.
+- If your result does not match any option exactly, pick the closest option, state why briefly, and stop.`;
 
     const resp = await this.client.chat.completions.create({
       model: this.model,
       temperature: 0,
-      max_tokens: Math.min(6000, Math.max(1200, items.length * 500)),
+      max_tokens: Math.min(8000, Math.max(2000, items.length * 800)),
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     });
 
     const raw = resp.choices?.[0]?.message?.content ?? '{}';
-    const cleaned = sanitizeLatexInJsonString(
-      restoreLatexControlChars(raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
-    );
+    // Strip thinking blocks (<thought>…</thought>, <thinking>…</thinking>) that reasoning models include
+    const stripped = raw
+      .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+    // Extract only the first complete JSON object in case the model adds trailing text
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    const cleaned = sanitizeLatexInJsonString(restoreLatexControlChars(jsonMatch?.[0] ?? stripped));
     const parsed = JSON.parse(cleaned) as { solutions?: Array<{ correct_answer: string; explanation: string }> };
 
     // Map by position — Groq returns solutions in the same order as the input items
