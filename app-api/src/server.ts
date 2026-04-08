@@ -7,6 +7,7 @@ import { createEditBlockRouter } from './routes/edit-block';
 import { createEditDocumentRouter } from './routes/edit-document';
 import { createExamsRouter } from './routes/exams';
 import { createProblemSolverRouter } from './routes/problem-solver';
+import { createCheatSheetRouter } from './routes/cheat-sheet';
 import { createAIProvider } from './lib/ai';
 
 const app = express();
@@ -111,6 +112,13 @@ app.use('/exams', createExamsRouter({ aiProvider, mathProvider: mathSolverProvid
 
 // Problem Solver
 app.use('/problem-solver', createProblemSolverRouter({
+  openaiApiKey:  psConfig.apiKey,
+  openaiModel:   psConfig.model,
+  openaiBaseURL: psConfig.baseURL,
+}));
+
+// Cheat Sheet — reuses the same provider config as Problem Solver
+app.use('/cheat-sheet', createCheatSheetRouter({
   openaiApiKey:  psConfig.apiKey,
   openaiModel:   psConfig.model,
   openaiBaseURL: psConfig.baseURL,

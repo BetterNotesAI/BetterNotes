@@ -433,12 +433,20 @@ export function Sidebar() {
           {/* ── Resources section ── */}
           <SectionDivider label="Resources" collapsed={collapsed} />
 
-          <PlaceholderNavItem
+          <Link
             href="/cheat-sheets"
-            icon={<CheatSheetIcon className="w-4 h-4 shrink-0" />}
-            label="Cheat Sheets"
-            collapsed={collapsed}
-          />
+            title={collapsed ? 'Cheat Sheets' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/cheat-sheets')
+                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <CheatSheetIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">Cheat Sheets</span>}
+          </Link>
           <Link
             href="/problem-solver"
             title={collapsed ? 'Problem Solver' : undefined}
