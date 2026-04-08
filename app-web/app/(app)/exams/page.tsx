@@ -123,6 +123,8 @@ export default function ExamsPage() {
   });
   const [resetConfirm, setResetConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<'questions' | 'answer_key'>('questions');
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -152,8 +154,26 @@ export default function ExamsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-open modal when generation fails
+  useEffect(() => {
+    if (state.screen === 'setup' && state.generateError) {
+      setShowExamModal(true);
+    }
+  }, [state.screen, state.generateError]);
+
+  // Switch loading phase message after 20s (questions → answer key)
+  useEffect(() => {
+    if (state.screen !== 'loading') {
+      setLoadingPhase('questions');
+      return;
+    }
+    const t = setTimeout(() => setLoadingPhase('answer_key'), 20_000);
+    return () => clearTimeout(t);
+  }, [state.screen]);
+
   // --- Generate exam ---
   async function handleGenerate(values: ExamSetupValues) {
+    setShowExamModal(false);
     setTimerSettings({ enabled: values.timerEnabled, minutes: values.timerMinutes });
     dispatch({ type: 'GENERATE_START' });
     try {
@@ -171,7 +191,6 @@ export default function ExamsPage() {
           external_content: values.externalContent || undefined,
           cognitive_distribution: values.cognitiveDistribution,
           grading_mode: values.gradingMode,
-          custom_instructions: values.customInstructions,
         }),
       });
 
@@ -351,6 +370,20 @@ export default function ExamsPage() {
             )}
           </div>
 
+          {/* New Exam button — visible on generate tab */}
+          {state.screen === 'setup' && activeTab === 'generate' && (
+            <button
+              type="button"
+              onClick={() => setShowExamModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Exam
+            </button>
+          )}
+
           {/* Reset stats button — only on stats tab */}
           {state.screen === 'setup' && activeTab === 'stats' && (
             <button
@@ -388,12 +421,40 @@ export default function ExamsPage() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
 
-        {/* SETUP — Generate tab */}
+        {/* SETUP — Generate tab empty state */}
         {state.screen === 'setup' && activeTab === 'generate' && (
+          <div className="flex flex-col items-center justify-center py-32 gap-5">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25">
+              <svg className="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9h-1.5A3.375 3.375 0 007.875 12.375v1.5m4.125 4.875v-1.5m0 0h-4.5m4.5 0V15M3 9.375C3 8.339 3.84 7.5 4.875 7.5h14.25C20.16 7.5 21 8.34 21 9.375v7.5C21 17.909 20.16 18.75 19.125 18.75H4.875C3.839 18.75 3 17.91 3 16.875v-7.5z"
+                />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-white font-medium">No exam in progress</p>
+              <p className="text-white/40 text-sm mt-1">Create a new exam to get started</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowExamModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Exam
+            </button>
+          </div>
+        )}
+
+        {/* Exam setup modal */}
+        {showExamModal && (
           <ExamSetup
             onSubmit={handleGenerate}
             isLoading={false}
             error={state.generateError}
+            onClose={() => setShowExamModal(false)}
           />
         )}
 
@@ -411,8 +472,12 @@ export default function ExamsPage() {
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
             <div className="text-center">
-              <p className="text-white font-medium">Generating your exam...</p>
-              <p className="text-white/40 text-sm mt-1">This may take a few seconds</p>
+              <p className="text-white font-medium">
+                {loadingPhase === 'questions' ? 'Generating questions...' : 'Generating answer key...'}
+              </p>
+              <p className="text-white/40 text-sm mt-1">
+                {loadingPhase === 'questions' ? 'This may take a few seconds' : 'This may take a few minutes'}
+              </p>
             </div>
           </div>
         )}

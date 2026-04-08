@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subject: subjectTrimmed, level, language: lang, distribution, format, documentContext, cognitiveDistribution: cognitive_distribution, customInstructions: custom_instructions }),
+    signal: AbortSignal.timeout(300_000), // 5 min — AI generation + math solving
   });
   if (!apiResp.ok) {
     const err = await apiResp.json().catch(() => ({}));

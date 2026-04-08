@@ -65,6 +65,7 @@ export async function GET(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
+      signal: AbortSignal.timeout(60_000), // 1 min — PDF generation
     });
   } catch (err: any) {
     console.error('[export-pdf proxy] fetch error:', err?.message);

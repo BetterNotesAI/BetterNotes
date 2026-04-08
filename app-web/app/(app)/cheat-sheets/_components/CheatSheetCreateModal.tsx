@@ -214,7 +214,7 @@ export function CheatSheetCreateModal({ isOpen, onClose, onCreated }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Linear Algebra Formulas"
-              className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-indigo-400/50 focus:bg-white/8 transition-colors"
+              className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400/50 transition-colors"
             />
           </div>
 
@@ -227,7 +227,7 @@ export function CheatSheetCreateModal({ isOpen, onClose, onCreated }: Props) {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="e.g. Calculus"
-                className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-indigo-400/50 focus:bg-white/8 transition-colors"
+                className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400/50 transition-colors"
               />
             </div>
             <div className="space-y-1.5">
@@ -235,10 +235,10 @@ export function CheatSheetCreateModal({ isOpen, onClose, onCreated }: Props) {
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-400/50 focus:bg-white/8 transition-colors appearance-none"
+                className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-400/50 transition-colors appearance-none"
               >
                 {LANGUAGES.map((l) => (
-                  <option key={l.value} value={l.value} className="bg-[#1a1a1a]">{l.label}</option>
+                  <option key={l.value} value={l.value} className="bg-neutral-800">{l.label}</option>
                 ))}
               </select>
             </div>
@@ -342,7 +342,7 @@ export function CheatSheetCreateModal({ isOpen, onClose, onCreated }: Props) {
               onChange={(e) => setExternalText(e.target.value.slice(0, MAX_CHARS))}
               placeholder="Paste notes, text, or upload a PDF above..."
               rows={4}
-              className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-indigo-400/50 focus:bg-white/8 transition-colors resize-none"
+              className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400/50 transition-colors resize-none"
             />
             <div className="text-right text-[10px] text-white/25">
               {externalText.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} chars

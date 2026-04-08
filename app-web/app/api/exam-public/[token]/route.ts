@@ -27,5 +27,12 @@ export async function GET(
     return NextResponse.json({ error: 'Exam not found or no longer available' }, { status: 404 });
   }
 
-  return NextResponse.json({ exam });
+  // Check if any questions are fill_in type
+  const { count } = await adminClient
+    .from('exam_questions')
+    .select('id', { count: 'exact', head: true })
+    .eq('exam_id', exam.id)
+    .eq('type', 'fill_in');
+
+  return NextResponse.json({ exam: { ...exam, has_fill_in: (count ?? 0) > 0 } });
 }

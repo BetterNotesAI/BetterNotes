@@ -300,12 +300,11 @@ export default function ExamResults({
                 type="button"
                 onClick={onPublish}
                 disabled={isPublishing}
-                className="flex-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40
-                  text-sm font-semibold text-white py-2.5 transition-colors disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-indigo-500/30 hover:border-indigo-400/50 bg-indigo-500/20 hover:bg-indigo-500/30 text-sm font-medium text-indigo-300 hover:text-indigo-200 py-2.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isPublishing ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/15 border-t-white rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-300 rounded-full animate-spin" />
                     Publishing...
                   </>
                 ) : (

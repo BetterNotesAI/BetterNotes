@@ -89,7 +89,7 @@ const mathProviderName = (process.env.MATH_PROVIDER as string | undefined)?.trim
 const mathSolverProvider = mathProviderName
   ? createAIProvider(mathProviderName as any, {
       groqApiKey:       process.env.GROQ_API_KEY,
-      groqModel:        process.env.GROQ_MODEL,
+      groqModel:        process.env.MATH_MODEL ?? process.env.GROQ_MODEL,
       openrouterApiKey: process.env.OPENROUTER_API_KEY,
       openrouterModel:  process.env.MATH_MODEL ?? process.env.OPENROUTER_MODEL,
       googleApiKey:     process.env.GOOGLE_AI_API_KEY,

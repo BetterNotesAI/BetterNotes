@@ -13,6 +13,7 @@ interface PublicExamInfo {
   grading_mode: 'strict' | 'partial';
   created_at: string;
   shared_attempts: number;
+  has_fill_in: boolean;
 }
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -193,8 +194,8 @@ export default function SharedExamPage() {
                 )}
               </div>
 
-              {/* Grading mode selector */}
-              <div className="px-6 pb-5 border-t border-white/8 pt-4">
+              {/* Grading mode selector — only for exams with fill_in questions */}
+              {exam.has_fill_in && <div className="px-6 pb-5 border-t border-white/8 pt-4">
                 <p className="text-xs font-medium text-white/45 uppercase tracking-wider mb-3">Grading mode</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -222,7 +223,7 @@ export default function SharedExamPage() {
                     <p className="text-[11px] leading-snug opacity-70">Partial answers earn half credit</p>
                   </button>
                 </div>
-              </div>
+              </div>}
 
               {/* Start button */}
               <div className="px-6 pb-6">

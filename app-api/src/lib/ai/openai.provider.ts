@@ -589,7 +589,21 @@ OUTPUT: Return a JSON object with exactly two keys:
       .replace(/^[A-D][.)]\s*/i, '')
       .replace(/\$+/g, '')
       .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\dfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\cfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
       .replace(/\\left|\\right|\\,|\\;|\\!/g, '')
+      .replace(/∑|\\sum\b/g, 'sum').replace(/∫|\\int\b/g, 'int').replace(/∏|\\prod\b/g, 'prod')
+      .replace(/∞|\\infty\b/g, 'inf').replace(/π|\\pi\b/g, 'pi').replace(/√|\\sqrt/g, 'sqrt')
+      .replace(/α|\\alpha\b/g, 'alpha').replace(/β|\\beta\b/g, 'beta').replace(/γ|\\gamma\b/g, 'gamma')
+      .replace(/δ|\\delta\b/g, 'delta').replace(/θ|\\theta\b/g, 'theta').replace(/λ|\\lambda\b/g, 'lambda')
+      .replace(/μ|\\mu\b/g, 'mu').replace(/σ|\\sigma\b/g, 'sigma').replace(/ω|\\omega\b/g, 'omega')
+      .replace(/⁰/g, '^0').replace(/¹/g, '^1').replace(/²/g, '^2').replace(/³/g, '^3')
+      .replace(/⁴/g, '^4').replace(/⁵/g, '^5').replace(/⁶/g, '^6').replace(/⁷/g, '^7')
+      .replace(/⁸/g, '^8').replace(/⁹/g, '^9')
+      .replace(/₀/g, '_0').replace(/₁/g, '_1').replace(/₂/g, '_2').replace(/₃/g, '_3')
+      .replace(/₄/g, '_4').replace(/₅/g, '_5').replace(/₆/g, '_6').replace(/₇/g, '_7')
+      .replace(/₈/g, '_8').replace(/₉/g, '_9').replace(/ₙ/g, '_n').replace(/ₘ/g, '_m')
+      .replace(/ₖ/g, '_k').replace(/ᵢ/g, '_i').replace(/ⱼ/g, '_j')
       .replace(/\s+/g, '')
       .trim()
       .toLowerCase();
@@ -708,7 +722,7 @@ RULES FOR explanation:
     const resp = await this.client.chat.completions.create({
       model: this.model,
       temperature: 0,
-      max_tokens: Math.min(8000, Math.max(2000, items.length * 800)),
+      max_tokens: Math.min(4000, Math.max(1000, items.length * 400)),
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     });
