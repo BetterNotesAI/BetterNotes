@@ -179,6 +179,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   // Call app-api
   let assistantContent: string;
+  let isEditIntent = false;
+  let isDeleteIntent = false;
+  let isInsertIntent = false;
+  let editContent: string | null = null;
   try {
     const apiResp = await fetch(`${API_URL}/cheat-sheet/chat`, {
       method: 'POST',
@@ -187,7 +191,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
       },
       body: JSON.stringify({
-        contentMd: session.content_md ?? '',
+        // If the user selected specific blocks, only send those as context (much faster).
+        // Fall back to the full cheatsheet only when there's no selection.
+        contentMd: contexts.length > 0 ? contexts.join('\n\n') : (session.content_md ?? ''),
         history,
         userMessage: userMessageForLLM,
       }),
@@ -198,8 +204,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: errBody?.error ?? 'Failed to reach AI API' }, { status: 502 });
     }
 
-    const respData = await apiResp.json() as { reply?: string };
+    const respData = await apiResp.json() as { reply?: string; isEditIntent?: boolean; isDeleteIntent?: boolean; isInsertIntent?: boolean; editContent?: string | null };
     assistantContent = respData.reply ?? '';
+    isEditIntent = respData.isEditIntent ?? false;
+    isDeleteIntent = respData.isDeleteIntent ?? false;
+    isInsertIntent = respData.isInsertIntent ?? false;
+    editContent = respData.editContent ?? null;
   } catch (fetchErr: unknown) {
     const message = fetchErr instanceof Error ? fetchErr.message : 'Network error';
     return NextResponse.json({ error: `Failed to reach app-api: ${message}` }, { status: 502 });
@@ -216,5 +226,5 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: assistantMsgError?.message ?? 'Failed to save assistant message' }, { status: 500 });
   }
 
-  return NextResponse.json({ userMessage: userMsg, assistantMessage: assistantMsg });
+  return NextResponse.json({ userMessage: userMsg, assistantMessage: assistantMsg, isEditIntent, isDeleteIntent, isInsertIntent, editContent });
 }

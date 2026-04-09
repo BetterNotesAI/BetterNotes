@@ -29,8 +29,30 @@ Guidelines:
 - Assume the reader already has basic familiarity; focus on the precise details they need during an exam`;
 
 const SUB_CHAT_SYSTEM_PROMPT = `You are a helpful study assistant. The student is working with a cheat sheet.
-You have access to the full cheat sheet content. Answer follow-up questions clearly and concisely.
-Math formatting: use $...$ for inline math and $$...$$ for display math on its own line. NEVER use \\(...\\) or \\[...\\].`;
+You have access to the selected cheat sheet content. Answer questions clearly and concisely.
+Math formatting: use $...$ for inline math and $$...$$ for display math on its own line. NEVER use \\(...\\) or \\[...\\].
+
+IMPORTANT — The FIRST line of your response must be exactly one of these four tags, alone on its own line:
+[EDIT:yes]    — the student wants to modify, rewrite, expand, improve, shorten, fix, or translate the selected content
+[EDIT:insert] — the student wants to ADD or INSERT new content after the selected content (the original is kept)
+[EDIT:delete] — the student wants to delete or remove the selected content
+[EDIT:no]     — the student is asking a question or wants an explanation (NOT changing content)
+
+Then a blank line, then follow EXACTLY these rules:
+
+When [EDIT:yes]:
+  Output ONLY the replacement markdown. No intro sentence. No "Here is the result:". No explanation.
+  Start directly with the replacement content. Your entire response is inserted verbatim in place of the selection.
+
+When [EDIT:insert]:
+  Output ONLY the new markdown to insert AFTER the selected content. No intro. No explanation.
+  The original selected content is preserved — only the new content is added after it.
+
+When [EDIT:delete]:
+  Output nothing — leave the response empty after the tag. The system deletes automatically.
+
+When [EDIT:no]:
+  Answer the question normally with explanation.`;
 
 export interface CheatSheetProviderConfig {
   name: string;
@@ -240,8 +262,31 @@ export function createCheatSheetRouter(opts: CheatSheetRouterOptions): Router {
             { role: 'user', content: userContent },
           ],
         });
-        const reply = completion.choices[0]?.message?.content ?? '';
-        res.json({ ok: true, reply });
+        const raw = completion.choices[0]?.message?.content ?? '';
+        // Detect intent tag (search anywhere — models don't always put it first)
+        const deleteMarkerMatch = raw.match(/\[EDIT\s*:\s*delete\]/i);
+        const insertMarkerMatch = raw.match(/\[EDIT\s*:\s*insert\]/i);
+        const editMarkerMatch = raw.match(/\[EDIT\s*:\s*(yes|no)\]/i);
+        const isDeleteIntentFromMarker = !!deleteMarkerMatch;
+        const isInsertIntentFromMarker = !!insertMarkerMatch;
+        const isEditIntentFromMarker = editMarkerMatch ? editMarkerMatch[1].toLowerCase() === 'yes' : null;
+        // Strip all intent tags from the reply shown in chat
+        const reply = raw
+          .replace(/[*_`]*\[EDIT\s*:\s*(?:yes|no|delete|insert)\][*_`]*[ \t]*\n?/gi, '')
+          .trimStart()
+          .trimEnd();
+        // Fallback keyword detection when model omits the tag
+        const DELETE_KW = /\b(esborra|elimina|suprimeix|remove|delete|borra|quita|treu(?:-ho)?|esborrar|eliminar)\b/i;
+        const INSERT_KW = /\b(afegeix|afegir|add|insereix|inserir|insert|nou apartat|nova secci[oó]|append)\b/i;
+        const EDIT_KW = /\b(rewrite|rescri(?:u|be)|simplif(?:y|ica)|shorten|escurç|acort|lengthen|allar(?:ga)|expand|amplia|improv(?:e|a)|millo?ra|updat(?:e|a)|actualitz|replac(?:e|a)|substitueix|cambia|canvia|change|modif(?:y|ica)|edit(?:a)?|arregla|fix|reformat|restructur|summar(?:iz|itz)|extend|ampliar|amplía)\b/i;
+        const noMarker = !deleteMarkerMatch && !insertMarkerMatch && !editMarkerMatch;
+        const isDeleteIntent = isDeleteIntentFromMarker || (noMarker && DELETE_KW.test(userMessage ?? ''));
+        const isInsertIntent = isInsertIntentFromMarker || (!isDeleteIntent && noMarker && INSERT_KW.test(userMessage ?? ''));
+        const isEditIntent = isEditIntentFromMarker !== null
+          ? isEditIntentFromMarker
+          : !isDeleteIntent && !isInsertIntent && EDIT_KW.test(userMessage ?? '');
+        const editContent: string | null = (isEditIntent || isInsertIntent) ? reply : null;
+        res.json({ ok: true, reply, isEditIntent, isDeleteIntent, isInsertIntent, editContent });
         return;
       } catch (err: unknown) {
         lastError = err;

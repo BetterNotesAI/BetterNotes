@@ -11,11 +11,82 @@ interface ChatMessage {
   created_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Heading renumbering (runs after deletions to keep section numbers consistent)
+// Handles: "## 1. Title" and "### 1.1 Title" patterns only.
+// Headings without a leading number are left untouched.
+// ---------------------------------------------------------------------------
+// Removes duplicate/trailing separators left after a section deletion.
+// e.g.  ---\n\n---  →  ---  ;  trailing ---  →  removed
+function cleanupAfterDelete(md: string): string {
+  const isSep = (l: string) => /^(-{3,}|\*{3,}|_{3,})$/.test(l.trim());
+  const lines = md.split('\n');
+  const out: string[] = [];
+
+  for (const line of lines) {
+    if (isSep(line)) {
+      // Find the last non-blank line already in output
+      let prev = out.length - 1;
+      while (prev >= 0 && out[prev].trim() === '') prev--;
+      if (prev >= 0 && isSep(out[prev])) {
+        // Another separator right above — remove the blank gap and skip this one
+        while (out.length > prev + 1) out.pop();
+        continue;
+      }
+    }
+    out.push(line);
+  }
+
+  // Remove trailing separators and blank lines
+  while (out.length > 0 && (out[out.length - 1].trim() === '' || isSep(out[out.length - 1]))) {
+    out.pop();
+  }
+
+  // Collapse 3+ consecutive blank lines to 2
+  const final: string[] = [];
+  let blanks = 0;
+  for (const line of out) {
+    if (line.trim() === '') {
+      if (++blanks <= 2) final.push(line);
+    } else {
+      blanks = 0;
+      final.push(line);
+    }
+  }
+
+  return final.join('\n');
+}
+
+function renumberHeadings(md: string): string {
+  const lines = md.split('\n');
+  let h2n = 0;
+  let h3n = 0;
+
+  return lines.map((line) => {
+    // ## N. Title  (top-level numbered section)
+    const h2 = line.match(/^(##\s+)\d+\.\s+(.+)/);
+    if (h2) {
+      h2n++;
+      h3n = 0;
+      return `${h2[1]}${h2n}. ${h2[2]}`;
+    }
+    // ### N.M Title  or  ### N.M. Title  (numbered sub-section)
+    const h3 = line.match(/^(###\s+)\d+\.\d+\.?\s+(.+)/);
+    if (h3) {
+      h3n++;
+      return `${h3[1]}${h2n}.${h3n} ${h3[2]}`;
+    }
+    return line;
+  }).join('\n');
+}
+
 interface CheatSheetInlineChatProps {
   sessionId: string;
-  selectedContexts: Array<{ id: string; text: string }>;
+  selectedContexts: Array<{ id: string; text: string; rawMd: string; startLine: number; endLine: number }>;
   onClearContext: (id: string) => void;
   onClearAllContexts: () => void;
+  contentMd: string | null;
+  onAutoApply: (newMd: string, prevMd: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +234,21 @@ function extractQuotes(content: string): { quotes: string[]; body: string } {
 }
 
 // ---------------------------------------------------------------------------
+// Client-side operation detection — does NOT rely on AI tags
+// ---------------------------------------------------------------------------
+type EditOperation = 'delete' | 'insert' | 'replace' | null;
+
+function detectOperation(msg: string): EditOperation {
+  const DELETE_KW = /\b(esborra|elimina|suprimeix|remove|delete|borra|quita|treu|esborrar|eliminar)\b/i;
+  const INSERT_KW = /\b(afegeix|afegir|add|insereix|inserir|insert|nou apartat|nova secci[oó]|append)\b/i;
+  const REPLACE_KW = /\b(amplia|expand|reescriu|rewrite|simplifica|simplify|millora|improv|arregla|fix|canvia|change|modifica|modif|tradueix|translat|escurça|shorten|allar(?:ga)|lengthen|actualitz|updat|restructur|reformat|summar(?:iz|itz))\b/i;
+  if (DELETE_KW.test(msg)) return 'delete';
+  if (INSERT_KW.test(msg)) return 'insert';
+  if (REPLACE_KW.test(msg)) return 'replace';
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -171,6 +257,8 @@ export function CheatSheetInlineChat({
   selectedContexts,
   onClearContext,
   onClearAllContexts,
+  contentMd,
+  onAutoApply,
 }: CheatSheetInlineChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -180,6 +268,10 @@ export function CheatSheetInlineChat({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Contexts + operation saved at send-time: UI clears chips immediately, but
+  // auto-apply still has everything it needs when the response arrives.
+  const pendingContextsRef = useRef<typeof selectedContexts>([]);
+  const pendingOperationRef = useRef<EditOperation>(null);
 
   const resizeTextarea = useCallback(() => {
     const ta = textareaRef.current;
@@ -221,18 +313,25 @@ export function CheatSheetInlineChat({
     const trimmed = input.trim();
     if (!trimmed || isSending) return;
 
+    const currentMd = contentMd;
     setInput('');
     setError(null);
     setIsSending(true);
     resizeTextarea();
 
-    const quoteBlocks = selectedContexts.map((ctx) => toQuoteBlock(ctx.text));
+    // Snapshot contexts + detect operation from user message (client-side, reliable).
+    // UI clears chips immediately; refs keep everything for auto-apply.
+    pendingContextsRef.current = [...selectedContexts];
+    pendingOperationRef.current = selectedContexts.length === 1 ? detectOperation(trimmed) : null;
+    if (selectedContexts.length > 0) onClearAllContexts();
+
+    const quoteBlocks = pendingContextsRef.current.map((ctx) => toQuoteBlock(ctx.text));
     const displayContent = quoteBlocks.length > 0
       ? `${quoteBlocks.join('\n\n')}\n\n${trimmed}`
       : trimmed;
 
-    const contextsToSend = selectedContexts.length > 0
-      ? selectedContexts.map((ctx) => ctx.text)
+    const contextsToSend = pendingContextsRef.current.length > 0
+      ? pendingContextsRef.current.map((ctx) => ctx.text)
       : undefined;
 
     const tempId = `temp-${Date.now()}`;
@@ -243,8 +342,6 @@ export function CheatSheetInlineChat({
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMsg]);
-
-    if (selectedContexts.length > 0) onClearAllContexts();
 
     try {
       const res = await fetch(`/api/cheat-sheets/sessions/${sessionId}/chat`, {
@@ -261,6 +358,10 @@ export function CheatSheetInlineChat({
       const data = await res.json() as {
         userMessage: ChatMessage;
         assistantMessage: ChatMessage;
+        isEditIntent?: boolean;
+        isDeleteIntent?: boolean;
+        isInsertIntent?: boolean;
+        editContent?: string | null;
       };
 
       setMessages((prev) => [
@@ -268,6 +369,55 @@ export function CheatSheetInlineChat({
         data.userMessage,
         data.assistantMessage,
       ]);
+
+      // Operation: AI tags are primary (language-agnostic), keyword detection is fallback.
+      // Content comes from assistantMessage.content — exactly what's shown in chat.
+      let op: EditOperation;
+      if (data.isDeleteIntent) op = 'delete';
+      else if (data.isInsertIntent) op = 'insert';
+      else if (data.isEditIntent) op = 'replace';
+      else op = pendingOperationRef.current;
+      if (op !== null && pendingContextsRef.current.length === 1 && currentMd !== null) {
+        const ctx = pendingContextsRef.current[0];
+        if (ctx.startLine >= 0 && ctx.endLine >= 0) {
+          const lines = currentMd.split('\n');
+          let newMd: string;
+
+          if (op === 'delete') {
+            const spliced = [
+              ...lines.slice(0, ctx.startLine),
+              ...lines.slice(ctx.endLine + 1),
+            ].join('\n');
+            newMd = cleanupAfterDelete(renumberHeadings(spliced));
+          } else {
+            // replace or insert — content is what the AI wrote in chat
+            const aiContent = data.assistantMessage.content.trim();
+            if (!aiContent) { pendingContextsRef.current = []; pendingOperationRef.current = null; return; }
+            const aiLines = aiContent.split('\n');
+
+            if (op === 'insert') {
+              const spliced = [
+                ...lines.slice(0, ctx.endLine + 1),
+                '',
+                ...aiLines,
+                ...lines.slice(ctx.endLine + 1),
+              ].join('\n');
+              newMd = renumberHeadings(spliced);
+            } else {
+              // replace
+              newMd = [
+                ...lines.slice(0, ctx.startLine),
+                ...aiLines,
+                ...lines.slice(ctx.endLine + 1),
+              ].join('\n');
+            }
+          }
+
+          onAutoApply(newMd, currentMd);
+        }
+      }
+      pendingContextsRef.current = [];
+      pendingOperationRef.current = null;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -285,16 +435,14 @@ export function CheatSheetInlineChat({
   }
 
   return (
-    <div className="flex flex-col border-t border-white/8">
-      {/* Divider */}
-      <div className="flex items-center gap-3 px-6 py-3 shrink-0">
-        <div className="flex-1 border-t border-white/8" />
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-center px-4 py-3 shrink-0">
         <span className="text-[10px] font-medium text-white/30 uppercase tracking-wider">Chat</span>
-        <div className="flex-1 border-t border-white/8" />
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-4 max-h-72">
+      <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-4 min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <div className="w-4 h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
@@ -328,11 +476,13 @@ export function CheatSheetInlineChat({
                     </div>
                   </div>
                 ) : (
-                  <div className="max-w-[90%] bg-indigo-500/8 border border-indigo-500/15 rounded-2xl rounded-tl-sm px-3 py-2.5">
-                    <div
-                      className="csic-assistant-content text-xs text-white/75 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
-                    />
+                  <div className="max-w-[90%]">
+                    <div className="bg-indigo-500/8 border border-indigo-500/15 rounded-2xl rounded-tl-sm px-3 py-2.5">
+                      <div
+                        className="csic-assistant-content text-xs text-white/75 leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -356,7 +506,7 @@ export function CheatSheetInlineChat({
 
       {/* Selected contexts */}
       {selectedContexts.length > 0 && (
-        <div className="px-6 py-2 flex flex-wrap gap-1.5 border-t border-white/6">
+        <div className="px-4 py-2 flex flex-wrap gap-1.5">
           {selectedContexts.map((ctx) => (
             <div
               key={ctx.id}

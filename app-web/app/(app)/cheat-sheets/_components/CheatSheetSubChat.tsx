@@ -321,9 +321,26 @@ export function CheatSheetSubChat({
           </p>
         )}
         {messages.map((msg) => {
+          const handleDeleteMsg = async () => {
+            setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+            await fetch(
+              `/api/cheat-sheets/sessions/${sessionId}/subchats/${subchatId}/messages/${msg.id}`,
+              { method: 'DELETE' },
+            ).catch(() => null);
+          };
+
           if (msg.role === 'user') {
             return (
-              <div key={msg.id} className="flex justify-end">
+              <div key={msg.id} className="flex justify-end group">
+                <button
+                  onClick={handleDeleteMsg}
+                  className="opacity-0 group-hover:opacity-100 self-start mt-1 mr-1 p-0.5 rounded text-white/20 hover:text-red-400 transition-all shrink-0"
+                  title="Delete message"
+                >
+                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
                 <div className="max-w-[85%] px-2.5 py-1.5 rounded-xl rounded-tr-sm bg-indigo-500/12 border border-indigo-500/15">
                   <p className="text-white/80 text-[12px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                 </div>
@@ -331,13 +348,22 @@ export function CheatSheetSubChat({
             );
           }
           return (
-            <div key={msg.id} className="flex justify-start">
+            <div key={msg.id} className="flex justify-start group">
               <div className="max-w-[90%]">
                 <div
                   className="cssc-assistant-content"
                   dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
                 />
               </div>
+              <button
+                onClick={handleDeleteMsg}
+                className="opacity-0 group-hover:opacity-100 self-start mt-1 ml-1 p-0.5 rounded text-white/20 hover:text-red-400 transition-all shrink-0"
+                title="Delete message"
+              >
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           );
         })}

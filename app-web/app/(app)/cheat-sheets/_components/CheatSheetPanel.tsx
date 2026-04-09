@@ -44,6 +44,9 @@ function renderInline(text: string): string {
 interface CSBlock {
   html: string;
   text: string;
+  rawMd: string;
+  startLine: number;
+  endLine: number;
 }
 
 function markdownToBlocks(md: string): CSBlock[] {
@@ -52,6 +55,7 @@ function markdownToBlocks(md: string): CSBlock[] {
   let inCodeBlock = false;
   let codeLang = '';
   let codeLines: string[] = [];
+  let codeStartLine = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -61,13 +65,18 @@ function markdownToBlocks(md: string): CSBlock[] {
         inCodeBlock = true;
         codeLang = raw.slice(3).trim();
         codeLines = [];
+        codeStartLine = i;
       } else {
         inCodeBlock = false;
         const text = codeLines.join('\n');
         const langAttr = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
+        const rawMd = `\`\`\`${codeLang}\n${text}\n\`\`\``;
         blocks.push({
           html: `<pre class="cs-code-block"><code${langAttr}>${escapeHtml(text)}</code></pre>`,
           text,
+          rawMd,
+          startLine: codeStartLine,
+          endLine: i,
         });
         codeLines = [];
         codeLang = '';
@@ -84,14 +93,15 @@ function markdownToBlocks(md: string): CSBlock[] {
     if (raw.trim() === '$$' || (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim().length > 4)) {
       if (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim() !== '$$') {
         const math = raw.trim().slice(2, -2);
-        blocks.push({ html: `<div class="cs-math-display">${renderKatex(math, true)}</div>`, text: `$$${math}$$` });
+        blocks.push({ html: `<div class="cs-math-display">${renderKatex(math, true)}</div>`, text: `$$${math}$$`, rawMd: raw, startLine: i, endLine: i });
         continue;
       }
+      const mathStartLine = i;
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '$$') { mathLines.push(lines[i]); i++; }
       const mathText = mathLines.join('\n');
-      blocks.push({ html: `<div class="cs-math-display">${renderKatex(mathText, true)}</div>`, text: `$$${mathText}$$` });
+      blocks.push({ html: `<div class="cs-math-display">${renderKatex(mathText, true)}</div>`, text: `$$${mathText}$$`, rawMd: `$$\n${mathText}\n$$`, startLine: mathStartLine, endLine: i });
       continue;
     }
 
@@ -99,14 +109,15 @@ function markdownToBlocks(md: string): CSBlock[] {
     if (raw.trim() === '\\[' || (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim().length > 4)) {
       if (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim() !== '\\[') {
         const math = raw.trim().slice(2, -2);
-        blocks.push({ html: `<div class="cs-math-display">${renderKatex(math, true)}</div>`, text: `\\[${math}\\]` });
+        blocks.push({ html: `<div class="cs-math-display">${renderKatex(math, true)}</div>`, text: `\\[${math}\\]`, rawMd: raw, startLine: i, endLine: i });
         continue;
       }
+      const mathStartLine = i;
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '\\]') { mathLines.push(lines[i]); i++; }
       const mathText = mathLines.join('\n');
-      blocks.push({ html: `<div class="cs-math-display">${renderKatex(mathText, true)}</div>`, text: `\\[${mathText}\\]` });
+      blocks.push({ html: `<div class="cs-math-display">${renderKatex(mathText, true)}</div>`, text: `\\[${mathText}\\]`, rawMd: `\\[\n${mathText}\n\\]`, startLine: mathStartLine, endLine: i });
       continue;
     }
 
@@ -118,35 +129,35 @@ function markdownToBlocks(md: string): CSBlock[] {
     if (h1 || h2 || h3) {
       const level = h1 ? 1 : h2 ? 2 : 3;
       const text = (h1 ?? h2 ?? h3)![1];
-      blocks.push({ html: `<h${level} class="cs-h${level}">${renderInline(renderInlineMath(text))}</h${level}>`, text });
+      blocks.push({ html: `<h${level} class="cs-h${level}">${renderInline(renderInlineMath(text))}</h${level}>`, text, rawMd: raw, startLine: i, endLine: i });
       continue;
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(raw.trim())) {
-      blocks.push({ html: '<hr class="cs-hr" />', text: '---' });
+      blocks.push({ html: '<hr class="cs-hr" />', text: '---', rawMd: raw, startLine: i, endLine: i });
       continue;
     }
 
     const ulMatch = raw.match(/^[\s]*[-*+•] (.+)/);
     if (ulMatch) {
-      blocks.push({ html: `<li class="cs-li">${renderInline(renderInlineMath(ulMatch[1]))}</li>`, text: ulMatch[1] });
+      blocks.push({ html: `<li class="cs-li">${renderInline(renderInlineMath(ulMatch[1]))}</li>`, text: ulMatch[1], rawMd: raw, startLine: i, endLine: i });
       continue;
     }
 
     const olMatch = raw.match(/^[\s]*\d+\. (.+)/);
     if (olMatch) {
-      blocks.push({ html: `<li class="cs-li cs-oli">${renderInline(renderInlineMath(olMatch[1]))}</li>`, text: olMatch[1] });
+      blocks.push({ html: `<li class="cs-li cs-oli">${renderInline(renderInlineMath(olMatch[1]))}</li>`, text: olMatch[1], rawMd: raw, startLine: i, endLine: i });
       continue;
     }
 
     // Table row
     if (raw.trim().startsWith('|')) {
-      blocks.push({ html: `<div class="cs-table-row">${renderInline(renderInlineMath(raw))}</div>`, text: raw });
+      blocks.push({ html: `<div class="cs-table-row">${renderInline(renderInlineMath(raw))}</div>`, text: raw, rawMd: raw, startLine: i, endLine: i });
       continue;
     }
 
     const paraHtml = renderInline(renderInlineMath(raw));
-    blocks.push({ html: `<p class="cs-p">${paraHtml}</p>`, text: raw });
+    blocks.push({ html: `<p class="cs-p">${paraHtml}</p>`, text: raw, rawMd: raw, startLine: i, endLine: i });
   }
 
   return blocks;
@@ -178,10 +189,14 @@ interface Props {
   status: 'pending' | 'generating' | 'done' | 'error';
   isStreaming: boolean;
   onGenerate: () => void;
-  selectedContexts: Array<{ id: string; text: string }>;
-  onTextSelect: (context: { id: string; text: string }) => void;
+  selectedContexts: Array<{ id: string; text: string; rawMd: string; startLine: number; endLine: number }>;
+  onTextSelect: (context: { id: string; text: string; rawMd: string; startLine: number; endLine: number }) => void;
   onClearContext: (id: string) => void;
   onClearAllContexts: () => void;
+  prevMd: string | null;
+  onRevert: () => void;
+  onSaveEdit: () => void;
+  onBlockEdit: (newContent: string, startLine: number, endLine: number) => void;
 }
 
 export function CheatSheetPanel({
@@ -194,6 +209,10 @@ export function CheatSheetPanel({
   onTextSelect,
   onClearContext,
   onClearAllContexts,
+  prevMd,
+  onRevert,
+  onSaveEdit,
+  onBlockEdit,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -203,6 +222,9 @@ export function CheatSheetPanel({
   const [pendingSelection, setPendingSelection] = useState<{
     id: string;
     text: string;
+    rawMd: string;
+    startLine: number;
+    endLine: number;
     blockIndex: number;
   } | null>(null);
   const [pendingOutlineRects, setPendingOutlineRects] = useState<Array<{
@@ -212,6 +234,15 @@ export function CheatSheetPanel({
     height: number;
   }>>([]);
   const pendingHighlightedBlocksRef = useRef<HTMLElement[]>([]);
+
+  // Inline block editing (supports single block or multi-block range)
+  const [editingRange, setEditingRange] = useState<{
+    startBlockIdx: number;
+    endBlockIdx: number;
+    startLine: number;
+    endLine: number;
+  } | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   // Subchats
   const [subchatsMap, setSubchatsMap] = useState<Map<number, SubchatData>>(new Map());
@@ -383,10 +414,13 @@ export function CheatSheetPanel({
 
     const blocks = getIntersectingBlocks(range);
     let contextText = rawSelection;
+    let contextRawMd = rawSelection;
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
     let outlineRect: { left: number; top: number; width: number; height: number } | null = null;
     let anchorBlockIndex = -1;
+    let contextStartLine = -1;
+    let contextEndLine = -1;
 
     if (blocks.length > 0) {
       clearPendingHighlight();
@@ -400,6 +434,18 @@ export function CheatSheetPanel({
           .join('\n\n'),
       );
       if (blockText) contextText = blockText;
+
+      // Collect raw markdown for each selected block (used by Apply to cheatsheet)
+      const rawMdParts = blocks
+        .map((block) => block.getAttribute('data-raw-md') ?? '')
+        .filter(Boolean);
+      if (rawMdParts.length > 0) contextRawMd = rawMdParts.join('\n');
+
+      // Compute line range across all selected blocks
+      const startLines = blocks.map(b => parseInt(b.getAttribute('data-start-line') ?? '-1', 10)).filter(n => n >= 0);
+      const endLines = blocks.map(b => parseInt(b.getAttribute('data-end-line') ?? '-1', 10)).filter(n => n >= 0);
+      contextStartLine = startLines.length > 0 ? Math.min(...startLines) : -1;
+      contextEndLine = endLines.length > 0 ? Math.max(...endLines) : -1;
 
       const endBlock = getClosestCSBlock(range.endContainer);
       const startBlock = getClosestCSBlock(range.startContainer);
@@ -426,7 +472,7 @@ export function CheatSheetPanel({
     }
 
     setTooltipPos({ x: tooltipX, y: tooltipY });
-    setPendingSelection({ id: createSelectionId(), text: contextText, blockIndex: anchorBlockIndex });
+    setPendingSelection({ id: createSelectionId(), text: contextText, rawMd: contextRawMd, startLine: contextStartLine, endLine: contextEndLine, blockIndex: anchorBlockIndex });
     setPendingOutlineRects(outlineRect ? [outlineRect] : []);
   }, [
     applyHighlightToBlocks, createSelectionId, clearPendingHighlight,
@@ -550,6 +596,47 @@ export function CheatSheetPanel({
   // Render helpers
   // ---------------------------------------------------------------------------
 
+  function handleEditStart(idx: number, block: CSBlock) {
+    const initial = contentMd
+      ? contentMd.split('\n').slice(block.startLine, block.endLine + 1).join('\n')
+      : block.rawMd;
+    setEditingRange({ startBlockIdx: idx, endBlockIdx: idx, startLine: block.startLine, endLine: block.endLine });
+    setEditingContent(initial);
+  }
+
+  function handleEditFromSelection() {
+    if (!pendingSelection || !blocks || !contentMd) return;
+    const { startLine: selStart, endLine: selEnd } = pendingSelection;
+    if (selStart < 0 || selEnd < 0) return;
+    let startBlockIdx = -1, endBlockIdx = -1;
+    blocks.forEach((block, idx) => {
+      if (block.endLine >= selStart && block.startLine <= selEnd) {
+        if (startBlockIdx === -1) startBlockIdx = idx;
+        endBlockIdx = idx;
+      }
+    });
+    if (startBlockIdx === -1) return;
+    const actualStart = blocks[startBlockIdx].startLine;
+    const actualEnd = blocks[endBlockIdx].endLine;
+    const initial = contentMd.split('\n').slice(actualStart, actualEnd + 1).join('\n');
+    setEditingRange({ startBlockIdx, endBlockIdx, startLine: actualStart, endLine: actualEnd });
+    setEditingContent(initial);
+    window.getSelection()?.removeAllRanges();
+    hideSelectionTooltip();
+  }
+
+  function handleEditSave() {
+    if (!editingRange) return;
+    onBlockEdit(editingContent, editingRange.startLine, editingRange.endLine);
+    setEditingRange(null);
+    setEditingContent('');
+  }
+
+  function handleEditCancel() {
+    setEditingRange(null);
+    setEditingContent('');
+  }
+
   const blocks = useMemo(() => (contentMd ? markdownToBlocks(contentMd) : null), [contentMd]);
   const showSubchats = status === 'done' && !isStreaming;
 
@@ -563,13 +650,64 @@ export function CheatSheetPanel({
       >
         {blockList.map((block, idx) => {
           const subchat = subchatsMap.get(idx);
+          const isFirstEditBlock = editingRange !== null && idx === editingRange.startBlockIdx;
+          const isInEditRange = editingRange !== null && idx >= editingRange.startBlockIdx && idx <= editingRange.endBlockIdx;
+          // Non-first blocks in the edit range are hidden (rendered by the first block's textarea)
+          if (isInEditRange && !isFirstEditBlock) return <React.Fragment key={idx} />;
           return (
             <React.Fragment key={idx}>
-              <div
-                data-cs-block="true"
-                data-block-index={idx}
-                dangerouslySetInnerHTML={{ __html: block.html }}
-              />
+              {isFirstEditBlock ? (
+                <div className="my-1">
+                  <textarea
+                    autoFocus
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { e.preventDefault(); handleEditCancel(); }
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleEditSave(); }
+                    }}
+                    className="w-full bg-white/5 border border-indigo-500/40 rounded-lg px-3 py-2 text-xs text-white/80 font-mono resize-none focus:outline-none focus:border-indigo-400/70 leading-relaxed"
+                    rows={Math.max(2, editingContent.split('\n').length + 1)}
+                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      onClick={handleEditSave}
+                      className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500/35 text-indigo-300 transition-colors"
+                    >
+                      Save <span className="opacity-50">(Ctrl+↵)</span>
+                    </button>
+                    <button
+                      onClick={handleEditCancel}
+                      className="text-[10px] px-2 py-0.5 rounded hover:bg-white/5 text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      Cancel <span className="opacity-50">(Esc)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="group/block relative">
+                  <div
+                    data-cs-block="true"
+                    data-block-index={idx}
+                    data-raw-md={block.rawMd}
+                    data-start-line={block.startLine}
+                    data-end-line={block.endLine}
+                    dangerouslySetInnerHTML={{ __html: block.html }}
+                  />
+                  {!isStreaming && (
+                    <button
+                      onClick={() => handleEditStart(idx, block)}
+                      title="Edit block"
+                      className="absolute top-0 right-0 opacity-0 group-hover/block:opacity-100 transition-opacity p-1 rounded text-white/30 hover:text-white/70 hover:bg-white/8"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
               <div data-subchat-anchor={idx}>
                 {showSubchats && subchat && (
                   <CheatSheetSubChat
@@ -596,6 +734,27 @@ export function CheatSheetPanel({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Revert banner */}
+      {prevMd !== null && (
+        <div className="flex items-center justify-between px-4 py-2 bg-indigo-500/10 border-b border-indigo-500/20 shrink-0">
+          <span className="text-[11px] text-indigo-300/80">Edit applied</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onRevert}
+              className="text-[11px] text-white/40 hover:text-white/70 underline transition-colors"
+            >
+              Revert
+            </button>
+            <button
+              onClick={onSaveEdit}
+              className="text-[11px] px-2 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500/35 text-indigo-300 hover:text-indigo-200 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
 
@@ -824,6 +983,19 @@ export function CheatSheetPanel({
               </svg>
               Add to chat
             </button>
+            {pendingSelection && pendingSelection.startLine >= 0 && (
+              <button
+                onClick={handleEditFromSelection}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10 transition-colors"
+                title="Edit this selection"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z" />
+                </svg>
+                Edit
+              </button>
+            )}
             {pendingSelection && pendingSelection.blockIndex >= 0 && (
               <button
                 onClick={handleCreateSubchat}
