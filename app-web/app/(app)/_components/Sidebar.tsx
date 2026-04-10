@@ -82,6 +82,9 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
   const [docsExpanded, setDocsExpanded] = useState(true);
@@ -129,10 +132,37 @@ export function Sidebar() {
   }, [pathname, userToggled]);
 
   useEffect(() => {
+    let ignore = false;
+
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
+      if (ignore) return;
       if (data.user?.email) setEmail(data.user.email);
+      const rawName = data.user?.user_metadata?.full_name ?? data.user?.user_metadata?.name;
+      if (typeof rawName === 'string') setDisplayName(rawName);
     });
+
+    fetch('/api/settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: {
+        profile?: {
+          email?: string | null;
+          display_name?: string | null;
+          username?: string | null;
+          avatar_url?: string | null;
+        };
+      } | null) => {
+        if (ignore || !data?.profile) return;
+        if (data.profile.email) setEmail(data.profile.email);
+        if (data.profile.display_name) setDisplayName(data.profile.display_name);
+        if (data.profile.username) setUsername(data.profile.username);
+        if (data.profile.avatar_url) setAvatarUrl(data.profile.avatar_url);
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -370,7 +400,9 @@ export function Sidebar() {
     }
   }
 
-  const initial = email ? email[0].toUpperCase() : 'U';
+  const profileLabel = displayName || username || (email ? email.split('@')[0] : 'User');
+  const initial = profileLabel ? profileLabel[0].toUpperCase() : 'U';
+  const visibleEmail = email || 'No email';
   const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
   const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
 
@@ -733,13 +765,16 @@ export function Sidebar() {
               collapsed ? 'justify-center p-2' : 'px-3 py-2.5'
             }`}
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 border border-white/15 flex items-center justify-center shrink-0">
-              <span className="text-xs font-medium text-white/80">{initial}</span>
+            <div
+              className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 border border-white/15 flex items-center justify-center shrink-0 bg-cover bg-center"
+              style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}
+            >
+              {!avatarUrl && <span className="text-xs font-medium text-white/80">{initial}</span>}
             </div>
             {!collapsed && (
               <div className="flex-1 text-left min-w-0">
-                <div className="text-xs text-white/80 truncate">{email.split('@')[0]}</div>
-                <div className="text-[10px] text-white/40 truncate">{email}</div>
+                <div className="text-xs text-white/80 truncate">{profileLabel}</div>
+                <div className="text-[10px] text-white/40 truncate">{visibleEmail}</div>
               </div>
             )}
           </button>
@@ -747,12 +782,28 @@ export function Sidebar() {
           {profileOpen && (
             <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-2 right-2'} bottom-full mb-2 rounded-xl border border-white/20 bg-black/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)] py-1 z-50 animate-scale min-w-[160px]`}>
               <Link
-                href="/settings/billing"
+                href="/profile"
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <UserIcon className="w-4 h-4" />
+                Profile
+              </Link>
+              <Link
+                href="/settings"
                 onClick={() => setProfileOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >
                 <SettingsIcon className="w-4 h-4" />
                 Settings
+              </Link>
+              <Link
+                href="/settings/billing"
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <BillingIcon className="w-4 h-4" />
+                Billing / Plan
               </Link>
               <Link
                 href="/support"
@@ -909,6 +960,21 @@ function SettingsIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+function UserIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 10-16 0M12 11a4 4 0 100-8 4 4 0 000 8z" />
+    </svg>
+  );
+}
+function BillingIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8.5h16M6.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11A2.5 2.5 0 016.5 4z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 14h3" />
     </svg>
   );
 }

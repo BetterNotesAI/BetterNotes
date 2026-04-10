@@ -1,34 +1,236 @@
-import type { Metadata } from 'next'
+'use client';
 
-export const metadata: Metadata = { title: 'Support' }
+import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+interface Notice {
+  type: 'success' | 'error';
+  message: string;
+}
+
+const FAQS = [
+  {
+    question: 'How are free credits consumed?',
+    answer:
+      'Each generation increments your monthly usage counter. Free plan usage resets at the beginning of every month.',
+  },
+  {
+    question: 'Where can I see my current usage?',
+    answer:
+      'Open Billing / Plan to see your current plan, monthly usage, and remaining quota.',
+  },
+  {
+    question: 'How can I upgrade or manage my subscription?',
+    answer:
+      'From Billing / Plan you can upgrade to Pro or open the Stripe customer portal to manage billing details.',
+  },
+  {
+    question: 'I changed my email or password. Why am I still seeing old info?',
+    answer:
+      'Some auth updates require email confirmation. Once confirmed, refresh the app and your account details will sync.',
+  },
+];
 
 export default function SupportPage() {
+  const router = useRouter();
+
+  const [category, setCategory] = useState<'general' | 'billing' | 'account' | 'bug' | 'feature-request'>(
+    'general'
+  );
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setNotice(null);
+
+    const cleanSubject = subject.trim();
+    const cleanMessage = message.trim();
+
+    if (cleanSubject.length < 3) {
+      setNotice({ type: 'error', message: 'Subject must be at least 3 characters.' });
+      return;
+    }
+
+    if (cleanMessage.length < 10) {
+      setNotice({ type: 'error', message: 'Message must be at least 10 characters.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/support/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          subject: cleanSubject,
+          message: cleanMessage,
+          pagePath: '/support',
+        }),
+      });
+
+      const body = await response.json().catch(() => ({})) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? 'Could not submit your request.');
+      }
+
+      setSubject('');
+      setMessage('');
+      setNotice({ type: 'success', message: 'Support request sent. We will get back to you soon.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Could not submit your request.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <div className="h-full flex items-center justify-center p-6">
-      <div className="rounded-2xl border border-white/20 bg-white/10 p-10 backdrop-blur shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_20px_60px_rgba(0,0,0,0.35)] max-w-md w-full text-center">
-        <div className="w-12 h-12 rounded-2xl bg-fuchsia-500/20 border border-fuchsia-500/30 flex items-center justify-center mx-auto mb-5">
-          <svg className="w-6 h-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-          </svg>
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+            >
+              <span aria-hidden>←</span>
+              Back
+            </button>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-semibold text-white">Support</h1>
+            <p className="mt-1 text-sm text-white/60 max-w-2xl">
+              Contact us, review common questions, and access legal documentation.
+            </p>
+          </div>
+
+          <Link
+            href="/settings/billing"
+            className="px-3 py-2 text-xs rounded-lg border border-white/15 text-white/75 hover:text-white hover:border-white/30 transition-colors"
+          >
+            Go to Billing / Plan
+          </Link>
         </div>
 
-        <h1 className="text-xl font-semibold text-white mb-2">
-          <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent">
-            Support
-          </span>
-        </h1>
+        {notice && (
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              notice.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-200'
+                : 'bg-red-500/10 border-red-400/30 text-red-200'
+            }`}
+          >
+            {notice.message}
+          </div>
+        )}
 
-        <p className="text-sm text-white/60 mb-6 leading-relaxed">
-          Questions? Reach out and we&apos;ll get back to you.
-        </p>
-
-        <a
-          href="mailto:hello@better-notes.ai"
-          className="inline-block rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm text-white/85 hover:bg-white/15 backdrop-blur transition-colors"
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm p-5 space-y-4"
         >
-          hello@better-notes.ai
-        </a>
+          <div>
+            <h2 className="text-lg font-medium text-white">Contact Form</h2>
+            <p className="text-sm text-white/55 mt-1">
+              For urgent issues you can also email us at{' '}
+              <a href="mailto:hello@better-notes.ai" className="text-indigo-300 hover:text-indigo-200">
+                hello@better-notes.ai
+              </a>
+              .
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="block md:col-span-1">
+              <span className="text-xs text-white/60">Category</span>
+              <select
+                value={category}
+                onChange={(e) =>
+                  setCategory(
+                    e.target.value as 'general' | 'billing' | 'account' | 'bug' | 'feature-request'
+                  )
+                }
+                className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white focus:outline-none focus:border-indigo-400/60 transition-colors"
+              >
+                <option value="general" className="text-black">General</option>
+                <option value="billing" className="text-black">Billing</option>
+                <option value="account" className="text-black">Account</option>
+                <option value="bug" className="text-black">Bug report</option>
+                <option value="feature-request" className="text-black">Feature request</option>
+              </select>
+            </label>
+
+            <label className="block md:col-span-2">
+              <span className="text-xs text-white/60">Subject</span>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                maxLength={120}
+                className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
+                placeholder="Short summary"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs text-white/60">Message</span>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+              maxLength={1800}
+              className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors resize-none"
+              placeholder="Describe your question or issue..."
+            />
+            <span className="mt-1 block text-[11px] text-white/45">{message.length}/1800</span>
+          </label>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium disabled:opacity-60 transition-colors"
+          >
+            {isSubmitting ? 'Sending...' : 'Send request'}
+          </button>
+        </form>
+
+        <section className="rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm p-5 space-y-4">
+          <h2 className="text-lg font-medium text-white">FAQs</h2>
+          <div className="space-y-3">
+            {FAQS.map((item) => (
+              <div key={item.question} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <h3 className="text-sm font-medium text-white">{item.question}</h3>
+                <p className="mt-1 text-sm text-white/60">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm p-5 space-y-3">
+          <h2 className="text-lg font-medium text-white">Documentation</h2>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/support/privacy-policy"
+              className="px-3 py-2 text-sm rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/35 transition-colors"
+            >
+              Política de privacidad
+            </Link>
+            <Link
+              href="/support/terms-of-use"
+              className="px-3 py-2 text-sm rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/35 transition-colors"
+            >
+              Términos de uso
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
-  )
+  );
 }

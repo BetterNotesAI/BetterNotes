@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import {
+  BillingInterval,
+  getStripePriceId,
+  isBillingInterval,
+  isPaidBillingTier,
+  PaidBillingTier,
+} from '@/lib/billing-plans';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
@@ -25,16 +32,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const { plan } = body as { plan?: string };
+  const body = await req.json().catch(() => ({})) as {
+    tier?: unknown;
+    interval?: unknown;
+    plan?: unknown;
+  };
 
-  if (!plan || plan !== 'pro') {
-    return NextResponse.json({ error: 'Invalid plan. Only "pro" is supported.' }, { status: 400 });
+  const tierCandidate = typeof body.tier === 'string' ? body.tier.trim().toLowerCase() : null;
+  const legacyPlanCandidate = typeof body.plan === 'string' ? body.plan.trim().toLowerCase() : null;
+
+  const normalizedTierCandidate =
+    tierCandidate ??
+    (legacyPlanCandidate === 'pro' ? 'better' : legacyPlanCandidate);
+
+  if (!isPaidBillingTier(normalizedTierCandidate)) {
+    return NextResponse.json(
+      { error: 'Invalid plan. Supported plans are "better" and "best".' },
+      { status: 400 }
+    );
   }
 
-  const priceId = process.env.STRIPE_PRICE_PRO_MONTHLY;
+  const intervalCandidate =
+    typeof body.interval === 'string' ? body.interval.trim().toLowerCase() : 'monthly';
+  const interval: BillingInterval = isBillingInterval(intervalCandidate) ? intervalCandidate : 'monthly';
+  const tier: PaidBillingTier = normalizedTierCandidate;
+
+  const priceId = getStripePriceId(tier, interval);
   if (!priceId) {
-    return NextResponse.json({ error: 'Stripe price not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: `Stripe price not configured for ${tier} (${interval})` },
+      { status: 500 }
+    );
   }
 
   const origin =
@@ -100,9 +128,13 @@ export async function POST(req: NextRequest) {
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${origin}/settings/billing?success=true`,
-      cancel_url: `${origin}/pricing`,
-      metadata: { supabase_user_id: user.id },
+      success_url: `${origin}/settings/billing?success=true&tier=${tier}&interval=${interval}`,
+      cancel_url: `${origin}/settings/billing`,
+      metadata: {
+        supabase_user_id: user.id,
+        requested_tier: tier,
+        requested_interval: interval,
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to create checkout session';

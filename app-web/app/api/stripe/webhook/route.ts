@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import {
+  BillingInterval,
+  isBillingInterval,
+  normalizeSubscriptionTier,
+  resolveTierAndIntervalByPriceId,
+} from '@/lib/billing-plans';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
 });
 
-// Admin client bypasses RLS — only use server-side with service_role key
+interface SubscriptionSnapshot {
+  userId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: string;
+  priceId: string | null;
+  tier: 'better' | 'best';
+  interval: BillingInterval | null;
+  cancelAtPeriodEnd: boolean;
+  periodEnd: string | null;
+}
+
+type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
+
+// Admin client bypasses RLS - only use server-side with service_role key
 function getSupabaseAdmin() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +43,105 @@ function getSupabaseAdmin() {
 function getPeriodEnd(subscription: Stripe.Subscription): string | null {
   const ts = subscription.cancel_at ?? null;
   return ts ? new Date(ts * 1000).toISOString() : null;
+}
+
+function isActiveSubscriptionStatus(status: string): boolean {
+  return status === 'active' || status === 'trialing';
+}
+
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+
+  const maybeCode = 'code' in error ? String(error.code ?? '') : '';
+  if (maybeCode === 'PGRST204' || maybeCode === '42703') return true;
+
+  const maybeMessage = 'message' in error ? String(error.message ?? '').toLowerCase() : '';
+  return maybeMessage.includes('column') && maybeMessage.includes('not found');
+}
+
+async function upsertSubscriptionSnapshot(
+  supabaseAdmin: SupabaseAdmin,
+  snapshot: SubscriptionSnapshot
+) {
+  const basePayload = {
+    user_id: snapshot.userId,
+    stripe_customer_id: snapshot.stripeCustomerId,
+    stripe_subscription_id: snapshot.stripeSubscriptionId,
+    status: snapshot.status,
+    price_id: snapshot.priceId,
+    cancel_at_period_end: snapshot.cancelAtPeriodEnd,
+    current_period_end: snapshot.periodEnd,
+    updated_at: new Date().toISOString(),
+  };
+
+  const modernPayload = {
+    ...basePayload,
+    stripe_price_id: snapshot.priceId,
+    plan: snapshot.tier,
+    billing_interval: snapshot.interval,
+  };
+
+  const primary = await supabaseAdmin
+    .from('subscriptions')
+    .upsert(modernPayload, { onConflict: 'user_id' });
+
+  if (!primary.error) {
+    return;
+  }
+
+  if (!isMissingColumnError(primary.error)) {
+    throw primary.error;
+  }
+
+  const fallback = await supabaseAdmin
+    .from('subscriptions')
+    .upsert(basePayload, { onConflict: 'user_id' });
+
+  if (fallback.error) {
+    throw fallback.error;
+  }
+}
+
+async function updateSubscriptionSnapshotByStripeId(
+  supabaseAdmin: SupabaseAdmin,
+  snapshot: SubscriptionSnapshot
+) {
+  const basePayload = {
+    status: snapshot.status,
+    price_id: snapshot.priceId,
+    cancel_at_period_end: snapshot.cancelAtPeriodEnd,
+    current_period_end: snapshot.periodEnd,
+    updated_at: new Date().toISOString(),
+  };
+
+  const modernPayload = {
+    ...basePayload,
+    stripe_price_id: snapshot.priceId,
+    plan: snapshot.tier,
+    billing_interval: snapshot.interval,
+  };
+
+  const primary = await supabaseAdmin
+    .from('subscriptions')
+    .update(modernPayload)
+    .eq('stripe_subscription_id', snapshot.stripeSubscriptionId);
+
+  if (!primary.error) {
+    return;
+  }
+
+  if (!isMissingColumnError(primary.error)) {
+    throw primary.error;
+  }
+
+  const fallback = await supabaseAdmin
+    .from('subscriptions')
+    .update(basePayload)
+    .eq('stripe_subscription_id', snapshot.stripeSubscriptionId);
+
+  if (fallback.error) {
+    throw fallback.error;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -57,26 +176,37 @@ export async function POST(req: NextRequest) {
 
         if (!supabaseUserId) break;
 
-        const stripeSubscriptionId = session.subscription as string;
-        const stripeCustomerId = session.customer as string;
+        const stripeSubscriptionId =
+          typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+        const stripeCustomerId =
+          typeof session.customer === 'string' ? session.customer : session.customer?.id;
+
+        if (!stripeSubscriptionId || !stripeCustomerId) break;
 
         const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
         const periodEnd = getPeriodEnd(subscription);
+        const stripePriceId = subscription.items.data[0]?.price.id ?? null;
 
-        await supabaseAdmin.from('subscriptions').upsert(
-          {
-            user_id: supabaseUserId,
-            stripe_customer_id: stripeCustomerId,
-            stripe_subscription_id: stripeSubscriptionId,
-            stripe_price_id: subscription.items.data[0]?.price.id ?? null,
-            status: subscription.status,
-            plan: 'pro',
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            current_period_end: periodEnd,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
+        const resolvedTierInterval = resolveTierAndIntervalByPriceId(stripePriceId);
+        const metadataTier = normalizeSubscriptionTier(session.metadata?.requested_tier);
+        const metadataInterval = isBillingInterval(session.metadata?.requested_interval)
+          ? session.metadata.requested_interval
+          : null;
+
+        const tier = resolvedTierInterval.tier ?? metadataTier ?? 'better';
+        const interval = resolvedTierInterval.interval ?? metadataInterval;
+
+        await upsertSubscriptionSnapshot(supabaseAdmin, {
+          userId: supabaseUserId,
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: subscription.status,
+          priceId: stripePriceId,
+          tier,
+          interval,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          periodEnd,
+        });
 
         // Update plan and, idempotently, stripe_customer_id in profiles.
         // Using set_stripe_customer_id RPC: only writes if not already set,
@@ -97,30 +227,38 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         const periodEnd = getPeriodEnd(subscription);
+        const stripePriceId = subscription.items.data[0]?.price.id ?? null;
+        const resolvedTierInterval = resolveTierAndIntervalByPriceId(stripePriceId);
+        const tier = resolvedTierInterval.tier ?? 'better';
 
-        await supabaseAdmin
+        const { data: existingSub } = await supabaseAdmin
           .from('subscriptions')
-          .update({
-            status: subscription.status,
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            current_period_end: periodEnd,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('stripe_subscription_id', subscription.id);
-
-        // Downgrade plan if subscription is no longer active
-        const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-        const { data: sub } = await supabaseAdmin
-          .from('subscriptions')
-          .select('user_id')
+          .select('user_id, stripe_customer_id')
           .eq('stripe_subscription_id', subscription.id)
           .maybeSingle();
-        if (sub?.user_id) {
-          await supabaseAdmin
-            .from('profiles')
-            .update({ plan: isActive ? 'pro' : 'free' })
-            .eq('id', sub.user_id);
+
+        if (!existingSub?.user_id || !existingSub?.stripe_customer_id) {
+          break;
         }
+
+        await updateSubscriptionSnapshotByStripeId(supabaseAdmin, {
+          userId: existingSub.user_id,
+          stripeCustomerId: existingSub.stripe_customer_id,
+          stripeSubscriptionId: subscription.id,
+          status: subscription.status,
+          priceId: stripePriceId,
+          tier,
+          interval: resolvedTierInterval.interval,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          periodEnd,
+        });
+
+        // Downgrade plan if subscription is no longer active
+        const isActive = isActiveSubscriptionStatus(subscription.status);
+        await supabaseAdmin
+          .from('profiles')
+          .update({ plan: isActive ? 'pro' : 'free' })
+          .eq('id', existingSub.user_id);
 
         break;
       }
@@ -153,7 +291,7 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        // Unhandled event type — ignore
+        // Unhandled event type - ignore
         break;
     }
   } catch (err) {
@@ -165,8 +303,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resolveUserIdByEmail(supabaseAdmin: any, email: string): Promise<string | null> {
+async function resolveUserIdByEmail(
+  supabaseAdmin: SupabaseAdmin,
+  email: string
+): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from('profiles')
     .select('id')

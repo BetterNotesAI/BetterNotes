@@ -1,69 +1,182 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Suspense } from 'react';
+
+type UsagePlan = 'free' | 'pro';
+type BillingTier = 'free' | 'better' | 'best';
+type PaidBillingTier = Exclude<BillingTier, 'free'>;
+type BillingInterval = 'monthly' | 'quarterly';
 
 interface UsageData {
-  plan: 'free' | 'pro';
+  plan: UsagePlan;
   message_count: number;
   limit: number;
   remaining: number;
   period_start: string;
 }
 
+interface SubscriptionData {
+  status: string | null;
+  tier: PaidBillingTier | null;
+  interval: BillingInterval | null;
+  price_id: string | null;
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
+}
+
+interface BillingSummary {
+  usage: UsageData;
+  subscription: SubscriptionData;
+}
+
+interface PlanSpec {
+  id: BillingTier;
+  title: string;
+  monthlyPrice: string;
+  quarterlyPrice: string | null;
+  credits: string;
+  internalCost: string;
+  models: string[];
+  summary: string;
+  features: string[];
+  highlighted?: boolean;
+}
+
+const PLAN_SPECS: PlanSpec[] = [
+  {
+    id: 'free',
+    title: 'Free',
+    monthlyPrice: '€0',
+    quarterlyPrice: null,
+    credits: '10 credits / month',
+    internalCost: 'Max internal cost: $0.10',
+    models: ['GPT-5.4-nano', 'Gemini 2.5 Flash-Lite', 'Grok 4.1 Fast', 'DeepSeek V3.2'],
+    summary: 'Low-cost models only. Ideal for trying the product and light usage.',
+    features: ['-'],
+  },
+  {
+    id: 'better',
+    title: 'Better',
+    monthlyPrice: '€6.99',
+    quarterlyPrice: '€16.99',
+    credits: '200 credits / month',
+    internalCost: 'Max internal cost: $2.00',
+    models: [
+      'All Free models',
+      '+ GPT-5.4',
+      '+ Gemini 3.1 Pro',
+      '+ Claude Sonnet 4.6',
+      '+ Grok 4.20',
+    ],
+    summary: 'Free + Pro models. User choice.',
+    features: ['All Free features', '+ (to be defined)', '+ (to be defined)', '+ (to be defined)'],
+    highlighted: true,
+  },
+  {
+    id: 'best',
+    title: 'Best',
+    monthlyPrice: '€12.99',
+    quarterlyPrice: '€31.99',
+    credits: '500 credits / month',
+    internalCost: 'Max internal cost: $5.00',
+    models: ['All Free models', '+ All Pro models', '+ Claude Opus 4.6'],
+    summary: 'Full model catalogue. No restrictions.',
+    features: ['All Better features', '+ (to be defined)', '+ (to be defined)', '+ (to be defined)'],
+  },
+];
+
+function isActiveSubscriptionStatus(status: string | null): boolean {
+  return status === 'active' || status === 'trialing';
+}
+
+function formatDate(isoDate: string | null): string | null {
+  if (!isoDate) return null;
+  return new Date(isoDate).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function tierLabel(tier: BillingTier | PaidBillingTier): string {
+  if (tier === 'better') return 'Better';
+  if (tier === 'best') return 'Best';
+  return 'Free';
+}
+
 function BillingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const successParam = searchParams?.get('success');
 
-  const [usage, setUsage] = useState<UsageData | null>(null);
-  const [isLoadingUsage, setIsLoadingUsage] = useState(true);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const successParam = searchParams?.get('success');
+  const successTierParam = searchParams?.get('tier');
+  const successIntervalParam = searchParams?.get('interval');
+
+  const [summary, setSummary] = useState<BillingSummary | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('monthly');
+
+  const [loadingAction, setLoadingAction] = useState<'better' | 'best' | 'portal' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadUsage() {
-      setIsLoadingUsage(true);
+    async function loadSummary() {
+      setIsLoadingSummary(true);
       try {
-        const resp = await fetch('/api/usage');
-        if (resp.ok) {
-          const data = await resp.json();
-          setUsage(data);
+        const resp = await fetch('/api/billing/summary');
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body?.error ?? 'Could not load billing information.');
         }
+
+        const data = (await resp.json()) as BillingSummary;
+        setSummary(data);
+
+        if (data.subscription.interval) {
+          setSelectedInterval(data.subscription.interval);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Could not load billing information.';
+        setActionError(message);
       } finally {
-        setIsLoadingUsage(false);
+        setIsLoadingSummary(false);
       }
     }
-    loadUsage();
+
+    void loadSummary();
   }, []);
 
-  async function handleUpgrade() {
-    setIsActionLoading(true);
+  async function handleCheckout(tier: PaidBillingTier) {
+    setLoadingAction(tier);
     setActionError(null);
+
     try {
       const resp = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: 'pro' }),
+        body: JSON.stringify({ tier, interval: selectedInterval }),
       });
+
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body?.error ?? 'Failed to start checkout');
       }
+
       const data = await resp.json();
       window.location.href = data.url;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
       setActionError(message);
-      setIsActionLoading(false);
+      setLoadingAction(null);
     }
   }
 
   async function handleManageSubscription() {
-    setIsActionLoading(true);
+    setLoadingAction('portal');
     setActionError(null);
+
     try {
       const resp = await fetch('/api/stripe/portal', { method: 'POST' });
       if (!resp.ok) {
@@ -75,25 +188,39 @@ function BillingContent() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
       setActionError(message);
-      setIsActionLoading(false);
+      setLoadingAction(null);
     }
   }
 
-  function formatPeriodStart(isoDate: string) {
-    return new Date(isoDate).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }
+  const usage = summary?.usage ?? null;
+  const subscription = summary?.subscription ?? null;
+
+  const isPaidUser = useMemo(() => {
+    if (!summary) return false;
+    return summary.usage.plan === 'pro' || isActiveSubscriptionStatus(summary.subscription.status);
+  }, [summary]);
+
+  const currentTier: BillingTier = useMemo(() => {
+    if (!isPaidUser) return 'free';
+    return subscription?.tier ?? 'better';
+  }, [isPaidUser, subscription?.tier]);
 
   const progressPct = usage
     ? Math.min(100, Math.round((usage.message_count / usage.limit) * 100))
     : 0;
 
+  const periodStartLabel = formatDate(usage?.period_start ?? null);
+  const periodEndLabel = formatDate(subscription?.current_period_end ?? null);
+
+  const successTier =
+    successTierParam === 'better' || successTierParam === 'best' ? successTierParam : null;
+  const successInterval =
+    successIntervalParam === 'monthly' || successIntervalParam === 'quarterly'
+      ? successIntervalParam
+      : null;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Header */}
       <div className="border-b border-gray-800 px-6 py-4 flex items-center gap-3">
         <button
           onClick={() => router.back()}
@@ -104,136 +231,244 @@ function BillingContent() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="text-xl font-bold">Billing</h1>
+        <h1 className="text-xl font-bold">Billing Plans</h1>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
-        {/* Success banner */}
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/settings"
+            className="px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
+          >
+            Settings
+          </Link>
+          <Link
+            href="/support"
+            className="px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
+          >
+            Support
+          </Link>
+        </div>
+
         {successParam === 'true' && (
-          <div className="flex items-center gap-3 bg-green-950/60 border border-green-900/60
-            rounded-xl px-4 py-3 text-green-300 text-sm">
+          <div
+            className="flex items-center gap-3 bg-green-950/60 border border-green-900/60
+            rounded-xl px-4 py-3 text-green-300 text-sm"
+          >
             <svg className="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>Subscription activated! Welcome to Pro.</span>
+            <span>
+              Subscription activated
+              {successTier ? `: ${tierLabel(successTier)} (${successInterval ?? 'monthly'})` : ''}.
+            </span>
           </div>
         )}
 
-        {/* Plan card */}
-        <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Current plan
-          </h2>
-
-          {isLoadingUsage ? (
+        <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5">
+          {isLoadingSummary ? (
             <div className="flex items-center gap-3 py-4">
               <div className="w-5 h-5 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
-              <span className="text-gray-500 text-sm">Loading...</span>
+              <span className="text-gray-500 text-sm">Loading billing data...</span>
             </div>
           ) : usage ? (
-            <div className="space-y-5">
-              {/* Plan badge */}
-              <div className="flex items-center gap-3">
-                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase
-                  tracking-wider rounded-full px-3 py-1 border ${
-                  usage.plan === 'pro'
-                    ? 'bg-blue-950/60 text-blue-300 border-blue-800/60'
-                    : 'bg-gray-800 text-gray-400 border-gray-700'
-                }`}>
-                  {usage.plan === 'pro' ? (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  ) : null}
-                  {usage.plan === 'pro' ? 'Pro' : 'Free'}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm text-gray-400">Current plan:</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider rounded-full px-3 py-1 border ${
+                    currentTier === 'free'
+                      ? 'bg-gray-800 text-gray-300 border-gray-700'
+                      : 'bg-blue-950/60 text-blue-300 border-blue-800/60'
+                  }`}
+                >
+                  {tierLabel(currentTier)}
                 </span>
+                {subscription?.status && (
+                  <span className="text-xs text-gray-500">
+                    Stripe status: {subscription.status}
+                    {subscription?.interval ? ` (${subscription.interval})` : ''}
+                  </span>
+                )}
               </div>
 
-              {/* Usage */}
               <div>
                 <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-300">Generations this month</span>
+                  <span className="text-gray-300">Usage this month</span>
                   <span className="text-gray-400 tabular-nums">
                     {usage.message_count}
-                    {usage.plan === 'free' && (
-                      <span className="text-gray-600"> / {usage.limit}</span>
-                    )}
+                    {usage.plan === 'free' ? ` / ${usage.limit}` : ''}
                   </span>
                 </div>
+
                 {usage.plan === 'free' && (
                   <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        progressPct >= 90 ? 'bg-red-500' :
-                        progressPct >= 70 ? 'bg-amber-500' :
-                        'bg-blue-500'
+                        progressPct >= 90 ? 'bg-red-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-blue-500'
                       }`}
                       style={{ width: `${progressPct}%` }}
                     />
                   </div>
                 )}
-                {usage.period_start && (
-                  <p className="text-xs text-gray-600 mt-1.5">
-                    Resets each month · started {formatPeriodStart(usage.period_start)}
-                  </p>
-                )}
+
+                <p className="text-xs text-gray-600 mt-1.5">
+                  {periodStartLabel ? `Cycle started ${periodStartLabel}` : 'Monthly cycle'}
+                  {periodEndLabel ? ` · Ends ${periodEndLabel}` : ''}
+                  {subscription?.cancel_at_period_end ? ' · Cancels at period end' : ''}
+                </p>
               </div>
-
-              {/* Action error */}
-              {actionError && (
-                <p className="text-xs text-red-400">{actionError}</p>
-              )}
-
-              {/* CTA button */}
-              {usage.plan === 'free' ? (
-                <div className="pt-1">
-                  <button
-                    onClick={handleUpgrade}
-                    disabled={isActionLoading}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed
-                      text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors
-                      flex items-center gap-2"
-                  >
-                    {isActionLoading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Redirecting...
-                      </>
-                    ) : (
-                      'Upgrade to Pro'
-                    )}
-                  </button>
-                  <p className="text-xs text-gray-600 mt-2">
-                    See what&apos;s included in Pro on the{' '}
-                    <Link href="/pricing" className="text-blue-400 hover:underline">
-                      pricing page
-                    </Link>
-                    .
-                  </p>
-                </div>
-              ) : (
-                <button
-                  onClick={handleManageSubscription}
-                  disabled={isActionLoading}
-                  className="text-sm font-medium text-gray-300 hover:text-white px-5 py-2.5 rounded-xl
-                    border border-gray-700 hover:border-gray-500 transition-colors flex items-center gap-2
-                    disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isActionLoading ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-gray-500 border-t-gray-200 rounded-full animate-spin" />
-                      Redirecting...
-                    </>
-                  ) : (
-                    'Manage subscription'
-                  )}
-                </button>
-              )}
             </div>
           ) : (
             <p className="text-gray-500 text-sm">Could not load billing information.</p>
           )}
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Choose your plan</h2>
+            <p className="text-sm text-gray-500">You can switch billing cadence for paid plans.</p>
+          </div>
+
+          <div className="inline-flex rounded-xl border border-gray-700 p-1 bg-gray-900/70">
+            <button
+              onClick={() => setSelectedInterval('monthly')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedInterval === 'monthly'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setSelectedInterval('quarterly')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedInterval === 'quarterly'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              Quarterly
+            </button>
+          </div>
+        </div>
+
+        {actionError && <p className="text-sm text-red-400">{actionError}</p>}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {PLAN_SPECS.map((plan) => {
+            const isCurrentPlan = currentTier === plan.id;
+            const priceLabel =
+              plan.id === 'free'
+                ? `${plan.monthlyPrice} / month`
+                : selectedInterval === 'monthly'
+                  ? `${plan.monthlyPrice} / month`
+                  : `${plan.quarterlyPrice} / quarter`;
+
+            const secondaryPrice =
+              plan.id === 'free'
+                ? null
+                : selectedInterval === 'monthly'
+                  ? `(or ${plan.quarterlyPrice} / quarter)`
+                  : `(or ${plan.monthlyPrice} / month)`;
+
+            const buttonDisabled = loadingAction !== null || isLoadingSummary || !usage;
+            let buttonText = 'Current plan';
+            let buttonAction: (() => void) | null = null;
+
+            if (plan.id === 'free') {
+              if (isCurrentPlan) {
+                buttonText = 'Current plan';
+              } else {
+                buttonText = loadingAction === 'portal' ? 'Redirecting...' : 'Manage in Stripe';
+                buttonAction = handleManageSubscription;
+              }
+            } else if (isCurrentPlan) {
+              buttonText = 'Current plan';
+            } else if (!isPaidUser) {
+              if (loadingAction === plan.id) {
+                buttonText = 'Redirecting...';
+              } else {
+                buttonText = `Choose ${plan.title}`;
+              }
+              buttonAction = () => handleCheckout(plan.id);
+            } else {
+              buttonText = loadingAction === 'portal' ? 'Redirecting...' : 'Change in Stripe';
+              buttonAction = handleManageSubscription;
+            }
+
+            return (
+              <div
+                key={plan.id}
+                className={`rounded-2xl border p-5 flex flex-col gap-5 ${
+                  plan.highlighted
+                    ? 'border-blue-700/60 bg-blue-950/20'
+                    : 'border-gray-800 bg-gray-900/40'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xl font-semibold text-white">{plan.title}</h3>
+                    {plan.highlighted && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full border border-blue-700/60 px-2 py-1 text-blue-300">
+                        Popular
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-3xl font-bold text-white mt-3">{priceLabel}</p>
+                  {secondaryPrice && <p className="text-sm text-gray-500 mt-1">{secondaryPrice}</p>}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold text-gray-100">{plan.credits}</p>
+                  <p className="text-sm text-gray-500">{plan.internalCost}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-200">Available models</p>
+                  <ul className="space-y-1.5 text-sm text-gray-400">
+                    {plan.models.map((model, modelIndex) => (
+                      <li key={`${plan.id}-model-${modelIndex}`}>{model}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <p className="text-sm text-gray-500 leading-relaxed">{plan.summary}</p>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-200">Features</p>
+                  <ul className="space-y-1.5 text-sm text-gray-400">
+                    {plan.features.map((feature, featureIndex) => (
+                      <li key={`${plan.id}-feature-${featureIndex}`}>{feature}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  onClick={buttonAction ?? undefined}
+                  disabled={buttonDisabled || !buttonAction}
+                  className={`mt-auto rounded-xl py-2.5 text-sm font-semibold transition-colors ${
+                    !buttonAction
+                      ? 'bg-gray-800 text-gray-500 cursor-default'
+                      : plan.highlighted
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 disabled:cursor-not-allowed'
+                        : 'bg-gray-800 hover:bg-gray-700 text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed'
+                  }`}
+                >
+                  {buttonText}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {isPaidUser && (
+          <p className="text-xs text-gray-500">
+            Plan changes and cancellations for active subscriptions are managed through Stripe Portal.
+          </p>
+        )}
       </div>
     </div>
   );
