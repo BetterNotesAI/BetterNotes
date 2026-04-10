@@ -88,7 +88,7 @@ export async function GET() {
   if (!profileRaw) {
     return NextResponse.json({ error: 'Profile not found.' }, { status: 404 });
   }
-  const profile = profileRaw as ProfileRow;
+  const profile = profileRaw as unknown as ProfileRow;
 
   const providersFromIdentities = Array.isArray(user.identities)
     ? parseProviders(user.identities.map((identity) => identity?.provider))
@@ -219,7 +219,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Profile not found.' }, { status: 404 });
   }
 
-  const updatedProfile = updatedProfileRaw as ProfileRow;
+  const updatedProfile = updatedProfileRaw as unknown as ProfileRow;
 
   return NextResponse.json({
     profile: {

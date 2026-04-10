@@ -392,7 +392,9 @@ function BillingContent() {
               } else {
                 buttonText = `Choose ${plan.title}`;
               }
-              buttonAction = () => handleCheckout(plan.id);
+              if (plan.id === 'better' || plan.id === 'best') {
+                buttonAction = () => handleCheckout(plan.id as PaidBillingTier);
+              }
             } else {
               buttonText = loadingAction === 'portal' ? 'Redirecting...' : 'Change in Stripe';
               buttonAction = handleManageSubscription;
