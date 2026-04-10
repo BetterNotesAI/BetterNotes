@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -107,6 +107,9 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; description:
   { value: 'system', label: 'System', description: 'Match your device settings.' },
 ];
 
+const PROFILE_MEDIA_BUCKET = 'user-avatars';
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+
 function parseErrorMessage(respBody: unknown, fallback: string): string {
   if (typeof respBody === 'object' && respBody && 'error' in respBody) {
     const error = (respBody as { error?: unknown }).error;
@@ -202,6 +205,9 @@ export default function SettingsClient({
   const [isLoading, setIsLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<NoticeState | null>(null);
+
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+  const bannerFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const hasGoogleLinked = providers.includes('google');
   const hasAppleLinked = providers.includes('apple');
@@ -334,6 +340,88 @@ export default function SettingsClient({
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function createProfileImagePath(userId: string, kind: 'avatar' | 'banner', fileName: string): string {
+    const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : null;
+    const safeExtension = extension && /^[a-z0-9]+$/.test(extension) ? extension : 'jpg';
+    const nonce = Math.random().toString(36).slice(2, 8);
+    return `${userId}/${kind}/${kind}-${Date.now()}-${nonce}.${safeExtension}`;
+  }
+
+  async function handleUploadProfileImage(kind: 'avatar' | 'banner', file: File) {
+    if (!file.type.startsWith('image/')) {
+      setNotice({ type: 'error', text: 'Please upload an image file.' });
+      return;
+    }
+
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+      setNotice({ type: 'error', text: 'Image must be 5 MB or smaller.' });
+      return;
+    }
+
+    setBusyAction(`upload-${kind}`);
+    setNotice(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        throw new Error('You must be signed in to upload images.');
+      }
+
+      const path = createProfileImagePath(user.id, kind, file.name);
+      const { error: uploadError } = await supabase.storage
+        .from(PROFILE_MEDIA_BUCKET)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data: publicUrlData } = supabase.storage.from(PROFILE_MEDIA_BUCKET).getPublicUrl(path);
+      const publicUrl = publicUrlData.publicUrl;
+
+      setProfileForm((prev) => ({
+        ...prev,
+        avatarUrl: kind === 'avatar' ? publicUrl : prev.avatarUrl,
+        bannerUrl: kind === 'banner' ? publicUrl : prev.bannerUrl,
+      }));
+
+      setNotice({
+        type: 'success',
+        text: `${kind === 'avatar' ? 'Profile photo' : 'Banner'} uploaded. Click "Save profile details" to apply.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Could not upload image.',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = '';
+    if (!file) return;
+    await handleUploadProfileImage('avatar', file);
+  }
+
+  async function handleBannerFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = '';
+    if (!file) return;
+    await handleUploadProfileImage('banner', file);
   }
 
   async function handleSavePreferences(e: React.FormEvent) {
@@ -804,27 +892,73 @@ export default function SettingsClient({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="block">
-                <span className="text-xs text-white/60">Profile photo URL</span>
+              <div className="rounded-xl border border-white/15 bg-black/20 p-3 space-y-2">
+                <p className="text-xs text-white/60">Profile photo</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    disabled={busyAction === 'upload-avatar'}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 text-white/85 hover:text-white hover:border-white/35 text-sm transition-colors disabled:opacity-60"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v9" />
+                    </svg>
+                    {busyAction === 'upload-avatar' ? 'Uploading...' : 'Upload photo'}
+                  </button>
+                  {profileForm.avatarUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setProfileForm((prev) => ({ ...prev, avatarUrl: '' }))}
+                      className="px-2.5 py-2 rounded-lg border border-white/15 text-xs text-white/70 hover:text-white hover:border-white/30 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-[11px] text-white/45">PNG, JPG, WEBP, GIF up to 5 MB.</p>
                 <input
-                  type="url"
-                  value={profileForm.avatarUrl}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, avatarUrl: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
-                  placeholder="https://..."
+                  ref={avatarFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarFileChange}
+                  className="hidden"
                 />
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="text-xs text-white/60">Header / banner URL</span>
+              <div className="rounded-xl border border-white/15 bg-black/20 p-3 space-y-2">
+                <p className="text-xs text-white/60">Header / banner</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    disabled={busyAction === 'upload-banner'}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 text-white/85 hover:text-white hover:border-white/35 text-sm transition-colors disabled:opacity-60"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v9" />
+                    </svg>
+                    {busyAction === 'upload-banner' ? 'Uploading...' : 'Upload banner'}
+                  </button>
+                  {profileForm.bannerUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setProfileForm((prev) => ({ ...prev, bannerUrl: '' }))}
+                      className="px-2.5 py-2 rounded-lg border border-white/15 text-xs text-white/70 hover:text-white hover:border-white/30 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-[11px] text-white/45">PNG, JPG, WEBP, GIF up to 5 MB.</p>
                 <input
-                  type="url"
-                  value={profileForm.bannerUrl}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, bannerUrl: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
-                  placeholder="https://..."
+                  ref={bannerFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBannerFileChange}
+                  className="hidden"
                 />
-              </label>
+              </div>
             </div>
 
             <label className="block">
