@@ -19,8 +19,8 @@ export function UsageBanner({ remaining }: UsageBannerProps) {
     : 'bg-amber-950/60 border-b border-amber-900/60 text-amber-300';
 
   const message = isExhausted
-    ? 'No generations left this month'
-    : `${remaining} generation${remaining === 1 ? '' : 's'} left this month`;
+    ? 'No credits left this month'
+    : `${remaining} credit${remaining === 1 ? '' : 's'} left this month`;
 
   return (
     <div className={`flex items-center justify-between px-4 py-2 text-sm shrink-0 ${containerClass}`}>

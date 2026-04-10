@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -93,6 +94,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     : '';
   const userMessageForLLM = `${contextPrefix}${userMessageTrimmed}`;
 
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+      { status: 402 },
+    );
+  }
+
   // Call app-api
   // Prefer focused context for subchats to keep responses fast and on-topic.
   const solutionForLLM = subchat.context_text?.trim() || session.solution_md || '';
@@ -100,10 +109,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
     const apiResp = await fetch(`${API_URL}/problem-solver/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-      },
+      headers: buildInternalApiHeaders(user.id, 'problem_solver_subchat_chat', API_INTERNAL_TOKEN),
       body: JSON.stringify({
         solutionMd: solutionForLLM,
         history,

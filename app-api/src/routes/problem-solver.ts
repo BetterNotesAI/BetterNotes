@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
+import { recordModelUsage, type ModelUsagePayload } from '../lib/usage/tracker';
 
 const SYSTEM_PROMPT = `You are an expert tutor and problem solver. The user has uploaded a problem or exercise set as a PDF.
 Your job is to solve it completely, step by step, showing all work clearly.
@@ -55,6 +56,11 @@ interface ProviderRuntime {
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Unexpected error';
+}
+
+function estimateTokenCount(text: string): number {
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
 }
 
 function buildProviderChain(opts: ProblemSolverRouterOptions): ProviderRuntime[] {
@@ -148,21 +154,47 @@ export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Rou
           const completion = await provider.client.chat.completions.create({
             model: provider.model,
             stream: true,
+            ...(provider.name === 'openai' ? { stream_options: { include_usage: true } } : {}),
             messages: [
               { role: 'system', content: SYSTEM_PROMPT },
               { role: 'user', content: `Solve the following problem:\n\n${pdfText}` },
             ],
           });
 
+          const estimatedPromptTokens = estimateTokenCount(`${SYSTEM_PROMPT}\n${pdfText}`);
           let emittedAnyChunk = false;
+          let streamedOutput = '';
+          let usagePayload: ModelUsagePayload | null = null;
           try {
             for await (const chunk of completion) {
+              if (chunk.usage) {
+                usagePayload = chunk.usage as ModelUsagePayload;
+              }
               const text = chunk.choices[0]?.delta?.content ?? '';
               if (text) {
                 emittedAnyChunk = true;
+                streamedOutput += text;
                 sendEvent({ chunk: text });
               }
             }
+
+            const finalUsagePayload: ModelUsagePayload = usagePayload ?? {
+              prompt_tokens: estimatedPromptTokens,
+              completion_tokens: estimateTokenCount(streamedOutput),
+              prompt_tokens_details: { cached_tokens: 0 },
+            };
+
+            await recordModelUsage({
+              provider: provider.name,
+              model: provider.model,
+              usage: finalUsagePayload,
+              feature: 'problem_solver_solve_stream',
+              metadata: {
+                stream: true,
+                usage_estimated: usagePayload === null,
+              },
+            });
+
             sendEvent({ done: true });
             return;
           } catch (streamErr: unknown) {
@@ -249,6 +281,18 @@ export function createProblemSolverRouter(opts: ProblemSolverRouterOptions): Rou
               { role: 'system', content: SUB_CHAT_SYSTEM_PROMPT },
               { role: 'user', content: userContent },
             ],
+          });
+
+          await recordModelUsage({
+            provider: provider.name,
+            model: provider.model,
+            usage: completion.usage ?? {
+              prompt_tokens: estimateTokenCount(`${SUB_CHAT_SYSTEM_PROMPT}\n${userContent}`),
+              completion_tokens: estimateTokenCount(completion.choices[0]?.message?.content ?? ''),
+              prompt_tokens_details: { cached_tokens: 0 },
+            },
+            feature: 'problem_solver_chat',
+            metadata: { usage_estimated: !completion.usage },
           });
 
           const reply = completion.choices[0]?.message?.content ?? '';

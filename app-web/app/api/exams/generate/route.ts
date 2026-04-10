@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
+
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
+const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
 
 // Valid values for validation
 const VALID_LEVELS = [
@@ -102,6 +106,14 @@ export async function POST(req: NextRequest) {
 
   const lang = (language ?? 'english').trim().toLowerCase() || 'english';
 
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+      { status: 402 }
+    );
+  }
+
   // --- Fetch document content if provided ---
   let documentContext = '';
   if (hasDocuments) {
@@ -153,10 +165,9 @@ export async function POST(req: NextRequest) {
       : distributeQuestions(question_count, format as string[]);
 
   // --- Delegate AI generation to app-api ---
-  const API_URL = process.env.API_URL ?? 'http://localhost:4000';
   const apiResp = await fetch(`${API_URL}/exams/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildInternalApiHeaders(user.id, 'exam_generate', API_INTERNAL_TOKEN),
     body: JSON.stringify({ subject: subjectTrimmed, level, language: lang, distribution, format, documentContext, cognitiveDistribution: cognitive_distribution, customInstructions: custom_instructions }),
   });
   if (!apiResp.ok) {

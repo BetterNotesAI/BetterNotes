@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -37,13 +38,11 @@ export async function POST(
     return NextResponse.json({ error: 'guest_message_limit' }, { status: 402 });
   }
 
-  // Check and increment usage limit before any expensive work
-  const { data: usageCheck } = await supabase.rpc('check_and_increment_usage', {
-    p_user_id: user.id,
-  });
-  if (!usageCheck?.allowed) {
+  // Check credit quota before any expensive work
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
     return NextResponse.json(
-      { error: 'limit_reached', plan: usageCheck?.plan ?? 'free', remaining: 0 },
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
       { status: 402 }
     );
   }
@@ -88,10 +87,7 @@ export async function POST(
   try {
     const apiResp = await fetch(`${API_URL}/latex/generate-and-compile`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-      },
+      headers: buildInternalApiHeaders(user.id, 'document_generate', API_INTERNAL_TOKEN),
       body: JSON.stringify({
         prompt,
         templateId: doc.template_id,

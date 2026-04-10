@@ -3,7 +3,10 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "predev": "rm -rf .next .next-dev",
+    "predev": "rm -rf .next-dev",
+    "prebuild": "rm -rf .next",
+    "postbuild": "node scripts/ensure-fallback-build-manifest.js",
+    "prestart": "node scripts/ensure-fallback-build-manifest.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -20,8 +23,8 @@
     "next": "^15.0.0",
     "pdf-parse": "^1.1.4",
     "pdfjs-dist": "^3.11.174",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-pdf": "^7.7.3",
     "stripe": "^20.4.1"
   },
@@ -38,5 +41,9 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }

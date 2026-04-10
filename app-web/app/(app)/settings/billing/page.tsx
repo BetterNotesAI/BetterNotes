@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-type UsagePlan = 'free' | 'pro';
+type UsagePlan = 'free' | 'pro' | 'better' | 'best';
 type BillingTier = 'free' | 'better' | 'best';
 type PaidBillingTier = Exclude<BillingTier, 'free'>;
 type BillingInterval = 'monthly' | 'quarterly';
@@ -14,6 +14,12 @@ interface UsageData {
   message_count: number;
   limit: number;
   remaining: number;
+  credits_used?: number;
+  credits_limit?: number;
+  credits_remaining?: number;
+  usd_used?: number;
+  usd_limit?: number;
+  usd_remaining?: number;
   period_start: string;
 }
 
@@ -104,6 +110,10 @@ function tierLabel(tier: BillingTier | PaidBillingTier): string {
   if (tier === 'better') return 'Better';
   if (tier === 'best') return 'Best';
   return 'Free';
+}
+
+function formatCredits(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function BillingContent() {
@@ -197,16 +207,23 @@ function BillingContent() {
 
   const isPaidUser = useMemo(() => {
     if (!summary) return false;
-    return summary.usage.plan === 'pro' || isActiveSubscriptionStatus(summary.subscription.status);
+    return summary.usage.plan !== 'free' || isActiveSubscriptionStatus(summary.subscription.status);
   }, [summary]);
 
   const currentTier: BillingTier = useMemo(() => {
     if (!isPaidUser) return 'free';
-    return subscription?.tier ?? 'better';
-  }, [isPaidUser, subscription?.tier]);
+    if (subscription?.tier === 'better' || subscription?.tier === 'best') return subscription.tier;
+    return usage?.plan === 'best' ? 'best' : 'better';
+  }, [isPaidUser, subscription?.tier, usage?.plan]);
 
-  const progressPct = usage
-    ? Math.min(100, Math.round((usage.message_count / usage.limit) * 100))
+  const creditsUsed = usage ? usage.credits_used ?? usage.message_count : 0;
+  const creditsLimit = usage ? usage.credits_limit ?? usage.limit : 0;
+  const creditsRemaining = usage
+    ? Math.max(0, usage.credits_remaining ?? creditsLimit - creditsUsed)
+    : 0;
+
+  const progressPct = usage && creditsLimit > 0
+    ? Math.min(100, Math.max(0, Math.round((creditsRemaining / creditsLimit) * 100)))
     : 0;
 
   const periodStartLabel = formatDate(usage?.period_start ?? null);
@@ -294,23 +311,20 @@ function BillingContent() {
 
               <div>
                 <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-300">Usage this month</span>
+                  <span className="text-gray-300">Credits remaining</span>
                   <span className="text-gray-400 tabular-nums">
-                    {usage.message_count}
-                    {usage.plan === 'free' ? ` / ${usage.limit}` : ''}
+                    {formatCredits(creditsRemaining)} / {creditsLimit}
                   </span>
                 </div>
 
-                {usage.plan === 'free' && (
-                  <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        progressPct >= 90 ? 'bg-red-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${progressPct}%` }}
-                    />
-                  </div>
-                )}
+                <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      progressPct <= 10 ? 'bg-red-500' : progressPct <= 30 ? 'bg-amber-500' : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
 
                 <p className="text-xs text-gray-600 mt-1.5">
                   {periodStartLabel ? `Cycle started ${periodStartLabel}` : 'Monthly cycle'}

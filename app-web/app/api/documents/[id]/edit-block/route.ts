@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -261,13 +262,18 @@ export async function POST(
     return NextResponse.json({ error: 'userPrompt is required' }, { status: 400 });
   }
 
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+      { status: 402 }
+    );
+  }
+
   try {
     const apiResp = await fetch(`${API_URL}/latex/edit-block`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-      },
+      headers: buildInternalApiHeaders(user.id, 'document_edit_block', API_INTERNAL_TOKEN),
       body: JSON.stringify({
         blockId,
         blockLatex,
