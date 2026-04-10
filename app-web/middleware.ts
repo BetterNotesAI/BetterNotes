@@ -17,6 +17,10 @@ export async function middleware(request: NextRequest) {
       path.startsWith('/templates') ||
       path.startsWith('/pricing')
     )
+
+  // /exam/[token] requires auth — redirect with returnUrl so the user comes back after login
+  const isExamShare = path.startsWith('/exam/')
+
   const isAuthRoute =
     path === '/login' ||
     path === '/signup' ||
@@ -25,6 +29,12 @@ export async function middleware(request: NextRequest) {
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (isExamShare && !user) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('returnUrl', path)
+    return NextResponse.redirect(loginUrl)
   }
 
   if (isAuthRoute && user) {

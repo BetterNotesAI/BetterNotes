@@ -50,6 +50,11 @@ export interface Exam {
   grading_mode?: 'strict' | 'partial';
   created_at: string;
   completed_at: string | null;
+  // Sharing
+  is_published?: boolean;
+  share_token?: string | null;
+  shared_attempts?: number;
+  source_exam_id?: string | null;
 }
 
 /**

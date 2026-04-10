@@ -6,6 +6,7 @@ import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
 import { trimHugeLog } from '../lib/errors';
 import { processAttachments } from '../lib/attachments';
 import { recordModelUsage } from '../lib/usage/tracker';
+import { markdownToLatexDoc } from '../lib/markdown-to-latex';
 
 // Descriptions used by the AI to pick the best template automatically.
 const TEMPLATE_DESCRIPTIONS: Record<string, string> = {
@@ -255,6 +256,82 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
       res.status(status).json({
         ok: false,
         error: err?.message ?? 'Internal server error',
+      });
+    }
+  });
+
+  // ─── POST /latex/cheatsheet-pdf ──────────────────────────────────────────────
+  // Converts Markdown → LaTeX (no AI) → compiles → returns PDF binary.
+  // Body: { contentMd: string, templateId: string, title: string }
+  router.post('/cheatsheet-pdf', async (req: Request, res: Response) => {
+    try {
+      const { contentMd, templateId, title } = req.body as {
+        contentMd?: string;
+        templateId?: string;
+        title?: string;
+      };
+
+      if (!contentMd || typeof contentMd !== 'string') {
+        res.status(400).json({ ok: false, error: 'contentMd is required' });
+        return;
+      }
+      if (!templateId || typeof templateId !== 'string') {
+        res.status(400).json({ ok: false, error: 'templateId is required' });
+        return;
+      }
+      if (!title || typeof title !== 'string') {
+        res.status(400).json({ ok: false, error: 'title is required' });
+        return;
+      }
+
+      // Step 1: Direct Markdown → LaTeX conversion (no AI)
+      const latexSource = markdownToLatexDoc(contentMd, templateId, title);
+
+      // Step 2: Compile
+      let pdfBuffer: Buffer;
+      let finalLatex = latexSource;
+
+      try {
+        const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs });
+        pdfBuffer = result.pdf;
+        finalLatex = result.latexPatched;
+      } catch (compileErr: any) {
+        // Step 3: One fallback attempt — apply safety patches and recompile
+        const errLog = compileErr?.log ?? compileErr?.message ?? String(compileErr);
+        const patchedLatex = applyLatexFallbacks(latexSource);
+
+        try {
+          const retryResult = await compileLatexToPdf(patchedLatex, { timeoutMs: latexTimeoutMs });
+          pdfBuffer = retryResult.pdf;
+          finalLatex = retryResult.latexPatched;
+        } catch (retryErr: any) {
+          const retryLog = retryErr?.log ?? retryErr?.message ?? String(retryErr);
+          res.status(500).json({
+            ok: false,
+            error: `compile error: ${trimHugeLog(retryLog)}`,
+          });
+          return;
+        }
+
+        void errLog; // suppress unused-variable warning
+      }
+
+      // Return PDF binary
+      const latexB64 = Buffer.from(finalLatex, 'utf8').toString('base64');
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Length': String(pdfBuffer!.length),
+        'X-Latex-Length': String(Buffer.byteLength(finalLatex, 'utf8')),
+        'X-Betternotes-Template': templateId,
+        'X-Betternotes-Latex': latexB64,
+      });
+      res.send(pdfBuffer!);
+    } catch (err: any) {
+      const status = err?.statusCode ?? err?.status ?? 500;
+      res.status(status).json({
+        ok: false,
+        error: err?.message ?? 'Internal server error',
+        code: err?.code,
       });
     }
   });

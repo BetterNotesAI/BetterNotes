@@ -21,7 +21,8 @@ import * as os from 'os';
 
 export interface ExamsRouterOptions {
   aiProvider: AIProvider;
-  mathProvider?: AIProvider;  // Groq — resolves math questions
+  mathProvider?: AIProvider;
+  mathFallbackProvider?: AIProvider;  // Used if mathProvider fails
 }
 
 const VALID_LEVELS = [
@@ -44,7 +45,7 @@ interface GenerateExamBody {
 
 export function createExamsRouter(opts: ExamsRouterOptions): Router {
   const router = Router();
-  const { aiProvider, mathProvider } = opts;
+  const { aiProvider, mathProvider, mathFallbackProvider } = opts;
 
   // POST /exams/generate
   router.post('/generate', async (req: Request, res: Response) => {
@@ -111,6 +112,7 @@ export function createExamsRouter(opts: ExamsRouterOptions): Router {
 
       const lang = (language ?? 'english').trim().toLowerCase() || 'english';
 
+      const t0 = Date.now();
       const result = await aiProvider.generateExam({
         subject: subjectTrimmed,
         level,
@@ -122,6 +124,7 @@ export function createExamsRouter(opts: ExamsRouterOptions): Router {
         customInstructions: (customInstructions ?? '').trim() || undefined,
       });
 
+      console.log(`[exams] generation took ${Date.now() - t0}ms`);
       let { questions, canonical_subject } = result;
 
       // Resolve all math questions with Groq in a single batch call
@@ -141,17 +144,30 @@ export function createExamsRouter(opts: ExamsRouterOptions): Router {
 
         if (mathItems.length > 0) {
           try {
-            const CHUNK_SIZE = 5;
+            const CHUNK_SIZE = 10;
             const allSolutions: Array<{ index: number; correct_answer: string; explanation: string }> = [];
 
             for (let i = 0; i < mathItems.length; i += CHUNK_SIZE) {
               const chunk = mathItems.slice(i, i + CHUNK_SIZE);
-              console.log(`[exams] calling Groq batch chunk ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} questions)`);
-              const { solutions } = await mathProvider.solveMathBatch({ items: chunk as any, language: lang });
+              const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
+              const tChunk = Date.now();
+              console.log(`[exams] calling math solver chunk ${chunkNum} (${chunk.length} questions)`);
+              let solutions: Array<{ index: number; correct_answer: string; explanation: string }>;
+              try {
+                ({ solutions } = await mathProvider.solveMathBatch({ items: chunk as any, language: lang }));
+              } catch (primaryErr) {
+                if (mathFallbackProvider) {
+                  console.warn(`[exams] primary math solver failed on chunk ${chunkNum}, retrying with fallback:`, (primaryErr as Error).message);
+                  ({ solutions } = await mathFallbackProvider.solveMathBatch({ items: chunk as any, language: lang }));
+                } else {
+                  throw primaryErr;
+                }
+              }
+              console.log(`[exams] math solver chunk ${chunkNum} took ${Date.now() - tChunk}ms`);
               allSolutions.push(...solutions);
             }
 
-            console.log(`[exams] Groq returned ${allSolutions.length} solutions total`);
+            console.log(`[exams] math solver returned ${allSolutions.length} solutions total`);
             for (const sol of allSolutions) {
               if (sol.index >= 0 && sol.index < questions.length && sol.correct_answer) {
                 questions[sol.index] = {

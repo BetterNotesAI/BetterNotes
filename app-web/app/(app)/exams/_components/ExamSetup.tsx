@@ -22,13 +22,13 @@ export interface ExamSetupValues {
   timerMinutes: number;
   gradingMode: 'strict' | 'partial';
   cognitiveDistribution?: CognitiveDistribution;
-  customInstructions?: string;
 }
 
 interface ExamSetupProps {
   onSubmit: (values: ExamSetupValues) => void;
   isLoading: boolean;
   error: string | null;
+  onClose?: () => void;
 }
 
 interface DocumentItem {
@@ -102,7 +102,7 @@ function autoDistribute(total: number, fmts: ExamQuestionType[]): Partial<Record
   return Object.fromEntries(fmts.map((t, i) => [t, base + (i < remainder ? 1 : 0)]));
 }
 
-export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps) {
+export default function ExamSetup({ onSubmit, isLoading, error, onClose }: ExamSetupProps) {
   const [subject, setSubject] = useState('');
   const [tier, setTier] = useState<string>('');
   const [difficulty, setDifficulty] = useState<string>('');
@@ -116,11 +116,9 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
 
   // Document picker state
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
   // Timer state
   const [timerEnabled, setTimerEnabled] = useState(false);
@@ -131,7 +129,6 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [cogEnabled, setCogEnabled] = useState(false);
   const [cogDist, setCogDist] = useState<CognitiveDistribution>({ memory: 0, logic: 0, application: 0 });
-  const [customInstructions, setCustomInstructions] = useState('');
 
   const cogTotal = cogDist.memory + cogDist.logic + cogDist.application;
   const isCogBalanced = !cogEnabled || cogTotal === questionCount;
@@ -146,11 +143,10 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
   // Grading mode state
   const [gradingMode, setGradingMode] = useState<'strict' | 'partial'>('strict');
 
-  // External file state
-  const [externalFile, setExternalFile] = useState<{ name: string; chars: number } | null>(null);
+  // External content state
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [externalContent, setExternalContent] = useState('');
   const [fileExtracting, setFileExtracting] = useState(false);
-  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // When total changes, redistribute
@@ -158,34 +154,15 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
     setFormatCounts(autoDistribute(questionCount, formats));
   }, [questionCount]);
 
-  // Close picker on outside click
+  // Load documents on mount
   useEffect(() => {
-    if (!pickerOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setPickerOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [pickerOpen]);
-
-  async function openPicker() {
-    setPickerOpen(true);
-    if (documents.length > 0) return; // already loaded
     setDocsLoading(true);
-    setDocsError(null);
-    try {
-      const res = await fetch('/api/documents');
-      if (!res.ok) throw new Error('Failed to load documents');
-      const json = await res.json() as { documents: DocumentItem[] };
-      setDocuments(json.documents ?? []);
-    } catch {
-      setDocsError('Could not load documents. Try again.');
-    } finally {
-      setDocsLoading(false);
-    }
-  }
+    fetch('/api/documents')
+      .then((r) => r.ok ? r.json() : { documents: [] })
+      .then((data) => setDocuments((data as { documents: DocumentItem[] }).documents ?? []))
+      .catch(() => setDocsError('Could not load documents.'))
+      .finally(() => setDocsLoading(false));
+  }, []);
 
   function toggleDoc(id: string) {
     setSelectedDocIds((prev) =>
@@ -193,38 +170,22 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
     );
   }
 
-  function removeDoc(id: string) {
-    setSelectedDocIds((prev) => prev.filter((d) => d !== id));
-  }
-
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileError(null);
     setFileExtracting(true);
-    setExternalFile(null);
-    setExternalContent('');
     try {
       const text = await extractFileText(file);
-      if (!text.trim()) throw new Error('No readable text found in file.');
-      setExternalContent(text);
-      setExternalFile({ name: file.name, chars: text.length });
-    } catch (err) {
-      setFileError(err instanceof Error ? err.message : 'Could not read file.');
+      setExternalContent((prev) => (prev ? `${prev}\n\n${text}` : text));
+      setUploadedFileName(file.name);
+    } catch {
+      // silently ignore
     } finally {
       setFileExtracting(false);
-      // Reset input so same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
-  function removeExternalFile() {
-    setExternalFile(null);
-    setExternalContent('');
-    setFileError(null);
-  }
-
-  const selectedDocs = documents.filter((d) => selectedDocIds.includes(d.id));
   const hasDocuments = selectedDocIds.length > 0 || !!externalContent;
 
   const assignedTotal = formats.reduce((sum, f) => sum + (formatCounts[f] ?? 0), 0);
@@ -329,292 +290,160 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
       timerMinutes,
       gradingMode,
       cognitiveDistribution: cogEnabled ? cogDist : undefined,
-      customInstructions: customInstructions.trim() || undefined,
     });
   }
 
   const displayError = validationError ?? error;
 
-  return (
-    <div className="max-w-xl mx-auto px-4 py-10">
-      {/* Page heading */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25 shrink-0">
-          <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9h-1.5A3.375 3.375 0 007.875 12.375v1.5m4.125 4.875v-1.5m0 0h-4.5m4.5 0V15M3 9.375C3 8.339 3.84 7.5 4.875 7.5h14.25C20.16 7.5 21 8.34 21 9.375v7.5C21 17.909 20.16 18.75 19.125 18.75H4.875C3.839 18.75 3 17.91 3 16.875v-7.5z"
+  const formContent = (
+    <div className={onClose ? 'px-6 py-5' : 'max-w-xl mx-auto px-4 py-10'}>
+      {/* Page heading — only shown outside modal */}
+      {!onClose && (
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25 shrink-0">
+            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9h-1.5A3.375 3.375 0 007.875 12.375v1.5m4.125 4.875v-1.5m0 0h-4.5m4.5 0V15M3 9.375C3 8.339 3.84 7.5 4.875 7.5h14.25C20.16 7.5 21 8.34 21 9.375v7.5C21 17.909 20.16 18.75 19.125 18.75H4.875C3.839 18.75 3 17.91 3 16.875v-7.5z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Generate Exam</h2>
+            <p className="text-xs text-white/45 mt-0.5">Configure your practice exam below</p>
+          </div>
+        </div>
+      )}
+
+      <form id="exam-setup-form" onSubmit={handleSubmit} className="space-y-6">
+
+        {/* Subject + Language row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Subject / Topic
+              {hasDocuments && <span className="ml-2 text-xs font-normal text-white/35">optional</span>}
+            </label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={hasDocuments ? 'Optional focus area' : 'e.g. Linear Algebra...'}
+              disabled={isLoading}
+              className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
-          </svg>
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-white">Generate Exam</h2>
-          <p className="text-xs text-white/45 mt-0.5">Configure your practice exam below</p>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-
-        {/* Subject */}
-        <div>
-          <label className="block text-sm font-medium text-white/80 mb-2">
-            Subject / Topic
-            {hasDocuments && (
-              <span className="ml-2 text-xs font-normal text-white/35">optional</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder={
-              hasDocuments
-                ? 'Optional — focus area within your documents'
-                : 'e.g. Photosynthesis, World War II, Linear Algebra...'
-            }
-            disabled={isLoading}
-            className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white
-              placeholder:text-white/30 focus:outline-none focus:border-indigo-500/50 focus:bg-white/7
-              transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-        </div>
-
-        {/* From Documents */}
-        <div>
-          <label className="block text-sm font-medium text-white/80 mb-2">
-            From Documents
-            <span className="ml-2 text-xs font-normal text-white/35">optional</span>
-          </label>
-
-          {/* Selected chips */}
-          {selectedDocs.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {selectedDocs.map((doc) => (
-                <span
-                  key={doc.id}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 text-xs text-indigo-300"
-                >
-                  <svg className="w-3 h-3 shrink-0 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="max-w-[160px] truncate">{doc.title}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeDoc(doc.id)}
-                    disabled={isLoading}
-                    className="text-indigo-400/60 hover:text-indigo-300 transition-colors disabled:cursor-not-allowed"
-                    aria-label={`Remove ${doc.title}`}
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-2">Language</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              disabled={isLoading}
+              className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value} className="bg-neutral-800">{l.label}</option>
               ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Source Documents */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-white/80">
+              Source Documents
+              <span className="ml-2 text-xs font-normal text-white/35">optional</span>
+            </label>
+            <span className="text-xs text-white/35">{selectedDocIds.length} selected</span>
+          </div>
+          {docsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-4 h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
+            </div>
+          ) : docsError ? (
+            <p className="text-xs text-red-400/80 italic py-2">{docsError}</p>
+          ) : documents.length === 0 ? (
+            <p className="text-xs text-white/30 italic py-2">No documents yet. Paste content below.</p>
+          ) : (
+            <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl border border-white/8 p-2">
+              {documents.map((doc) => {
+                const isSelected = selectedDocIds.includes(doc.id);
+                return (
+                  <label
+                    key={doc.id}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-500/15 text-indigo-200'
+                        : 'hover:bg-white/6 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleDoc(doc.id)}
+                      className="w-3.5 h-3.5 rounded accent-indigo-500 shrink-0"
+                    />
+                    <span className="text-xs truncate">{doc.title}</span>
+                  </label>
+                );
+              })}
             </div>
           )}
+        </div>
 
-          {/* External file chip */}
-          {externalFile && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 text-xs text-indigo-300">
-                <svg className="w-3 h-3 shrink-0 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span className="max-w-[160px] truncate">{externalFile.name}</span>
-                <span className="text-indigo-500/50 shrink-0">
-                  {externalFile.chars >= 1000 ? `${(externalFile.chars / 1000).toFixed(0)}k` : externalFile.chars} chars
-                </span>
-                <button
-                  type="button"
-                  onClick={removeExternalFile}
-                  disabled={isLoading}
-                  className="text-indigo-400/60 hover:text-indigo-300 transition-colors disabled:cursor-not-allowed"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            </div>
-          )}
-
-          {/* File error */}
-          {fileError && (
-            <p className="text-xs text-red-400 mb-2">{fileError}</p>
-          )}
-
-          {/* Single "Add Document" button + unified dropdown */}
-          <div ref={pickerRef} className="relative">
+        {/* Additional Content */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-white/80">
+              Additional Content
+              <span className="ml-2 text-xs font-normal text-white/35">optional</span>
+            </label>
             <button
               type="button"
-              onClick={() => { if (!pickerOpen) openPicker(); else setPickerOpen(false); }}
+              onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || fileExtracting}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/60
-                hover:bg-white/8 hover:border-white/20 hover:text-white/80 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
             >
               {fileExtracting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-                  Reading...
+                  <div className="w-3 h-3 border border-indigo-400/50 border-t-indigo-400 rounded-full animate-spin" />
+                  Extracting...
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  Add Document
-                  <svg className="w-3 h-3 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  Upload PDF/TXT
                 </>
               )}
             </button>
-
-            {pickerOpen && (
-              <div className="absolute left-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-white/10 bg-neutral-900 shadow-2xl overflow-hidden">
-
-                {/* Source selector */}
-                <div className="p-1.5 border-b border-white/8 flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => { /* already in BetterNotes mode, just keep open */ }}
-                    className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/8 text-xs font-medium text-white transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    From BetterNotes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setPickerOpen(false); fileInputRef.current?.click(); }}
-                    className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                    Upload File
-                  </button>
-                </div>
-
-                {/* Document list */}
-                <div className="max-h-52 overflow-y-auto">
-                  {docsLoading && (
-                    <div className="flex items-center justify-center gap-2 py-6 text-white/35 text-sm">
-                      <div className="w-4 h-4 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-                      Loading...
-                    </div>
-                  )}
-
-                  {docsError && !docsLoading && (
-                    <div className="px-3 py-4 text-center">
-                      <p className="text-xs text-red-400">{docsError}</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDocuments([]);
-                          setDocsError(null);
-                          setDocsLoading(true);
-                          fetch('/api/documents')
-                            .then((r) => r.json())
-                            .then((j: { documents: DocumentItem[] }) => setDocuments(j.documents ?? []))
-                            .catch(() => setDocsError('Could not load documents. Try again.'))
-                            .finally(() => setDocsLoading(false));
-                        }}
-                        className="mt-2 text-xs text-white/40 underline underline-offset-2 hover:text-white/60 transition-colors"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
-
-                  {!docsLoading && !docsError && documents.length === 0 && (
-                    <div className="px-3 py-6 text-center">
-                      <p className="text-xs text-white/30">No documents found</p>
-                    </div>
-                  )}
-
-                  {!docsLoading && !docsError && documents.map((doc) => {
-                    const isChecked = selectedDocIds.includes(doc.id);
-                    return (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        onClick={() => toggleDoc(doc.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors duration-100
-                          ${isChecked
-                            ? 'bg-indigo-500/10 text-white'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white/80'
-                          }`}
-                      >
-                        {/* Checkbox */}
-                        <span className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-colors
-                          ${isChecked ? 'bg-indigo-500 border-indigo-500' : 'border-white/25 bg-transparent'}`}>
-                          {isChecked && (
-                            <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 10 10" fill="none">
-                              <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </span>
-                        <span className="text-sm truncate">{doc.title || 'Untitled'}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Footer */}
-                {selectedDocIds.length > 0 && (
-                  <div className="px-3 py-2 border-t border-white/8 flex items-center justify-between">
-                    <span className="text-xs text-white/35">
-                      {selectedDocIds.length} selected
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPickerOpen(false)}
-                      className="text-xs text-indigo-400/70 hover:text-indigo-300 transition-colors"
-                    >
-                      Done
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_TYPES}
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPTED_TYPES}
-            onChange={handleFileChange}
-            className="hidden"
+          {uploadedFileName && (
+            <div className="flex items-center gap-1.5 text-xs text-indigo-300 mb-2">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {uploadedFileName} extracted
+            </div>
+          )}
+          <textarea
+            value={externalContent}
+            onChange={(e) => setExternalContent(e.target.value.slice(0, MAX_CHARS))}
+            placeholder="Paste notes, text, or upload a PDF above..."
+            rows={3}
+            disabled={isLoading}
+            className="w-full bg-neutral-800 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
-          <p className="mt-1.5 text-[11px] text-white/25">From your library or upload PDF, TXT, MD</p>
-        </div>
-
-        {/* Language */}
-        <div>
-          <label className="block text-sm font-medium text-white/80 mb-2">
-            Language
-          </label>
-          <div className="grid grid-cols-4 gap-2">
-            {LANGUAGES.map((l) => {
-              const isSelected = language === l.value;
-              return (
-                <button
-                  key={l.value}
-                  type="button"
-                  onClick={() => setLanguage(l.value)}
-                  disabled={isLoading}
-                  className={`rounded-xl border px-3 py-2 text-sm font-medium text-center transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
-                    ${isSelected
-                      ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
-                      : 'bg-white/4 border-white/10 text-white/60 hover:bg-white/7 hover:border-white/20 hover:text-white/80'
-                    }`}
-                >
-                  {l.label}
-                </button>
-              );
-            })}
+          <div className="text-right text-xs text-white/30 mt-1">
+            {externalContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} chars
           </div>
         </div>
 
@@ -1085,23 +914,6 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
                 </div>
               )}
 
-              {/* Custom instructions */}
-              <div className="space-y-1.5">
-                <div>
-                  <p className="text-sm font-medium text-white/80">Additional Instructions</p>
-                  <p className="text-xs text-white/35 mt-0.5">Override or extend any default behaviour — your instructions take priority</p>
-                </div>
-                <textarea
-                  rows={3}
-                  value={customInstructions}
-                  onChange={(e) => setCustomInstructions(e.target.value)}
-                  disabled={isLoading}
-                  placeholder="e.g. All questions must be about chapter 3. Avoid trick questions. Include at least 2 questions about thermodynamics."
-                  className="w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white
-                    placeholder:text-white/25 focus:outline-none focus:border-indigo-500/50 focus:bg-white/7
-                    transition-colors resize-none disabled:opacity-50"
-                />
-              </div>
             </div>
           )}
         </div>
@@ -1113,23 +925,95 @@ export default function ExamSetup({ onSubmit, isLoading, error }: ExamSetupProps
           </div>
         )}
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={isLoading || !isBalanced || !isCogBalanced || !tier || !difficulty}
-          className="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40
-            text-black font-semibold text-sm py-3 transition-colors duration-150 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
-              Generating your exam...
-            </span>
-          ) : (
-            'Generate Exam'
-          )}
-        </button>
+        {/* Submit — only shown outside modal */}
+        {!onClose && (
+          <button
+            type="submit"
+            disabled={isLoading || !isBalanced || !isCogBalanced || !tier || !difficulty}
+            className="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40
+              text-black font-semibold text-sm py-3 transition-colors duration-150 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+                Generating your exam...
+              </span>
+            ) : (
+              'Generate Exam'
+            )}
+          </button>
+        )}
       </form>
+    </div>
+  );
+
+  if (!onClose) return formContent;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-xl bg-[#1a1a1a] border border-white/15 rounded-2xl shadow-2xl shadow-black/50 flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-indigo-500/15 border border-indigo-500/20">
+              <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9h-1.5A3.375 3.375 0 007.875 12.375v1.5m4.125 4.875v-1.5m0 0h-4.5m4.5 0V15M3 9.375C3 8.339 3.84 7.5 4.875 7.5h14.25C20.16 7.5 21 8.34 21 9.375v7.5C21 17.909 20.16 18.75 19.125 18.75H4.875C3.839 18.75 3 17.91 3 16.875v-7.5z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-white">New Exam</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-white/8 text-white/40 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto">
+          {formContent}
+        </div>
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-white/10 shrink-0 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-sm text-white/50 hover:text-white hover:bg-white/8 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="exam-setup-form"
+            disabled={isLoading || !isBalanced || !isCogBalanced || !tier || !difficulty}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border border-indigo-400/50 border-t-indigo-300 rounded-full animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Generate
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

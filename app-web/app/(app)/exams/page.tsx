@@ -1,6 +1,7 @@
 'use client';
 
-import { useReducer, useRef, useState } from 'react';
+import { useReducer, useRef, useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import type { Exam, ExamQuestion, ExamQuestionType } from './_types';
 import ExamSetup, { type ExamSetupValues } from './_components/ExamSetup';
 import ExamInProgress, { type ActiveQuestion } from './_components/ExamInProgress';
@@ -36,6 +37,7 @@ interface State {
   generateError: string | null;
   submitError: string | null;
   isPublishing: boolean;
+  publishedUrl: string | null;
 }
 
 type Action =
@@ -51,7 +53,8 @@ type Action =
     }
   | { type: 'SUBMIT_ERROR'; error: string }
   | { type: 'PUBLISH_START' }
-  | { type: 'PUBLISH_DONE' }
+  | { type: 'PUBLISH_DONE'; shareUrl: string; exam: Exam }
+  | { type: 'UNPUBLISH_DONE'; exam: Exam }
   | { type: 'RESET' };
 
 const initialState: State = {
@@ -63,6 +66,7 @@ const initialState: State = {
   generateError: null,
   submitError: null,
   isPublishing: false,
+  publishedUrl: null,
 };
 
 function reducer(state: State, action: Action): State {
@@ -95,7 +99,9 @@ function reducer(state: State, action: Action): State {
     case 'PUBLISH_START':
       return { ...state, isPublishing: true };
     case 'PUBLISH_DONE':
-      return { ...state, isPublishing: false };
+      return { ...state, isPublishing: false, publishedUrl: action.shareUrl, exam: action.exam };
+    case 'UNPUBLISH_DONE':
+      return { ...state, publishedUrl: null, exam: action.exam };
     case 'RESET':
       return initialState;
     default:
@@ -117,9 +123,57 @@ export default function ExamsPage() {
   });
   const [resetConfirm, setResetConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<'questions' | 'answer_key'>('questions');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // --- Load shared exam from ?shared=examId query param ---
+  useEffect(() => {
+    const sharedExamId = searchParams?.get('shared');
+    if (!sharedExamId) return;
+
+    // Remove the query param from the URL cleanly
+    router.replace('/exams', { scroll: false });
+
+    dispatch({ type: 'GENERATE_START' });
+    fetch(`/api/exams/${sharedExamId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error || !data.exam) {
+          dispatch({ type: 'GENERATE_ERROR', error: data.error ?? 'Failed to load exam' });
+          return;
+        }
+        dispatch({
+          type: 'GENERATE_SUCCESS',
+          exam: data.exam as Exam,
+          questions: (data.questions ?? []) as ActiveQuestion[],
+        });
+      })
+      .catch(() => dispatch({ type: 'GENERATE_ERROR', error: 'Network error. Please try again.' }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-open modal when generation fails
+  useEffect(() => {
+    if (state.screen === 'setup' && state.generateError) {
+      setShowExamModal(true);
+    }
+  }, [state.screen, state.generateError]);
+
+  // Switch loading phase message after 20s (questions → answer key)
+  useEffect(() => {
+    if (state.screen !== 'loading') {
+      setLoadingPhase('questions');
+      return;
+    }
+    const t = setTimeout(() => setLoadingPhase('answer_key'), 20_000);
+    return () => clearTimeout(t);
+  }, [state.screen]);
 
   // --- Generate exam ---
   async function handleGenerate(values: ExamSetupValues) {
+    setShowExamModal(false);
     setTimerSettings({ enabled: values.timerEnabled, minutes: values.timerMinutes });
     dispatch({ type: 'GENERATE_START' });
     try {
@@ -137,7 +191,6 @@ export default function ExamsPage() {
           external_content: values.externalContent || undefined,
           cognitive_distribution: values.cognitiveDistribution,
           grading_mode: values.gradingMode,
-          custom_instructions: values.customInstructions,
         }),
       });
 
@@ -225,12 +278,43 @@ export default function ExamsPage() {
     }
   }
 
-  // --- Publish to My Studies (placeholder) ---
+  // --- Publish exam (generate share link) ---
   async function handlePublish() {
+    if (!state.exam) return;
     dispatch({ type: 'PUBLISH_START' });
-    // Placeholder — actual integration with /api/studies TBD
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    dispatch({ type: 'PUBLISH_DONE' });
+    try {
+      const res = await fetch(`/api/exams/${state.exam.id}/publish`, { method: 'PATCH' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        dispatch({ type: 'PUBLISH_DONE', shareUrl: '', exam: state.exam });
+        return;
+      }
+      // Merge new fields into exam
+      const updatedExam: Exam = {
+        ...state.exam,
+        is_published: true,
+        share_token: data.share_token,
+      } as Exam;
+      dispatch({ type: 'PUBLISH_DONE', shareUrl: data.share_url ?? '', exam: updatedExam });
+    } catch {
+      dispatch({ type: 'PUBLISH_DONE', shareUrl: '', exam: state.exam });
+    }
+  }
+
+  // --- Unpublish exam (revoke share link) ---
+  async function handleUnpublish() {
+    if (!state.exam) return;
+    try {
+      await fetch(`/api/exams/${state.exam.id}/unpublish`, { method: 'PATCH' });
+      const updatedExam: Exam = {
+        ...state.exam,
+        is_published: false,
+        share_token: undefined,
+      } as Exam;
+      dispatch({ type: 'UNPUBLISH_DONE', exam: updatedExam });
+    } catch {
+      // silently fail
+    }
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -286,6 +370,20 @@ export default function ExamsPage() {
             )}
           </div>
 
+          {/* New Exam button — visible on generate tab */}
+          {state.screen === 'setup' && activeTab === 'generate' && (
+            <button
+              type="button"
+              onClick={() => setShowExamModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Exam
+            </button>
+          )}
+
           {/* Reset stats button — only on stats tab */}
           {state.screen === 'setup' && activeTab === 'stats' && (
             <button
@@ -323,12 +421,40 @@ export default function ExamsPage() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
 
-        {/* SETUP — Generate tab */}
+        {/* SETUP — Generate tab empty state */}
         {state.screen === 'setup' && activeTab === 'generate' && (
+          <div className="flex flex-col items-center justify-center py-32 gap-5">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25">
+              <svg className="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9h-1.5A3.375 3.375 0 007.875 12.375v1.5m4.125 4.875v-1.5m0 0h-4.5m4.5 0V15M3 9.375C3 8.339 3.84 7.5 4.875 7.5h14.25C20.16 7.5 21 8.34 21 9.375v7.5C21 17.909 20.16 18.75 19.125 18.75H4.875C3.839 18.75 3 17.91 3 16.875v-7.5z"
+                />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-white font-medium">No exam in progress</p>
+              <p className="text-white/40 text-sm mt-1">Create a new exam to get started</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowExamModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Exam
+            </button>
+          </div>
+        )}
+
+        {/* Exam setup modal */}
+        {showExamModal && (
           <ExamSetup
             onSubmit={handleGenerate}
             isLoading={false}
             error={state.generateError}
+            onClose={() => setShowExamModal(false)}
           />
         )}
 
@@ -346,8 +472,12 @@ export default function ExamsPage() {
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
             <div className="text-center">
-              <p className="text-white font-medium">Generating your exam...</p>
-              <p className="text-white/40 text-sm mt-1">This may take a few seconds</p>
+              <p className="text-white font-medium">
+                {loadingPhase === 'questions' ? 'Generating questions...' : 'Generating answer key...'}
+              </p>
+              <p className="text-white/40 text-sm mt-1">
+                {loadingPhase === 'questions' ? 'This may take a few seconds' : 'This may take a few minutes'}
+              </p>
             </div>
           </div>
         )}
@@ -386,7 +516,9 @@ export default function ExamsPage() {
             stats={state.stats}
             onNewExam={() => dispatch({ type: 'RESET' })}
             onPublish={handlePublish}
+            onUnpublish={handleUnpublish}
             isPublishing={state.isPublishing}
+            publishedUrl={state.publishedUrl}
           />
         )}
 

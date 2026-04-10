@@ -634,6 +634,42 @@ OUTPUT: Return a JSON object with exactly two keys:
       throw Object.assign(new Error('AI returned no questions'), { statusCode: 502 });
     }
 
+    // Post-process: strip letter prefixes (e.g. "A. ", "B)") from correct_answer for multiple_choice.
+    // The AI occasionally returns "A. Paris" instead of "Paris" despite the prompt instructions.
+    const normalizeOpt = (s: string) => s
+      .replace(/^[A-D][.)]\s*/i, '')
+      .replace(/\$+/g, '')
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\dfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\cfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      .replace(/\\left|\\right|\\,|\\;|\\!/g, '')
+      .replace(/∑|\\sum\b/g, 'sum').replace(/∫|\\int\b/g, 'int').replace(/∏|\\prod\b/g, 'prod')
+      .replace(/∞|\\infty\b/g, 'inf').replace(/π|\\pi\b/g, 'pi').replace(/√|\\sqrt/g, 'sqrt')
+      .replace(/α|\\alpha\b/g, 'alpha').replace(/β|\\beta\b/g, 'beta').replace(/γ|\\gamma\b/g, 'gamma')
+      .replace(/δ|\\delta\b/g, 'delta').replace(/θ|\\theta\b/g, 'theta').replace(/λ|\\lambda\b/g, 'lambda')
+      .replace(/μ|\\mu\b/g, 'mu').replace(/σ|\\sigma\b/g, 'sigma').replace(/ω|\\omega\b/g, 'omega')
+      .replace(/⁰/g, '^0').replace(/¹/g, '^1').replace(/²/g, '^2').replace(/³/g, '^3')
+      .replace(/⁴/g, '^4').replace(/⁵/g, '^5').replace(/⁶/g, '^6').replace(/⁷/g, '^7')
+      .replace(/⁸/g, '^8').replace(/⁹/g, '^9')
+      .replace(/₀/g, '_0').replace(/₁/g, '_1').replace(/₂/g, '_2').replace(/₃/g, '_3')
+      .replace(/₄/g, '_4').replace(/₅/g, '_5').replace(/₆/g, '_6').replace(/₇/g, '_7')
+      .replace(/₈/g, '_8').replace(/₉/g, '_9').replace(/ₙ/g, '_n').replace(/ₘ/g, '_m')
+      .replace(/ₖ/g, '_k').replace(/ᵢ/g, '_i').replace(/ⱼ/g, '_j')
+      .replace(/\s+/g, '')
+      .trim()
+      .toLowerCase();
+
+    questions = questions.map((q) => {
+      if (q.type !== 'multiple_choice' || !Array.isArray(q.options) || !q.correct_answer) return q;
+      let answer = q.correct_answer.replace(/^[A-D][.)]\s*/i, '').trim();
+      const normalizedAnswer = normalizeOpt(answer);
+      const match = q.options.find((o) =>
+        normalizeOpt(o) === normalizedAnswer || o.replace(/^[A-D][.)]\s*/i, '').trim() === answer
+      );
+      if (match) answer = match.replace(/^[A-D][.)]\s*/i, '').trim();
+      return { ...q, correct_answer: answer };
+    });
+
     return { questions, canonical_subject };
   }
 
@@ -730,22 +766,27 @@ Return ONLY a valid JSON object with this exact shape — one entry per question
 }
 
 RULES FOR explanation:
-- Maximum 3 sentences. Be concise and direct.
-- Show the key calculation steps only — do NOT repeat or re-verify the same step multiple times.
-- If your result does not match any option exactly, pick the closest option and state why in one sentence. Do NOT loop.`;
+- Show the full step-by-step solution with all calculations.
+- You may verify your answer internally, but write ONLY the clean final solution in the explanation — never include re-checks, revisions, or correction notes.
+- If your result does not match any option exactly, pick the closest option, state why briefly, and stop.`;
 
     const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0,
-      max_tokens: Math.min(6000, Math.max(1200, items.length * 500)),
+      max_tokens: Math.min(4000, Math.max(1000, items.length * 400)),
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     }, 'solve_math_batch');
 
     const raw = resp.choices?.[0]?.message?.content ?? '{}';
-    const cleaned = sanitizeLatexInJsonString(
-      restoreLatexControlChars(raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim())
-    );
+    // Strip thinking blocks (<thought>…</thought>, <thinking>…</thinking>) that reasoning models include
+    const stripped = raw
+      .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+    // Extract only the first complete JSON object in case the model adds trailing text
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    const cleaned = sanitizeLatexInJsonString(restoreLatexControlChars(jsonMatch?.[0] ?? stripped));
     const parsed = JSON.parse(cleaned) as { solutions?: Array<{ correct_answer: string; explanation: string }> };
 
     // Map by position — Groq returns solutions in the same order as the input items

@@ -204,6 +204,7 @@ export async function POST(
         method: 'POST',
         headers: buildInternalApiHeaders(user.id, 'exam_grade_fill_in', API_INTERNAL_TOKEN),
         body: JSON.stringify({ items: fillInItems, gradingMode: isPartialMode ? 'partial' : 'strict' }),
+        signal: AbortSignal.timeout(120_000), // 2 min — fill-in grading
       });
 
       if (response.ok) {
@@ -226,7 +227,33 @@ export async function POST(
     .replace(/`([A-Za-zÀ-ÿ])/g, '$1').replace(/([A-Za-zÀ-ÿ])`/g, '$1')
     .replace(/\$+/g, '')
     .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\dfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\cfrac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
     .replace(/\\left|\\right|\\,|\\;|\\!|\\cdot/g, '')
+    // Unicode ↔ LaTeX symbol equivalences
+    .replace(/∑|\\sum\b/g, 'sum')
+    .replace(/∫|\\int\b/g, 'int')
+    .replace(/∏|\\prod\b/g, 'prod')
+    .replace(/∞|\\infty\b/g, 'inf')
+    .replace(/π|\\pi\b/g, 'pi')
+    .replace(/α|\\alpha\b/g, 'alpha')
+    .replace(/β|\\beta\b/g, 'beta')
+    .replace(/γ|\\gamma\b/g, 'gamma')
+    .replace(/δ|\\delta\b/g, 'delta')
+    .replace(/θ|\\theta\b/g, 'theta')
+    .replace(/λ|\\lambda\b/g, 'lambda')
+    .replace(/μ|\\mu\b/g, 'mu')
+    .replace(/σ|\\sigma\b/g, 'sigma')
+    .replace(/ω|\\omega\b/g, 'omega')
+    .replace(/√|\\sqrt/g, 'sqrt')
+    // Unicode superscripts/subscripts → ASCII
+    .replace(/⁰/g, '^0').replace(/¹/g, '^1').replace(/²/g, '^2').replace(/³/g, '^3')
+    .replace(/⁴/g, '^4').replace(/⁵/g, '^5').replace(/⁶/g, '^6').replace(/⁷/g, '^7')
+    .replace(/⁸/g, '^8').replace(/⁹/g, '^9')
+    .replace(/₀/g, '_0').replace(/₁/g, '_1').replace(/₂/g, '_2').replace(/₃/g, '_3')
+    .replace(/₄/g, '_4').replace(/₅/g, '_5').replace(/₆/g, '_6').replace(/₇/g, '_7')
+    .replace(/₈/g, '_8').replace(/₉/g, '_9').replace(/ₙ/g, '_n').replace(/ₘ/g, '_m')
+    .replace(/ₖ/g, '_k').replace(/ᵢ/g, '_i').replace(/ⱼ/g, '_j')
     .replace(/\s+/g, '')
     .trim()
     .toLowerCase();

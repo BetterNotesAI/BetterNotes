@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import type { Exam, ExamQuestion } from '../_types';
 import { getLetterGrade, getGradeColor } from '../_utils';
 import MathText from './MathText';
@@ -25,7 +26,9 @@ interface ExamResultsProps {
   };
   onNewExam: () => void;
   onPublish: () => void;
+  onUnpublish: () => void;
   isPublishing: boolean;
+  publishedUrl: string | null;
 }
 
 function QuestionReview({ question, index }: { question: ExamQuestion; index: number }) {
@@ -137,10 +140,14 @@ export default function ExamResults({
   stats,
   onNewExam,
   onPublish,
+  onUnpublish,
   isPublishing,
+  publishedUrl,
 }: ExamResultsProps) {
   const grade = getLetterGrade(stats.score_percentage);
   const gradeColor = getGradeColor(grade);
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const gradeBgMap: Record<string, string> = {
     A: 'bg-green-500/15 border-green-500/25',
@@ -149,6 +156,26 @@ export default function ExamResults({
     D: 'bg-orange-500/15 border-orange-500/25',
     F: 'bg-red-500/15 border-red-500/25',
   };
+
+  // The effective published URL is either the freshly generated one or
+  // reconstructed from the exam's existing share_token
+  const effectiveShareUrl = publishedUrl
+    || (exam.is_published && exam.share_token
+      ? `${window.location.origin}/exam/${exam.share_token}`
+      : null);
+
+  const isShared = exam.is_published === true || !!effectiveShareUrl;
+  // Only show share section for the original owner (not for shared copies)
+  const isSharedCopy = !!exam.source_exam_id;
+
+  function handleCopy() {
+    if (!effectiveShareUrl) return;
+    navigator.clipboard.writeText(effectiveShareUrl).then(() => {
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -206,6 +233,17 @@ export default function ExamResults({
             <span className="font-medium text-white/60">{formatDuration(stats.time_spent_seconds)}</span>
           </div>
         )}
+
+        {/* Shared attempts counter — only shown for the original owner */}
+        {!isSharedCopy && typeof exam.shared_attempts === 'number' && exam.shared_attempts > 0 && (
+          <div className="mt-3 pt-3 border-t border-white/8 flex items-center justify-center gap-1.5 text-xs text-white/40">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+            <span className="font-medium text-white/60">{exam.shared_attempts}</span>
+            {exam.shared_attempts === 1 ? ' person has' : ' people have'} taken this exam
+          </div>
+        )}
       </div>
 
       {/* Cognitive Breakdown */}
@@ -244,33 +282,128 @@ export default function ExamResults({
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-3 mb-8">
-        <button
-          type="button"
-          onClick={onNewExam}
-          className="flex-1 rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
-            text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
-        >
-          New Exam
-        </button>
-        <button
-          type="button"
-          onClick={onPublish}
-          disabled={isPublishing}
-          className="flex-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40
-            text-sm font-semibold text-white py-2.5 transition-colors disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {isPublishing ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-              Publishing...
-            </>
-          ) : (
-            'Publish to My Studies'
+      {/* Share section — only for original owner exams */}
+      {!isSharedCopy && (
+        <div className="mb-6">
+          {/* Not yet published — show Publish + New exam buttons */}
+          {!isShared && (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onNewExam}
+                className="flex-1 rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
+                  text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
+              >
+                New Exam
+              </button>
+              <button
+                type="button"
+                onClick={onPublish}
+                disabled={isPublishing}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-indigo-500/30 hover:border-indigo-400/50 bg-indigo-500/20 hover:bg-indigo-500/30 text-sm font-medium text-indigo-300 hover:text-indigo-200 py-2.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPublishing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-300 rounded-full animate-spin" />
+                    Publishing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    Share Exam
+                  </>
+                )}
+              </button>
+            </div>
           )}
-        </button>
-      </div>
+
+          {/* Published — show share URL card */}
+          {isShared && effectiveShareUrl && (
+            <div className="bg-indigo-500/8 border border-indigo-500/25 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                  <svg className="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-indigo-200">Exam shared</p>
+              </div>
+
+              {/* URL row */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                  <p className="text-xs text-white/60 truncate font-mono">{effectiveShareUrl}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="shrink-0 px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-semibold transition-colors"
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Actions row */}
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={onNewExam}
+                  className="flex-1 rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
+                    text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
+                >
+                  New Exam
+                </button>
+                <button
+                  type="button"
+                  onClick={onUnpublish}
+                  className="px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/8 hover:bg-red-500/15
+                    text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Unpublish
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Published but no URL in state (page reload case) */}
+          {isShared && !effectiveShareUrl && (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onNewExam}
+                className="flex-1 rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
+                  text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
+              >
+                New Exam
+              </button>
+              <button
+                type="button"
+                onClick={onUnpublish}
+                className="flex-1 rounded-xl border border-red-500/20 bg-red-500/8 hover:bg-red-500/15
+                  text-sm font-medium text-red-400 py-2.5 transition-colors"
+              >
+                Unpublish
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* New exam button for shared copies (no share option) */}
+      {isSharedCopy && (
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={onNewExam}
+            className="w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
+              text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
+          >
+            New Exam
+          </button>
+        </div>
+      )}
 
       {/* Questions review */}
       <div>
