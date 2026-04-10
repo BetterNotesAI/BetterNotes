@@ -5,6 +5,7 @@ import { getTemplateOrThrow, TEMPLATE_DEFINITIONS } from '../lib/templates';
 import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
 import { trimHugeLog } from '../lib/errors';
 import { processAttachments } from '../lib/attachments';
+import { recordModelUsage } from '../lib/usage/tracker';
 import { markdownToLatexDoc } from '../lib/markdown-to-latex';
 
 // Descriptions used by the AI to pick the best template automatically.
@@ -19,10 +20,11 @@ async function pickTemplate(prompt: string): Promise<string> {
   const fallback = '2cols_portrait';
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const selectorModel = process.env.OPENAI_TEMPLATE_SELECTOR_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-5.4-nano';
     const ids = Object.keys(TEMPLATE_DESCRIPTIONS);
     const list = ids.map((id) => `- ${id}: ${TEMPLATE_DESCRIPTIONS[id]}`).join('\n');
     const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: selectorModel,
       max_tokens: 20,
       temperature: 0,
       messages: [
@@ -33,6 +35,15 @@ async function pickTemplate(prompt: string): Promise<string> {
         { role: 'user', content: prompt },
       ],
     });
+
+    await recordModelUsage({
+      provider: 'openai',
+      model: selectorModel,
+      usage: resp.usage,
+      feature: 'template_select',
+      metadata: { template_candidates: ids.length },
+    });
+
     const chosen = resp.choices[0]?.message?.content?.trim() ?? '';
     return ids.includes(chosen) ? chosen : fallback;
   } catch {

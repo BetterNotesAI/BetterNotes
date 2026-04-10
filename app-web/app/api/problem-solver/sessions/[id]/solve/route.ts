@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -69,6 +70,14 @@ export async function POST(
     );
   }
 
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 }),
+      { status: 402, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   // ── 4. Mark session as solving ───────────────────────────────────────────────
   await supabase
     .from('problem_solver_sessions')
@@ -93,12 +102,7 @@ export async function POST(
     try {
       const apiResp = await fetch(`${API_URL}/problem-solver/solve`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(API_INTERNAL_TOKEN
-            ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` }
-            : {}),
-        },
+        headers: buildInternalApiHeaders(user.id, 'problem_solver_solve', API_INTERNAL_TOKEN),
         body: JSON.stringify({
           pdfText: session.pdf_text,
           ...(preferredProvider ? { provider: preferredProvider } : {}),

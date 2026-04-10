@@ -59,10 +59,10 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         </div>
 
         {/* Content */}
-        <h2 className="text-lg font-bold text-white mb-2">Monthly limit reached</h2>
+        <h2 className="text-lg font-bold text-white mb-2">Monthly credit limit reached</h2>
         <p className="text-gray-400 text-sm leading-relaxed mb-6">
-          You&apos;ve used all 20 generations for this month. Upgrade to Pro for unlimited
-          generations.
+          You&apos;ve used all your available credits for this month. Upgrade your plan for
+          a higher monthly credit allowance.
         </p>
 
         {/* Actions */}

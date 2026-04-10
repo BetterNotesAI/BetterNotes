@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -101,6 +102,14 @@ export async function POST(
     ? `${quoteBlocks.join('\n\n')}\n\n${content.trim()}`
     : content.trim();
 
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+      { status: 402 },
+    );
+  }
+
   // Save user message (store with quote so history is complete for the LLM)
   const { data: userMsg, error: userMsgError } = await supabase
     .from('problem_solver_chat_messages')
@@ -137,10 +146,7 @@ export async function POST(
   try {
     const apiResp = await fetch(`${API_URL}/problem-solver/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-      },
+      headers: buildInternalApiHeaders(user.id, 'problem_solver_chat', API_INTERNAL_TOKEN),
       body: JSON.stringify({
         solutionMd: session.solution_md ?? '',
         history,

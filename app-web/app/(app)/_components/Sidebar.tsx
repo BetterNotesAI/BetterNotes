@@ -17,6 +17,16 @@ interface SidebarFolder {
   created_at: string;
 }
 
+interface UsageSnapshot {
+  plan: string;
+  message_count: number;
+  limit: number;
+  remaining: number;
+  credits_used?: number;
+  credits_limit?: number;
+  credits_remaining?: number;
+}
+
 const COLLAPSED_KEY = 'bn_sidebar_collapsed';
 const EDITOR_PREFIX = '/documents/';
 const MAX_FOLDERS_VISIBLE = 5;
@@ -105,6 +115,7 @@ export function Sidebar() {
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
 
   const newFolderInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +181,29 @@ export function Sidebar() {
       .then(r => r.ok ? r.json() : { documents: [] })
       .then(data => setRecentDocs((data.documents ?? []).slice(0, 5)))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadUsage() {
+      try {
+        const resp = await fetch('/api/usage');
+        if (!resp.ok) return;
+        const data = await resp.json() as UsageSnapshot;
+        if (!ignore) setUsage(data);
+      } catch {
+        // Non-fatal for sidebar UI
+      }
+    }
+
+    void loadUsage();
+    const interval = setInterval(() => void loadUsage(), 45000);
+
+    return () => {
+      ignore = true;
+      clearInterval(interval);
+    };
   }, []);
 
   function loadFolders() {
@@ -405,6 +439,19 @@ export function Sidebar() {
   const visibleEmail = email || 'No email';
   const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
   const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
+  const activeNavClass = 'bg-white/12 text-white font-medium ring-1 ring-indigo-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]';
+  const creditsUsed = usage ? usage.credits_used ?? usage.message_count : 0;
+  const creditsLimit = usage ? usage.credits_limit ?? usage.limit : 0;
+  const creditsRemaining = usage
+    ? Math.max(0, usage.credits_remaining ?? creditsLimit - creditsUsed)
+    : 0;
+  const creditsProgress = creditsLimit > 0
+    ? Math.min(100, Math.max(0, Math.round((creditsRemaining / creditsLimit) * 100)))
+    : 0;
+
+  function formatCredits(value: number): string {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
 
   return (
     <>
@@ -413,11 +460,16 @@ export function Sidebar() {
         style={{ width: collapsed ? 64 : 224 }}
       >
         {/* Header */}
-        <div className={`flex items-center h-14 px-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`flex items-center h-16 px-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
           {!collapsed && (
-            <Link href="/documents" className="flex items-center gap-2 min-w-0">
-              <Image src="/brand/logo.png" alt="BetterNotes" width={28} height={28} className="w-7 h-7 object-contain shrink-0" />
-              <span className="text-sm font-semibold tracking-tight text-white truncate">BetterNotes</span>
+            <Link href="/documents" className="flex items-center gap-3 min-w-0">
+              <Image src="/brand/logo.png" alt="BetterNotes" width={40} height={40} className="w-10 h-10 object-contain shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[18px] leading-none font-semibold tracking-tight text-white truncate">
+                  BetterNotes
+                </div>
+                <div className="text-[11px] text-white/45 truncate mt-0.5">AI Workspace</div>
+              </div>
             </Link>
           )}
           <button
@@ -437,8 +489,8 @@ export function Sidebar() {
             href="/documents?new=1"
             title={collapsed ? 'New Project' : undefined}
             className={`flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
-              bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400
-              text-white shadow-[0_2px_12px_rgba(99,102,241,0.35)] hover:shadow-[0_2px_16px_rgba(99,102,241,0.5)] ${
+              bg-gradient-to-r from-[#b04cff] via-[#7d5cff] to-[#3d7dff] hover:from-[#c06bff] hover:via-[#8a6fff] hover:to-[#5290ff]
+              text-white shadow-[0_4px_14px_rgba(96,82,255,0.45)] hover:shadow-[0_6px_18px_rgba(85,116,255,0.52)] ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             }`}
           >
@@ -454,7 +506,7 @@ export function Sidebar() {
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
               isActive('/home')
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                ? activeNavClass
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -486,7 +538,7 @@ export function Sidebar() {
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
               isActive('/problem-solver')
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                ? activeNavClass
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -500,7 +552,7 @@ export function Sidebar() {
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
               isActive('/exams')
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                ? activeNavClass
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -525,7 +577,7 @@ export function Sidebar() {
               title="All Documents"
               className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
-                  ? 'bg-white/15 text-white font-medium'
+                  ? activeNavClass
                   : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -536,7 +588,7 @@ export function Sidebar() {
               <div
                 className={`flex items-center gap-3 rounded-xl transition-colors duration-150 px-3 py-2.5 ${
                   isActiveDocuments()
-                    ? 'bg-white/15 text-white font-medium border-r-2 border-indigo-400'
+                    ? activeNavClass
                     : 'text-white/60 hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -722,7 +774,7 @@ export function Sidebar() {
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
               isActive('/templates')
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
+                ? activeNavClass
                 : 'text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -740,7 +792,7 @@ export function Sidebar() {
                   href={`/documents/${doc.id}`}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 truncate ${
                     pathname === `/documents/${doc.id}`
-                      ? 'bg-white/15 text-white border-r-2 border-indigo-400'
+                      ? activeNavClass
                       : 'text-white/50 hover:bg-white/5 hover:text-white/80'
                   }`}
                 >
@@ -763,7 +815,54 @@ export function Sidebar() {
             <FeedbackIcon className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="text-sm truncate">Suggestions</span>}
           </button>
+
         </nav>
+
+        {usage && (
+          <div className={`shrink-0 px-2 pb-2 ${collapsed ? 'pt-1' : 'pt-2'}`}>
+            {collapsed ? (
+              <Link
+                href="/settings/billing"
+                title="Credits"
+                className="flex items-center justify-center px-2 py-2.5 rounded-xl text-white/60 hover:bg-indigo-500/15 hover:text-indigo-200 transition-colors"
+              >
+                <CreditsIcon className="w-4 h-4 shrink-0" />
+              </Link>
+            ) : (
+              <div className="rounded-2xl border border-indigo-300/20 bg-gradient-to-b from-[#172540]/70 via-[#121d33]/70 to-[#0e1627]/70 px-3 py-3 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-white/90">
+                    <CreditsIcon className="w-4 h-4 text-indigo-300" />
+                    Credits
+                  </span>
+                  <span className="text-sm text-white/65 tabular-nums">
+                    {formatCredits(creditsRemaining)} / {creditsLimit}
+                  </span>
+                </div>
+
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      creditsProgress <= 10
+                        ? 'bg-rose-400/90'
+                        : creditsProgress <= 30
+                          ? 'bg-sky-400/90'
+                          : 'bg-indigo-400/90'
+                    }`}
+                    style={{ width: `${creditsProgress}%` }}
+                  />
+                </div>
+
+                <Link
+                  href="/settings/billing"
+                  className="w-full inline-flex items-center justify-center rounded-xl border border-indigo-300/25 px-3 py-2 text-sm font-medium text-indigo-100/85 hover:bg-indigo-400/10 hover:border-indigo-200/35 hover:text-indigo-50 transition-colors"
+                >
+                  {usage.plan === 'free' ? 'Upgrade' : 'Manage plan'}
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Profile footer */}
         <div ref={profileRef} className="relative border-t border-white/10 p-2 shrink-0 bg-black/20">
@@ -983,6 +1082,13 @@ function BillingIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 8.5h16M6.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11A2.5 2.5 0 016.5 4z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 14h3" />
+    </svg>
+  );
+}
+function CreditsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L4.5 13h5l-1 9L19.5 11h-5L13 2z" />
     </svg>
   );
 }

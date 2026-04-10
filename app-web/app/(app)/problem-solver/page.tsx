@@ -76,9 +76,9 @@ export default function ProblemSolverPage() {
           {hasSessions && (
             <button
               onClick={() => setShowUpload((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500
-                hover:bg-orange-400 text-white font-medium text-sm transition-colors
-                shadow-lg shadow-orange-500/20"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500/90
+                hover:bg-orange-500/95 text-white font-medium text-sm transition-all duration-200
+                border border-orange-300/20 shadow-sm shadow-orange-500/5 hover:shadow-md hover:shadow-orange-500/10"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -216,43 +216,17 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     text: string;
     assistantIndex: number;
   } | null>(null);
-  const [pendingOutlineRects, setPendingOutlineRects] = useState<Array<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  }>>([]);
   const [inlineSubchatsMap, setInlineSubchatsMap] = useState<Map<number, InlineSubchatData>>(new Map());
   const [creatingInlineSubchatIndex, setCreatingInlineSubchatIndex] = useState<number | null>(null);
   const [subchatActionError, setSubchatActionError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pendingHighlightedBlocksRef = useRef<HTMLElement[]>([]);
-
-  const clearHighlightFromBlocks = useCallback((blocks: HTMLElement[], className: string) => {
-    for (const block of blocks) {
-      block.classList.remove(className);
-    }
-  }, []);
-
-  const applyHighlightToBlocks = useCallback((blocks: HTMLElement[], className: string) => {
-    for (const block of blocks) {
-      block.classList.add(className);
-    }
-  }, []);
-
-  const clearPendingHighlight = useCallback(() => {
-    clearHighlightFromBlocks(pendingHighlightedBlocksRef.current, 'ic-context-pending');
-    pendingHighlightedBlocksRef.current = [];
-  }, [clearHighlightFromBlocks]);
 
   const hideSelectionTooltip = useCallback(() => {
-    clearPendingHighlight();
     setTooltipPos(null);
     setPendingSelection(null);
-    setPendingOutlineRects([]);
-  }, [clearPendingHighlight]);
+  }, []);
 
   const normalizeSelectionText = useCallback((value: string) => {
     return value
@@ -386,50 +360,6 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     });
   }, []);
 
-  const getRectFromBlocks = useCallback((blocks: HTMLElement[]) => {
-    if (blocks.length === 0) return null;
-    let minLeft = Number.POSITIVE_INFINITY;
-    let minTop = Number.POSITIVE_INFINITY;
-    let maxRight = Number.NEGATIVE_INFINITY;
-    let maxBottom = Number.NEGATIVE_INFINITY;
-
-    for (const block of blocks) {
-      const rect = block.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) continue;
-      minLeft = Math.min(minLeft, rect.left);
-      minTop = Math.min(minTop, rect.top);
-      maxRight = Math.max(maxRight, rect.right);
-      maxBottom = Math.max(maxBottom, rect.bottom);
-    }
-
-    if (!Number.isFinite(minLeft) || !Number.isFinite(minTop) || !Number.isFinite(maxRight) || !Number.isFinite(maxBottom)) {
-      return null;
-    }
-    return { left: minLeft, top: minTop, width: maxRight - minLeft, height: maxBottom - minTop };
-  }, []);
-
-  const getRectFromRange = useCallback((range: Range) => {
-    const clientRects = Array.from(range.getClientRects()).filter((r) => r.width > 0 || r.height > 0);
-    if (clientRects.length === 0) {
-      const rect = range.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return null;
-      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-    }
-
-    let minLeft = Number.POSITIVE_INFINITY;
-    let minTop = Number.POSITIVE_INFINITY;
-    let maxRight = Number.NEGATIVE_INFINITY;
-    let maxBottom = Number.NEGATIVE_INFINITY;
-
-    for (const rect of clientRects) {
-      minLeft = Math.min(minLeft, rect.left);
-      minTop = Math.min(minTop, rect.top);
-      maxRight = Math.max(maxRight, rect.right);
-      maxBottom = Math.max(maxBottom, rect.bottom);
-    }
-    return { left: minLeft, top: minTop, width: maxRight - minLeft, height: maxBottom - minTop };
-  }, []);
-
   const handleAssistantSelection = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
@@ -453,33 +383,15 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     const blocks = getIntersectingBlocks(range, assistantContainer);
     const assistantIndexAttr = assistantContainer.getAttribute('data-chat-assistant-index');
     const assistantIndex = assistantIndexAttr ? Number.parseInt(assistantIndexAttr, 10) : -1;
-    let contextText = rawSelection;
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
-    let outlineRect: { left: number; top: number; width: number; height: number } | null = null;
 
     if (blocks.length > 0) {
-      clearPendingHighlight();
-      applyHighlightToBlocks(blocks, 'ic-context-pending');
-      pendingHighlightedBlocksRef.current = blocks;
-
-      const blockText = normalizeSelectionText(
-        blocks
-          .map((block) => normalizeSelectionText(block.textContent ?? ''))
-          .filter(Boolean)
-          .join('\n\n'),
-      );
-      if (blockText) contextText = blockText;
-
       const firstRect = blocks[0].getBoundingClientRect();
       if (firstRect.width > 0 || firstRect.height > 0) {
         tooltipX = firstRect.right;
         tooltipY = firstRect.top;
       }
-      outlineRect = getRectFromBlocks(blocks);
-    } else {
-      clearPendingHighlight();
-      outlineRect = getRectFromRange(range);
     }
 
     if (tooltipX === null || tooltipY === null) {
@@ -493,15 +405,10 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
     }
 
     setTooltipPos({ x: tooltipX, y: tooltipY });
-    setPendingSelection({ id: createSelectionId(), text: contextText, assistantIndex });
-    setPendingOutlineRects(outlineRect ? [outlineRect] : []);
+    setPendingSelection({ id: createSelectionId(), text: rawSelection, assistantIndex });
   }, [
-    applyHighlightToBlocks,
-    clearPendingHighlight,
     createSelectionId,
     getAssistantContainerFromRange,
-    getRectFromBlocks,
-    getRectFromRange,
     getIntersectingBlocks,
     hideSelectionTooltip,
     normalizeSelectionText,
@@ -521,12 +428,6 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
       window.removeEventListener('scroll', handleScroll, true);
     };
   }, [hideSelectionTooltip]);
-
-  useEffect(() => {
-    return () => {
-      clearPendingHighlight();
-    };
-  }, [clearPendingHighlight]);
 
   function handleAddSelectionToContext() {
     if (!pendingSelection) return;
@@ -823,29 +724,6 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
         <div ref={bottomRef} />
       </div>
 
-      {/* Selection outline overlay (in-situ) */}
-      {pendingOutlineRects.length > 0 && typeof document !== 'undefined' && createPortal(
-        <>
-          {pendingOutlineRects.map((rect, index) => (
-            <div
-              key={`${index}-${rect.left}-${rect.top}-${rect.width}-${rect.height}`}
-              className="fixed pointer-events-none rounded-[10px]"
-              style={{
-                left: rect.left,
-                top: rect.top,
-                width: rect.width,
-                height: rect.height,
-                zIndex: 2147483645,
-                border: '2px solid rgba(249, 115, 22, 0.95)',
-                background: 'rgba(249, 115, 22, 0.12)',
-                boxShadow: '0 0 0 4px rgba(249, 115, 22, 0.22)',
-              }}
-            />
-          ))}
-        </>,
-        document.body,
-      )}
-
       {/* Selection tooltip for assistant messages */}
       {tooltipPos && pendingSelection && typeof document !== 'undefined' && createPortal(
         <div
@@ -999,23 +877,6 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
         .ic-message-md *::selection {
           background: rgba(249, 115, 22, 0.35);
           color: #fff;
-        }
-        .ic-message-md [data-chat-block="true"] {
-          transition: background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease, margin 0.2s ease;
-          border-radius: 8px;
-        }
-        .ic-message-md .ic-context-pending {
-          background: rgba(249, 115, 22, 0.26) !important;
-          outline: 3px solid rgba(249, 115, 22, 1) !important;
-          outline-offset: 2px;
-          box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-            0 8px 30px rgba(249, 115, 22, 0.38) !important;
-          padding: 6px 10px;
-          margin-left: -10px;
-          margin-right: -10px;
-          position: relative;
-          z-index: 3;
         }
         .inline-subchat-creating {
           margin: 10px 0;

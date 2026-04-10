@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkCreditQuota, recordAiUsage } from '@/lib/ai-usage';
 
 /**
  * POST /api/documents/[id]/suggest-keywords
@@ -50,8 +51,17 @@ export async function POST(
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL ?? 'gpt-5.4-nano';
   if (!apiKey) {
     return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+  }
+
+  const usageCheck = await checkCreditQuota(supabase, user.id);
+  if (!usageCheck.allowed) {
+    return NextResponse.json(
+      { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+      { status: 402 }
+    );
   }
 
   const prompt = `You are an academic keyword extractor. Given a study document's title and a LaTeX excerpt, suggest 6 concise keywords that describe its topic and subject area. Return ONLY a JSON array of strings, no explanation.
@@ -71,7 +81,7 @@ Return format: ["keyword1", "keyword2", ...]`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 150,
         temperature: 0.3,
@@ -84,8 +94,25 @@ Return format: ["keyword1", "keyword2", ...]`;
       return NextResponse.json({ error: 'AI request failed' }, { status: 502 });
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
+    };
     const raw = data.choices?.[0]?.message?.content ?? '[]';
+
+    await recordAiUsage({
+      supabase,
+      userId: user.id,
+      provider: 'openai',
+      model,
+      usage: data.usage,
+      feature: 'document_suggest_keywords',
+      metadata: { document_id: documentId },
+    });
 
     // Parse the JSON array from the response
     let keywords: string[] = [];

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
+
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
+const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
 
 interface AnswerPayload {
   question_id: string;
@@ -168,6 +172,14 @@ export async function POST(
   const fillInScores = new Map<string, number>();
 
   if (fillInQuestions.length > 0) {
+    const usageCheck = await checkCreditQuota(supabase, user.id);
+    if (!usageCheck.allowed) {
+      return NextResponse.json(
+        { error: 'limit_reached', plan: usageCheck.plan ?? 'free', remaining: usageCheck.remaining ?? 0 },
+        { status: 402 }
+      );
+    }
+
     const fillInItems = fillInQuestions.map((q) => {
       const item: {
         id: string;
@@ -188,10 +200,9 @@ export async function POST(
     });
 
     try {
-      const API_URL = process.env.API_URL ?? 'http://localhost:4000';
       const response = await fetch(`${API_URL}/exams/grade-fill-in`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildInternalApiHeaders(user.id, 'exam_grade_fill_in', API_INTERNAL_TOKEN),
         body: JSON.stringify({ items: fillInItems, gradingMode: isPartialMode ? 'partial' : 'strict' }),
         signal: AbortSignal.timeout(120_000), // 2 min — fill-in grading
       });

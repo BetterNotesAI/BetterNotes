@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput, ConversationTurn, GenerateExamArgs, GenerateExamResult, GenerateExamQuestion, GradeFillInArgs, GradeFillInResult, SolveMathArgs, SolveMathResult, SolveMathBatchArgs, SolveMathBatchResult } from './types';
 import type { ProcessedAttachment } from '../attachments';
+import { recordModelUsage } from '../usage/tracker';
 
 const MAX_FILE_CONTEXT_CHARS = 12000;
 const MAX_TOTAL_FILE_CONTEXT_CHARS = 45000;
@@ -59,6 +60,28 @@ function applyLatexFallbacks(latex: string): string {
     return trimmed + '\n\\end{document}';
   }
   return trimmed;
+}
+
+function contentToText(content: unknown): string {
+  if (typeof content === 'string') return content;
+
+  if (Array.isArray(content)) {
+    return content.map((item) => contentToText(item)).join('\n');
+  }
+
+  if (content && typeof content === 'object') {
+    const maybe = content as Record<string, unknown>;
+    if (typeof maybe.text === 'string') return maybe.text;
+    if (typeof maybe.content === 'string') return maybe.content;
+    return JSON.stringify(maybe);
+  }
+
+  return '';
+}
+
+function estimateTokensFromText(text: string): number {
+  if (!text.trim()) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
 }
 
 function buildAttachmentContent(
@@ -133,6 +156,7 @@ function buildAttachmentContent(
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI;
   private model: string;
+  private providerName: string;
 
   /**
    * @param apiKey   API key for the provider
@@ -140,9 +164,36 @@ export class OpenAIProvider implements AIProvider {
    * @param baseURL  Optional base URL for OpenAI-compatible providers
    *                 (Groq, OpenRouter, Google AI Studio, etc.)
    */
-  constructor(apiKey: string, model = 'gpt-4o', baseURL?: string) {
+  constructor(apiKey: string, model = 'gpt-5.4-nano', baseURL?: string, providerName = 'openai') {
     this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     this.model = model;
+    this.providerName = providerName;
+  }
+
+  private async createChatCompletion(
+    request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    feature: string,
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    const response = await this.client.chat.completions.create(request);
+    const estimatedPromptTokens = Array.isArray(request.messages)
+      ? request.messages.reduce((acc, message) => acc + estimateTokensFromText(contentToText(message.content)), 0)
+      : 0;
+    const estimatedCompletionTokens = estimateTokensFromText(response.choices?.[0]?.message?.content ?? '');
+    const usagePayload = response.usage ?? {
+      prompt_tokens: estimatedPromptTokens,
+      completion_tokens: estimatedCompletionTokens,
+      prompt_tokens_details: { cached_tokens: 0 },
+    };
+
+    await recordModelUsage({
+      provider: this.providerName,
+      model: this.model,
+      usage: usagePayload,
+      feature,
+      metadata: { usage_estimated: !response.usage },
+    });
+
+    return response;
   }
 
   async generateLatex(args: GenerateLatexArgs): Promise<GenerateLatexResult> {
@@ -218,11 +269,11 @@ export class OpenAIProvider implements AIProvider {
 
     messages.push({ role: 'user', content: userContent });
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0.2,
       messages,
-    });
+    }, 'generate_latex');
 
     const raw = resp.choices?.[0]?.message?.content ?? '';
     const out = stripMarkdownFences(raw);
@@ -263,7 +314,7 @@ export class OpenAIProvider implements AIProvider {
       'NEVER output triple backticks.',
     ].join(' ');
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0.1,
       messages: [
@@ -273,7 +324,7 @@ export class OpenAIProvider implements AIProvider {
           content: `Fix this LaTeX:\n\n${args.latex}\n\nCompiler log:\n${args.log}\n\nReturn the FULL corrected LaTeX.`,
         },
       ],
-    });
+    }, 'fix_latex');
 
     return stripMarkdownFences(resp.choices?.[0]?.message?.content ?? '');
   }
@@ -318,7 +369,7 @@ export class OpenAIProvider implements AIProvider {
       args.prompt,
     ].join('\n');
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0.2,
       response_format: { type: 'json_object' },
@@ -326,7 +377,7 @@ export class OpenAIProvider implements AIProvider {
         { role: 'system', content: system },
         { role: 'user', content: userContent },
       ],
-    });
+    }, 'edit_document');
 
     const raw = resp.choices?.[0]?.message?.content ?? '{}';
 
@@ -422,11 +473,11 @@ export class OpenAIProvider implements AIProvider {
       ].join('\n'),
     });
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0.2,
       messages,
-    });
+    }, 'edit_block');
 
     const raw = resp.choices?.[0]?.message?.content ?? '';
     return stripMarkdownFences(raw).trim();
@@ -537,7 +588,7 @@ OUTPUT: Return a JSON object with exactly two keys:
   - "explanation": string — empty string "" if has_math is true; otherwise 1–2 sentences explaining why the answer is correct
   - "has_math": boolean — set to true if the question involves mathematical formulas, equations, algebraic expressions, calculus, quantitative physics, chemistry with molecular formulas, or any content where the student would need to type mathematical symbols (e.g. exponents, Greek letters, integrals, fractions). Set to false otherwise.`;
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0.9,
       max_tokens: 16000,
@@ -546,7 +597,7 @@ OUTPUT: Return a JSON object with exactly two keys:
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage },
       ],
-    });
+    }, 'generate_exam');
 
     const raw: string = resp.choices?.[0]?.message?.content ?? '{}';
 
@@ -651,13 +702,13 @@ Return ONLY a valid JSON object:
   "explanation": "step-by-step solution with all calculations shown (minimum 2-3 sentences)"
 }`;
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0,
       max_tokens: 2500,
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
-    });
+    }, 'solve_math');
 
     const raw = resp.choices?.[0]?.message?.content ?? '{}';
     const cleaned = sanitizeLatexInJsonString(
@@ -719,13 +770,13 @@ RULES FOR explanation:
 - You may verify your answer internally, but write ONLY the clean final solution in the explanation — never include re-checks, revisions, or correction notes.
 - If your result does not match any option exactly, pick the closest option, state why briefly, and stop.`;
 
-    const resp = await this.client.chat.completions.create({
+    const resp = await this.createChatCompletion({
       model: this.model,
       temperature: 0,
       max_tokens: Math.min(4000, Math.max(1000, items.length * 400)),
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
-    });
+    }, 'solve_math_batch');
 
     const raw = resp.choices?.[0]?.message?.content ?? '{}';
     // Strip thinking blocks (<thought>…</thought>, <thinking>…</thinking>) that reasoning models include
@@ -804,13 +855,13 @@ Return ONLY a valid JSON object: { "scores": [{ "id": "...", "score": 1.0 }] } f
 Items:
 ${JSON.stringify(textItems, null, 2)}`;
 
-      const resp = await this.client.chat.completions.create({
+      const resp = await this.createChatCompletion({
         model: this.model,
         temperature: 0,
         max_tokens: 500,
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
-      });
+      }, 'grade_fill_in_text');
 
       const raw = resp.choices?.[0]?.message?.content ?? '{}';
       try {
@@ -870,13 +921,13 @@ Assign a score from 0.0 to 1.0.`
           { type: 'image_url', image_url: { url: item.image_url!, detail: 'high' } },
         ];
 
-        const resp = await this.client.chat.completions.create({
+        const resp = await this.createChatCompletion({
           model: this.model,
           temperature: 0,
           max_tokens: 100,
           response_format: { type: 'json_object' },
           messages: [{ role: 'user', content: userContent as any }],
-        });
+        }, 'grade_fill_in_vision');
 
         const raw = resp.choices?.[0]?.message?.content ?? '{}';
         const parsed = JSON.parse(raw);

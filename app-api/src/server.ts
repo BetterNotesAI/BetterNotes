@@ -9,6 +9,7 @@ import { createExamsRouter } from './routes/exams';
 import { createProblemSolverRouter } from './routes/problem-solver';
 import { createCheatSheetRouter } from './routes/cheat-sheet';
 import { createAIProvider } from './lib/ai';
+import { runWithUsageContext } from './lib/usage/context';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -22,6 +23,31 @@ app.use(express.json({ limit: process.env.MAX_JSON_SIZE ?? '20mb' }));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
+function readHeaderValue(value: string | string[] | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+app.use((req, _res, next) => {
+  const rawUserId = readHeaderValue(req.header('x-bn-user-id'));
+  const userId = rawUserId && isUuid(rawUserId) ? rawUserId : null;
+  const feature = readHeaderValue(req.header('x-bn-feature'));
+
+  runWithUsageContext(
+    {
+      userId,
+      feature,
+      path: req.path ?? null,
+    },
+    () => next(),
+  );
+});
+
 // ─── AI provider ──────────────────────────────────────────────────────────────
 // Set AI_PROVIDER to: openai | groq | openrouter | google
 // Then set the corresponding API key (and optionally model ID) in .env.
@@ -31,7 +57,7 @@ const providerName = process.env.AI_PROVIDER ?? 'openai';
 const aiProvider = createAIProvider(providerName, {
   // OpenAI
   openaiApiKey: process.env.OPENAI_API_KEY,
-  openaiModel:  process.env.OPENAI_MODEL ?? 'gpt-4o',
+  openaiModel:  process.env.OPENAI_MODEL ?? 'gpt-5.4-nano',
   // Groq
   groqApiKey:   process.env.GROQ_API_KEY,
   groqModel:    process.env.GROQ_MODEL,

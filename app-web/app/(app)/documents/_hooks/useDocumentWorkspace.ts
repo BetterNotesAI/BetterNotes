@@ -38,7 +38,7 @@ interface WorkspaceState {
 
 function humanizeError(msg: string): string {
   if (msg.includes('guest_doc_limit') || msg.includes('guest_message_limit')) return '';
-  if (msg.includes('limit_reached')) return 'Monthly generation limit reached. Upgrade to Pro for unlimited generations.';
+  if (msg.includes('limit_reached')) return 'Monthly credit limit reached. Upgrade your plan to continue using AI.';
   if (msg.includes('compile') || msg.includes('LaTeX')) return 'PDF compilation failed. The AI will try to fix it automatically next time.';
   if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) return 'The generation service is taking too long. Please try again.';
   if (msg.includes('template')) return 'Template not found. Please refresh and try again.';
