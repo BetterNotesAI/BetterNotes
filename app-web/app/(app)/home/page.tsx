@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { createClient } from '@/lib/supabase/client';
+import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 
 interface RecentDocument {
   id: string;
@@ -19,12 +21,12 @@ const HOME_TEMPLATES: Record<string, { name: string; accent: string; linkColor: 
   'lecture_notes':        { name: 'Lecture Notes',         accent: '#3b82f6', linkColor: 'text-blue-400 group-hover:text-blue-300' },
   'study_form':           { name: '3-Col Portrait',        accent: '#10b981', linkColor: 'text-emerald-400 group-hover:text-emerald-300' },
 };
-const FEATURED_IDS = ['2cols_portrait', 'landscape_3col_maths', 'lecture_notes'];
+const FEATURED_IDS = ['landscape_3col_maths', '2cols_portrait', 'lecture_notes'] as const;
 
 export default function HomePage() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(FEATURED_IDS[0]);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
@@ -34,7 +36,11 @@ export default function HomePage() {
   // Restore last selected template after hydration to avoid server/client mismatch
   useEffect(() => {
     const saved = localStorage.getItem('lastTemplateId');
-    if (saved) setSelectedTemplateId(saved);
+    if (saved && FEATURED_IDS.includes(saved as (typeof FEATURED_IDS)[number])) {
+      setSelectedTemplateId(saved);
+      return;
+    }
+    setSelectedTemplateId(FEATURED_IDS[0]);
   }, []);
 
   useEffect(() => {
@@ -144,10 +150,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               {(() => {
-                const visibleIds = selectedTemplateId
-                  ? [selectedTemplateId, ...FEATURED_IDS.filter(id => id !== selectedTemplateId)].slice(0, 3)
-                  : FEATURED_IDS;
-                return visibleIds.map((id) => {
+                return FEATURED_IDS.map((id) => {
                   const t = HOME_TEMPLATES[id] ?? { name: id.replace(/_/g, ' '), accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' };
                   const isActive = selectedTemplateId === id;
                   return (
@@ -166,7 +169,7 @@ export default function HomePage() {
                     >
                       {/* Schematic */}
                       <div
-                        className={`aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
+                        className={`relative aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
                           isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
                         }`}
                         style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
@@ -174,6 +177,13 @@ export default function HomePage() {
                         <div className="w-full h-full p-2 group-hover:scale-[1.02] transition-transform duration-300">
                           {renderSchematic(id)}
                         </div>
+                        <Image
+                          src={getTemplateThumbnailSrc(id)}
+                          alt={t.name}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                        />
                       </div>
                       <div className="flex items-center justify-between gap-1 mb-0.5">
                         <p className="text-xs font-semibold text-white/85 leading-snug">{t.name}</p>

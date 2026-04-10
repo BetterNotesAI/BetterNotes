@@ -31,10 +31,10 @@ interface Props {
 // academic_paper, lab_report, data_analysis) are hidden in the UI
 // and marked is_active = false in the DB — not deleted.
 const TEMPLATES = [
-  { id: '2cols_portrait',       displayName: '2-Col Portrait',    isPro: false },
   { id: 'landscape_3col_maths', displayName: '3-Col Landscape',   isPro: false },
-  { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
+  { id: '2cols_portrait',       displayName: '2-Col Portrait',    isPro: false },
   { id: 'lecture_notes',        displayName: 'Long Notes',        isPro: false },
+  { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
 ];
 
 export function DocumentCreationBar({

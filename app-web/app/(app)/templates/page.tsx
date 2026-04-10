@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
+import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 
 interface Template {
   id: string;
@@ -19,15 +20,6 @@ interface Template {
 // 4 most popular ones; this page shows all of them.
 const TEMPLATES: Template[] = [
   {
-    id: '2cols_portrait',
-    displayName: '2-Column Portrait',
-    description: 'Compact A4 portrait sheet with 2 columns for formulas, definitions, and key results.',
-    isPro: false,
-    category: 'Notes',
-    accent: '#6366f1',
-    schematic: <TwoColSchematic />,
-  },
-  {
     id: 'landscape_3col_maths',
     displayName: '3-Column Landscape',
     description: 'A4 landscape with 3 columns — dense math reference sheets and formula summaries.',
@@ -37,13 +29,13 @@ const TEMPLATES: Template[] = [
     schematic: <ThreeColSchematic />,
   },
   {
-    id: 'study_form',
-    displayName: '3-Column Portrait',
-    description: 'Ultra-compact A4 portrait with 3 columns — formula boxes, constant tables, and property lists.',
+    id: '2cols_portrait',
+    displayName: '2-Column Portrait',
+    description: 'Compact A4 portrait sheet with 2 columns for formulas, definitions, and key results.',
     isPro: false,
     category: 'Notes',
-    accent: '#22c55e',
-    schematic: <StudyFormSchematic />,
+    accent: '#6366f1',
+    schematic: <TwoColSchematic />,
   },
   {
     id: 'lecture_notes',
@@ -53,6 +45,15 @@ const TEMPLATES: Template[] = [
     category: 'Notes',
     accent: '#3b82f6',
     schematic: <LectureSchematic />,
+  },
+  {
+    id: 'study_form',
+    displayName: '3-Column Portrait',
+    description: 'Ultra-compact A4 portrait with 3 columns — formula boxes, constant tables, and property lists.',
+    isPro: false,
+    category: 'Notes',
+    accent: '#22c55e',
+    schematic: <StudyFormSchematic />,
   },
   {
     id: 'cornell',
@@ -218,7 +219,7 @@ export default function TemplatesPage() {
                     {template.schematic}
                   </div>
                   <Image
-                    src={`/templates/thumbnails/${template.id}.png`}
+                    src={getTemplateThumbnailSrc(template.id)}
                     alt={template.displayName}
                     fill
                     className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -389,7 +390,7 @@ export default function TemplatesPage() {
                     {selected.schematic}
                   </div>
                   <Image
-                    src={`/templates/thumbnails/${selected.id}.png`}
+                    src={getTemplateThumbnailSrc(selected.id)}
                     alt={selected.displayName}
                     fill
                     className="object-cover"

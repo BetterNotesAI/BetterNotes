@@ -12,6 +12,8 @@ export async function middleware(request: NextRequest) {
     !isPublic && (
       path.startsWith('/documents') ||
       path.startsWith('/settings') ||
+      path.startsWith('/profile') ||
+      path.startsWith('/support') ||
       path.startsWith('/templates') ||
       path.startsWith('/pricing')
     )

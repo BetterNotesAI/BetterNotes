@@ -2,19 +2,12 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { createClient } from '@/lib/supabase/client';
+import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 
 const FEATURED = [
-  {
-    id: '2cols_portrait',
-    name: '2-Column Portrait',
-    desc: 'Compact A4 portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
-    accent: '#6366f1',
-    category: 'Notes',
-    linkColor: 'text-indigo-400 group-hover:text-indigo-300',
-    schematic: <TwoColSchematic />,
-  },
   {
     id: 'landscape_3col_maths',
     name: '3-Column Landscape',
@@ -23,6 +16,15 @@ const FEATURED = [
     category: 'Notes',
     linkColor: 'text-violet-400 group-hover:text-violet-300',
     schematic: <ThreeColSchematic />,
+  },
+  {
+    id: '2cols_portrait',
+    name: '2-Column Portrait',
+    desc: 'Compact A4 portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
+    accent: '#6366f1',
+    category: 'Notes',
+    linkColor: 'text-indigo-400 group-hover:text-indigo-300',
+    schematic: <TwoColSchematic />,
   },
   {
     id: 'lecture_notes',
@@ -38,7 +40,7 @@ const FEATURED = [
 export function LandingInteractive() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('2cols_portrait');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('landscape_3col_maths');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -130,7 +132,7 @@ export function LandingInteractive() {
               >
                 {/* Schematic */}
                 <div
-                  className={`aspect-[4/3] rounded-xl mb-3 overflow-hidden border transition-colors ${
+                  className={`relative aspect-[4/3] rounded-xl mb-3 overflow-hidden border transition-colors ${
                     isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
                   }`}
                   style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
@@ -138,6 +140,13 @@ export function LandingInteractive() {
                   <div className="w-full h-full p-3 group-hover:scale-[1.02] transition-transform duration-300">
                     {t.schematic}
                   </div>
+                  <Image
+                    src={getTemplateThumbnailSrc(t.id)}
+                    alt={t.name}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+                  />
                 </div>
 
                 {/* Info */}
