@@ -151,7 +151,7 @@ BEGIN
   v_output_cost := ROUND((v_output_tokens::numeric / 1000000) * v_output_price, 8);
   v_total_cost := ROUND(v_input_cost + v_cached_input_cost + v_output_cost, 8);
 
-  INSERT INTO public.ai_usage_events (
+  INSERT INTO public.ai_usage_events ( 
     user_id,
     provider,
     model,
