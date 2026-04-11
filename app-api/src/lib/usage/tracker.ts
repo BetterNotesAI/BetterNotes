@@ -22,6 +22,26 @@ interface RecordModelUsageArgs {
 }
 
 let supabaseAdmin: SupabaseClient | null | undefined;
+let hasLoggedSupabaseConfigError = false;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logSupabaseConfigWarning(message: string): void {
+  if (hasLoggedSupabaseConfigError) return;
+  hasLoggedSupabaseConfigError = true;
+  console.warn(message);
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 function getSupabaseAdminClient(): SupabaseClient | null {
   if (supabaseAdmin !== undefined) {
@@ -32,16 +52,34 @@ function getSupabaseAdminClient(): SupabaseClient | null {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!url || !serviceRoleKey) {
+    logSupabaseConfigWarning(
+      '[usage] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing. Usage tracking disabled.',
+    );
     supabaseAdmin = null;
     return supabaseAdmin;
   }
 
-  supabaseAdmin = createClient(url, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  if (!isValidHttpUrl(url)) {
+    logSupabaseConfigWarning(
+      `[usage] Invalid SUPABASE_URL ("${url}"). Usage tracking disabled.`,
+    );
+    supabaseAdmin = null;
+    return supabaseAdmin;
+  }
+
+  try {
+    supabaseAdmin = createClient(url, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  } catch (error: unknown) {
+    logSupabaseConfigWarning(
+      `[usage] Failed to initialize Supabase client. Usage tracking disabled. ${toErrorMessage(error)}`,
+    );
+    supabaseAdmin = null;
+  }
 
   return supabaseAdmin;
 }
@@ -88,21 +126,25 @@ export async function recordModelUsage(args: RecordModelUsageArgs): Promise<void
     ...(args.metadata ?? {}),
   };
 
-  const { error } = await supabase.rpc('record_ai_usage', {
-    p_user_id: userId,
-    p_provider: args.provider,
-    p_model: args.model,
-    p_feature: feature ?? null,
-    p_input_tokens: inputTokens,
-    p_cached_input_tokens: cachedTokens,
-    p_output_tokens: outputTokens,
-    p_input_price_per_1m: pricing.inputUsdPer1m,
-    p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
-    p_output_price_per_1m: pricing.outputUsdPer1m,
-    p_metadata: metadata,
-  });
+  try {
+    const { error } = await supabase.rpc('record_ai_usage', {
+      p_user_id: userId,
+      p_provider: args.provider,
+      p_model: args.model,
+      p_feature: feature ?? null,
+      p_input_tokens: inputTokens,
+      p_cached_input_tokens: cachedTokens,
+      p_output_tokens: outputTokens,
+      p_input_price_per_1m: pricing.inputUsdPer1m,
+      p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
+      p_output_price_per_1m: pricing.outputUsdPer1m,
+      p_metadata: metadata,
+    });
 
-  if (error) {
-    console.warn('[usage] record_ai_usage failed:', error.message);
+    if (error) {
+      console.warn('[usage] record_ai_usage failed:', error.message);
+    }
+  } catch (error: unknown) {
+    console.warn('[usage] record_ai_usage request failed:', toErrorMessage(error));
   }
 }
