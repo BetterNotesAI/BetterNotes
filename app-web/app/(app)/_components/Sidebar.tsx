@@ -440,6 +440,8 @@ export function Sidebar() {
   const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
   const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
   const activeNavClass = 'bg-white/12 text-white font-medium ring-1 ring-indigo-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]';
+  const aiResourceInactiveNavClass = 'text-indigo-100/85 bg-indigo-500/10 border border-indigo-300/20 hover:bg-indigo-500/16 hover:border-indigo-300/35 hover:text-white';
+  const aiResourceActiveNavClass = 'bg-gradient-to-r from-indigo-500/35 to-violet-500/25 text-white font-semibold border border-indigo-300/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]';
   const creditsUsed = usage ? usage.credits_used ?? usage.message_count : 0;
   const creditsLimit = usage ? usage.credits_limit ?? usage.limit : 0;
   const creditsRemaining = usage
@@ -517,48 +519,50 @@ export function Sidebar() {
           {/* ── Resources section ── */}
           <SectionDivider label="Resources" collapsed={collapsed} />
 
-          <Link
-            href="/cheat-sheets"
-            title={collapsed ? 'Cheat Sheets' : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-            } ${
-              isActive('/cheat-sheets')
-                ? `bg-white/15 text-white font-medium${collapsed ? '' : ' border-r-2 border-indigo-400'}`
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <CheatSheetIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Cheat Sheets</span>}
-          </Link>
-          <Link
-            href="/problem-solver"
-            title={collapsed ? 'Problem Solver' : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-            } ${
-              isActive('/problem-solver')
-                ? activeNavClass
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <ProblemSolverIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Problem Solver</span>}
-          </Link>
-          <Link
-            href="/exams"
-            title={collapsed ? 'Exams' : undefined}
-            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-            } ${
-              isActive('/exams')
-                ? activeNavClass
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <ExamsIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Exams</span>}
-          </Link>
+          <div className="space-y-2">
+            <Link
+              href="/cheat-sheets"
+              title={collapsed ? 'Cheat Sheets' : undefined}
+              className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+              } ${
+                isActive('/cheat-sheets')
+                  ? aiResourceActiveNavClass
+                  : aiResourceInactiveNavClass
+              }`}
+            >
+              <CheatSheetIcon className="w-4 h-4 shrink-0" />
+              {!collapsed && <span className="text-sm truncate">Cheat Sheets</span>}
+            </Link>
+            <Link
+              href="/problem-solver"
+              title={collapsed ? 'Problem Solver' : undefined}
+              className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+              } ${
+                isActive('/problem-solver')
+                  ? aiResourceActiveNavClass
+                  : aiResourceInactiveNavClass
+              }`}
+            >
+              <ProblemSolverIcon className="w-4 h-4 shrink-0" />
+              {!collapsed && <span className="text-sm truncate">Problem Solver</span>}
+            </Link>
+            <Link
+              href="/exams"
+              title={collapsed ? 'Exams' : undefined}
+              className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+              } ${
+                isActive('/exams')
+                  ? aiResourceActiveNavClass
+                  : aiResourceInactiveNavClass
+              }`}
+            >
+              <ExamsIcon className="w-4 h-4 shrink-0" />
+              {!collapsed && <span className="text-sm truncate">Exams</span>}
+            </Link>
+          </div>
 
           {/* ── Projects section ── */}
           <SectionDivider label="Projects" collapsed={collapsed} />

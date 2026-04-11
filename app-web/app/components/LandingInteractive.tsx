@@ -19,7 +19,7 @@ const FEATURED = [
   },
   {
     id: '2cols_portrait',
-    name: '2-Column Portrait',
+    name: '2-Column Cheat Sheet',
     desc: 'Compact A4 portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
     accent: '#6366f1',
     category: 'Notes',
@@ -28,7 +28,7 @@ const FEATURED = [
   },
   {
     id: 'lecture_notes',
-    name: 'Long Notes (Chapters)',
+    name: 'Lecture Notes',
     desc: 'Multi-page structured notes with learning objectives, sections, examples and a summary box.',
     accent: '#3b82f6',
     category: 'Notes',

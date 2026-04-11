@@ -160,17 +160,35 @@ export default function HomePage() {
                       tabIndex={0}
                       onClick={() => handleTemplateCardClick(id)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTemplateCardClick(id); }}
-                      className={`group rounded-2xl border backdrop-blur p-3 text-left transition-all cursor-pointer
+                      className={`group relative rounded-2xl border backdrop-blur p-3 text-left transition-all cursor-pointer
                         hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] ${
                         isActive
-                          ? 'bg-white/[0.10] border-white/30'
+                          ? 'bg-white/[0.14]'
                           : 'bg-white/[0.04] border-white/12 hover:bg-white/[0.08] hover:border-white/20'
                       }`}
+                      style={isActive ? {
+                        borderColor: `${t.accent}d0`,
+                        boxShadow: `0 0 0 1px ${t.accent}66, 0 0 26px ${t.accent}4d, 0 12px 30px rgba(0,0,0,0.35)`,
+                      } : undefined}
                     >
+                      {isActive && (
+                        <div
+                          className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white border"
+                          style={{ backgroundColor: `${t.accent}2e`, borderColor: `${t.accent}90` }}
+                        >
+                          <span
+                            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[9px] leading-none"
+                            style={{ backgroundColor: `${t.accent}40`, borderColor: `${t.accent}90` }}
+                          >
+                            ✓
+                          </span>
+                          Selected
+                        </div>
+                      )}
                       {/* Schematic */}
                       <div
                         className={`relative aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
-                          isActive ? 'border-white/20' : 'border-white/8 group-hover:border-white/15'
+                          isActive ? 'border-white/45' : 'border-white/8 group-hover:border-white/15'
                         }`}
                         style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
                       >
