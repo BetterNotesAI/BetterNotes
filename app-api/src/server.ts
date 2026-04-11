@@ -33,15 +33,34 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function normalizeProjectType(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'document'
+    || normalized === 'cheat_sheet'
+    || normalized === 'problem_solver'
+    || normalized === 'exam'
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
 app.use((req, _res, next) => {
   const rawUserId = readHeaderValue(req.header('x-bn-user-id'));
   const userId = rawUserId && isUuid(rawUserId) ? rawUserId : null;
   const feature = readHeaderValue(req.header('x-bn-feature'));
+  const projectType = normalizeProjectType(readHeaderValue(req.header('x-bn-project-type')));
+  const rawProjectId = readHeaderValue(req.header('x-bn-project-id'));
+  const projectId = rawProjectId && isUuid(rawProjectId) ? rawProjectId : null;
 
   runWithUsageContext(
     {
       userId,
       feature,
+      projectType,
+      projectId,
       path: req.path ?? null,
     },
     () => next(),

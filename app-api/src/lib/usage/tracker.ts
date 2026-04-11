@@ -18,6 +18,8 @@ interface RecordModelUsageArgs {
   usage: ModelUsagePayload | null | undefined;
   feature?: string;
   userId?: string | null;
+  projectType?: string | null;
+  projectId?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -96,6 +98,26 @@ function mergeFeature(explicitFeature: string | undefined, contextFeature: strin
   return undefined;
 }
 
+function normalizeProjectType(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'document'
+    || normalized === 'cheat_sheet'
+    || normalized === 'problem_solver'
+    || normalized === 'exam'
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeProjectId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export async function recordModelUsage(args: RecordModelUsageArgs): Promise<void> {
   const usage = args.usage;
   if (!usage) return;
@@ -119,15 +141,19 @@ export async function recordModelUsage(args: RecordModelUsageArgs): Promise<void
 
   const pricing = resolveModelPricing(args.provider, args.model);
   const feature = mergeFeature(args.feature, context.feature);
+  const projectType = normalizeProjectType(args.projectType ?? context.projectType);
+  const projectId = normalizeProjectId(args.projectId ?? context.projectId);
 
   const metadata: Record<string, unknown> = {
     source: 'app-api',
     ...(context.path ? { path: context.path } : {}),
+    ...(projectType ? { project_type: projectType } : {}),
+    ...(projectId ? { project_id: projectId } : {}),
     ...(args.metadata ?? {}),
   };
 
   try {
-    const { error } = await supabase.rpc('record_ai_usage', {
+    const rpcArgs = {
       p_user_id: userId,
       p_provider: args.provider,
       p_model: args.model,
@@ -139,7 +165,37 @@ export async function recordModelUsage(args: RecordModelUsageArgs): Promise<void
       p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
       p_output_price_per_1m: pricing.outputUsdPer1m,
       p_metadata: metadata,
-    });
+      p_project_type: projectType,
+      p_project_id: projectId,
+    };
+
+    let { error } = await supabase.rpc('record_ai_usage', rpcArgs);
+    const errorMessage = error?.message?.toLowerCase() ?? '';
+    const shouldRetryLegacy =
+      error
+      && (
+        errorMessage.includes('p_project_type')
+        || errorMessage.includes('p_project_id')
+        || errorMessage.includes('could not find')
+        || errorMessage.includes('function public.record_ai_usage')
+      );
+
+    if (shouldRetryLegacy) {
+      const legacyResult = await supabase.rpc('record_ai_usage', {
+        p_user_id: userId,
+        p_provider: args.provider,
+        p_model: args.model,
+        p_feature: feature ?? null,
+        p_input_tokens: inputTokens,
+        p_cached_input_tokens: cachedTokens,
+        p_output_tokens: outputTokens,
+        p_input_price_per_1m: pricing.inputUsdPer1m,
+        p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
+        p_output_price_per_1m: pricing.outputUsdPer1m,
+        p_metadata: metadata,
+      });
+      error = legacyResult.error;
+    }
 
     if (error) {
       console.warn('[usage] record_ai_usage failed:', error.message);

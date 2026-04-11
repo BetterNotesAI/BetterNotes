@@ -202,7 +202,10 @@ export async function POST(
     try {
       const response = await fetch(`${API_URL}/exams/grade-fill-in`, {
         method: 'POST',
-        headers: buildInternalApiHeaders(user.id, 'exam_grade_fill_in', API_INTERNAL_TOKEN),
+        headers: buildInternalApiHeaders(user.id, 'exam_grade_fill_in', API_INTERNAL_TOKEN, {
+          projectType: 'exam',
+          projectId: examId,
+        }),
         body: JSON.stringify({ items: fillInItems, gradingMode: isPartialMode ? 'partial' : 'strict' }),
         signal: AbortSignal.timeout(120_000), // 2 min — fill-in grading
       });

@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
@@ -66,7 +66,10 @@ function InitialPromptSender({
 export default function DocumentWorkspacePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const pathname = usePathname() ?? '';
   const documentId = params?.id ?? '';
+  const backListHref = pathname.startsWith('/cheat-sheets/') ? '/cheat-sheets' : '/documents';
+  const backListLabel = backListHref === '/cheat-sheets' ? 'Back to cheat sheets' : 'Back to documents';
 
   const {
     document: docData,
@@ -449,10 +452,10 @@ export default function DocumentWorkspacePage() {
         <div className="text-center space-y-3">
           <p>Document not found</p>
           <button
-            onClick={() => router.push('/documents')}
+            onClick={() => router.push(backListHref)}
             className="text-sm text-blue-400 hover:underline"
           >
-            Back to documents
+            {backListLabel}
           </button>
         </div>
       </div>
@@ -476,7 +479,7 @@ export default function DocumentWorkspacePage() {
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => router.push('/documents')}
+            onClick={() => router.push(backListHref)}
             className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
             aria-label="Back"
           >

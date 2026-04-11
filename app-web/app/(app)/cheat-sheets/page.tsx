@@ -3,21 +3,55 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheatSheetCard, type CheatSheetSession } from './_components/CheatSheetCard';
-import { CheatSheetCreateModal } from './_components/CheatSheetCreateModal';
+import { CHEAT_SHEET_TEMPLATE_OPTIONS } from './_components/cheatSheetTemplates';
+
+type DocumentStatus = 'draft' | 'generating' | 'ready' | 'error';
+
+interface DocumentListItem {
+  id: string;
+  title: string;
+  template_id: string;
+  status: DocumentStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+const CHEAT_SHEET_TEMPLATE_ID_SET = new Set<string>(CHEAT_SHEET_TEMPLATE_OPTIONS.map((t) => t.id));
+
+function mapDocumentToCheatSheetSession(doc: DocumentListItem): CheatSheetSession {
+  const mappedStatus =
+    doc.status === 'ready'
+      ? 'done'
+      : doc.status === 'draft'
+      ? 'pending'
+      : doc.status;
+
+  return {
+    id: doc.id,
+    title: doc.title,
+    status: mappedStatus,
+    language: 'english',
+    source_doc_ids: [],
+    created_at: doc.created_at,
+    updated_at: doc.updated_at,
+  };
+}
 
 export default function CheatSheetsPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState<CheatSheetSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadSessions() {
       try {
-        const res = await fetch('/api/cheat-sheets/sessions');
+        const res = await fetch('/api/documents?sort=date_desc');
         if (!res.ok) return;
-        const data = await res.json() as { sessions: CheatSheetSession[] };
-        setSessions(data.sessions ?? []);
+        const data = await res.json() as { documents?: DocumentListItem[] };
+        const docs = (data.documents ?? [])
+          .filter((doc) => CHEAT_SHEET_TEMPLATE_ID_SET.has(doc.template_id))
+          .map(mapDocumentToCheatSheetSession);
+        setSessions(docs);
       } catch {
         // Non-critical
       } finally {
@@ -36,7 +70,7 @@ export default function CheatSheetsPage() {
       prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
     );
     try {
-      await fetch(`/api/cheat-sheets/sessions/${id}`, {
+      await fetch(`/api/documents/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle }),
@@ -44,11 +78,6 @@ export default function CheatSheetsPage() {
     } catch {
       // Optimistic update stays
     }
-  }
-
-  function handleCreated(sessionId: string) {
-    setIsModalOpen(false);
-    router.push(`/cheat-sheets/${sessionId}`);
   }
 
   return (
@@ -65,7 +94,7 @@ export default function CheatSheetsPage() {
           <h1 className="text-lg font-semibold">Cheat Sheets</h1>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => router.push('/cheat-sheets/new')}
           className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-sm font-medium bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/25 hover:border-indigo-400/40 text-indigo-300 hover:text-indigo-200 transition-all"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,7 +129,7 @@ export default function CheatSheetsPage() {
                 Create your first cheat sheet from your documents or pasted content.
               </p>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => router.push('/cheat-sheets/new')}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200 transition-all"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,12 +152,6 @@ export default function CheatSheetsPage() {
           )}
         </div>
       </div>
-
-      <CheatSheetCreateModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onCreated={handleCreated}
-      />
     </div>
   );
 }

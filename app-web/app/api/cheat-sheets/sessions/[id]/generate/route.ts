@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildInternalApiHeaders } from '@/lib/ai-usage';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -119,10 +120,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     try {
       const apiResp = await fetch(`${API_URL}/cheat-sheet/generate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-        },
+        headers: buildInternalApiHeaders(user.id, 'cheat_sheet_generate', API_INTERNAL_TOKEN, {
+          projectType: 'cheat_sheet',
+          projectId: sessionId,
+        }),
         body: JSON.stringify({
           title: session.title,
           sourceText,

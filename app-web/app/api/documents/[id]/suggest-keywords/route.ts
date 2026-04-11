@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkCreditQuota, recordAiUsage } from '@/lib/ai-usage';
+import { inferDocumentProjectType } from '@/lib/usage-project';
 
 /**
  * POST /api/documents/[id]/suggest-keywords
@@ -111,6 +112,8 @@ Return format: ["keyword1", "keyword2", ...]`;
       model,
       usage: data.usage,
       feature: 'document_suggest_keywords',
+      projectType: inferDocumentProjectType(doc.template_id ?? null),
+      projectId: documentId,
       metadata: { document_id: documentId },
     });
 

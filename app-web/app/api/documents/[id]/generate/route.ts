@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
+import { buildDocumentProjectContext } from '@/lib/usage-project';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -29,6 +30,7 @@ export async function POST(
   if (docError || !doc) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
+  const projectContext = buildDocumentProjectContext(documentId, doc.template_id);
 
   // Check guest limits before any expensive work (runs before the paid-plan quota check)
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
@@ -87,7 +89,7 @@ export async function POST(
   try {
     const apiResp = await fetch(`${API_URL}/latex/generate-and-compile`, {
       method: 'POST',
-      headers: buildInternalApiHeaders(user.id, 'document_generate', API_INTERNAL_TOKEN),
+      headers: buildInternalApiHeaders(user.id, 'document_generate', API_INTERNAL_TOKEN, projectContext),
       body: JSON.stringify({
         prompt,
         templateId: doc.template_id,

@@ -100,6 +100,8 @@ Return format: ["keyword1", "keyword2", ...]`;
       model,
       usage: data.usage,
       feature: 'problem_solver_suggest_keywords',
+      projectType: 'problem_solver',
+      projectId: sessionId,
       metadata: { session_id: sessionId },
     });
 
