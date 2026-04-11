@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -20,7 +20,7 @@ function humanizeAuthError(message: string): string {
   return 'Something went wrong, please try again'
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams?.get('returnUrl')
@@ -208,5 +208,26 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+function LoginFallback() {
+  return (
+    <div className="relative min-h-screen flex items-center justify-center px-4">
+      <Background />
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-2xl p-6">
+          <p className="text-sm text-white/60 text-center">Loading login...</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   )
 }
