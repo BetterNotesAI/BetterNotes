@@ -146,7 +146,10 @@ export async function POST(
   try {
     const apiResp = await fetch(`${API_URL}/problem-solver/chat`, {
       method: 'POST',
-      headers: buildInternalApiHeaders(user.id, 'problem_solver_chat', API_INTERNAL_TOKEN),
+      headers: buildInternalApiHeaders(user.id, 'problem_solver_chat', API_INTERNAL_TOKEN, {
+        projectType: 'problem_solver',
+        projectId: sessionId,
+      }),
       body: JSON.stringify({
         solutionMd: session.solution_md ?? '',
         history,

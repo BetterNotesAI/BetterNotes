@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
+import { recordModelUsage, type ModelUsagePayload } from '../lib/usage/tracker';
 
 const CHEAT_SHEET_SYSTEM_PROMPT = `You are an expert study assistant specializing in creating dense, information-rich cheat sheets for students.
 Your task is to generate a comprehensive cheat sheet from the provided content.
@@ -77,6 +78,11 @@ interface ProviderRuntime {
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Unexpected error';
+}
+
+function estimateTokenCount(text: string): number {
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
 }
 
 function buildProviderChain(opts: CheatSheetRouterOptions): ProviderRuntime[] {
@@ -173,6 +179,7 @@ export function createCheatSheetRouter(opts: CheatSheetRouterOptions): Router {
           const completion = await provider.client.chat.completions.create({
             model: provider.model,
             stream: true,
+            ...(provider.name === 'openai' ? { stream_options: { include_usage: true } } : {}),
             messages: [
               { role: 'system', content: CHEAT_SHEET_SYSTEM_PROMPT },
               { role: 'user', content: userPrompt },
@@ -180,14 +187,38 @@ export function createCheatSheetRouter(opts: CheatSheetRouterOptions): Router {
           });
 
           let emittedAnyChunk = false;
+          let streamedOutput = '';
+          let usagePayload: ModelUsagePayload | null = null;
           try {
             for await (const chunk of completion) {
+              if (chunk.usage) {
+                usagePayload = chunk.usage as ModelUsagePayload;
+              }
               const text = chunk.choices[0]?.delta?.content ?? '';
               if (text) {
                 emittedAnyChunk = true;
+                streamedOutput += text;
                 sendEvent({ chunk: text });
               }
             }
+
+            const finalUsagePayload: ModelUsagePayload = usagePayload ?? {
+              prompt_tokens: estimateTokenCount(`${CHEAT_SHEET_SYSTEM_PROMPT}\n${userPrompt}`),
+              completion_tokens: estimateTokenCount(streamedOutput),
+              prompt_tokens_details: { cached_tokens: 0 },
+            };
+
+            await recordModelUsage({
+              provider: provider.name,
+              model: provider.model,
+              usage: finalUsagePayload,
+              feature: 'cheat_sheet_generate_stream',
+              metadata: {
+                stream: true,
+                usage_estimated: usagePayload === null,
+              },
+            });
+
             sendEvent({ done: true });
             return;
           } catch (streamErr: unknown) {
@@ -263,6 +294,19 @@ export function createCheatSheetRouter(opts: CheatSheetRouterOptions): Router {
           ],
         });
         const raw = completion.choices[0]?.message?.content ?? '';
+
+        await recordModelUsage({
+          provider: provider.name,
+          model: provider.model,
+          usage: completion.usage ?? {
+            prompt_tokens: estimateTokenCount(`${SUB_CHAT_SYSTEM_PROMPT}\n${userContent}`),
+            completion_tokens: estimateTokenCount(raw),
+            prompt_tokens_details: { cached_tokens: 0 },
+          },
+          feature: 'cheat_sheet_chat',
+          metadata: { usage_estimated: !completion.usage },
+        });
+
         // Detect intent tag (search anywhere — models don't always put it first)
         const deleteMarkerMatch = raw.match(/\[EDIT\s*:\s*delete\]/i);
         const insertMarkerMatch = raw.match(/\[EDIT\s*:\s*insert\]/i);

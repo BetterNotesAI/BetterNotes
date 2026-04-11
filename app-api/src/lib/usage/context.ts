@@ -3,6 +3,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface UsageRequestContext {
   userId: string | null;
   feature: string | null;
+  projectType: string | null;
+  projectId: string | null;
   path: string | null;
 }
 
@@ -19,6 +21,8 @@ export function getUsageContext(): UsageRequestContext {
   return usageContextStorage.getStore() ?? {
     userId: null,
     feature: null,
+    projectType: null,
+    projectId: null,
     path: null,
   };
 }

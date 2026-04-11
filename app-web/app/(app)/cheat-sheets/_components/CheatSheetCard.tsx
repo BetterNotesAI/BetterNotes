@@ -99,7 +99,7 @@ export function CheatSheetCard({ session, onDelete, onTitleChange }: Props) {
     if (deleting) return;
     setDeleting(true);
     try {
-      await fetch(`/api/cheat-sheets/sessions/${session.id}`, { method: 'DELETE' });
+      await fetch(`/api/documents/${session.id}`, { method: 'DELETE' });
       onDelete(session.id);
     } catch {
       setDeleting(false);

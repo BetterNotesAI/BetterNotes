@@ -164,15 +164,43 @@ export async function POST(req: NextRequest) {
       ? Object.fromEntries((format as string[]).map((f) => [f, rawCounts[f] ?? 0]))
       : distributeQuestions(question_count, format as string[]);
 
+  const provisionalSubject = subjectTrimmed || 'Generated Exam';
+  const provisionalTitle = `${provisionalSubject} — ${level}`;
+
+  // Create the exam first so AI usage can be attributed to a concrete project_id.
+  const { data: provisionalExam, error: provisionalExamError } = await supabase
+    .from('exams')
+    .insert({
+      user_id: user.id,
+      title: provisionalTitle,
+      subject: provisionalSubject,
+      level,
+      language: lang,
+      question_count,
+      status: 'pending',
+      grading_mode: grading_mode === 'partial' ? 'partial' : 'strict',
+      cognitive_distribution: cognitive_distribution ?? null,
+    })
+    .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
+    .single();
+
+  if (provisionalExamError || !provisionalExam) {
+    return NextResponse.json({ error: `Failed to create exam: ${provisionalExamError?.message}` }, { status: 500 });
+  }
+
   // --- Delegate AI generation to app-api ---
   const apiResp = await fetch(`${API_URL}/exams/generate`, {
     method: 'POST',
-    headers: buildInternalApiHeaders(user.id, 'exam_generate', API_INTERNAL_TOKEN),
+    headers: buildInternalApiHeaders(user.id, 'exam_generate', API_INTERNAL_TOKEN, {
+      projectType: 'exam',
+      projectId: provisionalExam.id,
+    }),
     body: JSON.stringify({ subject: subjectTrimmed, level, language: lang, distribution, format, documentContext, cognitiveDistribution: cognitive_distribution, customInstructions: custom_instructions }),
     signal: AbortSignal.timeout(300_000), // 5 min — AI generation + math solving
   });
   if (!apiResp.ok) {
     const err = await apiResp.json().catch(() => ({}));
+    await supabase.from('exams').delete().eq('id', provisionalExam.id);
     return NextResponse.json({ error: err.error ?? 'AI request failed' }, { status: 502 });
   }
   const { questions: generatedQuestions, canonical_subject } = await apiResp.json() as {
@@ -181,33 +209,29 @@ export async function POST(req: NextRequest) {
   };
 
   if (!generatedQuestions || generatedQuestions.length === 0) {
+    await supabase.from('exams').delete().eq('id', provisionalExam.id);
     return NextResponse.json({ error: 'AI returned no questions' }, { status: 502 });
   }
 
-  // Use AI-normalized subject name if provided, fall back to user input
-  const finalSubject = (canonical_subject ?? subjectTrimmed).trim() || subjectTrimmed;
-
-  // --- Persist to Supabase ---
-  const title = `${finalSubject} — ${level}`;
+  // Use AI-normalized subject name if provided, fall back to user input/provisional subject.
+  const finalSubject = (canonical_subject ?? subjectTrimmed).trim() || provisionalSubject;
+  const finalTitle = `${finalSubject} — ${level}`;
 
   const { data: exam, error: examError } = await supabase
     .from('exams')
-    .insert({
-      user_id: user.id,
-      title,
+    .update({
+      title: finalTitle,
       subject: finalSubject,
-      level,
-      language: lang,
       question_count: generatedQuestions.length,
-      status: 'pending',
-      grading_mode: grading_mode === 'partial' ? 'partial' : 'strict',
-      cognitive_distribution: cognitive_distribution ?? null,
     })
+    .eq('id', provisionalExam.id)
+    .eq('user_id', user.id)
     .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
     .single();
 
   if (examError || !exam) {
-    return NextResponse.json({ error: `Failed to create exam: ${examError?.message}` }, { status: 500 });
+    await supabase.from('exams').delete().eq('id', provisionalExam.id);
+    return NextResponse.json({ error: `Failed to update exam: ${examError?.message}` }, { status: 500 });
   }
 
   const questionsPayload = generatedQuestions.map((q, i) => ({

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { UsageProjectContext, UsageProjectType } from './usage-project';
 
 export interface CreditQuotaStatus {
   allowed: boolean;
@@ -32,6 +33,28 @@ interface RecordAiUsageArgs {
   usage: ModelUsagePayload | null | undefined;
   feature: string;
   metadata?: Record<string, unknown>;
+  projectType?: UsageProjectType | null;
+  projectId?: string | null;
+}
+
+function normalizeProjectType(value: string | null | undefined): UsageProjectType | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'document'
+    || normalized === 'cheat_sheet'
+    || normalized === 'problem_solver'
+    || normalized === 'exam'
+  ) {
+    return normalized as UsageProjectType;
+  }
+  return null;
+}
+
+function normalizeProjectId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function readNumberEnv(name: string, fallback: number): number {
@@ -95,11 +118,17 @@ export function buildInternalApiHeaders(
   userId: string,
   feature: string,
   apiInternalToken: string,
+  projectContext?: UsageProjectContext,
 ): Record<string, string> {
+  const projectType = normalizeProjectType(projectContext?.projectType ?? null);
+  const projectId = normalizeProjectId(projectContext?.projectId ?? null);
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-bn-user-id': userId,
     'x-bn-feature': feature,
+    ...(projectType ? { 'x-bn-project-type': projectType } : {}),
+    ...(projectId ? { 'x-bn-project-id': projectId } : {}),
   };
 
   if (apiInternalToken) {
@@ -162,8 +191,15 @@ export async function recordAiUsage(
   }
 
   const pricing = resolveModelPricing(args.provider, args.model);
+  const projectType = normalizeProjectType(args.projectType ?? null);
+  const projectId = normalizeProjectId(args.projectId ?? null);
+  const metadata = {
+    ...(args.metadata ?? {}),
+    ...(projectType ? { project_type: projectType } : {}),
+    ...(projectId ? { project_id: projectId } : {}),
+  };
 
-  const { error } = await args.supabase.rpc('record_ai_usage', {
+  const rpcArgs = {
     p_user_id: args.userId,
     p_provider: args.provider,
     p_model: args.model,
@@ -174,8 +210,39 @@ export async function recordAiUsage(
     p_input_price_per_1m: pricing.inputUsdPer1m,
     p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
     p_output_price_per_1m: pricing.outputUsdPer1m,
-    p_metadata: args.metadata ?? {},
-  });
+    p_metadata: metadata,
+    p_project_type: projectType,
+    p_project_id: projectId,
+  };
+
+  let { error } = await args.supabase.rpc('record_ai_usage', rpcArgs);
+
+  const errorMessage = error?.message?.toLowerCase() ?? '';
+  const shouldRetryLegacy =
+    error
+    && (
+      errorMessage.includes('p_project_type')
+      || errorMessage.includes('p_project_id')
+      || errorMessage.includes('could not find')
+      || errorMessage.includes('function public.record_ai_usage')
+    );
+
+  if (shouldRetryLegacy) {
+    const legacyResult = await args.supabase.rpc('record_ai_usage', {
+      p_user_id: args.userId,
+      p_provider: args.provider,
+      p_model: args.model,
+      p_feature: args.feature,
+      p_input_tokens: inputTokens,
+      p_cached_input_tokens: cachedTokens,
+      p_output_tokens: outputTokens,
+      p_input_price_per_1m: pricing.inputUsdPer1m,
+      p_cached_input_price_per_1m: pricing.cachedInputUsdPer1m,
+      p_output_price_per_1m: pricing.outputUsdPer1m,
+      p_metadata: metadata,
+    });
+    error = legacyResult.error;
+  }
 
   if (error) {
     console.warn('[usage] record_ai_usage failed:', error.message);
