@@ -6,7 +6,9 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isPublic =
-    path.startsWith('/share/')
+    path.startsWith('/share/') ||
+    path.startsWith('/templates/thumbnails/') ||
+    path.startsWith('/templates/samples/')
 
   const isProtected =
     !isPublic && (

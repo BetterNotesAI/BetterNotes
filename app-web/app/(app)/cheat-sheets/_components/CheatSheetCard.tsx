@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type CheatSheetStatus = 'pending' | 'generating' | 'done' | 'error';
@@ -64,11 +65,73 @@ function formatDate(iso: string): string {
   });
 }
 
+function ConfirmDeleteModal({
+  title,
+  deleting,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  deleting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !deleting) onCancel();
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [deleting, onCancel]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={() => { if (!deleting) onCancel(); }}
+    >
+      <div
+        className="w-full max-w-sm bg-neutral-900 border border-white/15 rounded-2xl p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-sm font-semibold text-white mb-1">Delete cheat sheet?</h3>
+        <p className="text-xs text-white/50 mb-5 leading-relaxed">
+          <span className="text-white/70 font-medium">&quot;{title}&quot;</span> will be permanently deleted.
+          This action cannot be undone.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            className="px-3 py-1.5 text-xs text-white/60 hover:text-white/80 rounded-lg hover:bg-white/8 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {deleting && (
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            )}
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function CheatSheetCard({ session, onDelete, onTitleChange }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(session.title);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleTitleClick(e: React.MouseEvent) {
@@ -97,9 +160,16 @@ export function CheatSheetCard({ session, onDelete, onTitleChange }: Props) {
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
     if (deleting) return;
+    setShowDeleteConfirm(true);
+  }
+
+  async function confirmDelete() {
+    if (deleting) return;
     setDeleting(true);
     try {
-      await fetch(`/api/documents/${session.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/documents/${session.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setShowDeleteConfirm(false);
       onDelete(session.id);
     } catch {
       setDeleting(false);
@@ -179,6 +249,17 @@ export function CheatSheetCard({ session, onDelete, onTitleChange }: Props) {
         </div>
         <span className="text-[10px] text-white/30">{formatDate(session.created_at)}</span>
       </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title={titleDraft}
+          deleting={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            if (!deleting) setShowDeleteConfirm(false);
+          }}
+        />
+      )}
     </div>
   );
 }
