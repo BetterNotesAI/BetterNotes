@@ -43,7 +43,6 @@ interface PlanSpec {
   monthlyPrice: string;
   quarterlyPrice: string | null;
   credits: string;
-  internalCost: string;
   models: string[];
   summary: string;
   features: string[];
@@ -57,7 +56,6 @@ const PLAN_SPECS: PlanSpec[] = [
     monthlyPrice: '€0',
     quarterlyPrice: null,
     credits: '10 credits / month',
-    internalCost: 'Max internal cost: $0.10',
     models: ['GPT-5.4-nano', 'Gemini 2.5 Flash-Lite', 'Grok 4.1 Fast', 'DeepSeek V3.2'],
     summary: 'Low-cost models only. Ideal for trying the product and light usage.',
     features: ['-'],
@@ -68,7 +66,6 @@ const PLAN_SPECS: PlanSpec[] = [
     monthlyPrice: '€6.99',
     quarterlyPrice: '€16.99',
     credits: '200 credits / month',
-    internalCost: 'Max internal cost: $2.00',
     models: [
       'All Free models',
       '+ GPT-5.4',
@@ -86,7 +83,6 @@ const PLAN_SPECS: PlanSpec[] = [
     monthlyPrice: '€12.99',
     quarterlyPrice: '€31.99',
     credits: '500 credits / month',
-    internalCost: 'Max internal cost: $5.00',
     models: ['All Free models', '+ All Pro models', '+ Claude Opus 4.6'],
     summary: 'Full model catalogue. No restrictions.',
     features: ['All Better features', '+ (to be defined)', '+ (to be defined)', '+ (to be defined)'],
@@ -237,7 +233,7 @@ function BillingContent() {
       : null;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="h-full overflow-y-auto bg-[#0a0a0a] text-white">
       <div className="border-b border-gray-800 px-6 py-4 flex items-center gap-3">
         <button
           onClick={() => router.back()}
@@ -439,7 +435,6 @@ function BillingContent() {
 
                 <div className="space-y-1">
                   <p className="text-lg font-semibold text-gray-100">{plan.credits}</p>
-                  <p className="text-sm text-gray-500">{plan.internalCost}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -494,7 +489,7 @@ export default function BillingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="h-full bg-[#0a0a0a] flex items-center justify-center">
           <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
         </div>
       }
