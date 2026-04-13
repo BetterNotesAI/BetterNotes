@@ -16,8 +16,6 @@ export const lectureNotes: TemplateDefinition = {
 \\geometry{a4paper,left=22mm,right=22mm,top=22mm,bottom=22mm}
 \\usepackage{amsmath,amsthm,amssymb,amsfonts}
 \\usepackage{xcolor}
-\\usepackage{tcolorbox}
-\\tcbuselibrary{skins,breakable}
 \\usepackage{enumitem}
 \\usepackage{booktabs}
 \\usepackage{titlesec}
@@ -25,9 +23,6 @@ export const lectureNotes: TemplateDefinition = {
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{4pt}
 \\definecolor{accent}{RGB}{0,90,170}
-\\definecolor{examplebg}{RGB}{245,250,255}
-\\definecolor{summarybg}{RGB}{255,252,235}
-\\definecolor{warningbg}{RGB}{255,245,245}
 \\titleformat{\\section}{\\large\\bfseries\\color{accent}}{\\thesection.}{0.5em}{}[{\\color{accent}\\rule{\\linewidth}{0.4pt}}]
 \\titleformat{\\subsection}{\\bfseries\\color{accent!80!black}}{\\thesubsection.}{0.5em}{}
 \\titlespacing{\\section}{0pt}{8pt}{4pt}
@@ -42,35 +37,33 @@ export const lectureNotes: TemplateDefinition = {
 \\renewcommand{\\theworkedex}{\\thesection.\\arabic{workedex}}
 \\newenvironment{workedexample}[1][]{%
   \\refstepcounter{workedex}%
-  \\begin{tcolorbox}[
-    enhanced,breakable,
-    colback=examplebg,colframe=accent,
-    title=\\textbf{Example \\theworkedex\\ifx\\relax#1\\relax\\else: #1\\fi},
-    fonttitle=\\bfseries\\small,
-    coltitle=white,colbacktitle=accent,
-    sharp corners=south,boxrule=0.6pt,
-    top=4pt,bottom=4pt,left=6pt,right=6pt,
-  ]
-}{\\end{tcolorbox}}
+  \\par\\medskip
+  \\noindent{\\color{accent}\\rule{\\linewidth}{0.6pt}}\\par
+  \\noindent\\textbf{\\color{accent}Example \\theworkedex\\ifx\\relax#1\\relax\\else: #1\\fi}\\par
+  \\vspace{2pt}
+  \\begingroup
+}{%
+  \\par\\endgroup
+  \\noindent{\\color{accent}\\rule{\\linewidth}{0.6pt}}\\par\\medskip
+}
 \\newenvironment{keypoint}[1][Key Point]{%
-  \\begin{tcolorbox}[
-    enhanced,breakable,
-    colback=summarybg,colframe=orange!70!black,
-    title=\\textbf{#1},fonttitle=\\bfseries\\small,
-    coltitle=white,colbacktitle=orange!70!black,
-    sharp corners,boxrule=0.6pt,
-    top=3pt,bottom=3pt,left=5pt,right=5pt,
-  ]
-}{\\end{tcolorbox}}
+  \\par\\medskip
+  \\noindent\\textbf{\\color{accent!80!black}#1}\\par
+  \\noindent{\\color{accent!50}\\rule{\\linewidth}{0.4pt}}\\par
+  \\begingroup
+}{%
+  \\par\\endgroup
+  \\noindent{\\color{accent!50}\\rule{\\linewidth}{0.4pt}}\\par\\medskip
+}
 \\newenvironment{warning}[1][Note]{%
-  \\begin{tcolorbox}[
-    enhanced,colback=warningbg,colframe=red!60!black,
-    title=\\textbf{#1},fonttitle=\\bfseries\\small,
-    coltitle=white,colbacktitle=red!60!black,
-    sharp corners,boxrule=0.6pt,
-    top=3pt,bottom=3pt,left=5pt,right=5pt,
-  ]
-}{\\end{tcolorbox}}
+  \\par\\medskip
+  \\noindent\\textbf{\\color{red!70!black}#1}\\par
+  \\noindent{\\color{red!50}\\rule{\\linewidth}{0.4pt}}\\par
+  \\begingroup
+}{%
+  \\par\\endgroup
+  \\noindent{\\color{red!50}\\rule{\\linewidth}{0.4pt}}\\par\\medskip
+}
 \\theoremstyle{plain}
 \\newtheorem{theorem}{Theorem}[section]
 \\newtheorem{lemma}[theorem]{Lemma}

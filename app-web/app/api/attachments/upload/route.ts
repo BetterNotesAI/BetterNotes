@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { MAX_ATTACHMENT_FILE_SIZE_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate size
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > MAX_ATTACHMENT_FILE_SIZE_BYTES) {
     return NextResponse.json(
-      { error: 'File too large. Maximum size is 5MB.' },
+      { error: `File too large. Maximum size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.` },
       { status: 400 }
     );
   }

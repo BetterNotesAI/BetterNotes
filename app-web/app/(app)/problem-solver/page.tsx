@@ -1,10 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProblemUploadZone } from './_components/ProblemUploadZone';
 import { SessionCard, type ProblemSession } from './_components/SessionCard';
 
 export default function ProblemSolverPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectId = searchParams?.get('projectId')?.trim() || null;
+  const isProjectMode = !!projectId;
+
   const [sessions, setSessions] = useState<ProblemSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +20,10 @@ export default function ProblemSolverPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch('/api/problem-solver/sessions');
+        const url = projectId
+          ? `/api/problem-solver/sessions?folder_id=${encodeURIComponent(projectId)}`
+          : '/api/problem-solver/sessions';
+        const res = await fetch(url);
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error ?? 'Failed to load sessions');
@@ -28,7 +37,7 @@ export default function ProblemSolverPage() {
       }
     }
     loadSessions();
-  }, []);
+  }, [projectId]);
 
   const solvedSessions = sessions.filter((session) => session.status === 'done');
   const sortedSessions = [...solvedSessions].sort((a, b) => {
@@ -57,7 +66,18 @@ export default function ProblemSolverPage() {
   return (
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 shrink-0">
+      <div className="border-b border-white/10 px-6 py-4 shrink-0 flex items-center gap-3">
+        {isProjectMode && (
+          <button
+            onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
+            className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
+            title="Back to project"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
         <h1 className="text-xl font-semibold">Problem Solver</h1>
       </div>
 
@@ -77,9 +97,10 @@ export default function ProblemSolverPage() {
           </div>
 
           <div className="mb-10">
-            <ProblemUploadZone />
+            <ProblemUploadZone projectId={projectId} />
           </div>
 
+          {!isProjectMode && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-medium text-white/60">Previous solved problems</h2>
@@ -129,6 +150,7 @@ export default function ProblemSolverPage() {
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

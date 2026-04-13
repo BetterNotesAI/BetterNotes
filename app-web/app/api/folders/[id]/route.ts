@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// GET /api/folders/[id] — fetch single folder metadata
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: folderId } = await params;
+
+  const { data: folder, error } = await supabase
+    .from('folders')
+    .select('id, name, color, is_starred, archived_at, created_at, updated_at')
+    .eq('id', folderId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!folder) {
+    return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ folder });
+}
+
 // PATCH /api/folders/[id] — rename folder, change color, or toggle starred
 export async function PATCH(
   req: NextRequest,

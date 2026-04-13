@@ -3,8 +3,8 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import pdfParse from 'pdf-parse';
+import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
 
-const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 const PDF_TEXT_MAX_CHARS = 50_000;
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -60,9 +60,9 @@ export async function POST(
   }
 
   // --- Validate size ---
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: 'File too large. Maximum size is 20 MB.' },
+      { error: `File too large. Maximum size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.` },
       { status: 400 },
     );
   }

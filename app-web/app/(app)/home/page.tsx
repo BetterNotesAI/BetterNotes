@@ -90,7 +90,7 @@ export default function HomePage() {
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: data.templateId, attachments: uploadedAttachments }),
+        body: JSON.stringify({ template_id: data.templateId, prompt: data.prompt, attachments: uploadedAttachments }),
       });
       const docData = await resp.json().catch(() => ({}));
       if (!resp.ok) { setCreateError(docData?.error ?? 'Failed to create document'); return; }

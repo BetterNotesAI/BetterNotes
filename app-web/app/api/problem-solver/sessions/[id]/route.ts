@@ -20,7 +20,7 @@ export async function GET(
   const { data: session, error } = await supabase
     .from('problem_solver_sessions')
     .select(
-      'id, title, pdf_path, pdf_text, solution_md, status, is_published, published_at, university, degree, subject, visibility, keywords, created_at, updated_at'
+      'id, title, folder_id, pdf_path, pdf_text, solution_md, status, is_published, published_at, university, degree, subject, visibility, keywords, created_at, updated_at'
     )
     .eq('id', sessionId)
     .eq('user_id', user.id)
