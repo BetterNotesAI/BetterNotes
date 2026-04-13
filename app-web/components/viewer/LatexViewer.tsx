@@ -908,6 +908,8 @@ export default function LatexViewer({
               onConfirm={handleConfirm}
               onCancel={handleCancelEdit}
               columnGap={profile.layout.columnGap}
+              showColumnRule={profile.layout.showColumnRule}
+              columnRuleWidth={profile.layout.columnRuleWidth}
               onAddBlock={handleAddBlock}
               onDeleteBlock={handleDeleteBlock}
               onMoveBlock={handleMoveBlock}
@@ -950,6 +952,8 @@ interface BlockRegionRendererProps {
   onConfirm: (id: string, newSource: string) => void;
   onCancel: (id: string) => void;
   columnGap?: string;
+  showColumnRule?: boolean;
+  columnRuleWidth?: string;
   // IA-M2: block management
   onAddBlock?: (id: string, type: NewBlockType, position: 'before' | 'after') => void;
   onDeleteBlock?: (id: string) => void;
@@ -967,6 +971,8 @@ function BlockRegionRenderer({
   onConfirm,
   onCancel,
   columnGap = '1.5rem',
+  showColumnRule = false,
+  columnRuleWidth = '0',
   onAddBlock,
   onDeleteBlock,
   onMoveBlock,
@@ -1015,7 +1021,11 @@ function BlockRegionRenderer({
       regions.push(
         <div
           key={block.id}
-          style={{ columnCount: colCount, columnGap }}
+          style={{
+            columnCount: colCount,
+            columnGap,
+            columnRule: showColumnRule ? `${columnRuleWidth} solid rgba(80, 80, 80, 0.75)` : 'none',
+          }}
           className="w-full"
         >
           {inner}

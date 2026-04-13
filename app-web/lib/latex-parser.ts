@@ -313,7 +313,6 @@ function processTextSegment(text: string, blocks: Block[]): void {
         .replace(/\\newpage/g, '')
         .replace(/\\clearpage/g, '')
         .replace(/\\vspace\{[^}]*\}/g, '')
-        .replace(/\\hfill/g, ' ')
         .replace(/\\HR\b/g, '')
         .replace(/\\\\[ \t]*$/gm, '___newline___')  // convert \\ line-break to marker
         // Remove font-size commands used as standalone lines (e.g. \footnotesize)
@@ -331,13 +330,15 @@ function processTextSegment(text: string, blocks: Block[]): void {
       // Detect title-like lines: original text used \Large, \huge, \bfseries as document title
       const isTitle = /\\(?:Large|LARGE|huge|Huge|bfseries)/.test(trimmed);
       if (isTitle) {
-        // Extract meaningful text: strip all LaTeX commands, keep text and \hfill→space
+        // Extract meaningful text: preserve \hfill as a marker so the renderer
+        // can keep the left/right title alignment similar to the compiled PDF.
         const titleText = cleaned
           .replace(/\\(?:Large|LARGE|huge|Huge|large|bfseries|mdseries|normalsize|small|scriptsize|footnotesize)\b/g, '')
-          .replace(/\\hfill/g, ' — ')
+          .replace(/\\hfill/g, ' ___HFILL___ ')
           .replace(/\\[a-zA-Z]+\*?(?:\{[^}]*\})?/g, '')
           .replace(/[{}]/g, '')
           .replace(/\s+/g, ' ')
+          .replace(/\s*___HFILL___\s*/g, ' ___HFILL___ ')
           .trim();
         if (titleText) {
           blocks.push({ id: makeId('section'), type: 'section', latex_source: titleText, level: 1 });
@@ -536,6 +537,11 @@ export function newBlockLatex(type: NewBlockType): string {
  * All other blocks are emitted as their latex_source separated by blank lines.
  */
 export function reconstructLatexFromBlocks(blocks: Block[], originalSource: string): string {
+  const restoreParserMarkers = (source: string): string =>
+    source
+      .replace(/___HFILL___/g, '\\hfill')
+      .replace(/___newline___/g, '\\\\');
+
   // Extract preamble up to and including \begin{document}
   const beginDocTag = '\\begin{document}';
   const endDocTag = '\\end{document}';
@@ -560,7 +566,7 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       while (i < blocks.length && blocks[i].type !== 'col-end') {
         const inner = blocks[i];
         if (inner.latex_source.trim()) {
-          lines.push(inner.latex_source);
+          lines.push(restoreParserMarkers(inner.latex_source));
         }
         i++;
       }
@@ -572,7 +578,7 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       i++;
     } else {
       if (block.latex_source.trim()) {
-        lines.push(block.latex_source);
+        lines.push(restoreParserMarkers(block.latex_source));
       }
       i++;
     }

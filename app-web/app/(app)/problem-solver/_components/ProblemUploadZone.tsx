@@ -2,10 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
 
 type UploadState = 'idle' | 'dragging' | 'uploading' | 'error';
-
-const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
 interface Props {
   /** Optional callback when upload completes, in case the parent wants to handle redirect itself */
@@ -26,8 +25,8 @@ export function ProblemUploadZone({ onSessionCreated }: Props) {
         setState('error');
         return;
       }
-      if (file.size > MAX_SIZE_BYTES) {
-        setErrorMsg('File exceeds the 20 MB limit.');
+      if (file.size > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
+        setErrorMsg(`File exceeds the ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB limit.`);
         setState('error');
         return;
       }
@@ -210,7 +209,7 @@ export function ProblemUploadZone({ onSessionCreated }: Props) {
             </p>
             <p className="text-white/40 text-sm mt-1">or click to browse</p>
           </div>
-          <p className="text-white/25 text-xs">PDF only · max 20 MB</p>
+          <p className="text-white/25 text-xs">PDF only · max {MAX_PROJECT_TOTAL_UPLOAD_MB} MB</p>
         </>
       )}
     </div>

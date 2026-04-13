@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 import { buildDocumentProjectContext } from '@/lib/usage-project';
+import { buildTitleFromLatex, buildTitleFromPrompt, isDefaultDocumentTitle } from '@/lib/document-title';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -50,7 +51,7 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}));
-  const { prompt, files } = body as { prompt?: string; files?: unknown[] };
+  const { prompt } = body as { prompt?: string };
 
   if (!prompt || typeof prompt !== 'string') {
     return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
@@ -192,12 +193,17 @@ export async function POST(
     return NextResponse.json({ error: `Failed to save version: ${versionError?.message}` }, { status: 500 });
   }
 
+  const autoTitle = isDefaultDocumentTitle(doc.title)
+    ? buildTitleFromLatex(latexSource) ?? buildTitleFromPrompt(prompt)
+    : null;
+
   // Update document status and current_version_id
   await supabase
     .from('documents')
     .update({
       status: 'ready',
       current_version_id: version.id,
+      ...(autoTitle ? { title: autoTitle } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', documentId);

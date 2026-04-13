@@ -611,26 +611,13 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Divider */}
-      <div className="flex items-center gap-3 px-6 py-3">
-        <div className="flex-1 border-t border-white/8" />
-        <span className="text-[10px] font-medium text-white/30 uppercase tracking-wider">Chat</span>
-        <div className="flex-1 border-t border-white/8" />
-      </div>
-
+    <div className="mt-3 flex flex-col">
       {/* Messages */}
-      <div className="px-6 space-y-3 pb-3">
+      <div className="px-6 space-y-3 pb-16">
         {isLoading && (
           <div className="flex justify-center py-4">
-            <div className="w-4 h-4 border-2 border-white/15 border-t-orange-400 rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-white/15 border-t-indigo-400 rounded-full animate-spin" />
           </div>
-        )}
-
-        {!isLoading && messages.length === 0 && !isSending && (
-          <p className="text-white/25 text-xs text-center py-3">
-            Ask follow-up questions about the solution.
-          </p>
         )}
 
         {messages.map((msg) => {
@@ -801,7 +788,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
       )}
 
       {/* Input area — sticky at bottom */}
-      <div className="shrink-0 px-6 pb-5 pt-2">
+      <div className="sticky bottom-0 z-20 shrink-0 px-6 pb-5 pt-2 border-t border-white/8 bg-neutral-950/65 backdrop-blur-md">
         {/* Selected context chips */}
         {selectedContexts.length > 0 && (
           <div className="mb-2 space-y-1.5">
@@ -849,12 +836,12 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
             placeholder="Ask about the solution..."
             rows={1}
             disabled={isSending}
-            className="flex-1 appearance-none resize-none bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-white/30 outline-none focus:border-orange-400/40 focus:bg-white/8 transition-colors disabled:opacity-50"
+            className="flex-1 appearance-none resize-none bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-white/30 outline-none focus:border-indigo-400/40 focus:bg-white/8 transition-colors disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isSending}
-            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-orange-500 hover:bg-orange-400 disabled:bg-white/8 disabled:text-white/20 text-white transition-colors"
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-white/8 disabled:text-white/20 text-white transition-colors"
             title="Send"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

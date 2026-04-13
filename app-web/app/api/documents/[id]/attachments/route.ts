@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { MAX_ATTACHMENT_FILE_SIZE_BYTES, MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
 
 const MAX_ATTACHMENTS_PER_DOCUMENT = 10;
 
@@ -99,6 +100,12 @@ export async function POST(
   if (typeof sizeBytes !== 'number' || sizeBytes < 0) {
     return NextResponse.json({ error: 'sizeBytes must be a non-negative number' }, { status: 400 });
   }
+  if (sizeBytes > MAX_ATTACHMENT_FILE_SIZE_BYTES) {
+    return NextResponse.json(
+      { error: `File too large. Maximum size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.` },
+      { status: 400 }
+    );
+  }
 
   // Enforce per-document attachment limit
   const { count, error: countError } = await supabase
@@ -114,6 +121,29 @@ export async function POST(
   if ((count ?? 0) >= MAX_ATTACHMENTS_PER_DOCUMENT) {
     return NextResponse.json(
       { error: 'Maximum 10 attachments per document' },
+      { status: 400 }
+    );
+  }
+
+  // Enforce total attachment size per project/document
+  const { data: existingSizes, error: sizesError } = await supabase
+    .from('document_attachments')
+    .select('size_bytes')
+    .eq('document_id', documentId)
+    .eq('user_id', user.id);
+
+  if (sizesError) {
+    return NextResponse.json({ error: sizesError.message }, { status: 500 });
+  }
+
+  const currentTotalBytes = (existingSizes ?? []).reduce(
+    (acc, row) => acc + (typeof row.size_bytes === 'number' ? row.size_bytes : 0),
+    0
+  );
+
+  if (currentTotalBytes + sizeBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
       { status: 400 }
     );
   }

@@ -145,11 +145,19 @@ function renderList(latex: string): React.ReactElement {
   const Tag = isEnumerate ? 'ol' : 'ul';
 
   return (
-    <Tag className={isEnumerate ? 'list-decimal pl-6 space-y-1' : 'list-disc pl-6 space-y-1'}>
+    <Tag
+      className={isEnumerate ? 'list-decimal' : 'list-disc'}
+      style={{
+        margin: '0.15em 0 0.22em 1.18em',
+        padding: 0,
+        lineHeight: 1.2,
+        fontSize: '1em',
+      }}
+    >
       {rawItems.map((item, idx) => {
         const cleaned = item.trim();
         return (
-          <li key={idx} className="text-sm leading-relaxed">
+          <li key={idx} style={{ margin: '0.1em 0' }}>
             <span
               dangerouslySetInnerHTML={{ __html: renderInlineMath(cleaned) }}
             />
@@ -176,15 +184,25 @@ function renderTable(latex: string): React.ReactElement {
     .filter(r => r.length > 0 && r !== '\\hline');
 
   return (
-    <div className="overflow-x-auto my-3">
-      <table className="border-collapse text-sm">
+    <div className="overflow-x-auto" style={{ margin: '0.2em 0 0.3em' }}>
+      <table className="border-collapse" style={{ fontSize: '1em', width: '100%' }}>
         <tbody>
           {rows.map((row, rowIdx) => {
             const cells = row.split('&').map(c => c.trim());
             return (
-              <tr key={rowIdx} className={rowIdx === 0 ? 'font-semibold border-b border-gray-400' : ''}>
+              <tr
+                key={rowIdx}
+                style={rowIdx === 0 ? { fontWeight: 600, borderBottom: '1px solid #7d7d7d' } : undefined}
+              >
                 {cells.map((cell, cellIdx) => (
-                  <td key={cellIdx} className="px-3 py-1 border border-gray-200 text-sm">
+                  <td
+                    key={cellIdx}
+                    style={{
+                      padding: '0.1em 0.35em',
+                      border: '1px solid #a9a9a9',
+                      verticalAlign: 'top',
+                    }}
+                  >
                     <span dangerouslySetInnerHTML={{ __html: renderInlineMath(cell) }} />
                   </td>
                 ))}
@@ -458,15 +476,15 @@ export default function LatexBlock({
 
   // Interactive block wrapper classes
   const interactiveClass = [
-    'group relative transition-all duration-150 rounded',
+    'group relative transition-colors duration-100',
     // M3.1: hover highlight — subtle ring on hover (non-editing, non-section)
     block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end'
       ? isEditing
-        ? 'ring-2 ring-indigo-400 ring-offset-1 bg-indigo-50/60'
+        ? 'ring-1 ring-indigo-400'
         : isFocused
-        ? 'ring-1 ring-indigo-300 ring-offset-1 bg-indigo-50/30 cursor-text'
+        ? 'ring-1 ring-indigo-300 cursor-text'
         : isHovered
-        ? 'ring-1 ring-gray-300 bg-gray-50/50 cursor-text'
+        ? 'ring-1 ring-gray-300/80 cursor-text'
         : 'cursor-text'
       : '',
   ]
@@ -582,16 +600,37 @@ export default function LatexBlock({
   switch (block.type) {
     case 'section': {
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
-      const headingClass =
+      const headingStyle: React.CSSProperties =
         block.level === 1
-          ? 'text-xl font-bold mt-6 mb-2 border-b pb-1'
+          ? {
+              fontSize: '1.38em',
+              fontWeight: 700,
+              margin: '0.18em 0',
+              lineHeight: 1.18,
+              borderBottom: '1px solid #8f8f8f',
+              paddingBottom: '0.1em',
+              breakAfter: 'avoid',
+            }
           : block.level === 2
-          ? 'text-lg font-semibold mt-4 mb-1'
-          : 'text-base font-semibold mt-3 mb-1';
+          ? { fontSize: '1.05em', fontWeight: 700, margin: '0.14em 0 0.1em', lineHeight: 1.2, breakAfter: 'avoid' }
+          : { fontSize: '1em', fontWeight: 700, margin: '0.12em 0 0.08em', lineHeight: 1.2, breakAfter: 'avoid' };
+      const hfillParts = block.latex_source
+        .split('___HFILL___')
+        .map((part) => part.trim())
+        .filter(Boolean);
       return (
         <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
-          <HeadingTag className={headingClass} style={{ color: 'var(--accent, #333)' }}>
-            {block.latex_source}
+          <HeadingTag style={{ ...headingStyle, color: 'var(--accent, #333)' }}>
+            {hfillParts.length >= 2 ? (
+              <span style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.6em' }}>
+                <span>{hfillParts[0]}</span>
+                <span style={{ fontSize: block.level === 1 ? '0.74em' : '0.85em', fontWeight: 600 }}>
+                  {hfillParts.slice(1).join(' ')}
+                </span>
+              </span>
+            ) : (
+              block.latex_source
+            )}
           </HeadingTag>
           {actionBar}
         </div>
@@ -601,13 +640,17 @@ export default function LatexBlock({
     case 'formula-block':
       return (
         <div
-          className={`my-4 text-center ${interactiveClass}`}
-          style={{ overflow: 'visible' }}
+          className={`text-center ${interactiveClass}`}
+          style={{ overflow: 'visible', margin: '0.16em 0 0.24em', breakInside: 'avoid' }}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
         >
-          <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered! }} />
+          <div
+            className="overflow-x-auto"
+            style={{ fontSize: '1em', lineHeight: 1.12 }}
+            dangerouslySetInnerHTML={{ __html: rendered! }}
+          />
           {actionBar}
         </div>
       );
@@ -617,7 +660,7 @@ export default function LatexBlock({
       return (
         <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           <p
-            className="my-2 text-sm leading-relaxed"
+            style={{ margin: '0.12em 0', fontSize: '1em', lineHeight: 1.22 }}
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
           {actionBar}
@@ -626,7 +669,7 @@ export default function LatexBlock({
 
     case 'list':
       return (
-        <div className={`my-2 ${interactiveClass}`} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div className={interactiveClass} style={{ overflow: 'visible', margin: '0.1em 0' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderList(block.latex_source)}
           {actionBar}
         </div>
@@ -634,18 +677,17 @@ export default function LatexBlock({
 
     case 'table':
       return (
-        <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div className={interactiveClass} style={{ overflow: 'visible', breakInside: 'avoid' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {renderTable(block.latex_source)}
           {actionBar}
         </div>
       );
 
     case 'hr':
-      return <hr className="my-2 border-gray-400" style={{ breakBefore: 'avoid' }} />;
+      return <hr style={{ margin: '0.2em 0 0.26em', borderTop: '1px solid #8f8f8f', breakBefore: 'avoid' }} />;
 
     case 'box': {
-      // Choose border-left colour based on subtype, falling back to accent
-      const boxBorderVar =
+      const borderColor =
         block.boxSubtype === 'definition'
           ? 'var(--def-color, #0891B2)'
           : block.boxSubtype === 'theorem'
@@ -657,10 +699,21 @@ export default function LatexBlock({
           : block.boxSubtype === 'example'
           ? 'var(--accent, #374151)'
           : 'var(--accent, #374151)';
+      const isTypedTheoremLike = !!block.boxSubtype;
+      const bgColor = isTypedTheoremLike ? 'rgba(246,248,252,0.7)' : 'transparent';
       return (
         <div
-          style={{ breakInside: 'avoid', borderLeftColor: boxBorderVar, borderLeftWidth: '3px', borderLeftStyle: 'solid', overflow: 'visible' }}
-          className={`my-2 border border-gray-200 rounded-r px-3 py-2 bg-gray-50/70 text-sm ${interactiveClass}`}
+          style={{
+            breakInside: 'avoid',
+            border: `1px solid ${borderColor}`,
+            padding: '0.16em 0.28em',
+            margin: '0.2em 0 0.26em',
+            background: bgColor,
+            overflow: 'visible',
+            fontSize: '1em',
+            lineHeight: 1.2,
+          }}
+          className={interactiveClass}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}

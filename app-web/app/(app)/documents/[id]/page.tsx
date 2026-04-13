@@ -70,6 +70,7 @@ export default function DocumentWorkspacePage() {
   const documentId = params?.id ?? '';
   const backListHref = pathname.startsWith('/cheat-sheets/') ? '/cheat-sheets' : '/documents';
   const backListLabel = backListHref === '/cheat-sheets' ? 'Back to cheat sheets' : 'Back to documents';
+  const isCheatSheetWorkspace = pathname.startsWith('/cheat-sheets/');
 
   const {
     document: docData,
@@ -612,7 +613,7 @@ export default function DocumentWorkspacePage() {
       </div>
 
       {/* Main content: viewer area + Chat */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className={`flex-1 flex overflow-hidden min-h-0 ${isCheatSheetWorkspace ? 'md:flex-row-reverse' : ''}`}>
 
         {/* Viewer column — hidden on mobile when chat tab is active */}
         <div className={`flex-[3] flex-col min-w-0 min-h-0 ${
@@ -738,7 +739,7 @@ export default function DocumentWorkspacePage() {
 
             {/* F3-M5.3: Skeleton loader — shown while document is loading in interactive tab */}
             {viewerTab === 'interactive' && isLoading && !latexContent && (
-              <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto p-6 space-y-4 animate-pulse">
+              <div className={`flex-1 flex flex-col min-h-0 min-w-0 overflow-auto p-6 space-y-4 animate-pulse ${isCheatSheetWorkspace ? 'bg-transparent' : 'bg-white'}`}>
                 <div className="h-6 bg-gray-200 rounded w-2/3" />
                 <div className="h-4 bg-gray-100 rounded w-full" />
                 <div className="h-4 bg-gray-100 rounded w-5/6" />
@@ -754,7 +755,7 @@ export default function DocumentWorkspacePage() {
 
             {/* Interactive viewer (F3-M2.6) */}
             {viewerTab === 'interactive' && latexContent && (
-              <div className="relative flex-1 flex flex-col min-h-0 min-w-0 bg-white overflow-auto transition-opacity duration-200">
+              <div className={`relative flex-1 flex flex-col min-h-0 min-w-0 overflow-auto transition-opacity duration-200 ${isCheatSheetWorkspace ? 'bg-transparent' : 'bg-white'}`}>
                 {isBlockMutating && (
                   <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
                     <span className="animate-spin inline-block">⟳</span> Saving…

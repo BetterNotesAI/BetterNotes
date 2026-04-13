@@ -142,6 +142,7 @@ export default function CheatSheetsPage() {
         body: JSON.stringify({
           template_id: resolvedTemplateId,
           title,
+          prompt: data.prompt,
           attachments: uploadedAttachments,
         }),
       });

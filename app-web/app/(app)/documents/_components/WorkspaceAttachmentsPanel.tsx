@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  MAX_ATTACHMENT_FILE_SIZE_BYTES,
+  MAX_PROJECT_TOTAL_UPLOAD_BYTES,
+  MAX_PROJECT_TOTAL_UPLOAD_MB,
+} from '@/lib/upload-limits';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -738,6 +743,21 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
   // Upload
   async function handleUploadFile(file: File) {
     if (attachments.length >= MAX_ATTACHMENTS || isUploading) return;
+    const currentTotalBytes = attachments.reduce(
+      (acc, a) => acc + (typeof a.sizeBytes === 'number' ? a.sizeBytes : 0),
+      0
+    );
+
+    if (file.size > MAX_ATTACHMENT_FILE_SIZE_BYTES) {
+      setError(`File too large. Maximum size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.`);
+      return;
+    }
+
+    if (currentTotalBytes + file.size > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
+      setError(`Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.`);
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
 
@@ -803,6 +823,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
 
   const isMaxReached = attachments.length >= MAX_ATTACHMENTS;
   const count = attachments.length;
+  const totalBytes = attachments.reduce((acc, a) => acc + (typeof a.sizeBytes === 'number' ? a.sizeBytes : 0), 0);
   const unfiledAttachments = attachments.filter((a) => !a.folderId);
   const attachmentsByFolder = (folderId: string) => attachments.filter((a) => a.folderId === folderId);
 
@@ -978,6 +999,9 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             isMaxReached={isMaxReached}
             onFile={handleUploadFile}
           />
+          <p className="text-[10px] text-white/30 px-0.5">
+            Total project files: {formatBytes(totalBytes)} / {formatBytes(MAX_PROJECT_TOTAL_UPLOAD_BYTES)} ({MAX_PROJECT_TOTAL_UPLOAD_MB} MB max)
+          </p>
         </div>
       )}
     </div>

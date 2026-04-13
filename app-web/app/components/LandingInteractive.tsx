@@ -69,7 +69,7 @@ export function LandingInteractive() {
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: data.templateId, attachments: [] }),
+        body: JSON.stringify({ template_id: data.templateId, prompt: data.prompt, attachments: [] }),
       });
       const docData = await resp.json().catch(() => ({}));
       if (!resp.ok) {
