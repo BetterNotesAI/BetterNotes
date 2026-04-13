@@ -23,7 +23,7 @@ export async function GET(
 
   const { data: exam, error: examError } = await supabase
     .from('exams')
-    .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at, is_published, share_token, shared_attempts, source_exam_id')
+    .select('id, user_id, folder_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at, is_published, share_token, shared_attempts, source_exam_id')
     .eq('id', examId)
     .eq('user_id', user.id)
     .single();

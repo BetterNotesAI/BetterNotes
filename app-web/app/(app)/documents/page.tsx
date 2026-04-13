@@ -462,10 +462,10 @@ export default function DocumentsPage() {
       </Suspense>
 
       {/* Header */}
-      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
+      <div className={`border-b border-white/10 px-6 flex shrink-0 ${activeFolderId ? 'py-3 items-start' : 'h-14 items-center'}`}>
         {activeFolderId ? (
           /* Breadcrumb when inside a folder */
-          <div className="flex items-center justify-between gap-3 w-full">
+          <div className="w-full min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
@@ -494,10 +494,12 @@ export default function DocumentsPage() {
               })()}
             </div>
             <button
-              onClick={() => handleCreateDocInFolder(activeFolderId)}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                bg-white/10 hover:bg-white/15 text-white/70 hover:text-white
-                text-xs font-medium transition-colors"
+              onClick={() => router.push(`/projects/${encodeURIComponent(activeFolderId)}`)}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                bg-gradient-to-r from-[#b04cff] via-[#7d5cff] to-[#3d7dff]
+                hover:from-[#c06bff] hover:via-[#8a6fff] hover:to-[#5290ff]
+                text-white text-xs font-semibold transition-all
+                shadow-[0_4px_14px_rgba(96,82,255,0.35)] hover:shadow-[0_6px_18px_rgba(85,116,255,0.45)]"
             >
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -641,7 +643,7 @@ export default function DocumentsPage() {
             <div className="space-y-8">
 
               {/* F2-M6.3 — Starred section: only in Starred view, never in Archived view */}
-              {!showArchived && filterStarred && <section>
+              {!showArchived && filterStarred && (groupedView.starred.length > 0 || groupedView.starredFolders.length > 0) && <section>
                 <div className="flex items-center gap-2 mb-4">
                   <svg className="w-4 h-4 text-yellow-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
@@ -655,15 +657,7 @@ export default function DocumentsPage() {
                     </span>
                   )}
                 </div>
-                {groupedView.starred.length === 0 && groupedView.starredFolders.length === 0 ? (
-                  <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/8 bg-white/[0.03]">
-                    <svg className="w-3.5 h-3.5 text-white/20 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                    </svg>
-                    <p className="text-xs text-white/30">No starred items yet — star documents or folders to add them here.</p>
-                  </div>
-                ) : (
-                  <>
+                <>
                   {/* Starred folders — same card format as Folders section */}
                   {groupedView.starredFolders.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -744,8 +738,7 @@ export default function DocumentsPage() {
                       })}
                     </div>
                   )}
-                  </>
-                )}
+                </>
               </section>}
 
               {/* F2-M6.4 — Folder sections: alphabetically, in a grid (like document cards) */}

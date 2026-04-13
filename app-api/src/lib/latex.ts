@@ -255,6 +255,7 @@ const CLOSEABLE_ENVS = new Set([
   "definition", "theorem", "lemma", "proposition", "corollary",
   "example", "example*", "exercise", "exercise*", "remark", "obs",
   "problem", "givendata", "approach", "solution", "proof",
+  "workedexample", "keypoint", "warning",
   "tcolorbox", "minipage",
 ]);
 

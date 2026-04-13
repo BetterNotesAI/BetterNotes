@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
       sizeBytes: number;
     }>;
   };
+  const folderId = typeof folder_id === 'string' ? folder_id.trim() || null : folder_id ?? null;
 
   if (!template_id || typeof template_id !== 'string') {
     return NextResponse.json({ error: 'template_id is required' }, { status: 400 });
@@ -122,6 +123,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (folderId) {
+    const { data: folder, error: folderError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('id', folderId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (folderError) {
+      return NextResponse.json({ error: folderError.message }, { status: 500 });
+    }
+    if (!folder) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+  }
+
   // Check guest limits before creating the document
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
     p_user_id: user.id,
@@ -141,7 +158,7 @@ export async function POST(req: NextRequest) {
     title: resolvedTitle,
     status: 'draft',
   };
-  if (folder_id) insertPayload.folder_id = folder_id;
+  if (folderId) insertPayload.folder_id = folderId;
 
   const { data: doc, error } = await supabase
     .from('documents')

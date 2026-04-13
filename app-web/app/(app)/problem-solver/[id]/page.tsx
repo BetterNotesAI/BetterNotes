@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { PdfViewer } from '@/app/(app)/documents/_components/PdfViewer';
 import { SolutionPanel } from '../_components/SolutionPanel';
@@ -63,6 +63,8 @@ export default function ProblemSessionPage() {
   const params = useParams<{ id: string }>();
   const sessionId = params?.id ?? '';
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectIdFromQuery = searchParams?.get('projectId')?.trim() || null;
 
   // Session data
   const [session, setSession] = useState<ProblemSession | null>(null);
@@ -520,18 +522,27 @@ export default function ProblemSessionPage() {
   }
 
   if (loadError || !session) {
+    const fallbackBackHref = projectIdFromQuery
+      ? `/projects/${encodeURIComponent(projectIdFromQuery)}`
+      : '/problem-solver';
     return (
       <div className="h-full flex flex-col bg-transparent text-white items-center justify-center gap-4">
         <p className="text-red-400 text-sm">{loadError ?? 'Session not found'}</p>
         <button
-          onClick={() => router.push('/problem-solver')}
+          onClick={() => router.push(fallbackBackHref)}
           className="text-xs text-white/50 hover:text-white underline"
         >
-          Back to Problem Solver
+          {projectIdFromQuery ? 'Back to Project' : 'Back to Problem Solver'}
         </button>
       </div>
     );
   }
+
+  const resolvedProjectId = projectIdFromQuery || (session.folder_id ?? null);
+  const backHref = resolvedProjectId
+    ? `/projects/${encodeURIComponent(resolvedProjectId)}`
+    : '/problem-solver';
+  const backLabel = resolvedProjectId ? 'Back to Project' : 'Back to Problem Solver';
 
   const activeStatus = session.status;
   const displayMd = streamedMd ?? session.solution_md ?? null;
@@ -544,9 +555,9 @@ export default function ProblemSessionPage() {
         {/* Left: back + title */}
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => router.push('/problem-solver')}
+            onClick={() => router.push(backHref)}
             className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white transition-colors"
-            title="Back"
+            title={backLabel}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

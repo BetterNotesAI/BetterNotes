@@ -20,12 +20,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status');
+  const folderId = searchParams.get('folder_id')?.trim() || null;
 
   const VALID_STATUSES = ['pending', 'completed'];
 
   let query = supabase
     .from('exams')
-    .select('id, title, subject, level, question_count, score, status, created_at, completed_at')
+    .select('id, title, folder_id, subject, level, question_count, score, status, created_at, completed_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -37,6 +38,24 @@ export async function GET(req: NextRequest) {
       );
     }
     query = query.eq('status', status);
+  }
+
+  if (folderId) {
+    const { data: folder, error: folderError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('id', folderId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (folderError) {
+      return NextResponse.json({ error: folderError.message }, { status: 500 });
+    }
+    if (!folder) {
+      return NextResponse.json({ error: 'Project folder not found' }, { status: 404 });
+    }
+
+    query = query.eq('folder_id', folderId);
   }
 
   const { data: exams, error } = await query;

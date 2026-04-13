@@ -24,6 +24,8 @@ interface Props {
   selectedTemplateId?: string;
   /** Called whenever the user picks a different template */
   onTemplateChange?: (templateId: string) => void;
+  /** Prevent changing template (used for fixed-template project flows) */
+  lockTemplateSelection?: boolean;
 }
 
 // F2-M7.1: Only 4 active templates shown in the creation bar.
@@ -48,6 +50,7 @@ export function DocumentCreationBar({
   initialTemplateId,
   selectedTemplateId,
   onTemplateChange,
+  lockTemplateSelection = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname() ?? '';
@@ -150,6 +153,7 @@ export function DocumentCreationBar({
   }
 
   function toggleTemplate() {
+    if (lockTemplateSelection) return;
     if (templateId) {
       // already selected → deselect immediately, no dropdown
       setTemplateId(null);
@@ -462,14 +466,15 @@ export function DocumentCreationBar({
           <button
             ref={templateBtnRef}
             onClick={toggleTemplate}
-            title="Choose template"
+            title={lockTemplateSelection ? 'Template locked for this flow' : 'Choose template'}
             className={`h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all max-w-[160px] border ${
               selectedTemplate
                 ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
                 : openPanel === 'template'
                   ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
                   : 'border-transparent text-white/40 hover:bg-white/10 hover:text-white/60'
-            }`}
+            } ${lockTemplateSelection ? 'cursor-not-allowed opacity-85' : ''}`}
+            disabled={lockTemplateSelection}
           >
             {selectedTemplate && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
             <span className="truncate">{selectedTemplate ? selectedTemplate.displayName : 'Auto'}</span>

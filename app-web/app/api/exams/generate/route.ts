@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   // --- Input validation ---
   const body = await req.json().catch(() => ({}));
-  const { subject, level, question_count, format, format_counts, language, document_ids, external_content, grading_mode, cognitive_distribution, custom_instructions } = body as {
+  const { subject, level, question_count, format, format_counts, language, document_ids, external_content, grading_mode, cognitive_distribution, custom_instructions, folder_id } = body as {
     subject?: string;
     level?: string;
     question_count?: number;
@@ -62,7 +62,9 @@ export async function POST(req: NextRequest) {
     grading_mode?: string;
     cognitive_distribution?: { memory: number; logic: number; application: number };
     custom_instructions?: string;
+    folder_id?: string | null;
   };
+  const folderId = typeof folder_id === 'string' && folder_id.trim().length > 0 ? folder_id.trim() : null;
 
   const hasDocuments =
     (Array.isArray(document_ids) && document_ids.length > 0) ||
@@ -105,6 +107,22 @@ export async function POST(req: NextRequest) {
   }
 
   const lang = (language ?? 'english').trim().toLowerCase() || 'english';
+
+  if (folderId) {
+    const { data: folder, error: folderError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('id', folderId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (folderError) {
+      return NextResponse.json({ error: folderError.message }, { status: 500 });
+    }
+    if (!folder) {
+      return NextResponse.json({ error: 'Project folder not found' }, { status: 404 });
+    }
+  }
 
   const usageCheck = await checkCreditQuota(supabase, user.id);
   if (!usageCheck.allowed) {
@@ -172,6 +190,7 @@ export async function POST(req: NextRequest) {
     .from('exams')
     .insert({
       user_id: user.id,
+      folder_id: folderId,
       title: provisionalTitle,
       subject: provisionalSubject,
       level,
@@ -181,7 +200,7 @@ export async function POST(req: NextRequest) {
       grading_mode: grading_mode === 'partial' ? 'partial' : 'strict',
       cognitive_distribution: cognitive_distribution ?? null,
     })
-    .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
+    .select('id, user_id, folder_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
     .single();
 
   if (provisionalExamError || !provisionalExam) {
@@ -226,7 +245,7 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', provisionalExam.id)
     .eq('user_id', user.id)
-    .select('id, user_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
+    .select('id, user_id, folder_id, title, subject, level, language, grading_mode, question_count, score, status, created_at, completed_at')
     .single();
 
   if (examError || !exam) {

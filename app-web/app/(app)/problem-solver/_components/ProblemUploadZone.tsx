@@ -9,9 +9,11 @@ type UploadState = 'idle' | 'dragging' | 'uploading' | 'error';
 interface Props {
   /** Optional callback when upload completes, in case the parent wants to handle redirect itself */
   onSessionCreated?: (sessionId: string) => void;
+  /** Optional project scope. When set, session is created inside that folder/project. */
+  projectId?: string | null;
 }
 
-export function ProblemUploadZone({ onSessionCreated }: Props) {
+export function ProblemUploadZone({ onSessionCreated, projectId = null }: Props) {
   const router = useRouter();
   const [state, setState] = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -39,7 +41,10 @@ export function ProblemUploadZone({ onSessionCreated }: Props) {
         const createRes = await fetch('/api/problem-solver/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: file.name.replace(/\.pdf$/i, '') }),
+          body: JSON.stringify({
+            title: file.name.replace(/\.pdf$/i, ''),
+            folder_id: projectId,
+          }),
         });
         if (!createRes.ok) {
           const data = await createRes.json().catch(() => ({}));
@@ -64,14 +69,15 @@ export function ProblemUploadZone({ onSessionCreated }: Props) {
         if (onSessionCreated) {
           onSessionCreated(sessionId);
         } else {
-          router.push(`/problem-solver/${sessionId}`);
+          const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+          router.push(`/problem-solver/${sessionId}${query}`);
         }
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Upload failed');
         setState('error');
       }
     },
-    [router, onSessionCreated]
+    [router, onSessionCreated, projectId]
   );
 
   // Drag handlers

@@ -11,6 +11,7 @@ export interface ProblemSession {
   title: string;
   status: SessionStatus;
   created_at: string;
+  folder_id?: string | null;
   pdf_path?: string | null;
   solution_md?: string | null;
   // Publish fields (F4-M1.6)

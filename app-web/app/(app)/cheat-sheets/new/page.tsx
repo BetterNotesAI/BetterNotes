@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCreationBar, type CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 import {
@@ -24,11 +24,14 @@ function buildCheatSheetTitle(prompt: string): string {
 
 export default function NewCheatSheetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectId = searchParams?.get('projectId')?.trim() || null;
   const barRef = useRef<HTMLDivElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(CHEAT_SHEET_DEFAULT_TEMPLATE_ID);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [pdfPreviewId, setPdfPreviewId] = useState<CheatSheetTemplateId | null>(null);
+  const backHref = projectId ? `/projects/${encodeURIComponent(projectId)}` : '/cheat-sheets';
 
   useEffect(() => {
     const saved = localStorage.getItem(TEMPLATE_STORAGE_KEY) ?? localStorage.getItem('lastTemplateId');
@@ -117,6 +120,7 @@ export default function NewCheatSheetPage() {
           template_id: resolvedTemplateId,
           title,
           prompt: data.prompt,
+          folder_id: projectId,
           attachments: uploadedAttachments,
         }),
       });
@@ -137,7 +141,9 @@ export default function NewCheatSheetPage() {
         return;
       }
 
-      router.push(`/cheat-sheets/${documentId}?prompt=${encodeURIComponent(data.prompt)}`);
+      const query = new URLSearchParams({ prompt: data.prompt });
+      if (projectId) query.set('projectId', projectId);
+      router.push(`/cheat-sheets/${documentId}?${query.toString()}`);
     } catch {
       setCreateError('Something went wrong. Please try again.');
     } finally {
@@ -152,9 +158,9 @@ export default function NewCheatSheetPage() {
         <div className="border-b border-white/10 px-6 h-14 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
-              onClick={() => router.push('/cheat-sheets')}
+              onClick={() => router.push(backHref)}
               className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
-              title="Back to Cheat Sheets"
+              title={projectId ? 'Back to project' : 'Back to Cheat Sheets'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -163,7 +169,7 @@ export default function NewCheatSheetPage() {
             <h1 className="text-lg font-semibold truncate">New Cheat Sheet</h1>
           </div>
           <button
-            onClick={() => router.push('/cheat-sheets')}
+            onClick={() => router.push(backHref)}
             className="text-xs text-white/45 hover:text-white/75 transition-colors"
           >
             Cancel

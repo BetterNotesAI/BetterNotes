@@ -127,6 +127,8 @@ export default function ExamsPage() {
   const [loadingPhase, setLoadingPhase] = useState<'questions' | 'answer_key'>('questions');
   const searchParams = useSearchParams();
   const router = useRouter();
+  const projectId = searchParams?.get('projectId')?.trim() || null;
+  const isProjectMode = !!projectId;
 
   // --- Load shared exam from ?shared=examId query param ---
   useEffect(() => {
@@ -134,7 +136,10 @@ export default function ExamsPage() {
     if (!sharedExamId) return;
 
     // Remove the query param from the URL cleanly
-    router.replace('/exams', { scroll: false });
+    const baseHref = projectId
+      ? `/exams?projectId=${encodeURIComponent(projectId)}`
+      : '/exams';
+    router.replace(baseHref, { scroll: false });
 
     dispatch({ type: 'GENERATE_START' });
     fetch(`/api/exams/${sharedExamId}`)
@@ -191,6 +196,7 @@ export default function ExamsPage() {
           external_content: values.externalContent || undefined,
           cognitive_distribution: values.cognitiveDistribution,
           grading_mode: values.gradingMode,
+          folder_id: projectId,
         }),
       });
 
@@ -325,6 +331,19 @@ export default function ExamsPage() {
       <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
+            {state.screen === 'setup' && isProjectMode && (
+              <button
+                type="button"
+                onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40
+                  hover:text-white/80 hover:bg-white/8 transition-colors"
+                title="Back to project"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
             {/* Back button when in exam or results */}
             {(state.screen === 'exam' || state.screen === 'submitting' || state.screen === 'results') && (
               <button
