@@ -70,6 +70,23 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
+## Visión estratégica — "GitHub para estudiantes STEM"
+
+El valor diferencial de BetterNotes no es solo la generación de notas con IA — es la intersección de tres elementos que ningún competidor tiene juntos:
+1. **IA que maneja notación STEM fluentemente** (LaTeX/KaTeX) — raro en el mercado
+2. **Biblioteca de contenido organizada** por universidad → grado → asignatura → tema
+3. **Efectos de red**: más estudiantes → más contenido → mejor búsqueda → más estudiantes
+
+El roadmap actualizado prioriza construir esta plataforma de contenido académico estructurado, con herramientas de retención (repetición espaciada, planificador de estudio) y una capa institucional (herramientas para profesores, licencias universitarias) como vía de monetización real a escala.
+
+**Fases añadidas (2026-04-15):**
+- Fase 5 ampliada — Catálogo de cursos + búsqueda semántica + reputación + fork/remix
+- Fase 8 — Retención y hábito (repetición espaciada, planificador, rachas)
+- Fase 9 — Colaboración (grupos de estudio, co-edición, importación)
+- Fase 10 — Institucional (herramientas para profesores, licencias universitarias, LMS)
+
+---
+
 ## Decisiones activas a recordar
 
 | Decisión | Valor |
@@ -91,4 +108,4 @@ para editar el LaTeX subyacente, re-renderiza al confirmar. Sin block editor ext
 
 ---
 
-*Última actualización: 2026-04-01 (cierre de sesión) — IA-M1 e IA-M2 verificados sin blockers. Fix color ecuaciones LaTeX (\textcolor en parrafos). Merge session/2026-03-30 → main (commit 4ece957). Pendientes operacionales documentados. Siguiente: F4-M1 Problem Solver (confirmar al inicio de proxima sesion).*
+*Última actualización: 2026-04-15 — Visión estratégica de producto añadida. Roadmap ampliado con Fases 8 (Retención), 9 (Colaboración) y 10 (Institucional). Fase 5 expandida con catálogo de cursos estructurado, búsqueda semántica, sistema de reputación y fork/remix. Ver TASKS.md para detalle completo.*
