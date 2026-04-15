@@ -3,6 +3,20 @@ import { createClient } from '@/lib/supabase/server';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function isMissingColumnError(error: unknown, column: string): boolean {
+  if (!error || typeof error !== 'object') return false;
+
+  const maybeCode = 'code' in error ? String(error.code ?? '') : '';
+  if (maybeCode === 'PGRST204' || maybeCode === '42703') return true;
+
+  const maybeMessage = 'message' in error ? String(error.message ?? '').toLowerCase() : '';
+  return (
+    maybeMessage.includes('column')
+    && maybeMessage.includes(column.toLowerCase())
+    && (maybeMessage.includes('does not exist') || maybeMessage.includes('not found'))
+  );
+}
+
 // GET /api/problem-solver/sessions/[id]
 export async function GET(
   _req: NextRequest,
@@ -17,7 +31,7 @@ export async function GET(
 
   const { id: sessionId } = await params;
 
-  const { data: session, error } = await supabase
+  let { data: session, error } = await supabase
     .from('problem_solver_sessions')
     .select(
       'id, title, folder_id, pdf_path, pdf_text, solution_md, status, is_published, published_at, university, degree, subject, visibility, keywords, created_at, updated_at'
@@ -25,6 +39,21 @@ export async function GET(
     .eq('id', sessionId)
     .eq('user_id', user.id)
     .single();
+
+  if (error && isMissingColumnError(error, 'folder_id')) {
+    const fallback = await supabase
+      .from('problem_solver_sessions')
+      .select(
+        'id, title, pdf_path, pdf_text, solution_md, status, is_published, published_at, university, degree, subject, visibility, keywords, created_at, updated_at'
+      )
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+      .single();
+    session = fallback.data
+      ? { ...fallback.data, folder_id: null as string | null }
+      : fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !session) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });
