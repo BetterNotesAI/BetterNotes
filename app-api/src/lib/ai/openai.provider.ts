@@ -84,6 +84,49 @@ function estimateTokensFromText(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
+type ChatCompletionRequest = OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+  max_completion_tokens?: number;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  if ('message' in error) return String(error.message ?? '').toLowerCase();
+  return '';
+}
+
+function indicatesUnsupportedTokenParam(error: unknown, param: 'max_tokens' | 'max_completion_tokens'): boolean {
+  const message = getErrorMessage(error);
+  if (!message) return false;
+  return (
+    message.includes('unsupported parameter')
+    && message.includes(param)
+    && message.includes('not supported')
+  );
+}
+
+function swapTokenLimitParam(
+  request: ChatCompletionRequest,
+  targetParam: 'max_tokens' | 'max_completion_tokens',
+): ChatCompletionRequest | null {
+  const mutable = { ...request } as ChatCompletionRequest & { max_tokens?: number };
+
+  if (targetParam === 'max_completion_tokens') {
+    if (typeof mutable.max_tokens !== 'number') return null;
+    if (typeof mutable.max_completion_tokens !== 'number') {
+      mutable.max_completion_tokens = mutable.max_tokens;
+    }
+    delete mutable.max_tokens;
+    return mutable;
+  }
+
+  if (typeof mutable.max_completion_tokens !== 'number') return null;
+  if (typeof mutable.max_tokens !== 'number') {
+    mutable.max_tokens = mutable.max_completion_tokens;
+  }
+  delete mutable.max_completion_tokens;
+  return mutable;
+}
+
 function buildAttachmentContent(
   files: (AttachmentInput | ProcessedAttachment)[]
 ): { textContext: string; imageItems: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> } {
@@ -174,9 +217,36 @@ export class OpenAIProvider implements AIProvider {
     request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
     feature: string,
   ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-    const response = await this.client.chat.completions.create(request);
-    const estimatedPromptTokens = Array.isArray(request.messages)
-      ? request.messages.reduce((acc, message) => acc + estimateTokensFromText(contentToText(message.content)), 0)
+    let effectiveRequest = request as ChatCompletionRequest;
+    let response: OpenAI.Chat.Completions.ChatCompletion;
+
+    try {
+      response = await this.client.chat.completions.create(effectiveRequest as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    } catch (error) {
+      const shouldRetryWithMaxCompletionTokens =
+        indicatesUnsupportedTokenParam(error, 'max_tokens')
+        && typeof (effectiveRequest as { max_tokens?: number }).max_tokens === 'number';
+
+      const shouldRetryWithMaxTokens =
+        indicatesUnsupportedTokenParam(error, 'max_completion_tokens')
+        && typeof effectiveRequest.max_completion_tokens === 'number';
+
+      const retryRequest = shouldRetryWithMaxCompletionTokens
+        ? swapTokenLimitParam(effectiveRequest, 'max_completion_tokens')
+        : shouldRetryWithMaxTokens
+        ? swapTokenLimitParam(effectiveRequest, 'max_tokens')
+        : null;
+
+      if (!retryRequest) {
+        throw error;
+      }
+
+      effectiveRequest = retryRequest;
+      response = await this.client.chat.completions.create(effectiveRequest as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    }
+
+    const estimatedPromptTokens = Array.isArray(effectiveRequest.messages)
+      ? effectiveRequest.messages.reduce((acc, message) => acc + estimateTokensFromText(contentToText(message.content)), 0)
       : 0;
     const estimatedCompletionTokens = estimateTokensFromText(response.choices?.[0]?.message?.content ?? '');
     const usagePayload = response.usage ?? {
