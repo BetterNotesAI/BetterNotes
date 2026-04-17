@@ -92,6 +92,7 @@ export default function DocumentWorkspacePage() {
     isGenerating,
     generationPhase,
     error: wsError,
+    isOwner,
     generate,
     reload: reloadDocument,
     switchVersion,
@@ -533,6 +534,12 @@ export default function DocumentWorkspacePage() {
             {templateLabel}
           </span>
 
+          {/* Forked badge */}
+          {docData.forked_from_id && (
+            <span className="text-xs text-indigo-400/80 bg-indigo-500/10 border border-indigo-400/20 rounded px-2 py-0.5 shrink-0 hidden sm:inline">
+              Forked
+            </span>
+          )}
 
           {docData.status === 'generating' && (
             <span className="text-xs text-blue-400 animate-pulse shrink-0">Generating...</span>
@@ -567,30 +574,78 @@ export default function DocumentWorkspacePage() {
             </button>
           )}
 
-          {/* Download PDF — fetch blob so browser shows Save-As dialog */}
-          {activePdfUrl && (
-            <button
-              onClick={async () => {
-                const res = await fetch(activePdfUrl);
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${docData.title}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }}
-              className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white px-2.5 py-1.5
-                rounded-lg border border-white/15 hover:border-white/30 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span className="hidden sm:inline">Download</span>
-            </button>
+          {/* Download dropdown — PDF and/or .tex */}
+          {(activePdfUrl || latexContent) && (
+            <div className="relative group">
+              <button
+                className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white px-2.5 py-1.5
+                  rounded-lg border border-white/15 hover:border-white/30 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="hidden sm:inline">Download</span>
+                <svg className="w-3 h-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown — pt-1 instead of mt-1 so hover area has no gap */}
+              <div className="absolute right-0 top-full pt-1 w-36 z-50
+                opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
+                transition-opacity duration-150">
+              <div className="py-1 bg-neutral-900 border border-white/15 rounded-xl shadow-xl">
+
+                {activePdfUrl && (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch(activePdfUrl);
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${docData.title}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-white/70
+                      hover:bg-white/8 hover:text-white transition-colors text-left"
+                  >
+                    <svg className="w-3.5 h-3.5 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    Download PDF
+                  </button>
+                )}
+
+                {latexContent && (
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([latexContent], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${docData.title}.tex`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-white/70
+                      hover:bg-white/8 hover:text-white transition-colors text-left"
+                  >
+                    <svg className="w-3.5 h-3.5 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+                    </svg>
+                    Download .tex
+                  </button>
+                )}
+              </div>{/* inner styled panel */}
+              </div>{/* outer hover bridge */}
+            </div>
           )}
         </div>
       </header>
@@ -624,7 +679,7 @@ export default function DocumentWorkspacePage() {
             mobileTab === 'chat' ? 'text-white border-b-2 border-blue-500' : 'text-gray-500'
           }`}
         >
-          Chat
+          {isOwner ? 'Chat' : 'Fork & Chat'}
         </button>
       </div>
 
@@ -934,35 +989,74 @@ export default function DocumentWorkspacePage() {
         <div className={`flex-[2] flex-col min-h-0 overflow-hidden ${
           mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
         } md:min-w-[300px] md:max-w-[420px] max-w-none`}>
-          <WorkspaceAttachmentsPanel documentId={documentId} />
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel
-              messages={messages}
-              isLoading={showGenerating}
-              isDraft={isDraft}
-              onSend={handleSend}
-              loadingLabel={loadingLabel}
-              prefillText={chatPrefill}
-              blockReference={blockReference}
-              onClearBlockReference={() => setBlockReference(null)}
-              documentId={documentId}
-              latexSource={latexContent ?? ''}
-              onApplyBlockEdit={(blockId, newBlockLatex) => {
-                chatPrefillCounterRef.current += 1;
-                setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
-              }}
-              onApplyPersisted={() => {
-                // After successful persist, reload the document to sync versions
-                reloadDocument();
-                // F3-M5.3: record save timestamp for "Saved X ago" display
-                setLastSavedAt(new Date());
-              }}
-              pendingApplyLatex={pendingApplyLatex}
-              onDocumentEditPreview={handleDocumentEditPreview}
-              onApplyDocumentEdit={handleApplyDocumentEdit}
-              onDiscardDocumentEdit={handleDiscardDocumentEdit}
-            />
-          </div>
+
+          {isOwner ? (
+            <>
+              <WorkspaceAttachmentsPanel documentId={documentId} />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ChatPanel
+                  messages={messages}
+                  isLoading={showGenerating}
+                  isDraft={isDraft}
+                  onSend={handleSend}
+                  loadingLabel={loadingLabel}
+                  prefillText={chatPrefill}
+                  blockReference={blockReference}
+                  onClearBlockReference={() => setBlockReference(null)}
+                  documentId={documentId}
+                  latexSource={latexContent ?? ''}
+                  onApplyBlockEdit={(blockId, newBlockLatex) => {
+                    chatPrefillCounterRef.current += 1;
+                    setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
+                  }}
+                  onApplyPersisted={() => {
+                    reloadDocument();
+                    setLastSavedAt(new Date());
+                  }}
+                  pendingApplyLatex={pendingApplyLatex}
+                  onDocumentEditPreview={handleDocumentEditPreview}
+                  onApplyDocumentEdit={handleApplyDocumentEdit}
+                  onDiscardDocumentEdit={handleDiscardDocumentEdit}
+                />
+              </div>
+            </>
+          ) : (
+            /* Non-owner: invite them to fork before chatting */
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-5">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center">
+                <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
+                </svg>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-white/90">Fork to start chatting</p>
+                <p className="text-xs text-white/45 leading-relaxed max-w-[220px]">
+                  Create your own copy of this document and use AI to customise it for your needs.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/documents/${documentId}/fork`, { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.error ?? 'Fork failed');
+                    router.push(`/documents/${data.document_id}`);
+                  } catch (err) {
+                    console.error('[Fork failed]', err);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/20 border border-indigo-400/30
+                  text-indigo-300 text-sm font-medium hover:bg-indigo-500/30 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
+                </svg>
+                Fork &amp; Chat
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

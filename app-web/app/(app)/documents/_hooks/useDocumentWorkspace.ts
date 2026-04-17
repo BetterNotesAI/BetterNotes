@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export interface DocumentData {
   id: string;
+  user_id: string;
   title: string;
   template_id: string;
   status: 'draft' | 'generating' | 'ready' | 'error';
@@ -11,6 +12,7 @@ export interface DocumentData {
   current_version_id: string | null;
   created_at: string;
   updated_at: string;
+  forked_from_id: string | null;
 }
 
 export interface VersionMeta {
@@ -34,6 +36,7 @@ interface WorkspaceState {
   isGenerating: boolean;
   generationPhase: GenerationPhase;
   error: string | null;
+  isOwner: boolean;
 }
 
 function humanizeError(msg: string): string {
@@ -57,6 +60,7 @@ export function useDocumentWorkspace(documentId: string) {
     isGenerating: false,
     generationPhase: null,
     error: null,
+    isOwner: true,
   });
 
   const load = useCallback(async () => {
@@ -77,6 +81,7 @@ export function useDocumentWorkspace(documentId: string) {
         activeVersionId: data.activeVersionId ?? null,
         versionNumber: data.versionNumber ?? null,
         isLoading: false,
+        isOwner: data.isOwner ?? true,
       }));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
