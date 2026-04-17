@@ -36,6 +36,20 @@ export async function POST(
     });
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_anonymous')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isAnonymous = Boolean(profile?.is_anonymous);
+
+  if (isAnonymous) {
+    return new Response(JSON.stringify({ error: 'account_required_for_generation' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const { id: sessionId } = await params;
 
   // Read optional provider from request body

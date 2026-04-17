@@ -6,6 +6,11 @@ import { createClient } from '@/lib/supabase/client';
 import { PdfViewer } from '@/app/(app)/documents/_components/PdfViewer';
 import { SolutionPanel } from '../_components/SolutionPanel';
 import { ProblemPublishModal } from '../_components/ProblemPublishModal';
+import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
+import {
+  consumePendingGenerationIntent,
+  savePendingGenerationIntent,
+} from '@/lib/pending-generation-intent';
 import type { SessionStatus, ProblemSession } from '../_components/SessionCard';
 
 const DEFAULT_RIGHT_PANEL_WIDTH_PCT = 50;
@@ -15,6 +20,10 @@ const MAX_RIGHT_PANEL_WIDTH_PCT = 70;
 interface SelectedContextItem {
   id: string;
   text: string;
+}
+
+interface PendingProblemSolvePayload {
+  provider: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +110,10 @@ export default function ProblemSessionPage() {
   const [availableProviders, setAvailableProviders] = useState<Array<{ name: string; model: string }>>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const hasResumedPendingIntentRef = useRef(false);
 
   // Inline chat — selected text contexts (multiple selections)
   const [selectedContexts, setSelectedContexts] = useState<SelectedContextItem[]>([]);
@@ -126,6 +139,44 @@ export default function ProblemSessionPage() {
       }
     }
     loadProviders();
+  }, []);
+
+  const currentReturnUrl = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.pathname}${window.location.search}`;
+    }
+    if (projectIdFromQuery) {
+      return `/problem-solver/${sessionId}?projectId=${encodeURIComponent(projectIdFromQuery)}`;
+    }
+    return `/problem-solver/${sessionId}`;
+  }, [projectIdFromQuery, sessionId]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadGuestStatus() {
+      try {
+        const resp = await fetch('/api/guest-status', { cache: 'no-store' });
+        if (!resp.ok) return;
+        const data = await resp.json() as { is_guest?: boolean; is_authenticated?: boolean };
+        if (!mounted) return;
+        setIsGuest(Boolean(data.is_guest));
+        setIsAuthenticated(data.is_authenticated !== false);
+      } catch {
+        // non-fatal
+      }
+    }
+
+    loadGuestStatus();
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadGuestStatus();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -180,8 +231,31 @@ export default function ProblemSessionPage() {
   // Solve with AI (SSE streaming)
   // ---------------------------------------------------------------------------
 
-  const handleSolve = useCallback(async () => {
+  const openAuthForSolve = useCallback((provider: string) => {
+    savePendingGenerationIntent<PendingProblemSolvePayload>({
+      type: 'problem_solve',
+      path: currentReturnUrl(),
+      payload: { provider },
+    });
+
+    if (isGuest) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    const returnUrl = encodeURIComponent(currentReturnUrl());
+    router.push(`/login?returnUrl=${returnUrl}&reason=problem_solver_login_required`);
+  }, [currentReturnUrl, isGuest, router]);
+
+  const handleSolve = useCallback(async (providerOverride?: string) => {
     if (!session) return;
+    const providerToUse = providerOverride ?? selectedProvider;
+
+    if (isGuest || !isAuthenticated) {
+      openAuthForSolve(providerToUse);
+      return;
+    }
+
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -194,12 +268,23 @@ export default function ProblemSessionPage() {
       const res = await fetch(`/api/problem-solver/sessions/${sessionId}/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selectedProvider ? { provider: selectedProvider } : {}),
+        body: JSON.stringify(providerToUse ? { provider: providerToUse } : {}),
         signal: ctrl.signal,
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        const rawError = typeof data.error === 'string' ? data.error.toLowerCase() : '';
+        if (
+          rawError.includes('unauthorized')
+          || rawError.includes('account_required_for_generation')
+          || rawError.includes('account_required_for_long_document')
+        ) {
+          setIsStreaming(false);
+          setSession((prev) => prev ? { ...prev, status: 'pending' } : prev);
+          openAuthForSolve(providerToUse);
+          return;
+        }
         throw new Error(data.error ?? 'Solve request failed');
       }
 
@@ -245,10 +330,43 @@ export default function ProblemSessionPage() {
       setSession((prev) => prev ? { ...prev, status: 'done' } : prev);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
+      const rawMessage = err instanceof Error ? err.message.toLowerCase() : '';
+      if (
+        rawMessage.includes('unauthorized')
+        || rawMessage.includes('account_required_for_generation')
+        || rawMessage.includes('account_required_for_long_document')
+      ) {
+        setIsStreaming(false);
+        setSession((prev) => prev ? { ...prev, status: 'pending' } : prev);
+        openAuthForSolve(providerToUse);
+        return;
+      }
       setIsStreaming(false);
       setSession((prev) => prev ? { ...prev, status: 'error' } : prev);
     }
-  }, [session, sessionId, selectedProvider]);
+  }, [
+    isAuthenticated,
+    isGuest,
+    openAuthForSolve,
+    selectedProvider,
+    session,
+    sessionId,
+  ]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (isGuest || !isAuthenticated) return;
+    if (hasResumedPendingIntentRef.current) return;
+
+    const pending = consumePendingGenerationIntent<PendingProblemSolvePayload>({
+      type: 'problem_solve',
+      path: currentReturnUrl(),
+    });
+    if (!pending) return;
+
+    hasResumedPendingIntentRef.current = true;
+    void handleSolve(pending.payload?.provider ?? '');
+  }, [currentReturnUrl, handleSolve, isAuthenticated, isGuest, session]);
 
   // Clean up stream on unmount
   useEffect(() => {
@@ -830,6 +948,12 @@ export default function ProblemSessionPage() {
             prev ? { ...prev, is_published: published } : prev
           );
         }}
+      />
+
+      <GuestSignupModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        returnUrl={currentReturnUrl()}
       />
     </div>
   );

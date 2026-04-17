@@ -50,6 +50,20 @@ export async function POST(
   }
   const projectContext = buildDocumentProjectContext(documentId, doc.template_id);
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_anonymous')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isAnonymous = Boolean(profile?.is_anonymous);
+
+  if (isAnonymous) {
+    return NextResponse.json(
+      { error: 'account_required_for_generation' },
+      { status: 403 }
+    );
+  }
+
   let body: { prompt?: unknown; fullLatex?: unknown };
   try {
     body = await req.json();

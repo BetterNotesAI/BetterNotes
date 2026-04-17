@@ -1,10 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface PlanFeature {
   text: string;
+}
+
+interface BillingEligibilityData {
+  eligible: boolean;
+  reason: string | null;
+  message: string;
 }
 
 const FREE_FEATURES: PlanFeature[] = [
@@ -32,8 +38,42 @@ export default function PricingPage() {
   const router = useRouter();
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [eligibility, setEligibility] = useState<BillingEligibilityData | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadEligibility() {
+      try {
+        const resp = await fetch('/api/billing/eligibility');
+        if (!resp.ok) return;
+        const data = await resp.json() as { eligibility?: BillingEligibilityData };
+        if (!ignore) {
+          setEligibility(data.eligibility ?? null);
+        }
+      } catch {
+        // Non-fatal: backend route still enforces billing eligibility.
+      }
+    }
+
+    void loadEligibility();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function redirectToSignup() {
+    const returnUrl = encodeURIComponent('/pricing');
+    router.push(`/signup?returnUrl=${returnUrl}&reason=billing_account_required`);
+  }
 
   async function handleUpgrade() {
+    if (eligibility && !eligibility.eligible) {
+      setCheckoutError(eligibility.message);
+      return;
+    }
+
     setIsCheckoutLoading(true);
     setCheckoutError(null);
     try {
@@ -54,6 +94,8 @@ export default function PricingPage() {
       setIsCheckoutLoading(false);
     }
   }
+
+  const canCheckout = eligibility ? eligibility.eligible : true;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -77,6 +119,18 @@ export default function PricingPage() {
           <h2 className="text-3xl font-bold text-white mb-3">Simple, transparent pricing</h2>
           <p className="text-gray-400">Start for free, upgrade when you need more.</p>
         </div>
+
+        {eligibility && !eligibility.eligible && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-amber-950/35 border border-amber-700/40 rounded-xl px-4 py-3 text-amber-200 text-sm">
+            <span>{eligibility.message}</span>
+            <button
+              onClick={redirectToSignup}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-500/50 text-amber-100 hover:bg-amber-500/20 transition-colors"
+            >
+              Create account to activate subscription
+            </button>
+          </div>
+        )}
 
         {/* Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -145,7 +199,7 @@ export default function PricingPage() {
             )}
 
             <button
-              onClick={handleUpgrade}
+              onClick={canCheckout ? handleUpgrade : redirectToSignup}
               disabled={isCheckoutLoading}
               className="relative w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60
                 disabled:cursor-not-allowed text-white font-semibold text-sm py-2.5 rounded-xl
@@ -157,7 +211,7 @@ export default function PricingPage() {
                   Redirecting...
                 </>
               ) : (
-                'Upgrade to Pro'
+                canCheckout ? 'Upgrade to Pro' : 'Create account to activate subscription'
               )}
             </button>
           </div>

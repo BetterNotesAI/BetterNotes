@@ -24,6 +24,7 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams?.get('returnUrl')
+  const safeReturnUrl = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/home'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +47,7 @@ function LoginContent() {
     }
 
     router.refresh()
-    router.push(returnUrl ?? '/home')
+    router.push(safeReturnUrl)
   }
 
   async function handleGoogleLogin() {
@@ -57,7 +58,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`,
       },
     })
 
@@ -202,7 +203,10 @@ function LoginContent() {
 
         <p className="text-center text-sm text-white/60">
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+          <Link
+            href={`/signup?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
+            className="text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
             Sign up
           </Link>
         </p>

@@ -32,5 +32,16 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  return { response: supabaseResponse, user }
+  let isAnonymous = false
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_anonymous')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    isAnonymous = Boolean(profile?.is_anonymous)
+  }
+
+  return { response: supabaseResponse, user, isAnonymous }
 }

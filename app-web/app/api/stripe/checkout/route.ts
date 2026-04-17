@@ -9,6 +9,11 @@ import {
   isPaidBillingTier,
   PaidBillingTier,
 } from '@/lib/billing-plans';
+import { resolveBillingEligibilityForUser } from '@/lib/billing-eligibility';
+import {
+  recordBillingIncident,
+  saveCheckoutSessionBinding,
+} from '@/lib/stripe-checkout-guard';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
@@ -30,6 +35,14 @@ export async function POST(req: NextRequest) {
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const eligibility = await resolveBillingEligibilityForUser({ supabase, user });
+  if (!eligibility.eligible) {
+    return NextResponse.json(
+      { error: eligibility.message, reason: eligibility.reason, eligibility },
+      { status: 403 }
+    );
   }
 
   const body = await req.json().catch(() => ({})) as {
@@ -128,7 +141,7 @@ export async function POST(req: NextRequest) {
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${origin}/settings/billing?success=true&tier=${tier}&interval=${interval}`,
+      success_url: `${origin}/settings/billing?success=true&tier=${tier}&interval=${interval}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/settings/billing`,
       metadata: {
         supabase_user_id: user.id,
@@ -143,6 +156,46 @@ export async function POST(req: NextRequest) {
 
   if (!session.url) {
     return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+  }
+
+  try {
+    await saveCheckoutSessionBinding({
+      supabaseAdmin,
+      userId: user.id,
+      stripeCheckoutSessionId: session.id,
+      stripeCustomerId,
+      requestedTier: tier,
+      requestedInterval: interval,
+    });
+  } catch (bindingErr) {
+    const message = bindingErr instanceof Error ? bindingErr.message : 'Unknown checkout binding error';
+    console.error('[stripe/checkout] checkout session binding error:', message);
+
+    await recordBillingIncident({
+      supabaseAdmin,
+      incidentType: 'checkout_binding_persist_failed',
+      severity: 'critical',
+      userId: user.id,
+      stripeCheckoutSessionId: session.id,
+      stripeCustomerId,
+      details: {
+        requested_tier: tier,
+        requested_interval: interval,
+        error: message,
+      },
+    });
+
+    try {
+      await stripe.checkout.sessions.expire(session.id);
+    } catch (expireErr) {
+      const expireMessage = expireErr instanceof Error ? expireErr.message : 'Unknown checkout session expire error';
+      console.warn('[stripe/checkout] Failed to expire unbound checkout session:', expireMessage);
+    }
+
+    return NextResponse.json(
+      { error: 'Could not initialize billing session. Please try again.' },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ url: session.url });

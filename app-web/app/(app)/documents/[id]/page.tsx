@@ -12,6 +12,10 @@ import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWork
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
+import {
+  consumePendingGenerationIntent,
+  savePendingGenerationIntent,
+} from '@/lib/pending-generation-intent';
 import LatexViewer, { type BlockReference } from '@/components/viewer/LatexViewer';
 import { PublishModal } from '../_components/PublishModal';
 
@@ -30,6 +34,10 @@ const TEMPLATE_LABELS: Record<string, string> = {
   lecture_notes: 'Lecture Notes',
   long_template: 'Long Document',
 };
+
+interface PendingDocumentWorkspaceSendPayload {
+  content: string;
+}
 
 function getLoadingLabel(phase: GenerationPhase): string | undefined {
   if (phase === 'calling_ai') return 'Asking the AI...';
@@ -125,9 +133,9 @@ export default function DocumentWorkspacePage() {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usagePlan, setUsagePlan] = useState<'free' | 'pro' | null>(null);
-  // isGuest state value is reserved for future gating UI (currently only used for auth listener)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isGuest, setIsGuest] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const hasResumedPendingIntentRef = useRef(false);
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
@@ -275,8 +283,12 @@ export default function DocumentWorkspacePage() {
       try {
         const resp = await fetch('/api/guest-status');
         if (resp.ok) {
-          const data = await resp.json();
-          setIsGuest(data.is_guest ?? false);
+          const data = await resp.json() as {
+            is_guest?: boolean;
+            is_authenticated?: boolean;
+          };
+          setIsGuest(Boolean(data.is_guest));
+          setIsAuthenticated(data.is_authenticated !== false);
         }
       } catch {
         // Non-fatal
@@ -327,6 +339,42 @@ export default function DocumentWorkspacePage() {
     return msg === 'guest_doc_limit' || msg === 'guest_message_limit';
   }
 
+  function isAuthRequiredError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    const msg = err.message.toLowerCase();
+    return (
+      msg === 'unauthorized'
+      || msg.includes('unauthorized')
+      || msg === 'account_required_for_generation'
+      || msg.includes('account_required_for_generation')
+      || msg === 'account_required_for_long_document'
+      || msg.includes('account_required_for_long_document')
+    );
+  }
+
+  const currentReturnUrl = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.pathname}${window.location.search}`;
+    }
+    return pathname || `/documents/${documentId}`;
+  }, [pathname, documentId]);
+
+  const openAuthForGeneration = useCallback((content: string) => {
+    savePendingGenerationIntent<PendingDocumentWorkspaceSendPayload>({
+      type: 'document_workspace_send',
+      path: currentReturnUrl(),
+      payload: { content },
+    });
+
+    if (isGuest) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    const returnUrl = encodeURIComponent(currentReturnUrl());
+    router.push(`/login?returnUrl=${returnUrl}&reason=document_generation_login_required`);
+  }, [currentReturnUrl, isGuest, router]);
+
   // --- Task 6c: compile handler ---
   const handleCompile = useCallback(async () => {
     if (!editedLatex || isCompiling) return;
@@ -353,8 +401,13 @@ export default function DocumentWorkspacePage() {
     }
   }, [editedLatex, isCompiling, documentId, reloadDocument]);
 
-  async function handleSend(content: string) {
+  const handleSend = useCallback(async (content: string) => {
     if (!docData) return;
+
+    if (isGuest || !isAuthenticated) {
+      openAuthForGeneration(content);
+      return;
+    }
 
     if (isDraft) {
       // First generation
@@ -365,7 +418,9 @@ export default function DocumentWorkspacePage() {
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
       } catch (err: unknown) {
-        if (isGuestLimitError(err)) {
+        if (isAuthRequiredError(err)) {
+          openAuthForGeneration(content);
+        } else if (isGuestLimitError(err)) {
           setShowGuestModal(true);
         } else if (isLimitReachedError(err)) {
           setShowUpgradeModal(true);
@@ -378,7 +433,9 @@ export default function DocumentWorkspacePage() {
       try {
         await sendMessage(content);
       } catch (err: unknown) {
-        if (isGuestLimitError(err)) {
+        if (isAuthRequiredError(err)) {
+          openAuthForGeneration(content);
+        } else if (isGuestLimitError(err)) {
           setShowGuestModal(true);
         } else if (isLimitReachedError(err)) {
           setShowUpgradeModal(true);
@@ -387,7 +444,32 @@ export default function DocumentWorkspacePage() {
         setIsChatGenerating(false);
       }
     }
-  }
+  }, [
+    docData,
+    generate,
+    isAuthenticated,
+    isDraft,
+    isGuest,
+    openAuthForGeneration,
+    reloadDocument,
+    reloadMessages,
+    sendMessage,
+  ]);
+
+  useEffect(() => {
+    if (!docData) return;
+    if (isGuest || !isAuthenticated) return;
+    if (hasResumedPendingIntentRef.current) return;
+
+    const pending = consumePendingGenerationIntent<PendingDocumentWorkspaceSendPayload>({
+      type: 'document_workspace_send',
+      path: currentReturnUrl(),
+    });
+    if (!pending?.payload?.content) return;
+
+    hasResumedPendingIntentRef.current = true;
+    void handleSend(pending.payload.content);
+  }, [currentReturnUrl, docData, handleSend, isAuthenticated, isGuest]);
 
 
   // ── Document-level edit handlers (Flujo C) ──────────────────────────────
@@ -976,6 +1058,7 @@ export default function DocumentWorkspacePage() {
       <GuestSignupModal
         isOpen={showGuestModal}
         onClose={() => setShowGuestModal(false)}
+        returnUrl={currentReturnUrl()}
       />
 
       {/* F3-M5.2: Publish modal */}

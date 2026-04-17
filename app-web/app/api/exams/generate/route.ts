@@ -124,6 +124,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_anonymous')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isAnonymous = Boolean(profile?.is_anonymous);
+
+  if (isAnonymous) {
+    return NextResponse.json({ error: 'account_required_for_generation' }, { status: 403 });
+  }
+
   const usageCheck = await checkCreditQuota(supabase, user.id);
   if (!usageCheck.allowed) {
     return NextResponse.json(

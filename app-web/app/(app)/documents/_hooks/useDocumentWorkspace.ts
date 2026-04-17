@@ -38,6 +38,15 @@ interface WorkspaceState {
 
 function humanizeError(msg: string): string {
   if (msg.includes('guest_doc_limit') || msg.includes('guest_message_limit')) return '';
+  if (msg.toLowerCase().includes('unauthorized')) {
+    return 'You need to log in to generate documents.';
+  }
+  if (msg.includes('account_required_for_generation')) {
+    return 'Creating an account is required to generate with AI.';
+  }
+  if (msg.includes('account_required_for_long_document')) {
+    return 'Long Document generation requires creating an account.';
+  }
   if (msg.includes('limit_reached')) return 'Monthly credit limit reached. Upgrade your plan to continue using AI.';
   if (msg.includes('compile') || msg.includes('LaTeX')) return 'PDF compilation failed. The AI will try to fix it automatically next time.';
   if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) return 'The generation service is taking too long. Please try again.';
