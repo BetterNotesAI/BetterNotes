@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
+import {
+  consumePendingGenerationIntent,
+  savePendingGenerationIntent,
+} from '@/lib/pending-generation-intent';
 
 export interface CreateDocumentInput {
   prompt: string;
@@ -39,6 +45,21 @@ const TEMPLATES = [
   { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
 ];
 
+type GenerationEligibilityState = 'loading' | 'allowed' | 'guest' | 'unauthenticated';
+
+interface PendingDocumentCreationPayload {
+  prompt: string;
+  templateId: string;
+  specs: CreateDocumentInput['specs'];
+  hadFiles: boolean;
+}
+
+function currentReturnUrl(fallbackPath: string): string {
+  if (typeof window === 'undefined') return fallbackPath || '/home';
+  const path = `${window.location.pathname}${window.location.search}`;
+  return path.startsWith('/') ? path : (fallbackPath || '/home');
+}
+
 export function DocumentCreationBar({
   mode = 'app',
   onSubmit,
@@ -64,6 +85,10 @@ export function DocumentCreationBar({
   // Specs are only "active" after the user explicitly clicks Apply
   const [specsApplied, setSpecsApplied] = useState(false);
   const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
+  const [eligibility, setEligibility] = useState<GenerationEligibilityState>('loading');
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const hasResumedPendingIntentRef = useRef(false);
 
   const barRef         = useRef<HTMLDivElement>(null);
   const textareaRef    = useRef<HTMLTextAreaElement>(null);
@@ -91,6 +116,93 @@ export function DocumentCreationBar({
     }
   }, [initialTemplateId, selectedTemplateId]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadEligibility() {
+      try {
+        const resp = await fetch('/api/guest-status', { cache: 'no-store' });
+        if (!resp.ok) {
+          if (mounted) setEligibility('allowed');
+          return;
+        }
+        const data = await resp.json() as {
+          is_guest?: boolean;
+          is_authenticated?: boolean;
+          generation_allowed?: boolean;
+        };
+
+        if (!mounted) return;
+
+        if (data.is_authenticated === false) {
+          setEligibility('unauthenticated');
+          return;
+        }
+        if (data.is_guest) {
+          setEligibility('guest');
+          return;
+        }
+        if (data.generation_allowed === false) {
+          setEligibility('guest');
+          return;
+        }
+        setEligibility('allowed');
+      } catch {
+        if (mounted) setEligibility('allowed');
+      }
+    }
+
+    loadEligibility();
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadEligibility();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (eligibility !== 'allowed') return;
+    if (hasResumedPendingIntentRef.current) return;
+
+    const pending = consumePendingGenerationIntent<PendingDocumentCreationPayload>({
+      type: 'document_creation',
+      path: currentReturnUrl(pathname || '/documents'),
+    });
+    if (!pending) return;
+
+    hasResumedPendingIntentRef.current = true;
+    const { prompt: pendingPrompt, templateId: pendingTemplateId, specs, hadFiles } = pending.payload;
+
+    setPrompt(pendingPrompt);
+    setTemplateId(pendingTemplateId || null);
+    if (pendingTemplateId) onTemplateChange?.(pendingTemplateId);
+
+    if (specs) {
+      setPages(specs.pages);
+      setDensity(specs.density);
+      setLanguage(specs.language);
+      setSpecsApplied(true);
+    } else {
+      setSpecsApplied(false);
+    }
+
+    if (hadFiles) {
+      setResumeError('Sign-in completed. Re-attach files and click Build again.');
+      return;
+    }
+
+    void onSubmit({
+      prompt: pendingPrompt,
+      templateId: pendingTemplateId || 'auto',
+      specs,
+      files: [],
+    });
+  }, [eligibility, onSubmit, onTemplateChange, pathname]);
+
   // Close panels on outside click (ignore clicks inside the portal popovers)
   useEffect(() => {
     if (!openPanel) return;
@@ -109,6 +221,7 @@ export function DocumentCreationBar({
 
   // Auto-resize textarea
   function handleTextareaInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setResumeError(null);
     setPrompt(e.target.value);
     const el = e.target;
     el.style.height = 'auto';
@@ -118,21 +231,65 @@ export function DocumentCreationBar({
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      void handleSubmit();
     }
   }
 
-  function handleSubmit() {
+  async function resolveEligibilityForSubmit(): Promise<GenerationEligibilityState> {
+    if (eligibility !== 'loading') return eligibility;
+    try {
+      const resp = await fetch('/api/guest-status', { cache: 'no-store' });
+      if (!resp.ok) return 'allowed';
+      const data = await resp.json() as { is_guest?: boolean; is_authenticated?: boolean; generation_allowed?: boolean };
+      if (data.is_authenticated === false) return 'unauthenticated';
+      if (data.is_guest || data.generation_allowed === false) return 'guest';
+      return 'allowed';
+    } catch {
+      return 'allowed';
+    }
+  }
+
+  async function handleSubmit() {
     if (!prompt.trim() || isLoading) return;
-    onSubmit({
+    const payload: CreateDocumentInput = {
       prompt: prompt.trim(),
       templateId: templateId ?? 'auto',
       specs: specsApplied ? { pages, density, language } : null,
       files,
-    });
+    };
+
+    const currentEligibility = await resolveEligibilityForSubmit();
+    if (currentEligibility === 'guest' || currentEligibility === 'unauthenticated') {
+      savePendingGenerationIntent<PendingDocumentCreationPayload>({
+        type: 'document_creation',
+        path: currentReturnUrl(pathname || '/documents'),
+        payload: {
+          prompt: payload.prompt,
+          templateId: payload.templateId,
+          specs: payload.specs,
+          hadFiles: payload.files.length > 0,
+        },
+      });
+
+      if (currentEligibility === 'guest') {
+        setShowGuestModal(true);
+      } else {
+        const returnUrl = encodeURIComponent(currentReturnUrl(pathname || '/documents'));
+        router.push(`/login?returnUrl=${returnUrl}&reason=generation_login_required`);
+      }
+      return;
+    }
+
+    setResumeError(null);
+    try {
+      await onSubmit(payload);
+    } catch {
+      setResumeError('Could not start generation. Please try again.');
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setResumeError(null);
     const selected = Array.from(e.target.files ?? []);
     setFiles((prev) => [...prev, ...selected]);
     e.target.value = '';
@@ -193,6 +350,7 @@ export function DocumentCreationBar({
 
   const canSubmit     = prompt.trim().length > 0 && !isLoading;
   const specsActive   = specsApplied || openPanel === 'specs';
+  const displayError = resumeError ?? error;
 
   // Portal popovers
   const templatePopover = openPanel === 'template' && popoverPos && typeof window !== 'undefined'
@@ -404,6 +562,11 @@ export function DocumentCreationBar({
       {templatePopover}
       {specsPopover}
       {pdfModal}
+      <GuestSignupModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        returnUrl={currentReturnUrl(pathname || '/documents')}
+      />
 
       <div ref={barRef}>
       {/* Main bar — two rows */}
@@ -503,7 +666,7 @@ export function DocumentCreationBar({
 
           {/* Submit button */}
           <button
-            onClick={handleSubmit}
+            onClick={() => { void handleSubmit(); }}
             disabled={!canSubmit}
             className="bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-xs font-semibold h-8 px-4 rounded-xl shadow-[0_2px_8px_rgba(99,102,241,0.4)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 whitespace-nowrap"
           >
@@ -551,9 +714,9 @@ export function DocumentCreationBar({
       )}
 
       {/* Error message */}
-      {error && (
+      {displayError && (
         <div className="mt-2 text-xs text-red-400 bg-red-950/30 border border-red-900/30 rounded-xl px-3 py-2">
-          {error}
+          {displayError}
         </div>
       )}
       </div>

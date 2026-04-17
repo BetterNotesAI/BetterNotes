@@ -116,6 +116,7 @@ export function Sidebar() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   const newFolderInputRef = useRef<HTMLInputElement>(null);
@@ -204,6 +205,29 @@ export function Sidebar() {
     return () => {
       ignore = true;
       clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadGuestStatus() {
+      try {
+        const resp = await fetch('/api/guest-status');
+        if (!resp.ok) return;
+        const data = await resp.json() as { is_guest?: boolean };
+        if (!ignore) {
+          setIsGuest(Boolean(data.is_guest));
+        }
+      } catch {
+        // Non-fatal for sidebar UI
+      }
+    }
+
+    void loadGuestStatus();
+
+    return () => {
+      ignore = true;
     };
   }, []);
 
@@ -471,6 +495,14 @@ export function Sidebar() {
   const creditsProgress = creditsLimit > 0
     ? Math.min(100, Math.max(0, Math.round((creditsRemaining / creditsLimit) * 100)))
     : 0;
+  const billingHref = isGuest
+    ? '/signup?returnUrl=%2Fsettings%2Fbilling&reason=billing_account_required'
+    : '/settings/billing';
+  const billingActionLabel = isGuest
+    ? 'Create account'
+    : usage?.plan === 'free'
+      ? 'Upgrade'
+      : 'Manage plan';
 
   function formatCredits(value: number): string {
     return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -855,7 +887,7 @@ export function Sidebar() {
           <div className={`shrink-0 px-2 pb-2 ${collapsed ? 'pt-1' : 'pt-2'}`}>
             {collapsed ? (
               <Link
-                href="/settings/billing"
+                href={billingHref}
                 title="Credits"
                 className="flex items-center justify-center px-2 py-2.5 rounded-xl text-white/60 hover:bg-indigo-500/15 hover:text-indigo-200 transition-colors"
               >
@@ -887,10 +919,10 @@ export function Sidebar() {
                 </div>
 
                 <Link
-                  href="/settings/billing"
+                  href={billingHref}
                   className="w-full inline-flex items-center justify-center rounded-xl border border-indigo-300/25 px-3 py-2 text-sm font-medium text-indigo-100/85 hover:bg-indigo-400/10 hover:border-indigo-200/35 hover:text-indigo-50 transition-colors"
                 >
-                  {usage.plan === 'free' ? 'Upgrade' : 'Manage plan'}
+                  {billingActionLabel}
                 </Link>
               </div>
             )}
@@ -938,7 +970,7 @@ export function Sidebar() {
                 Settings
               </Link>
               <Link
-                href="/settings/billing"
+                href={billingHref}
                 onClick={() => setProfileOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >

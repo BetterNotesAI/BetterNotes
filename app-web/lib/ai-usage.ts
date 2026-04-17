@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import Stripe from 'stripe';
 import type { UsageProjectContext, UsageProjectType } from './usage-project';
+import { createAdminClient } from './supabase/admin';
+import { syncUserSubscriptionFromStripe } from './stripe-subscription-sync';
 
 export interface CreditQuotaStatus {
   allowed: boolean;
@@ -70,6 +73,10 @@ const DEFAULT_OPENAI_NANO_PRICING: ModelPricing = {
   cachedInputUsdPer1m: readNumberEnv('AI_PRICE_OPENAI_GPT_5_4_NANO_CACHED_INPUT_USD_PER_1M', 0.02),
   outputUsdPer1m: readNumberEnv('AI_PRICE_OPENAI_GPT_5_4_NANO_OUTPUT_USD_PER_1M', 1.25),
 };
+
+const stripeForQuotaSync = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' })
+  : null;
 
 function normalizeModel(model: string): string {
   return model.trim().toLowerCase().split(':')[0].trim();
@@ -165,13 +172,47 @@ export async function checkCreditQuota(
     throw new Error(error.message);
   }
 
-  return (data ?? {
+  const quota = (data ?? {
     allowed: false,
     plan: 'free',
     remaining: 0,
     credits_remaining: 0,
     credits_limit: 10,
   }) as CreditQuotaStatus;
+
+  if (quota.plan === 'free' && stripeForQuotaSync) {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const hasStripeCustomerId =
+        profile && typeof profile.stripe_customer_id === 'string' && profile.stripe_customer_id.trim().length > 0;
+
+      if (hasStripeCustomerId) {
+        const supabaseAdmin = createAdminClient();
+        const syncResult = await syncUserSubscriptionFromStripe({
+          stripe: stripeForQuotaSync,
+          supabaseAdmin,
+          userId,
+        });
+
+        if (syncResult) {
+          const refreshed = await supabase.rpc('check_credit_quota', { p_user_id: userId });
+          if (!refreshed.error && refreshed.data) {
+            return refreshed.data as CreditQuotaStatus;
+          }
+        }
+      }
+    } catch (syncError) {
+      const message = syncError instanceof Error ? syncError.message : 'unknown error';
+      console.warn('[usage] Stripe quota sync fallback failed:', message);
+    }
+  }
+
+  return quota;
 }
 
 export async function recordAiUsage(

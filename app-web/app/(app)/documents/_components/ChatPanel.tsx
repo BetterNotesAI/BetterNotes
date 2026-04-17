@@ -222,6 +222,23 @@ function formatTime(dateStr: string): string {
   return `${hours}:${minutes}`;
 }
 
+function humanizeApiError(message: unknown): string {
+  const msg = typeof message === 'string' ? message : '';
+  const normalized = msg.toLowerCase();
+
+  if (normalized.includes('account_required_for_long_document')) {
+    return 'Long Document requires creating an account. Please sign up or log in.';
+  }
+  if (normalized.includes('account_required_for_generation')) {
+    return 'Create an account to keep using AI generation.';
+  }
+  if (normalized.includes('unauthorized')) {
+    return 'You need to log in to use AI editing.';
+  }
+
+  return msg || 'Something went wrong. Please try again.';
+}
+
 const LOADING_PHASES = [
   { label: 'Generating LaTeX...', duration: 4000 },
   { label: 'Compiling PDF...', duration: null },
@@ -529,7 +546,7 @@ export function ChatPanel({
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
-        setEditError(errData?.error ?? 'AI edit failed. Try again.');
+        setEditError(humanizeApiError(errData?.error));
         return;
       }
 
@@ -659,7 +676,7 @@ export function ChatPanel({
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
-        setDocumentEditError(errData?.error ?? 'AI edit failed. Try again.');
+        setDocumentEditError(humanizeApiError(errData?.error));
         return;
       }
 

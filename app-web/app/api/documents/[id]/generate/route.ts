@@ -33,6 +33,20 @@ export async function POST(
   }
   const projectContext = buildDocumentProjectContext(documentId, doc.template_id);
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_anonymous')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isAnonymous = Boolean(profile?.is_anonymous);
+
+  if (isAnonymous) {
+    return NextResponse.json(
+      { error: 'account_required_for_generation' },
+      { status: 403 }
+    );
+  }
+
   // Check guest limits before any expensive work (runs before the paid-plan quota check)
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
     p_user_id: user.id,

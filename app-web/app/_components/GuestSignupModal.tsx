@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 export interface GuestSignupModalProps {
   isOpen: boolean;
   onClose: () => void;
+  returnUrl?: string;
 }
 
 function humanizeError(message: string): string {
@@ -22,12 +23,19 @@ function humanizeError(message: string): string {
   return 'Something went wrong. Please try again.';
 }
 
-export function GuestSignupModal({ isOpen, onClose }: GuestSignupModalProps) {
+function safeReturnUrl(input?: string): string {
+  if (!input) return '/home';
+  return input.startsWith('/') ? input : '/home';
+}
+
+export function GuestSignupModal({ isOpen, onClose, returnUrl }: GuestSignupModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const targetReturnUrl = safeReturnUrl(returnUrl);
+  const loginHref = `/login?returnUrl=${encodeURIComponent(targetReturnUrl)}&reason=generation_login_required`;
 
   if (!isOpen) return null;
 
@@ -202,7 +210,7 @@ export function GuestSignupModal({ isOpen, onClose }: GuestSignupModalProps) {
         {/* Log in link */}
         <p className="text-center text-xs text-white/45 mt-4">
           Already have an account?{' '}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+          <Link href={loginHref} className="text-indigo-400 hover:text-indigo-300 transition-colors">
             Log in
           </Link>
         </p>

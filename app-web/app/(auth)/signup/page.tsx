@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -20,8 +20,10 @@ function humanizeAuthError(message: string): string {
   return 'Something went wrong, please try again'
 }
 
-export default function SignupPage() {
-  const router = useRouter()
+function SignupContent() {
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams?.get('returnUrl')
+  const safeReturnUrl = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/home'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`,
       },
     })
 
@@ -60,7 +62,7 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`,
       },
     })
 
@@ -91,7 +93,10 @@ export default function SignupPage() {
             We sent a confirmation link to <strong className="text-white">{email}</strong>.
             Click it to activate your account.
           </p>
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">
+          <Link
+            href={`/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
+            className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
+          >
             Back to login
           </Link>
         </div>
@@ -225,11 +230,31 @@ export default function SignupPage() {
 
         <p className="text-center text-sm text-white/60">
           Already have an account?{' '}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+          <Link
+            href={`/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
+            className="text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
             Log in
           </Link>
         </p>
       </div>
     </div>
+  )
+}
+
+function SignupFallback() {
+  return (
+    <div className="relative min-h-screen flex items-center justify-center px-4">
+      <Background />
+      <div className="relative z-10 h-6 w-6 rounded-full border-2 border-white/25 border-t-white animate-spin" />
+    </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFallback />}>
+      <SignupContent />
+    </Suspense>
   )
 }

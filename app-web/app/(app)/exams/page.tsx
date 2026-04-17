@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useRef, useState, useEffect } from 'react';
+import { useReducer, useRef, useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Exam, ExamQuestion, ExamQuestionType } from './_types';
 import ExamSetup, { type ExamSetupValues } from './_components/ExamSetup';
@@ -8,6 +8,12 @@ import ExamInProgress, { type ActiveQuestion } from './_components/ExamInProgres
 import ExamFlashcards from './_components/ExamFlashcards';
 import ExamResults from './_components/ExamResults';
 import ExamStats, { type ExamStatsHandle } from './_components/ExamStats';
+import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
+import { createClient } from '@/lib/supabase/client';
+import {
+  consumePendingGenerationIntent,
+  savePendingGenerationIntent,
+} from '@/lib/pending-generation-intent';
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -113,6 +119,10 @@ function reducer(state: State, action: Action): State {
 
 type Tab = 'generate' | 'stats';
 
+interface PendingExamGeneratePayload {
+  values: ExamSetupValues;
+}
+
 export default function ExamsPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [activeTab, setActiveTab] = useState<Tab>('generate');
@@ -129,6 +139,11 @@ export default function ExamsPage() {
   const router = useRouter();
   const projectId = searchParams?.get('projectId')?.trim() || null;
   const isProjectMode = !!projectId;
+  const [isGuest, setIsGuest] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const hasResumedPendingIntentRef = useRef(false);
+  const handleGenerateRef = useRef<((values: ExamSetupValues) => Promise<void>) | null>(null);
 
   // --- Load shared exam from ?shared=examId query param ---
   useEffect(() => {
@@ -176,8 +191,67 @@ export default function ExamsPage() {
     return () => clearTimeout(t);
   }, [state.screen]);
 
+  const currentReturnUrl = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.pathname}${window.location.search}`;
+    }
+    if (projectId) {
+      return `/exams?projectId=${encodeURIComponent(projectId)}`;
+    }
+    return '/exams';
+  }, [projectId]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadGuestStatus() {
+      try {
+        const resp = await fetch('/api/guest-status', { cache: 'no-store' });
+        if (!resp.ok) return;
+        const data = await resp.json() as { is_guest?: boolean; is_authenticated?: boolean };
+        if (!mounted) return;
+        setIsGuest(Boolean(data.is_guest));
+        setIsAuthenticated(data.is_authenticated !== false);
+      } catch {
+        // non-fatal
+      }
+    }
+
+    loadGuestStatus();
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadGuestStatus();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const openAuthForGeneration = useCallback((values: ExamSetupValues) => {
+    savePendingGenerationIntent<PendingExamGeneratePayload>({
+      type: 'exam_generate',
+      path: currentReturnUrl(),
+      payload: { values },
+    });
+
+    if (isGuest) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    const returnUrl = encodeURIComponent(currentReturnUrl());
+    router.push(`/login?returnUrl=${returnUrl}&reason=exam_generation_login_required`);
+  }, [currentReturnUrl, isGuest, router]);
+
   // --- Generate exam ---
   async function handleGenerate(values: ExamSetupValues) {
+    if (isGuest || !isAuthenticated) {
+      openAuthForGeneration(values);
+      return;
+    }
+
     setShowExamModal(false);
     setTimerSettings({ enabled: values.timerEnabled, minutes: values.timerMinutes });
     dispatch({ type: 'GENERATE_START' });
@@ -203,6 +277,15 @@ export default function ExamsPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        const rawError = typeof data.error === 'string' ? data.error.toLowerCase() : '';
+        if (
+          rawError.includes('unauthorized')
+          || rawError.includes('account_required_for_generation')
+          || rawError.includes('account_required_for_long_document')
+        ) {
+          openAuthForGeneration(values);
+          return;
+        }
         dispatch({ type: 'GENERATE_ERROR', error: data.error ?? 'Failed to generate exam' });
         return;
       }
@@ -216,6 +299,22 @@ export default function ExamsPage() {
       dispatch({ type: 'GENERATE_ERROR', error: 'Network error. Please try again.' });
     }
   }
+  handleGenerateRef.current = handleGenerate;
+
+  useEffect(() => {
+    if (isGuest || !isAuthenticated) return;
+    if (hasResumedPendingIntentRef.current) return;
+    if (state.screen !== 'setup') return;
+
+    const pending = consumePendingGenerationIntent<PendingExamGeneratePayload>({
+      type: 'exam_generate',
+      path: currentReturnUrl(),
+    });
+    if (!pending?.payload?.values) return;
+
+    hasResumedPendingIntentRef.current = true;
+    void handleGenerateRef.current?.(pending.payload.values);
+  }, [currentReturnUrl, isAuthenticated, isGuest, state.screen]);
 
   // --- Submit exam ---
   async function handleSubmit(
@@ -542,6 +641,12 @@ export default function ExamsPage() {
         )}
 
       </div>
+
+      <GuestSignupModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        returnUrl={currentReturnUrl()}
+      />
     </div>
   );
 }
