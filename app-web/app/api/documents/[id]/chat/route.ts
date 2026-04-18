@@ -2,9 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 import { buildDocumentProjectContext } from '@/lib/usage-project';
+import { decideDocumentGenerationIntent } from '@/lib/document-generation-intent';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function persistChatTurn(
+  supabase: SupabaseClient,
+  {
+    documentId,
+    userId,
+    userContent,
+    assistantContent,
+  }: {
+    documentId: string;
+    userId: string;
+    userContent: string;
+    assistantContent: string;
+  },
+): Promise<void> {
+  const { error } = await supabase.from('chat_messages').insert([
+    {
+      document_id: documentId,
+      user_id: userId,
+      role: 'user',
+      content: userContent,
+    },
+    {
+      document_id: documentId,
+      user_id: userId,
+      role: 'assistant',
+      content: assistantContent,
+    },
+  ]);
+
+  if (error) {
+    console.warn('[documents/chat] Failed to persist chat turn:', error.message);
+  }
+}
 
 export async function GET(
   _req: NextRequest,
@@ -90,6 +127,34 @@ export async function POST(
   if (!content || typeof content !== 'string') {
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
   }
+  const userContent = content.trim();
+  if (!userContent) {
+    return NextResponse.json({ error: 'content is required' }, { status: 400 });
+  }
+
+  const { data: recentMessages } = await supabase
+    .from('chat_messages')
+    .select('role, content')
+    .eq('document_id', documentId)
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  const intentDecision = decideDocumentGenerationIntent({
+    prompt: userContent,
+    templateId: doc.template_id,
+    mode: doc.current_version_id ? 'refine' : 'draft',
+    recentMessages: recentMessages ?? [],
+  });
+
+  if (!intentDecision.shouldGenerate && intentDecision.reply) {
+    await persistChatTurn(supabase, {
+      documentId,
+      userId: user.id,
+      userContent,
+      assistantContent: intentDecision.reply,
+    });
+    return NextResponse.json({ message: intentDecision.reply });
+  }
 
   // Check guest limits before calling app-api (runs before the paid-plan quota check)
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
@@ -146,7 +211,7 @@ export async function POST(
     document_id: documentId,
     user_id: user.id,
     role: 'user',
-    content,
+    content: userContent,
   });
 
   // Mark as generating
@@ -162,7 +227,7 @@ export async function POST(
       method: 'POST',
       headers: buildInternalApiHeaders(user.id, 'document_chat', API_INTERNAL_TOKEN, projectContext),
       body: JSON.stringify({
-        prompt: content,
+        prompt: userContent,
         templateId: doc.template_id,
         baseLatex,
         files: validAttachments,
@@ -257,7 +322,7 @@ export async function POST(
       latex_content: latexSource,
       pdf_storage_path: storagePath,
       compile_status: 'success',
-      prompt_used: content,
+      prompt_used: userContent,
     })
     .select('id')
     .single();

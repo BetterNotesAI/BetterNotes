@@ -117,14 +117,13 @@ export function useDocumentWorkspace(documentId: string) {
         throw new Error(data?.error ?? 'Generation failed');
       }
 
-      setState((s) => ({ ...s, generationPhase: 'compiling' }));
-
       if (data.message) {
         // AI replied with a chat message, not a document
         setState((s) => ({ ...s, isGenerating: false, generationPhase: null }));
         return { message: data.message as string };
       }
 
+      setState((s) => ({ ...s, generationPhase: 'compiling' }));
       setState((s) => ({ ...s, generationPhase: 'uploading' }));
 
       // Reload the document to get updated state
