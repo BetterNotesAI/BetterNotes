@@ -8,6 +8,7 @@ import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
+import InteractiveBuildPreview from '../_components/InteractiveBuildPreview';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
@@ -563,6 +564,10 @@ export default function DocumentWorkspacePage() {
   const chatLeftLayout = isCheatSheetWorkspace || isCheatSheetTemplate || isLectureNotesTemplate;
   const transparentInteractiveBackground = isCheatSheetWorkspace || isCheatSheetTemplate;
   const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
+  const showInteractiveBuildPreview =
+    viewerTab === 'interactive' &&
+    !latexContent &&
+    showGenerating;
   const loadingLabel = getLoadingLabel(generationPhase);
 
   return (
@@ -836,7 +841,7 @@ export default function DocumentWorkspacePage() {
           <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative transition-opacity duration-150">
 
             {/* F3-M5.3: Skeleton loader — shown while document is loading in interactive tab */}
-            {viewerTab === 'interactive' && isLoading && !latexContent && (
+            {viewerTab === 'interactive' && isLoading && !latexContent && !showInteractiveBuildPreview && (
               <div className={`flex-1 flex flex-col min-h-0 min-w-0 overflow-auto p-6 space-y-4 animate-pulse ${transparentInteractiveBackground ? 'bg-transparent' : 'bg-white'}`}>
                 <div className="h-6 bg-gray-200 rounded w-2/3" />
                 <div className="h-4 bg-gray-100 rounded w-full" />
@@ -849,6 +854,13 @@ export default function DocumentWorkspacePage() {
                 <div className="h-4 bg-gray-100 rounded w-full" />
                 <div className="h-4 bg-gray-100 rounded w-5/6" />
               </div>
+            )}
+
+            {showInteractiveBuildPreview && (
+              <InteractiveBuildPreview
+                templateId={docData.template_id}
+                phase={generationPhase}
+              />
             )}
 
             {/* Interactive viewer (F3-M2.6) */}
@@ -926,7 +938,7 @@ export default function DocumentWorkspacePage() {
             )}
 
             {/* Fallback: draft with no content yet */}
-            {viewerTab === 'interactive' && !latexContent && (
+            {viewerTab === 'interactive' && !latexContent && !showInteractiveBuildPreview && (
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 <PdfViewer
                   url={activePdfUrl}

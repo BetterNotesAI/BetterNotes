@@ -766,48 +766,60 @@ export function ChatPanel({
     : (placeholder ?? 'Ask for changes...');
 
   const isSendDisabled = isEditingBlock || isDocumentEditing || isLoading || !input.trim();
+  const userBubbleClass =
+    'text-white border border-cyan-200/25 shadow-[0_10px_28px_rgba(0,0,0,0.34)] bg-[linear-gradient(140deg,rgba(62,120,150,0.92)_0%,rgba(41,88,120,0.92)_58%,rgba(29,66,96,0.92)_100%)]';
+  const assistantBubbleClass =
+    'text-white/90 border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.26)] bg-[linear-gradient(145deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.05)_100%)] backdrop-blur-sm';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full bg-black/20 border-l border-white/10 backdrop-blur-sm">
+    <div className="relative flex flex-col h-full border-l border-white/10 bg-[radial-gradient(120%_110%_at_0%_0%,rgba(35,67,88,0.30)_0%,rgba(13,17,26,0.20)_45%,rgba(8,12,20,0.35)_100%)] backdrop-blur-md">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10 shrink-0">
-        <h2 className="text-sm font-semibold text-white/80">Chat</h2>
+      <div className="px-4 py-3 border-b border-white/10 shrink-0 bg-white/[0.02]">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white/85 tracking-[0.01em]">Chat</h2>
+          <div className="flex items-center gap-1.5 text-[10px] text-cyan-200/75">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" />
+            AI ready
+          </div>
+        </div>
       </div>
 
       {/* F3-M4.1: Empty state when no block referenced and no messages */}
       {messages.length === 0 && !isLoading && !blockReference && !blockEditPreview && (
-        <div className="px-4 py-6 text-center text-white/30 text-sm space-y-2">
-          <p className="text-white/50 font-medium">
+        <div className="px-4 py-6">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center text-sm space-y-2 shadow-[0_10px_28px_rgba(0,0,0,0.22)]">
+            <p className="text-white/65 font-medium">
             {isDraft ? 'What would you like to create?' : 'Continue the conversation'}
-          </p>
-          <p className="text-xs">
-            {isDraft
-              ? 'Describe your document and the AI will generate it for you.'
-              : 'Ask the AI to modify your document, or right-click a block in the viewer to edit it with AI.'}
-          </p>
+            </p>
+            <p className="text-xs text-white/45">
+              {isDraft
+                ? 'Describe your document and the AI will generate it for you.'
+                : 'Ask the AI to modify your document, or right-click a block in the viewer to edit it with AI.'}
+            </p>
+          </div>
         </div>
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
+      <div className="chat-scroll flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
-              className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+              className={`max-w-[86%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white/10 text-white/90'
+                  ? userBubbleClass
+                  : assistantBubbleClass
               }`}
             >
               <p className="whitespace-pre-wrap break-words">{msg.content}</p>
             </div>
 
-            <p className={`text-xs text-white/25 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+            <p className={`text-[11px] text-white/30 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
               {formatTime(msg.created_at)}
             </p>
           </div>
@@ -816,14 +828,14 @@ export function ChatPanel({
         {/* Standard generation loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-3 backdrop-blur-sm">
+            <div className="rounded-2xl px-4 py-3 border border-white/12 bg-[linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.05))] backdrop-blur-sm shadow-[0_10px_28px_rgba(0,0,0,0.26)]">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.2s' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/70 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.4s' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.2s' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.4s' }} />
                 </div>
-                <span className="text-xs text-white/50 font-medium">
+                <span className="text-xs text-white/60 font-medium">
                   {LOADING_PHASES[loadingPhaseIndex].label}
                 </span>
               </div>
@@ -833,7 +845,7 @@ export function ChatPanel({
                     key={i}
                     className={`h-0.5 rounded-full transition-all duration-500 ${
                       i <= loadingPhaseIndex
-                        ? 'bg-indigo-400/60 w-6'
+                        ? 'bg-cyan-300/70 w-6'
                         : 'bg-white/15 w-4'
                     }`}
                   />
@@ -846,10 +858,10 @@ export function ChatPanel({
         {/* F3-M4.3: Block edit loading indicator */}
         {isEditingBlock && (
           <div className="flex justify-start">
-            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl px-4 py-3">
+            <div className="rounded-2xl px-4 py-3 border border-cyan-300/35 bg-cyan-400/10">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                <span className="text-xs text-indigo-300/80 font-medium">Asking AI to edit block...</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+                <span className="text-xs text-cyan-100/85 font-medium">Asking AI to edit block...</span>
               </div>
             </div>
           </div>
@@ -880,10 +892,10 @@ export function ChatPanel({
         {/* Document-level edit loading indicator */}
         {isDocumentEditing && (
           <div className="flex justify-start">
-            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl px-4 py-3">
+            <div className="rounded-2xl px-4 py-3 border border-cyan-300/35 bg-cyan-400/10">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                <span className="text-xs text-indigo-300/80 font-medium">Asking AI to edit document...</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+                <span className="text-xs text-cyan-100/85 font-medium">Asking AI to edit document...</span>
               </div>
             </div>
           </div>
@@ -915,19 +927,18 @@ export function ChatPanel({
       </div>
 
       {/* Input area */}
-      <div className="px-4 py-3 border-t border-white/10 shrink-0 space-y-2">
+      <div className="px-4 py-3 border-t border-white/10 shrink-0 space-y-2 bg-white/[0.02]">
 
         {/* F3-M4.2: Block reference chip — Mejora B: KaTeX mini-preview */}
         {blockReference && (
-          <div className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-400/25">
+          <div className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-cyan-500/12 border border-cyan-300/25">
             {/* Block type badge */}
-            <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/25 rounded px-1.5 py-0.5 mt-0.5">
+            <span className="shrink-0 text-[10px] font-medium text-cyan-200 bg-cyan-500/20 rounded px-1.5 py-0.5 mt-0.5">
               {blockReference.blockType}
             </span>
             {/* KaTeX / text mini-preview */}
             <span
-              className="flex-1 text-xs text-indigo-100/90 leading-snug line-clamp-2 overflow-hidden
-                [&_.katex]:text-indigo-100 [&_.katex-html]:max-w-full"
+              className="flex-1 text-xs text-cyan-50/90 leading-snug line-clamp-2 overflow-hidden [&_.katex]:text-cyan-50 [&_.katex-html]:max-w-full"
               dangerouslySetInnerHTML={{
                 __html: renderChipPreview(blockReference.latex_source, blockReference.blockType),
               }}
@@ -939,7 +950,7 @@ export function ChatPanel({
                 setBlockEditPreview(null);
                 setEditError(null);
               }}
-              className="shrink-0 text-indigo-400/50 hover:text-indigo-300 transition-colors p-0.5 rounded"
+              className="shrink-0 text-cyan-100/45 hover:text-cyan-100 transition-colors p-0.5 rounded"
               aria-label="Remove block reference"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -958,16 +969,12 @@ export function ChatPanel({
             placeholder={defaultPlaceholder}
             rows={1}
             disabled={isLoading || isEditingBlock || isDocumentEditing}
-            className="flex-1 bg-black/20 text-white/90 text-sm rounded-xl px-3 py-2.5 resize-none
-              placeholder-white/30 border border-white/15 focus:outline-none focus:border-indigo-500/60
-              transition-colors disabled:opacity-50 min-h-[40px] max-h-[160px]"
+            className="flex-1 bg-black/30 text-white/90 text-sm rounded-xl px-3 py-2.5 resize-none placeholder-white/30 border border-white/15 focus:outline-none focus:border-cyan-300/60 transition-colors disabled:opacity-50 min-h-[40px] max-h-[160px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
           />
           <button
             onClick={handleSend}
             disabled={isSendDisabled}
-            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl
-              bg-white text-neutral-950 hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed
-              transition-colors"
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl border border-cyan-200/30 bg-[linear-gradient(145deg,rgba(111,224,255,0.30),rgba(80,189,222,0.18))] text-cyan-50 hover:text-white hover:border-cyan-200/45 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_8px_20px_rgba(18,34,45,0.36)]"
             aria-label="Send"
           >
             {isEditingBlock || isDocumentEditing ? (
@@ -982,7 +989,7 @@ export function ChatPanel({
         </div>
 
         {isBlockEditMode ? (
-          <p className="text-xs text-indigo-300/50">
+          <p className="text-xs text-cyan-100/55">
             Editing block with AI &middot; Enter to send &middot; Shift+Enter for new line
           </p>
         ) : (
@@ -991,6 +998,26 @@ export function ChatPanel({
           </p>
         )}
       </div>
+
+      <style jsx>{`
+        .chat-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(180, 205, 220, 0.28) transparent;
+        }
+        .chat-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .chat-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+          background: rgba(168, 198, 216, 0.25);
+          border-radius: 999px;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(178, 214, 235, 0.38);
+        }
+      `}</style>
     </div>
   );
 }
