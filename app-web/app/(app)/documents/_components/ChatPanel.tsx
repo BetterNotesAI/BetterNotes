@@ -769,7 +769,7 @@ export function ChatPanel({
   const userBubbleClass =
     'text-white border border-cyan-200/25 shadow-[0_10px_28px_rgba(0,0,0,0.34)] bg-[linear-gradient(140deg,rgba(62,120,150,0.92)_0%,rgba(41,88,120,0.92)_58%,rgba(29,66,96,0.92)_100%)]';
   const assistantBubbleClass =
-    'text-white/90 border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.26)] bg-[linear-gradient(145deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.05)_100%)] backdrop-blur-sm';
+    'text-white/90 border border-white/[0.07] shadow-[0_10px_24px_rgba(0,0,0,0.26)] bg-[linear-gradient(145deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.05)_100%)] backdrop-blur-sm';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
