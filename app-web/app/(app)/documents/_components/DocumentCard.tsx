@@ -13,6 +13,7 @@ export interface DocumentItem {
   folder_id: string | null;
   created_at: string;
   updated_at: string;
+  forked_from_id?: string | null;
 }
 
 // ── Shared constants ────────────────────────────────────────────────────────
@@ -460,10 +461,17 @@ export function DocumentCard({
         )}
       </div>
 
-      {/* Template label */}
-      <p className="text-xs text-white/50 mb-3">
-        {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
-      </p>
+      {/* Template label + forked badge */}
+      <div className="flex items-center gap-2 mb-3">
+        <p className="text-xs text-white/50">
+          {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
+        </p>
+        {doc.forked_from_id && (
+          <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-1.5 py-0.5 shrink-0">
+            Forked
+          </span>
+        )}
+      </div>
 
       {/* Footer row */}
       <div className="flex items-center justify-between">

@@ -20,13 +20,15 @@ export async function GET(
     .from('documents')
     .select(`
       id,
+      user_id,
       title,
       template_id,
       status,
       is_starred,
       current_version_id,
       created_at,
-      updated_at
+      updated_at,
+      forked_from_id
     `)
     .eq('id', documentId)
     .eq('user_id', user.id)
@@ -87,6 +89,7 @@ export async function GET(
     versionNumber,
     activeVersionId,
     versions: versions ?? [],
+    isOwner: doc.user_id === user.id,
   });
 }
 
