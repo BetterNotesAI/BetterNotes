@@ -1,7 +1,9 @@
 export const CHEAT_SHEET_TEMPLATE_IDS = [
   'landscape_3col_maths',
+  'clean_3cols_landscape',
   '2cols_portrait',
   'lecture_notes',
+  'classic_lecture_notes',
   'study_form',
 ] as const;
 

@@ -70,6 +70,11 @@ export const PROFILE_lecture_notes: TemplateProfile = {
   density: 'normal',
 };
 
+export const PROFILE_classic_lecture_notes: TemplateProfile = {
+  ...PROFILE_lecture_notes,
+  id: 'classic_lecture_notes',
+};
+
 export const PROFILE_2cols_portrait: TemplateProfile = {
   id: '2cols_portrait',
   geometry: {
@@ -108,21 +113,40 @@ export const PROFILE_landscape_3col_maths: TemplateProfile = {
   density: 'compact',
 };
 
+export const PROFILE_clean_3cols_landscape: TemplateProfile = {
+  id: 'clean_3cols_landscape',
+  geometry: {
+    orientation: 'landscape', widthPx: 1123, aspectRatio: '297 / 210',
+    // geometry package: margin=0.35in
+    margins: { top: 2.1, right: 2.1, bottom: 2.1, left: 2.1 },
+  },
+  typography: {
+    // extarticle 8pt
+    baseFontSize: '8.6px',
+    fontFamily: '"KaTeX_Main", "Times New Roman", serif',
+    lineSpread: 1.0,
+  },
+  colors: { accentColor: '#1E4C7C', thmColor: '#1E4C7C', defColor: '#1E4C7C', propColor: '#1E4C7C' },
+  layout: { columnCount: 3, showColumnRule: true, columnRuleWidth: '0.2pt', columnGap: '0.95rem' },
+  chrome: { showPageNumbers: false, showHeaderFooter: false },
+  density: 'compact',
+};
+
 export const PROFILE_study_form: TemplateProfile = {
   id: 'study_form',
   geometry: {
     orientation: 'portrait', widthPx: 794, aspectRatio: '210 / 297',
-    // geometry package: left/right/top/bottom = 4mm
-    margins: { top: 0.95, right: 0.95, bottom: 0.95, left: 0.95 },
+    // geometry package: top=0.9cm,bottom=1.0cm,left=0.8cm,right=0.8cm
+    margins: { top: 2.13, right: 1.89, bottom: 2.36, left: 1.89 },
   },
   typography: {
-    // Body is wrapped in \scriptsize
-    baseFontSize: '8.2px',
+    // Body is wrapped in \footnotesize
+    baseFontSize: '8.8px',
     fontFamily: '"KaTeX_Main", "Times New Roman", serif',
-    lineSpread: 0.88,
+    lineSpread: 1.0,
   },
-  colors: { accentColor: '#003C78', thmColor: '#003C78', defColor: '#003C78', propColor: '#003C78' },
-  layout: { columnCount: 3, showColumnRule: true, columnRuleWidth: '0.4pt', columnGap: '0.7rem' },
+  colors: { accentColor: '#222222', thmColor: '#222222', defColor: '#222222', propColor: '#222222' },
+  layout: { columnCount: 3, showColumnRule: false, columnRuleWidth: '0', columnGap: '1.06rem' },
   chrome: { showPageNumbers: false, showHeaderFooter: false },
   density: 'compact',
 };
@@ -270,8 +294,10 @@ export const PROFILE_default: TemplateProfile = {
 export function getTemplateProfile(templateId: string | undefined): TemplateProfile {
   switch (templateId) {
     case 'lecture_notes': return PROFILE_lecture_notes;
+    case 'classic_lecture_notes': return PROFILE_classic_lecture_notes;
     case '2cols_portrait': return PROFILE_2cols_portrait;
     case 'landscape_3col_maths': return PROFILE_landscape_3col_maths;
+    case 'clean_3cols_landscape': return PROFILE_clean_3cols_landscape;
     case 'study_form': return PROFILE_study_form;
     case 'problem_solving': return PROFILE_problem_solving;
     case 'cornell': return PROFILE_cornell;

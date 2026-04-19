@@ -1,8 +1,10 @@
 import { TemplateDefinition } from './types';
 import { landscape3colMaths } from './landscape_3col_maths';
+import { clean3colsLandscape } from './clean_3cols_landscape';
 import { twocolsPortrait } from './2cols_portrait';
 import { studyForm } from './study_form';
 import { lectureNotes } from './lecture_notes';
+import { classicLectureNotes } from './classic_lecture_notes';
 // F2-M7.1: Inactive templates kept as imports so existing documents
 // that reference them can still be compiled on demand. They are
 // excluded from TEMPLATE_DEFINITIONS to prevent new selection.
@@ -14,12 +16,14 @@ import { labReport } from './lab_report';
 import { dataAnalysis } from './data_analysis';
 import { longTemplate } from './long_template';
 
-// Active templates (4) — shown in the UI and selectable
+// Active templates — shown in the UI and selectable
 export const TEMPLATE_DEFINITIONS: Record<string, TemplateDefinition> = {
   '2cols_portrait':       twocolsPortrait,
   landscape_3col_maths:   landscape3colMaths,
+  clean_3cols_landscape:  clean3colsLandscape,
   study_form:             studyForm,
   lecture_notes:          lectureNotes,
+  classic_lecture_notes:  classicLectureNotes,
 };
 
 // All templates including inactive ones — used only by the

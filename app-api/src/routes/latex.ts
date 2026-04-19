@@ -2,19 +2,43 @@ import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
 import { AIProvider, AttachmentInput } from '../lib/ai/types';
 import { getTemplateOrThrow, TEMPLATE_DEFINITIONS } from '../lib/templates';
-import { compileLatexToPdf, applyLatexFallbacks } from '../lib/latex';
+import { compileLatexToPdf, applyLatexFallbacks, compileMultiFileProject, type ProjectFile } from '../lib/latex';
 import { trimHugeLog } from '../lib/errors';
 import { processAttachments } from '../lib/attachments';
 import { recordModelUsage } from '../lib/usage/tracker';
 import { markdownToLatexDoc } from '../lib/markdown-to-latex';
+import { buildExtendedLectureNotesProjectFiles } from '../lib/templates/extended_lecture_notes_project';
 
 // Descriptions used by the AI to pick the best template automatically.
 const TEMPLATE_DESCRIPTIONS: Record<string, string> = {
   '2cols_portrait':       'Two-column portrait cheat sheet — best for formulas, definitions, key concepts, quick reference cards',
-  'landscape_3col_maths': 'Three-column landscape — best for dense math reference sheets, large formula collections, calculus/algebra summaries',
-  'study_form':           'Three-column portrait study form — best for vocabulary lists, term definitions, Q&A pairs, grammar tables',
-  'lecture_notes':        'Multi-page structured lecture notes — best for long notes, class summaries, biology/history/law topics, anything needing prose sections',
+  'landscape_3col_maths': 'Compact 3-column landscape — ultra-dense math reference layout for large formula collections and calculus/algebra summaries',
+  'clean_3cols_landscape': 'Clean 3-column landscape — readable cheatsheet layout with section strips, balanced spacing, concise formulas and tables',
+  'study_form':           'Three-column portrait cheat sheet — compact formulas, short definitions, quick conditions and problem-solving reminders',
+  'lecture_notes':        'Extended lecture notes with chapter-oriented structure and long-form sections — best for complete topic development',
+  'classic_lecture_notes': 'Classic multi-page lecture notes — traditional structure with learning objectives, worked examples, theorem/definition blocks, and a summary',
 };
+
+function buildExtendedLectureProjectWithImages(
+  latexSource: string,
+  imageFiles: Array<{ filename: string; buffer: Buffer }>
+): ProjectFile[] {
+  const projectFiles = buildExtendedLectureNotesProjectFiles(latexSource);
+  for (const image of imageFiles) {
+    const binaryContent = image.buffer.toString('base64');
+    projectFiles.push({
+      path: image.filename,
+      content: binaryContent,
+      isBinary: true,
+    });
+    projectFiles.push({
+      path: `Figures/${image.filename}`,
+      content: binaryContent,
+      isBinary: true,
+    });
+  }
+  return projectFiles;
+}
 
 async function pickTemplate(prompt: string): Promise<string> {
   const fallback = '2cols_portrait';
@@ -122,7 +146,8 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         return;
       }
 
-      const latexSource = generated.latex;
+      const latexSource = applyLatexFallbacks(generated.latex);
+      const useExtendedLectureProject = resolvedTemplateId === 'lecture_notes';
 
       // Step 2: Compile
       let pdfBuffer: Buffer;
@@ -131,11 +156,20 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
       let finalLatex = latexSource;
 
       try {
-        const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs }, imageFiles);
-        pdfBuffer = result.pdf;
-        compileLog = result.log;
-        latexPatched = result.latexPatched;
-        finalLatex = latexPatched;
+        if (useExtendedLectureProject) {
+          const projectFiles = buildExtendedLectureProjectWithImages(latexSource, imageFiles);
+          const result = await compileMultiFileProject(projectFiles, 'main.tex', { timeoutMs: latexTimeoutMs });
+          pdfBuffer = result.pdf;
+          compileLog = result.log;
+          latexPatched = latexSource;
+          finalLatex = latexSource;
+        } else {
+          const result = await compileLatexToPdf(latexSource, { timeoutMs: latexTimeoutMs }, imageFiles);
+          pdfBuffer = result.pdf;
+          compileLog = result.log;
+          latexPatched = result.latexPatched;
+          finalLatex = latexPatched;
+        }
       } catch (compileErr: any) {
         // Step 3: AI fix attempt
         const errLog = compileErr?.log ?? compileErr?.message ?? String(compileErr);
@@ -154,11 +188,20 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         }
 
         try {
-          const retryResult = await compileLatexToPdf(fixedLatex, { timeoutMs: latexTimeoutMs }, imageFiles);
-          pdfBuffer = retryResult.pdf;
-          compileLog = retryResult.log;
-          latexPatched = retryResult.latexPatched;
-          finalLatex = latexPatched;
+          if (useExtendedLectureProject) {
+            const projectFiles = buildExtendedLectureProjectWithImages(fixedLatex, imageFiles);
+            const retryResult = await compileMultiFileProject(projectFiles, 'main.tex', { timeoutMs: latexTimeoutMs });
+            pdfBuffer = retryResult.pdf;
+            compileLog = retryResult.log;
+            latexPatched = fixedLatex;
+            finalLatex = fixedLatex;
+          } else {
+            const retryResult = await compileLatexToPdf(fixedLatex, { timeoutMs: latexTimeoutMs }, imageFiles);
+            pdfBuffer = retryResult.pdf;
+            compileLog = retryResult.log;
+            latexPatched = retryResult.latexPatched;
+            finalLatex = latexPatched;
+          }
         } catch (retryErr: any) {
           const retryLog = retryErr?.log ?? retryErr?.message ?? String(retryErr);
           res.status(422).json({

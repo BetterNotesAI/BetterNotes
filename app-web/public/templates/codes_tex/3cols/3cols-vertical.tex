@@ -1,0 +1,324 @@
+\documentclass[10pt,a4paper]{article}
+
+% ------------------------------------------------
+% PACKAGES
+% ------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, mathtools}
+\usepackage{multicol}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{ragged2e}
+\usepackage{lastpage}
+
+% ------------------------------------------------
+% PAGE SETUP
+% ------------------------------------------------
+\geometry{
+    a4paper,
+    top=0.9cm,
+    bottom=1.0cm,
+    left=0.8cm,
+    right=0.8cm
+}
+
+\setlength{\columnsep}{0.45cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.12em}
+
+% ------------------------------------------------
+% SECTION FORMATTING
+% ------------------------------------------------
+\titleformat{\section}
+  {\normalfont\normalsize\bfseries}
+  {\thesection.}{0.35em}{}
+  [\vspace{0.12em}\titlerule]
+
+\titleformat{\subsection}
+  {\normalfont\small\bfseries}
+  {\thesubsection}{0.35em}{}
+
+\titlespacing*{\section}{0pt}{0.55em}{0.22em}
+\titlespacing*{\subsection}{0pt}{0.32em}{0.10em}
+
+% ------------------------------------------------
+% LISTS
+% ------------------------------------------------
+\setlist[itemize]{
+    leftmargin=1.05em,
+    itemsep=0.08em,
+    topsep=0.08em,
+    parsep=0em,
+    partopsep=0em
+}
+
+% ------------------------------------------------
+% DISPLAY MATH SPACING
+% ------------------------------------------------
+\setlength{\abovedisplayskip}{4pt}
+\setlength{\belowdisplayskip}{4pt}
+\setlength{\abovedisplayshortskip}{2pt}
+\setlength{\belowdisplayshortskip}{2pt}
+
+% ------------------------------------------------
+% CUSTOM COMMANDS
+% ------------------------------------------------
+\newcommand{\defn}[1]{\textbf{Definition:} #1}
+\newcommand{\units}[1]{\textbf{Units:} #1}
+\newcommand{\nature}[1]{\textbf{Nature:} #1}
+\newcommand{\formula}[1]{\[
+#1
+\]}
+\newcommand{\important}[1]{\textbf{#1}}
+\newcommand{\trick}[1]{\textbf{Trick:} #1}
+\newcommand{\condition}[1]{\textbf{Condition:} #1}
+
+% ------------------------------------------------
+% DOCUMENT
+% ------------------------------------------------
+\begin{document}
+\footnotesize
+
+\begin{center}
+    {\Large \textbf{Mechanics Cheat Sheet}}
+\end{center}
+
+\vspace{-0.4em}
+
+\begin{multicols}{3}
+\raggedcolumns
+\justifying
+
+\section{Work}
+
+\begin{itemize}
+    \item \defn{Work done by a force $\vec{F}$ causing displacement $\vec{d}$.}
+    \item \important{Constant Force:}
+    \[
+    W = \vec{F}\cdot\vec{d} = Fd\cos\theta
+    \]
+    \item $\theta$: angle between $\vec{F}$ and $\vec{d}$.
+    \item \important{Special Cases:}
+    \begin{itemize}
+        \item $\theta = 0^\circ \Rightarrow W = Fd$ (maximum positive work)
+        \item $\theta = 90^\circ \Rightarrow W = 0$
+        \item $\theta = 180^\circ \Rightarrow W = -Fd$ (maximum negative work)
+    \end{itemize}
+    \item \important{Variable Force:}
+    \[
+    W = \int_{i}^{f} \vec{F}\cdot d\vec{r}
+    \]
+    \item For 1D motion:
+    \[
+    W = \int_{x_i}^{x_f} F(x)\,dx
+    \]
+    \item \trick{Area under the $F$-$x$ graph gives work done.}
+    \item \units{Joule (J), erg, electron-volt (eV).}
+    \item \nature{Scalar quantity.}
+    \item \important{Work-Energy Theorem:}
+    \[
+    W_{\text{net}} = \Delta K = K_f - K_i
+    \]
+\end{itemize}
+
+\section{Energy}
+
+\begin{itemize}
+    \item \defn{Capacity to do work.}
+    \item \units{Same as work: J, erg, eV.}
+    \item \nature{Scalar quantity.}
+\end{itemize}
+
+\subsection{Kinetic Energy $(K)$}
+
+\begin{itemize}
+    \item Translational kinetic energy:
+    \[
+    K = \frac{1}{2}mv^2
+    \]
+    \item Relation with momentum:
+    \[
+    K = \frac{p^2}{2m}, \qquad p = mv
+    \]
+    \item \trick{If $p$ is constant, $K \propto \frac{1}{m}$.}
+\end{itemize}
+
+\subsection{Potential Energy $(U)$}
+
+\begin{itemize}
+    \item \defn{Energy due to position or configuration.}
+    \item Defined only for conservative forces.
+    \item Relation:
+    \[
+    \vec{F}_{\text{cons}} = -\nabla U
+    \]
+    \item For 1D:
+    \[
+    F_x = -\frac{dU}{dx}
+    \]
+    \item Change in potential energy:
+    \[
+    U_f - U_i = - \int_i^f \vec{F}_{\text{cons}}\cdot d\vec{r}
+    \]
+\end{itemize}
+
+\subsection{Gravitational Potential Energy}
+
+\begin{itemize}
+    \item Near Earth's surface:
+    \[
+    U_g = mgh
+    \]
+    \item Universal gravitation:
+    \[
+    U_g = -\frac{GMm}{r}
+    \]
+\end{itemize}
+
+\subsection{Elastic Potential Energy}
+
+\begin{itemize}
+    \item For a spring:
+    \[
+    U_s = \frac{1}{2}kx^2
+    \]
+    \item Hooke's law:
+    \[
+    F_s = -kx
+    \]
+\end{itemize}
+
+\section{Power}
+
+\begin{itemize}
+    \item \defn{Rate of doing work or transferring energy.}
+    \item Average power:
+    \[
+    P_{\text{avg}} = \frac{\Delta W}{\Delta t}
+    \]
+    \item Instantaneous power:
+    \[
+    P = \frac{dW}{dt} = \vec{F}\cdot\vec{v}
+    \]
+    \item \units{Watt (W) = J/s}
+\end{itemize}
+
+\section{Work-Energy and Conservation}
+
+\begin{itemize}
+    \item General work-energy relation:
+    \[
+    W_{\text{total}} = \Delta K
+    \]
+    \item If conservative and non-conservative forces act:
+    \[
+    W_{\text{cons}} + W_{\text{non-cons}} = \Delta K
+    \]
+    \item Since
+    \[
+    W_{\text{cons}} = -\Delta U
+    \]
+    then
+    \[
+    -\Delta U + W_{\text{non-cons}} = \Delta K
+    \]
+    \item Rearranging:
+    \[
+    W_{\text{non-cons}} = \Delta K + \Delta U = \Delta E_{\text{mech}}
+    \]
+    \item \trick{With friction, $W_{\text{friction}} < 0$ and mechanical energy decreases.}
+    \item \important{Total Energy Conservation:} In an isolated system, total energy remains constant.
+\end{itemize}
+
+\section{Collisions}
+
+\begin{itemize}
+    \item \important{Momentum Conservation:}
+    \[
+    m_1\vec{v}_{1i}+m_2\vec{v}_{2i}=m_1\vec{v}_{1f}+m_2\vec{v}_{2f}
+    \]
+    \item \important{Coefficient of Restitution:}
+    \[
+    e = \frac{\text{relative speed of separation}}{\text{relative speed of approach}}
+    \]
+    \item For 1D:
+    \[
+    e = \frac{v_{2f}-v_{1f}}{v_{1i}-v_{2i}}
+    \]
+\end{itemize}
+
+\subsection{Types of Collisions}
+
+\begin{itemize}
+    \item \important{Elastic Collision:}
+    \begin{itemize}
+        \item Momentum conserved
+        \item Kinetic energy conserved
+        \item $e=1$
+    \end{itemize}
+    \item \important{Inelastic Collision:}
+    \begin{itemize}
+        \item Momentum conserved
+        \item Kinetic energy not conserved
+        \item $0<e<1$
+    \end{itemize}
+    \item \important{Perfectly Inelastic Collision:}
+    \begin{itemize}
+        \item Bodies stick together
+        \item $e=0$
+        \item Common final velocity:
+        \[
+        (m_1+m_2)V_f = m_1v_{1i}+m_2v_{2i}
+        \]
+    \end{itemize}
+\end{itemize}
+
+\section{Vertical Circular Motion}
+
+\begin{itemize}
+    \item Minimum speed at top for looping:
+    \[
+    v_{\text{top}} \ge \sqrt{gR}
+    \]
+    \item Minimum speed at bottom:
+    \[
+    v_{\text{bottom}} \ge \sqrt{5gR}
+    \]
+    \item At top:
+    \[
+    T \text{ or } N = \frac{mv^2}{R} - mg
+    \]
+    \item At bottom:
+    \[
+    T \text{ or } N = \frac{mv^2}{R} + mg
+    \]
+\end{itemize}
+
+\section{Spring-Mass System}
+
+\begin{itemize}
+    \item Hooke's law: \(F_s = -kx\)
+    \item Elastic potential energy: \(U_s = \frac{1}{2}kx^2\)
+    \item Angular frequency: \(\omega = \sqrt{\frac{k}{m}}\)
+    \item Period: \(T = 2\pi\sqrt{\frac{m}{k}}\)
+\end{itemize}
+
+\section{Equilibrium and Stability}
+
+\begin{itemize}
+    \item \important{Stable Equilibrium:} restoring tendency.
+    \item \condition{$U$ minimum, $\frac{dU}{dx}=0$, $\frac{d^2U}{dx^2}>0$.}
+    \item \important{Unstable Equilibrium:} system moves away.
+    \item \condition{$U$ maximum, $\frac{dU}{dx}=0$, $\frac{d^2U}{dx^2}<0$.}
+    \item \important{Neutral Equilibrium:} new position remains.
+    \item \condition{$U$ constant, $\frac{dU}{dx}=0$, $\frac{d^2U}{dx^2}=0$.}
+\end{itemize}
+
+\end{multicols}
+\end{document}

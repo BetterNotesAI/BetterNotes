@@ -14,6 +14,8 @@
 
 export type BlockType =
   | 'section'
+  | 'chapter'
+  | 'cover'
   | 'formula-block'
   | 'formula-inline'
   | 'table'
@@ -24,6 +26,20 @@ export type BlockType =
   | 'col-start'
   | 'col-end';
 
+export type BoxSubtype =
+  | 'definition'
+  | 'theorem'
+  | 'proposition'
+  | 'observation'
+  | 'example'
+  | 'lemma'
+  | 'corollary'
+  | 'remark'
+  | 'proof'
+  | 'workedexample'
+  | 'keypoint'
+  | 'warning';
+
 export interface Block {
   id: string;
   type: BlockType;
@@ -31,11 +47,27 @@ export interface Block {
   /** section level: 1 = \section, 2 = \subsection, 3 = \subsubsection */
   level?: number;
   /** For type === 'box': the theorem-like environment that produced this block */
-  boxSubtype?: 'definition' | 'theorem' | 'proposition' | 'observation' | 'example';
+  boxSubtype?: BoxSubtype;
+  /** Optional label for box/chapter/section (e.g. \begin{definition}[Label] ...) */
+  label?: string;
+  /** For type === 'cover': extracted document metadata */
+  title?: string;
+  author?: string;
+  date?: string;
+  /** For type === 'chapter': auto-assigned sequential number (filled by viewer) */
+  chapterNumber?: number;
   /** Character offset in the original source where this block starts (after preamble strip) */
   sourceStart?: number;
   /** Character offset in the original source where this block ends (exclusive) */
   sourceEnd?: number;
+}
+
+export interface ParseOptions {
+  /**
+   * When true (or when template is 'lecture_notes'), top-level \section commands
+   * are rendered as chapters to match the PDF's report-class output.
+   */
+  templateId?: string;
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -83,6 +115,82 @@ function stripPreamble(source: string): string {
   return inner;
 }
 
+// ─── cover metadata extraction ────────────────────────────────────────────────
+
+/** Extract a balanced {...} argument following a \command. Returns null if not found. */
+function extractCommandArg(source: string, command: string): { value: string; start: number; end: number } | null {
+  const re = new RegExp(`\\\\${command}\\s*\\{`, 'g');
+  const m = re.exec(source);
+  if (!m) return null;
+  const argStart = m.index + m[0].length - 1; // position of the opening brace
+  const arg = extractBracedArg(source, argStart);
+  if (!arg) return null;
+  return { value: arg.content.trim(), start: m.index, end: arg.end };
+}
+
+/** Clean a LaTeX-ish value for display (strip commands, braces, line breaks). */
+function cleanMetadataValue(raw: string): string {
+  return raw
+    .replace(/\\today\b/g, new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))
+    .replace(/\\LaTeX\b/g, 'LaTeX')
+    .replace(/\\TeX\b/g, 'TeX')
+    .replace(/\\\\/g, ' ')
+    .replace(/\\[a-zA-Z]+\*?\{([^}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+\*?\b/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Scan the source for \title{...}, \author{...}, \date{...}. If any metadata is
+ * found, return the extracted values plus a version of the source with those
+ * commands (and \maketitle, \begin{titlepage}...\end{titlepage}) removed.
+ */
+function extractCoverMetadata(source: string): {
+  title: string | null;
+  author: string | null;
+  date: string | null;
+  stripped: string;
+  hadMakeTitle: boolean;
+} {
+  let stripped = source;
+
+  const titleMatch = extractCommandArg(stripped, 'title');
+  const authorMatch = extractCommandArg(stripped, 'author');
+  const dateMatch = extractCommandArg(stripped, 'date');
+
+  // Remove \title{...}, \author{...}, \date{...}
+  for (const match of [titleMatch, authorMatch, dateMatch]) {
+    if (match) {
+      stripped = stripped.slice(0, match.start) + stripped.slice(match.end);
+    }
+  }
+
+  // Re-scan offsets after first pass would be wrong. Reset and remove by regex (simpler).
+  stripped = source
+    .replace(/\\title\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
+    .replace(/\\author\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
+    .replace(/\\date\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
+
+  // Remove \maketitle and \begin{titlepage}...\end{titlepage}
+  const hadMakeTitle = /\\maketitle\b/.test(stripped) || /\\begin\{titlepage\}/.test(stripped);
+  stripped = stripped
+    .replace(/\\maketitle\b/g, '')
+    .replace(/\\begin\{titlepage\}[\s\S]*?\\end\{titlepage\}/g, '');
+
+  // Also drop a leading \tableofcontents (the Interactive cover includes an implicit TOC visual)
+  stripped = stripped.replace(/\\tableofcontents\b/g, '');
+
+  return {
+    title: titleMatch ? cleanMetadataValue(titleMatch.value) : null,
+    author: authorMatch ? cleanMetadataValue(authorMatch.value) : null,
+    date: dateMatch ? cleanMetadataValue(dateMatch.value) : null,
+    stripped,
+    hadMakeTitle,
+  };
+}
+
 // ─── block-level environment extraction ──────────────────────────────────────
 
 const BLOCK_ENVS = [
@@ -117,13 +225,21 @@ const TABLE_ENVS = new Set(['tabular', 'tabular*', 'tabularx', 'longtable', 'arr
 
 // ─── section extractor ────────────────────────────────────────────────────────
 
-const SECTION_RE = /\\(subsubsection|subsection|section)\*?\{([^}]*)\}/g;
+const SECTION_RE = /\\(chapter|subsubsection|subsection|section)\*?\{([^}]*)\}/g;
 
-function extractSectionTitle(raw: string): { title: string; level: number } {
-  const m = /\\(subsubsection|subsection|section)\*?\{([^}]*)\}/.exec(raw);
-  if (!m) return { title: raw, level: 1 };
-  const level = m[1] === 'section' ? 1 : m[1] === 'subsection' ? 2 : 3;
-  return { title: m[2], level };
+function extractSectionInfo(raw: string): { title: string; level: number; kind: 'chapter' | 'section' } {
+  const m = /\\(chapter|subsubsection|subsection|section)\*?\{([^}]*)\}/.exec(raw);
+  if (!m) return { title: raw, level: 1, kind: 'section' };
+  const cmd = m[1];
+  if (cmd === 'chapter') return { title: m[2], level: 1, kind: 'chapter' };
+  const level = cmd === 'section' ? 1 : cmd === 'subsection' ? 2 : 3;
+  return { title: m[2], level, kind: 'section' };
+}
+
+function extractLeadingOptionalArg(text: string): { label: string | null; body: string } {
+  const m = text.match(/^\s*\[([^\]]+)\]\s*/);
+  if (!m) return { label: null, body: text };
+  return { label: m[1].trim(), body: text.slice(m[0].length) };
 }
 
 // ─── display math ($$...$$, \[...\]) ─────────────────────────────────────────
@@ -260,13 +376,21 @@ function tokenizeTextChunk(text: string, blocks: Block[]): void {
 
   for (const part of parts) {
     if (part.isSection) {
-      const { title, level } = extractSectionTitle(part.content);
-      blocks.push({
-        id: makeId('section'),
-        type: 'section',
-        latex_source: title,
-        level,
-      });
+      const { title, level, kind } = extractSectionInfo(part.content);
+      if (kind === 'chapter') {
+        blocks.push({
+          id: makeId('chapter'),
+          type: 'chapter',
+          latex_source: title,
+        });
+      } else {
+        blocks.push({
+          id: makeId('section'),
+          type: 'section',
+          latex_source: title,
+          level,
+        });
+      }
       continue;
     }
 
@@ -427,16 +551,43 @@ function parseLatexInternal(latex: string): Block[] {
       const innerBlocks = parseLatexInternal(innerContent);
       blocks.push(...innerBlocks);
       blocks.push({ id: makeId('col-end'), type: 'col-end', latex_source: '' });
-    } else if (env === 'definition') {
-      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'definition' });
-    } else if (env === 'theorem') {
-      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'theorem' });
-    } else if (env === 'proposition') {
-      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'proposition' });
-    } else if (env === 'obs' || env === 'observation') {
-      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'observation' });
-    } else if (env === 'example' || env === 'example*') {
-      blocks.push({ id: makeId('box'), type: 'box', latex_source: extracted.inner.trim(), boxSubtype: 'example' });
+    } else if (
+      env === 'definition' ||
+      env === 'theorem' ||
+      env === 'proposition' ||
+      env === 'obs' ||
+      env === 'observation' ||
+      env === 'example' ||
+      env === 'example*' ||
+      env === 'lemma' ||
+      env === 'corollary' ||
+      env === 'remark' ||
+      env === 'proof'
+    ) {
+      const { label, body } = extractLeadingOptionalArg(extracted.inner);
+      const subtype: BoxSubtype =
+        env === 'obs' ? 'observation' :
+        env === 'example*' ? 'example' :
+        (env as BoxSubtype);
+      blocks.push({
+        id: makeId('box'),
+        type: 'box',
+        latex_source: body.trim(),
+        boxSubtype: subtype,
+        label: label ?? undefined,
+      });
+    } else if (env === 'workedexample' || env === 'keypoint' || env === 'warning') {
+      const { label, body } = extractLeadingOptionalArg(extracted.inner);
+      if (label) {
+        blocks.push({
+          id: makeId('section'),
+          type: 'section',
+          latex_source: env === 'workedexample' ? `Example: ${label}` : label,
+          level: 2,
+        });
+      }
+      const innerBlocks = parseLatexFragment(body);
+      blocks.push(...innerBlocks);
     } else {
       // tcolorbox, workedexample, keypoint, warning, lemma, corollary, remark, proof, etc.
       // Recurse into inner content so math/text blocks are preserved
@@ -496,16 +647,75 @@ function annotateBlockOffsets(blocks: Block[], fullSource: string): void {
   }
 }
 
+/** Templates that use a report-style cover page + chapter structure in the PDF. */
+const REPORT_STYLE_TEMPLATES = new Set(['lecture_notes']);
+
 /**
  * Public entry point: resets the ID counter then delegates to the internal parser.
  * Always call this (not parseLatexInternal) from outside this module.
  */
-export function parseLatex(latex: string): Block[] {
+export function parseLatex(latex: string, options?: ParseOptions): Block[] {
   _idCounter = 0;
-  const blocks = parseLatexInternal(latex);
+  const templateId = options?.templateId;
+  const isReportStyle = !!templateId && REPORT_STYLE_TEMPLATES.has(templateId);
+
+  // Strip preamble up-front so cover extraction only considers the document body.
+  const body = stripPreamble(latex);
+
+  // Extract \title / \author / \date / \maketitle / titlepage from the body
+  const meta = extractCoverMetadata(body);
+
+  // Decide whether to emit a cover block. We emit when metadata is present AND
+  // either \maketitle / \begin{titlepage} was seen (any template) or the template
+  // is report-style (always emits a cover, like the compiled PDF).
+  const shouldEmitCover =
+    (meta.title || meta.author || meta.date) && (meta.hadMakeTitle || isReportStyle);
+
+  // For report-style templates, promote top-level \section{...} to \chapter{...}
+  // so the Interactive view mirrors the PDF's chapter numbering.
+  let sourceForParse = meta.stripped;
+  if (isReportStyle) {
+    sourceForParse = promoteTopLevelSectionsToChapters(sourceForParse);
+  }
+
+  const coverBlocks: Block[] = [];
+  if (shouldEmitCover) {
+    coverBlocks.push({
+      id: makeId('cover'),
+      type: 'cover',
+      latex_source: '',
+      title: meta.title ?? undefined,
+      author: meta.author ?? undefined,
+      date: meta.date ?? undefined,
+    });
+  }
+
+  const bodyBlocks = parseLatexInternal(sourceForParse);
+
+  // Auto-assign sequential chapter numbers for `chapter` blocks so the renderer
+  // can display "Chapter N" prefixes identical to the PDF output.
+  let chapterCounter = 0;
+  for (const block of bodyBlocks) {
+    if (block.type === 'chapter') {
+      chapterCounter += 1;
+      block.chapterNumber = chapterCounter;
+    }
+  }
+
+  const blocks = [...coverBlocks, ...bodyBlocks];
   // IA-M1: annotate blocks with absolute offsets into the original source
   annotateBlockOffsets(blocks, latex);
   return blocks;
+}
+
+/**
+ * Promote top-level `\section{...}` occurrences (not subsection/subsubsection) to
+ * `\chapter{...}`. Used for report-style templates so the Interactive viewer
+ * mirrors the PDF, which compiles these notes with the `report` class + `\chapter`.
+ * Only the command name is rewritten — content is left untouched.
+ */
+function promoteTopLevelSectionsToChapters(text: string): string {
+  return text.replace(/\\section(\*?)\{/g, '\\chapter$1{');
 }
 
 // ─── IA-M2: block-level template stubs ──────────────────────────────────────
@@ -576,6 +786,26 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       // hr → emit the rule; col-end is handled above
       if (block.type === 'hr') lines.push('\\hrule');
       i++;
+    } else if (block.type === 'cover') {
+      // Re-emit the \title / \author / \date / \maketitle block so the compiled
+      // PDF still renders a cover page even after round-tripping through the viewer.
+      if (block.title) lines.push(`\\title{${block.title}}`);
+      if (block.author) lines.push(`\\author{${block.author}}`);
+      if (block.date) lines.push(`\\date{${block.date}}`);
+      if (block.title || block.author || block.date) lines.push('\\maketitle');
+      i++;
+    } else if (block.type === 'chapter') {
+      lines.push(`\\chapter{${block.latex_source}}`);
+      i++;
+    } else if (block.type === 'box' && block.boxSubtype) {
+      const env = block.boxSubtype;
+      const labelPart = block.label ? `[${block.label}]` : '';
+      lines.push(`\\begin{${env}}${labelPart}`);
+      if (block.latex_source.trim()) {
+        lines.push(restoreParserMarkers(block.latex_source));
+      }
+      lines.push(`\\end{${env}}`);
+      i++;
     } else {
       if (block.latex_source.trim()) {
         lines.push(restoreParserMarkers(block.latex_source));
@@ -598,9 +828,7 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
  * Used for theorem-like and tcolorbox environments.
  */
 function parseLatexFragment(fragment: string): Block[] {
-  const blocks: Block[] = [];
-  tokenizeTextChunk(fragment, blocks);
-  return blocks.filter(b =>
+  return parseLatexInternal(fragment).filter(b =>
     b.latex_source.trim().length > 0 || b.type === 'hr' || b.type === 'col-end'
   );
 }

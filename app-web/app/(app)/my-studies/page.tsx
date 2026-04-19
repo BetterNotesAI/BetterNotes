@@ -17,15 +17,17 @@ interface PublishedDocument {
 
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
-  landscape_3col_maths: '3-Col Landscape',
-  cornell: 'Cornell Notes',
+  landscape_3col_maths: 'Compact 3 Columns Landscape',
+  clean_3cols_landscape: 'Clean 3 Columns Landscape',
+  cornell: 'Cornell Review Notes',
   problem_solving: 'Problem Set',
   zettelkasten: 'Zettelkasten',
   academic_paper: 'Academic Paper',
   lab_report: 'Lab Report',
   data_analysis: 'Data Analysis',
   study_form: 'Study Form',
-  lecture_notes: 'Lecture Notes',
+  lecture_notes: 'Extended Lecture Notes',
+  classic_lecture_notes: 'Classic Lecture Notes',
   long_template: 'Long Document',
 };
 

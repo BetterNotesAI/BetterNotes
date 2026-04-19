@@ -2,9 +2,11 @@ import { TemplateDefinition } from './types';
 
 export const lectureNotes: TemplateDefinition = {
   id: 'lecture_notes',
-  displayName: 'Lecture Notes',
-  description: 'Structured multi-page lecture notes with subject header, learning objectives, numbered examples, and a summary. Ideal for self-study notes in engineering, physics, or maths.',
+  displayName: 'Extended Lecture Notes',
+  description: 'Extended multi-page lecture notes for full topic development, with long sections, worked examples, theorem blocks, and summary.',
   isPro: false,
+  isMultiFile: true,
+  scaffoldDir: 'extended-lecture-notes',
 
   preamble: `\\documentclass[11pt]{article}
 \\usepackage[utf8]{inputenc}

@@ -34,14 +34,16 @@ interface Props {
   lockTemplateSelection?: boolean;
 }
 
-// F2-M7.1: Only 4 active templates shown in the creation bar.
+// F2-M7.1: Only active templates shown in the creation bar.
 // Inactive templates (cornell, problem_solving, zettelkasten,
 // academic_paper, lab_report, data_analysis) are hidden in the UI
 // and marked is_active = false in the DB — not deleted.
 const TEMPLATES = [
-  { id: 'landscape_3col_maths', displayName: '3-Col Landscape',   isPro: false },
+  { id: 'landscape_3col_maths', displayName: 'Compact 3 Columns Landscape',   isPro: false },
+  { id: 'clean_3cols_landscape', displayName: 'Clean 3 Columns Landscape',   isPro: false },
   { id: '2cols_portrait',       displayName: '2-Col Portrait',    isPro: false },
-  { id: 'lecture_notes',        displayName: 'Long Notes',        isPro: false },
+  { id: 'lecture_notes',        displayName: 'Extended Lecture Notes', isPro: false },
+  { id: 'classic_lecture_notes', displayName: 'Classic Lecture Notes', isPro: false },
   { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
 ];
 

@@ -17,7 +17,7 @@ import LatexViewer from '@/components/viewer/LatexViewer';
 
 const SAMPLES: Record<string, { label: string; source: string }> = {
   lecture_notes: {
-    label: 'Lecture Notes — Eigenvalues',
+    label: 'Extended Lecture Notes — Eigenvalues',
     source: `\\documentclass[11pt]{article}
 \\begin{document}
 \\title{Linear Algebra: Eigenvalues and Eigenvectors}
@@ -129,38 +129,47 @@ $$e^{i\\theta} = \\cos\\theta + i\\sin\\theta$$
   },
 
   study_form: {
-    label: 'Study Form — Electromagnetism',
-    source: `\\documentclass[9pt]{article}
+    label: '3-Column Portrait — Mechanics',
+    source: `\\documentclass[10pt,a4paper]{article}
 \\begin{document}
+\\footnotesize
+
+\\begin{center}
+    {\\Large \\textbf{Mechanics Cheat Sheet}}
+\\end{center}
+
+\\vspace{-0.4em}
 
 \\begin{multicols}{3}
-\\scriptsize
+\\raggedcolumns
+\\justifying
 
-\\sectionbar{Maxwell's Equations (SI)}
+\\section{Work}
+\\begin{itemize}
+  \\item \\textbf{Definition:} work done by force $\\vec{F}$ over displacement $\\vec{d}$.
+  \\item \\textbf{Constant force:} $W = \\vec{F}\\cdot\\vec{d}=Fd\\cos\\theta$.
+  \\item \\textbf{Variable force:} $W = \\int_{x_i}^{x_f}F(x)\\,dx$.
+  \\item \\textbf{Trick:} area under $F$-$x$ graph gives work.
+\\end{itemize}
 
-\\formulabox{Gauss (E)}{\\nabla\\cdot\\mathbf{E} = \\rho/\\varepsilon_0}
+\\section{Energy}
+\\subsection{Kinetic}
+\\begin{itemize}
+  \\item $K = \\frac{1}{2}mv^2$
+  \\item $K = \\frac{p^2}{2m}$
+\\end{itemize}
 
-\\formulabox{Gauss (B)}{\\nabla\\cdot\\mathbf{B} = 0}
+\\subsection{Potential}
+\\begin{itemize}
+  \\item $F_x = -\\frac{dU}{dx}$
+  \\item $U_g = mgh$, \\quad $U_s = \\frac{1}{2}kx^2$
+\\end{itemize}
 
-\\formulabox{Faraday}{\\nabla\\times\\mathbf{E} = -\\partial\\mathbf{B}/\\partial t}
-
-\\formulabox{Ampere-Maxwell}{\\nabla\\times\\mathbf{B} = \\mu_0(\\mathbf{J}+\\varepsilon_0\\partial\\mathbf{E}/\\partial t)}
-
-\\sectionbar{Constants}
-\\begin{tabular}{ll}
-$\\varepsilon_0$ & $8.85\\times10^{-12}$ F/m \\\\
-$\\mu_0$ & $4\\pi\\times10^{-7}$ H/m \\\\
-$c$ & $3\\times10^8$ m/s \\\\
-$e$ & $1.60\\times10^{-19}$ C \\\\
-\\end{tabular}
-
-\\sectionbar{Energy Densities}
-
-\\formulabox{Electric}{u_E = \\varepsilon_0 E^2/2}
-
-\\formulabox{Magnetic}{u_B = B^2/(2\\mu_0)}
-
-\\formulabox{Poynting}{\\mathbf{S} = \\mathbf{E}\\times\\mathbf{B}/\\mu_0}
+\\section{Power}
+\\begin{itemize}
+  \\item $P_{\\text{avg}} = \\frac{\\Delta W}{\\Delta t}$
+  \\item $P = \\frac{dW}{dt} = \\vec{F}\\cdot\\vec{v}$
+\\end{itemize}
 
 \\end{multicols}
 \\end{document}`,

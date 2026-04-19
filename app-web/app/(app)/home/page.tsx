@@ -17,8 +17,9 @@ interface RecentDocument {
 
 const HOME_TEMPLATES: Record<string, { name: string; accent: string; linkColor: string }> = {
   '2cols_portrait':       { name: '2-Column Cheat Sheet', accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' },
-  'landscape_3col_maths': { name: '3-Column Landscape',   accent: '#8b5cf6', linkColor: 'text-violet-400 group-hover:text-violet-300' },
-  'lecture_notes':        { name: 'Lecture Notes',         accent: '#3b82f6', linkColor: 'text-blue-400 group-hover:text-blue-300' },
+  'landscape_3col_maths': { name: 'Compact 3 Columns Landscape',   accent: '#8b5cf6', linkColor: 'text-violet-400 group-hover:text-violet-300' },
+  'clean_3cols_landscape': { name: 'Clean 3 Columns Landscape',    accent: '#14b8a6', linkColor: 'text-teal-400 group-hover:text-teal-300' },
+  'lecture_notes':        { name: 'Extended Lecture Notes', accent: '#3b82f6', linkColor: 'text-blue-400 group-hover:text-blue-300' },
   'study_form':           { name: '3-Col Portrait',        accent: '#10b981', linkColor: 'text-emerald-400 group-hover:text-emerald-300' },
 };
 const FEATURED_IDS = ['landscape_3col_maths', '2cols_portrait', 'lecture_notes'] as const;

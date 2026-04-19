@@ -58,8 +58,8 @@ export default function ProjectHubPage() {
     },
     {
       id: 'lecture-notes',
-      title: 'Lecture Notes',
-      description: 'Create long-form notes (Long Notes template).',
+      title: 'Extended Lecture Notes',
+      description: 'Create long-form notes (Extended Lecture Notes template).',
       accent: 'from-blue-500/25 to-cyan-500/20',
       href: `/projects/${encodeURIComponent(projectId)}/lecture-notes/new`,
     },

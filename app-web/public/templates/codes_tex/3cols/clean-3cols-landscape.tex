@@ -1,0 +1,194 @@
+\documentclass[8pt,landscape,a4paper]{extarticle}
+
+% ============================================================
+%  CHEATSHEET TEMPLATE
+%  Compile: pdflatex cheatsheet-template.tex
+%  Portrait: remove "landscape" + change multicols{3} to {2}
+% ============================================================
+
+\usepackage[landscape,margin=0.35in]{geometry}
+\usepackage{multicol}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% ---------- Colors ----------
+\definecolor{headerblue}{RGB}{30,76,124}
+\definecolor{boxgray}{RGB}{235,235,240}
+\definecolor{rulegray}{RGB}{200,200,205}
+\definecolor{codebg}{RGB}{246,246,248}
+\definecolor{codekw}{RGB}{30,76,124}
+\definecolor{codecom}{RGB}{100,120,100}
+\definecolor{codestr}{RGB}{163,21,21}
+
+% ---------- Custom section command ----------
+% Full-width colored strip. Bypasses titlesec to avoid issues.
+\newcommand{\cheatsection}[1]{%
+  \vspace{6pt}%
+  \noindent\colorbox{headerblue}{%
+    \parbox[c][1.05em][c]{\dimexpr\linewidth-2\fboxsep\relax}{%
+      \color{white}\bfseries\ #1%
+    }%
+  }\par\vspace{3pt}%
+}
+
+% ---------- Subsection ----------
+\newcommand{\cheatsub}[1]{%
+  \vspace{3pt}%
+  {\color{headerblue}\bfseries #1}\par\vspace{1pt}%
+}
+
+% ---------- Tight lists ----------
+\setlist[itemize]{nosep, leftmargin=1.1em, label=\textcolor{headerblue}{\textbullet}}
+\setlist[enumerate]{nosep, leftmargin=1.4em}
+
+% ---------- Code listings ----------
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecom}\itshape,
+  stringstyle=\color{codestr},
+  backgroundcolor=\color{codebg},
+  frame=none,
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible,
+  xleftmargin=3pt,
+  xrightmargin=3pt,
+  aboveskip=3pt,
+  belowskip=3pt
+}
+
+% ---------- General layout ----------
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+\setlength{\columnsep}{14pt}
+\setlength{\columnseprule}{0.2pt}
+\renewcommand{\columnseprulecolor}{\color{rulegray}}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+\pagestyle{empty}
+
+% Small helper for kbd-style keys
+\newcommand{\kbd}[1]{\colorbox{boxgray}{\texttt{\small #1}}}
+
+\begin{document}
+
+% ---------- Title bar ----------
+\noindent\colorbox{headerblue}{%
+  \parbox{\dimexpr\textwidth-2\fboxsep\relax}{%
+    \vspace{3pt}
+    \centering{\Large\bfseries\color{white} Your Cheatsheet Title}\\[1pt]
+    {\small\color{white!85} subtitle or short description}
+    \vspace{3pt}
+  }%
+}
+\vspace{4pt}
+
+\begin{multicols}{3}
+
+% ============================================================
+\cheatsection{Getting Started}
+Brief intro sentence describing the topic.
+\begin{itemize}
+  \item Key concept one
+  \item Key concept two
+  \item Key concept three
+\end{itemize}
+
+\cheatsub{Subtopic}
+Text with \textbf{bold terms} and \emph{emphasis}. Inline code: \texttt{foo()}.
+
+% ============================================================
+\cheatsection{Syntax \& Commands}
+\begin{tabular}{@{}>{\ttfamily}l l@{}}
+cmd -a & description here \\
+cmd -b & another description \\
+cmd -c & third one \\
+cmd -d & fourth one \\
+\end{tabular}
+
+% ============================================================
+\cheatsection{Code Example}
+\begin{lstlisting}[language=Python]
+def hello(name):
+    # greet the user
+    return f"Hello, {name}!"
+
+print(hello("world"))
+\end{lstlisting}
+
+% ============================================================
+\cheatsection{Formulas}
+Quadratic formula:
+\[ x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} \]
+
+Euler's identity:
+\[ e^{i\pi} + 1 = 0 \]
+
+Inline math: $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$.
+
+% ============================================================
+\cheatsection{Reference Table}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Name} & \textbf{Type} & \textbf{Default} \\
+\midrule
+foo & int  & 0 \\
+bar & str  & \texttt{""} \\
+baz & bool & false \\
+\bottomrule
+\end{tabular}
+
+% ============================================================
+\cheatsection{Shortcuts}
+\begin{tabular}{@{}ll@{}}
+\kbd{Ctrl+C}        & Copy \\
+\kbd{Ctrl+V}        & Paste \\
+\kbd{Ctrl+Z}        & Undo \\
+\kbd{Ctrl+Shift+Z}  & Redo \\
+\kbd{Ctrl+F}        & Find \\
+\end{tabular}
+
+% ============================================================
+\cheatsection{Tips \& Tricks}
+\begin{enumerate}
+  \item First practical tip.
+  \item Second practical tip with a slightly longer explanation.
+  \item Third practical tip.
+\end{enumerate}
+
+% ============================================================
+\cheatsection{More Content}
+Fill this section with whatever you need: bullet points, short
+paragraphs, inline math $a^2 + b^2 = c^2$, or code snippets.
+
+\begin{itemize}
+  \item Item one
+  \item Item two
+  \item Item three
+\end{itemize}
+
+% ============================================================
+\cheatsection{Resources}
+\begin{itemize}
+  \item \href{https://example.com}{Official documentation}
+  \item \href{https://example.com}{Tutorial}
+  \item \href{https://example.com}{Community forum}
+\end{itemize}
+
+\end{multicols}
+
+\vfill
+{\footnotesize\color{rulegray}\hrule}
+\smallskip
+{\tiny Generated with BetterNotes, \today\  }
+
+\end{document}

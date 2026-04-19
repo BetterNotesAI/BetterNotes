@@ -2,126 +2,205 @@ import { TemplateDefinition } from './types';
 
 export const studyForm: TemplateDefinition = {
   id: 'study_form',
-  displayName: 'Study Form (High Density)',
-  description: 'A4 portrait with 3 very compact columns — formula boxes, constants tables, and property lists. Ideal for exam reference sheets in physics and maths.',
+  displayName: '3-Column Portrait',
+  description: 'A4 portrait with 3 compact columns for mechanics/physics cheat sheets with clean sections, formulas, and short bullet lists.',
   isPro: false,
 
-  preamble: `\\documentclass[9pt]{article}
+  preamble: `\\documentclass[10pt,a4paper]{article}
+
+% ------------------------------------------------
+% PACKAGES
+% ------------------------------------------------
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
-\\usepackage{amsmath,amssymb,amsfonts}
+\\usepackage[english]{babel}
 \\usepackage{lmodern}
+\\usepackage{amsmath, amssymb, mathtools}
+\\usepackage{multicol}
+\\usepackage{geometry}
+\\usepackage{enumitem}
+\\usepackage{titlesec}
 \\usepackage{microtype}
 \\usepackage{xcolor}
-\\usepackage{geometry}
-\\geometry{a4paper,portrait,left=4mm,right=4mm,top=4mm,bottom=4mm}
-\\usepackage{multicol}
-\\setlength{\\columnseprule}{0.4pt}
-\\setlength{\\columnsep}{3mm}
-\\usepackage{booktabs}
-\\usepackage{array}
-\\usepackage{enumitem}
-\\setlist[itemize]{noitemsep,topsep=0pt,leftmargin=*,label=\\textbullet}
-\\setlist[enumerate]{noitemsep,topsep=0pt,leftmargin=*}
-\\setlength{\\parindent}{0pt}
-\\setlength{\\parskip}{0pt}
-\\pagenumbering{gobble}
-\\linespread{0.88}
-\\definecolor{headblue}{RGB}{0,60,120}
-\\definecolor{boxbg}{RGB}{240,245,255}
-\\definecolor{tablehead}{RGB}{220,230,245}
-\\newcommand{\\sectionbar}[1]{%
-  {\\color{headblue}\\rule{\\linewidth}{0.6pt}}\\\\[-1pt]
-  {\\footnotesize\\bfseries\\color{headblue} #1}\\\\[-2pt]
-  {\\color{headblue}\\rule{\\linewidth}{0.3pt}}\\vspace{1pt}
-}
-\\newcommand{\\formulabox}[2]{%
-  \\setlength{\\fboxsep}{1.5pt}%
-  \\noindent\\colorbox{boxbg}{%
-    \\parbox{\\dimexpr\\linewidth-3pt}{%
-      \\scriptsize\\textbf{#1:}\\; $#2$%
-    }%
-  }\\vspace{1pt}%
-}
-\\newcommand{\\HR}{\\vspace{1pt}\\hrule\\vspace{2pt}}`,
+\\usepackage{ragged2e}
+\\usepackage{lastpage}
 
-  styleGuide: `You are generating a HIGH-DENSITY STUDY FORM for physics, maths, or engineering.
+% ------------------------------------------------
+% PAGE SETUP
+% ------------------------------------------------
+\\geometry{
+    a4paper,
+    top=0.9cm,
+    bottom=1.0cm,
+    left=0.8cm,
+    right=0.8cm
+}
+
+\\setlength{\\columnsep}{0.45cm}
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.12em}
+
+% ------------------------------------------------
+% SECTION FORMATTING
+% ------------------------------------------------
+\\titleformat{\\section}
+  {\\normalfont\\normalsize\\bfseries}
+  {\\thesection.}{0.35em}{}
+  [\\vspace{0.12em}\\titlerule]
+
+\\titleformat{\\subsection}
+  {\\normalfont\\small\\bfseries}
+  {\\thesubsection}{0.35em}{}
+
+\\titlespacing*{\\section}{0pt}{0.55em}{0.22em}
+\\titlespacing*{\\subsection}{0pt}{0.32em}{0.10em}
+
+% ------------------------------------------------
+% LISTS
+% ------------------------------------------------
+\\setlist[itemize]{
+    leftmargin=1.05em,
+    itemsep=0.08em,
+    topsep=0.08em,
+    parsep=0em,
+    partopsep=0em
+}
+
+% ------------------------------------------------
+% DISPLAY MATH SPACING
+% ------------------------------------------------
+\\setlength{\\abovedisplayskip}{4pt}
+\\setlength{\\belowdisplayskip}{4pt}
+\\setlength{\\abovedisplayshortskip}{2pt}
+\\setlength{\\belowdisplayshortskip}{2pt}
+
+% ------------------------------------------------
+% CUSTOM COMMANDS
+% ------------------------------------------------
+\\newcommand{\\defn}[1]{\\textbf{Definition:} #1}
+\\newcommand{\\units}[1]{\\textbf{Units:} #1}
+\\newcommand{\\nature}[1]{\\textbf{Nature:} #1}
+\\newcommand{\\formula}[1]{\\[
+#1
+\\]}
+\\newcommand{\\important}[1]{\\textbf{#1}}
+\\newcommand{\\trick}[1]{\\textbf{Trick:} #1}
+\\newcommand{\\condition}[1]{\\textbf{Condition:} #1}`,
+
+  styleGuide: `You are generating a 3-COLUMN PORTRAIT mechanics/physics cheat sheet.
 
 LAYOUT RULES:
-- Start with a compact title: {\\small\\bfseries\\color{headblue} SUBJECT --- TOPIC \\hfill Study Form}\\HR
-- Wrap ALL content in \\begin{multicols}{3} \\scriptsize ... \\end{multicols}
-- Use \\sectionbar{Section Name} for each major topic (renders as a compact blue-bordered header)
-- Use \\formulabox{Name}{formula} for individual formulas (renders with light blue background)
-- Use tabular environments for constants tables: 2-column with {lp{2cm}} or similar
+- Keep this exact document style (no custom boxes from other templates).
+- Start document body with:
+  \\footnotesize
+  \\begin{center}
+      {\\Large \\textbf{Topic Cheat Sheet}}
+  \\end{center}
+  \\vspace{-0.4em}
+  \\begin{multicols}{3}
+  \\raggedcolumns
+  \\justifying
+- Use \\section{} for major blocks and \\subsection{} for sub-blocks.
+- Use compact itemize lists and short display equations.
+- No page numbers.
 
 CONTENT RULES:
-- Keep everything \\scriptsize (already set inside multicols)
-- Constants and values: use small tabular environments (2-3 columns, no captions)
-- Lists of properties with \\begin{itemize}: each item ≤ 1 line
-- Equations: inline or very short display math — no multi-line derivations
-- Pack maximum content — this is a closed-book reference, every cm² matters
-- Use \\HR between sub-topics within a section
-- End with: \\begin{flushright}\\tiny\\textit{made with BetterNotes-AI}\\end{flushright}`,
+- Prioritize formulas, definitions, conditions, and quick tricks.
+- Keep each bullet short and scan-friendly.
+- Avoid long derivations and long prose paragraphs.
+- Use helpers when useful: \\defn, \\units, \\nature, \\formula, \\important, \\trick, \\condition.
+- Fill all 3 columns with dense but readable content.
+- End with \\end{multicols}.`,
 
   structureTemplate: `\\begin{document}
-% FILL: Title: {\\small\\bfseries\\color{headblue} SUBJECT --- TOPIC \\hfill Study Form}\\HR
+\\footnotesize
+
+\\begin{center}
+    {\\Large \\textbf{% FILL: Topic Cheat Sheet}}
+\\end{center}
+
+\\vspace{-0.4em}
 
 \\begin{multicols}{3}
-\\scriptsize
+\\raggedcolumns
+\\justifying
 
-% FILL: \\sectionbar{First Major Topic}
-% FILL: \\formulabox{Formula Name}{latex expression} for each key formula (3-6 per section)
-% FILL: Small constants table with \\begin{tabular}{ll} ... \\end{tabular}
-% FILL: \\begin{itemize} for key properties or rules
+\\section{% FILL: Section 1}
+\\begin{itemize}
+    \\item \\defn{% FILL}
+    \\item \\important{% FILL}
+    \\formula{% FILL equation}
+    \\item \\trick{% FILL}
+    \\item \\units{% FILL}
+    \\item \\nature{% FILL}
+\\end{itemize}
 
-\\HR
+\\section{% FILL: Section 2}
+\\subsection{% FILL: Subsection}
+\\begin{itemize}
+    \\item % FILL short bullet
+    \\item % FILL short bullet
+    \\formula{% FILL equation}
+\\end{itemize}
 
-% FILL: \\sectionbar{Second Major Topic}
-% FILL: More \\formulabox entries
-% FILL: Compact list of derived results
-
-\\HR
-
-% FILL: \\sectionbar{Third Major Topic}
-% FILL: Continue pattern: formulabox + tables + itemize
-
-% FILL: Add 4-8 sections total, filling all 3 columns densely
-% FILL: Final section can include a mini quick-reference table
+\\section{% FILL: Section 3}
+% FILL: Continue compact sections/subsections until all 3 columns are used.
 
 \\end{multicols}
-\\begin{flushright}\\tiny\\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{document}`,
 
   structureExample: `\\begin{document}
-{\\small\\bfseries\\color{headblue} Electromagnetism --- Study Form \\hfill Study Form}\\HR
+\\footnotesize
+
+\\begin{center}
+    {\\Large \\textbf{Mechanics Cheat Sheet}}
+\\end{center}
+
+\\vspace{-0.4em}
 
 \\begin{multicols}{3}
-\\scriptsize
+\\raggedcolumns
+\\justifying
 
-\\sectionbar{Maxwell's Equations (SI)}
-\\formulabox{Gauss (E)}{\\nabla\\cdot\\mathbf{E} = \\rho/\\varepsilon_0}
-\\formulabox{Gauss (B)}{\\nabla\\cdot\\mathbf{B} = 0}
-\\formulabox{Faraday}{\\nabla\\times\\mathbf{E} = -\\partial\\mathbf{B}/\\partial t}
-\\formulabox{Ampere--Maxwell}{\\nabla\\times\\mathbf{B} = \\mu_0(\\mathbf{J}+\\varepsilon_0\\partial\\mathbf{E}/\\partial t)}
+\\section{Work}
+\\begin{itemize}
+    \\item \\defn{Work done by force $\\vec{F}$ along displacement $\\vec{d}$.}
+    \\item \\important{Constant force:} $W = \\vec{F}\\cdot\\vec{d} = Fd\\cos\\theta$.
+    \\item \\important{Variable force:}
+    \\formula{W = \\int_{x_i}^{x_f} F(x)\\,dx}
+    \\item \\trick{Area under the $F$-$x$ graph equals work.}
+    \\item \\units{Joule (J).}
+    \\item \\nature{Scalar quantity.}
+\\end{itemize}
 
-\\HR
+\\section{Energy}
+\\subsection{Kinetic Energy}
+\\begin{itemize}
+    \\item \\formula{K = \\frac{1}{2}mv^2}
+    \\item \\formula{K = \\frac{p^2}{2m}}
+\\end{itemize}
 
-\\sectionbar{Constants}
-\\begin{tabular}{ll}
-$\\varepsilon_0$ & $8.85\\times10^{-12}$ F/m \\\\
-$\\mu_0$ & $4\\pi\\times10^{-7}$ H/m \\\\
-$c$ & $3\\times10^8$ m/s \\\\
-$e$ & $1.60\\times10^{-19}$ C \\\\
-\\end{tabular}
+\\subsection{Potential Energy}
+\\begin{itemize}
+    \\item Defined for conservative forces.
+    \\item \\formula{F_x = -\\frac{dU}{dx}}
+    \\item \\formula{U_g = mgh, \\quad U_s = \\frac{1}{2}kx^2}
+\\end{itemize}
 
-\\HR
+\\section{Power}
+\\begin{itemize}
+    \\item \\formula{P_{\\text{avg}} = \\frac{\\Delta W}{\\Delta t}}
+    \\item \\formula{P = \\frac{dW}{dt} = \\vec{F}\\cdot\\vec{v}}
+\\end{itemize}
 
-\\sectionbar{Energy Densities}
-\\formulabox{Electric}{u_E = \\varepsilon_0 E^2/2}
-\\formulabox{Magnetic}{u_B = B^2/(2\\mu_0)}
-\\formulabox{Poynting}{\\mathbf{S} = \\mathbf{E}\\times\\mathbf{B}/\\mu_0}
+\\section{Collisions}
+\\begin{itemize}
+    \\item Momentum conserved in isolated systems.
+    \\item \\formula{m_1\\vec{v}_{1i} + m_2\\vec{v}_{2i} = m_1\\vec{v}_{1f} + m_2\\vec{v}_{2f}}
+    \\item \\important{Elastic:} momentum and kinetic energy conserved.
+    \\item \\important{Perfectly inelastic:} bodies stick together.
+\\end{itemize}
 
 \\end{multicols}
-\\begin{flushright}\\tiny\\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{document}`,
 };

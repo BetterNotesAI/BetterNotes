@@ -2,7 +2,7 @@ import { TemplateDefinition } from './types';
 
 export const cornell: TemplateDefinition = {
   id: 'cornell',
-  displayName: 'Cornell Notes',
+  displayName: 'Cornell Review Notes',
   description: 'Classic Cornell note-taking format with wide left margin for cue keywords and summary box at the bottom.',
   isPro: false,
 
@@ -94,7 +94,7 @@ CONTENT RULES:
 \\end{document}`,
 
   structureExample: `\\begin{document}
-\\fancyhead[L]{\\textbf{\\large Linear Algebra --- Cornell Notes}}
+\\fancyhead[L]{\\textbf{\\large Linear Algebra --- Cornell Review Notes}}
 \\fancyhead[R]{\\textbf{Chapter 1: Vectors}}
 
 \\section{Vector Spaces}

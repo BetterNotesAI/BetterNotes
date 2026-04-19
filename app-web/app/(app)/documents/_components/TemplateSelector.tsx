@@ -20,6 +20,7 @@ interface TemplateSelectorProps {
 const TEMPLATE_COLORS: Record<string, string> = {
   '2cols_portrait': 'from-blue-900 to-blue-800',
   landscape_3col_maths: 'from-emerald-900 to-emerald-800',
+  clean_3cols_landscape: 'from-teal-900 to-teal-800',
   cornell: 'from-red-900 to-red-800',
   problem_solving: 'from-violet-900 to-violet-800',
   zettelkasten: 'from-indigo-900 to-indigo-800',
@@ -28,6 +29,7 @@ const TEMPLATE_COLORS: Record<string, string> = {
   data_analysis: 'from-pink-900 to-pink-800',
   study_form: 'from-amber-900 to-amber-800',
   lecture_notes: 'from-sky-900 to-sky-800',
+  classic_lecture_notes: 'from-cyan-900 to-cyan-800',
   long_template: 'from-gray-800 to-gray-700',
 };
 

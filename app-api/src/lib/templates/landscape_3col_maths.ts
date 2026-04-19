@@ -2,7 +2,7 @@ import { TemplateDefinition } from './types';
 
 export const landscape3colMaths: TemplateDefinition = {
   id: 'landscape_3col_maths',
-  displayName: '3-Column Landscape (Maths)',
+  displayName: 'Compact 3 Columns Landscape',
   description: 'A4 landscape with 3 columns — ideal for dense math reference sheets and formula summaries.',
   isPro: false,
 
