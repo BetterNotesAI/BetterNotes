@@ -1,0 +1,425 @@
+% Chapters/3-Quark-Model-and-EFT.tex
+
+\chapter{The Quark Model and Effective Theories of Hadrons}
+\label{ch:quark_model_eft}
+
+\section{Motivation: why do we need more than the quark model?}
+
+So far we have used approximate internal symmetries (isospin and flavor SU(3))
+to organize hadrons into multiplets. Symmetry, however, does not by itself provide
+the \emph{dynamics}: it does not explain \emph{why} some hadrons are much lighter than others,
+nor does it systematically predict low-energy interactions.
+
+A first dynamical attempt is the (constituent) non-relativistic quark model:
+hadrons are bound states of quasi-particles (constituent quarks) moving slowly,
+with masses approximately given by sums of constituent masses plus small interaction corrections.
+This picture is qualitatively useful for spectroscopy, but it becomes internally inconsistent
+in the light-hadron sector (especially because of the pion).
+The goal of this chapter is:
+\begin{itemize}
+  \item to see \emph{why} the non-relativistic quark model fails for light hadrons,
+  \item to understand the pion as a (pseudo-)Goldstone boson of chiral symmetry breaking,
+  \item to introduce the EFT logic (chiral perturbation theory) describing low-energy hadron physics.
+\end{itemize}
+
+For broader context on the quark model and hadron spectroscopy, see
+standard particle-physics texts such as \citep{halzen1984,griffiths2008,thomson2013},
+and for QFT background and symmetry concepts see \citep{peskin1995,schwartz2014,weinberg1995qtf1}.
+
+\section{The non-relativistic quark model}
+
+\subsection{Basic assumption and hyperfine interaction}
+
+The simplest dynamical assumption is:
+\begin{center}
+\emph{Quarks move slowly inside hadrons, so hadron masses are roughly sums of constituent quark masses,
+plus relatively small interaction corrections.}
+\end{center}
+
+To account for splittings between spin multiplets (e.g.\ $0^-$ vs.\ $1^-$ mesons and
+$\tfrac12^+$ vs.\ $\tfrac32^+$ baryons), the effective interaction must depend on spin.
+A common schematic ingredient is a hyperfine (spin--spin) Hamiltonian of the form
+\begin{equation}
+H_{\rm hf} = a \sum_{i\neq j}\frac{\vec S_i\cdot \vec S_j}{m_i m_j},
+\label{eq:hf_hamiltonian}
+\end{equation}
+where $m_i$ are constituent masses, $\vec S_i$ are spin operators,
+and $a$ is an effective constant encoding interaction details and wavefunction overlap.
+This structure is widely used in introductory discussions of hadron spectroscopy
+\citep{halzen1984,griffiths2008,thomson2013}.
+
+\subsection{Mesons: $q_1\bar q_2$}
+
+For mesons, a schematic mass formula is
+\begin{equation}
+M_{q_1\bar q_2} \;=\; m_1 + m_2
++ \frac{a}{m_1 m_2}\left(\frac{S(S+1)}{2}-\frac{3}{2}\right),
+\qquad S=\text{meson spin},
+\label{eq:meson_mass_formula}
+\end{equation}
+where the spin factor comes from $\langle \vec S_1\cdot \vec S_2\rangle$.
+In the light SU(2)/SU(3) limit one may take $m_1=m_2=m$, giving
+\begin{align}
+J^P=0^-:\quad & M = 2m - \frac{3a}{4m^2},
+\label{eq:ps_mass}
+\\
+J^P=1^-:\quad & M' = 2m + \frac{a}{4m^2}.
+\label{eq:v_mass}
+\end{align}
+
+If we (naively) identify these with $\pi$ and $\rho$, then
+\begin{equation}
+M'-M \;=\; \frac{a}{m^2} \;\simeq\; m_\rho - m_\pi \;\approx\; 630~\text{MeV}.
+\label{eq:meson_split_scale}
+\end{equation}
+In such a fit the hyperfine splitting scale is not ``small'' compared to typical constituent masses
+(one often finds $m$ of order a few hundred MeV).
+This already signals a breakdown of the underlying non-relativistic hypothesis in the light sector:
+the ``interaction correction'' is comparable to (or larger than) the would-be constituent mass scale.
+The core issue is not the specific numbers, but the \emph{self-consistency} of the expansion
+assumed by the model \citep{griffiths2008,thomson2013}.
+
+\subsection{Baryons: $q_1 q_2 q_3$}
+
+For baryons a similar schematic expression is
+\begin{equation}
+M_{q_1 q_2 q_3} \;=\; m_1+m_2+m_3
++a'\sum_{i\neq j}\frac{\langle \vec S_i\cdot \vec S_j\rangle}{m_i m_j}.
+\label{eq:baryon_mass_general}
+\end{equation}
+In the simplified SU(3)-symmetric limit $m_1=m_2=m_3=m$,
+the spin dependence can be written as
+\begin{equation}
+M_{qqq} \;=\; 3m+\frac{a'}{2m^2}\left(S(S+1)-\frac{9}{4}\right),
+\qquad S=\text{baryon spin}.
+\label{eq:baryon_mass_simplified}
+\end{equation}
+For $J^P=\tfrac12^+$ (nucleon) and $J^P=\tfrac32^+$ ($\Delta$),
+\begin{align}
+J^P=\frac12^+:\quad & M = 3m - \frac{3a'}{4m^2},
+\\
+J^P=\frac32^+:\quad & M' = 3m + \frac{3a'}{4m^2}.
+\end{align}
+Hence
+\begin{equation}
+M'-M \;=\; \frac{3a'}{2m^2}.
+\label{eq:baryon_split_scale}
+\end{equation}
+Numerically, the $N$--$\Delta$ splitting is a few hundred MeV, again not parametrically small
+relative to typical constituent scales. The model can be a useful organizer of spectra,
+but it does not provide a controlled low-energy expansion for light hadrons
+\citep{halzen1984,griffiths2008,thomson2013}.
+
+\subsection{Conclusion: inconsistency for light hadrons}
+
+The central message is:
+\begin{itemize}
+  \item The non-relativistic quark model assumes a small interaction correction to constituent masses.
+  \item In the light sector (where the pion is exceptionally light), the fitted ``hyperfine''
+  effects are not small compared to the masses being corrected.
+\end{itemize}
+Therefore, for low-energy QCD we need a different viewpoint. The correct language is:
+\emph{symmetries plus effective field theory}. In particular, chiral symmetry and its breaking
+control the pion sector and organize interactions as an expansion in momenta and quark masses
+\citep{peskin1995,weinberg1995qtf1,schwartz2014,donoghue1992}.
+
+\section{The linear sigma model and chiral symmetry breaking}
+
+\subsection{The pion puzzle}
+
+Experimentally,
+\begin{equation}
+m_\pi \sim 140~\text{MeV} \ll m_\rho \sim 770~\text{MeV}.
+\end{equation}
+This suggests that the up and down quark masses are small compared to the QCD scale.
+In the limit $m_u\simeq m_d\simeq 0$:
+\begin{itemize}
+  \item left- and right-handed Dirac fields decouple,
+  \item isospin SU(2) enlarges to the \textbf{chiral symmetry}
+  \begin{equation}
+  SU_L(2)\otimes SU_R(2).
+  \end{equation}
+\end{itemize}
+
+We do \emph{not} observe approximate parity doublets throughout the hadron spectrum,
+so chiral symmetry cannot be realized linearly on the spectrum in an unbroken way.
+The standard interpretation is that it is \textbf{spontaneously broken} by the vacuum,
+producing (nearly) massless Goldstone bosons: the pions
+\citep{peskin1995,weinberg1995qtf1,schwartz2014,donoghue1992}.
+
+\subsection{Mesonic realization}
+
+A convenient mesonic field realizing $SU_L(2)\otimes SU_R(2)$ is a $2\times 2$ matrix
+\begin{equation}
+M(x)=\sigma(x)I_2+i\,\vec\tau\cdot\vec\phi(x),
+\qquad \sigma,\vec\phi\in\mathbb{R},
+\label{eq:M_field_def}
+\end{equation}
+where $\vec\phi$ are pseudoscalars (identified with pions) and $\sigma$ is a scalar.
+Consider the Lagrangian
+\begin{equation}
+\mathcal{L}
+=\frac14\,\mathrm{tr}\!\left(\partial_\mu M^\dagger \partial^\mu M\right)
+-\frac{m^2}{4}\,\mathrm{tr}\!\left(M^\dagger M\right)
+-\lambda\left[\mathrm{tr}\!\left(M^\dagger M\right)\right]^2,
+\qquad \lambda>0,
+\label{eq:lin_sigma_lagrangian}
+\end{equation}
+which is invariant under
+\begin{equation}
+M \to g_L\,M\,g_R^\dagger,
+\qquad g_L\in SU_L(2),\ \ g_R\in SU_R(2),
+\label{eq:chiral_transform_M}
+\end{equation}
+with isospin SU(2) corresponding to $g_L=g_R$.
+This is the textbook linear sigma model realization of chiral symmetry
+\citep{peskin1995,schwartz2014,weinberg1995qtf1}.
+
+\subsection{Vacuum structure and Goldstone bosons}
+
+Define the invariant
+\begin{equation}
+\rho \equiv \frac12\,\mathrm{tr}(M^\dagger M),
+\end{equation}
+so for constant fields the potential is
+\begin{equation}
+V(\rho) = \frac{m^2}{2}\rho + 4\lambda \rho^2.
+\end{equation}
+If $m^2>0$, the minimum is at $\rho=0$ and scalars/pseudoscalars are degenerate.
+If $m^2<0$, the minimum is at
+\begin{equation}
+0=\frac{m^2}{2}+8\lambda\rho
+\qquad\Rightarrow\qquad
+\rho_0 = -\frac{m^2}{16\lambda} > 0.
+\end{equation}
+Isospin invariance selects a vacuum proportional to the identity:
+\begin{equation}
+M_0=\sqrt{\rho_0}\,I_2 \equiv f_\pi\,I_2.
+\label{eq:vev_fpi}
+\end{equation}
+
+A convenient parameterization of the vacuum manifold is
+\begin{equation}
+M(x)=\bigl(f_\pi + S(x)\bigr)\,U(x),
+\qquad U(x)\in SU(2),\quad S(x)\in\mathbb{R},
+\label{eq:polar_decomp}
+\end{equation}
+where $U(x)$ contains the Goldstone modes.
+If we focus on the Goldstone sector (set $S=0$ at leading order),
+the kinetic term becomes
+\begin{equation}
+\mathcal{L}_{\rm Goldstone}
+=\frac{f_\pi^2}{4}\,\mathrm{tr}\!\left(\partial_\mu U^\dagger\partial^\mu U\right),
+\label{eq:nonlinear_sigma_kin}
+\end{equation}
+which is the non-linear sigma model.
+
+Writing
+\begin{equation}
+U(x)=\exp\!\left(\frac{i\,\vec\pi(x)\cdot\vec\tau}{f_\pi}\right),
+\qquad
+\vec\pi\cdot\vec\tau=
+\begin{pmatrix}
+\pi^0 & \sqrt2\,\pi^+ \\
+\sqrt2\,\pi^- & -\pi^0
+\end{pmatrix},
+\qquad
+\pi^\pm=\frac{\pi^1\mp i\pi^2}{\sqrt2},
+\end{equation}
+and expanding shows that the $\pi^a$ are massless when chiral symmetry is exact.
+This is the Goldstone pattern
+\begin{equation}
+SU_L(2)\otimes SU_R(2)\ \longrightarrow\ SU(2)
+\qquad\Rightarrow\qquad
+3\ \text{Goldstone bosons}.
+\end{equation}
+For the general QFT mechanism of spontaneous symmetry breaking and Goldstone bosons,
+see \citep{peskin1995,schwartz2014,weinberg1995qtf1}.
+
+\subsection{The scalar mode and explicit breaking}
+
+In \eqref{eq:polar_decomp}, the real field $S(x)$ is the heavy scalar mode.
+From the potential (for $m^2<0$) one finds a nonzero scalar mass scale, schematically
+\begin{equation}
+m_S^2 \sim -2m^2 > 0,
+\end{equation}
+so $S$ can be integrated out at sufficiently low energies.
+
+Small quark masses $m_u\simeq m_d\equiv m_q$ explicitly break chiral symmetry while preserving isospin.
+At the level of the effective mesonic theory, one can represent explicit breaking through a term
+\begin{equation}
+\delta\mathcal{L}
+= \frac{f_\pi^2 B}{2}\,\mathrm{tr}\!\left(M_q\,U^\dagger + U\,M_q^\dagger\right),
+\qquad M_q=m_q I_2,
+\label{eq:explicit_breaking_term}
+\end{equation}
+where $B$ is a low-energy constant.
+Expanding $U=\exp(i\pi^a\tau^a/f_\pi)$ to quadratic order gives the parametric scaling
+\begin{equation}
+m_\pi^2 \;\propto\; m_q,
+\qquad\Rightarrow\qquad
+m_\pi \;\propto\; \sqrt{m_q},
+\label{eq:mpi_scaling}
+\end{equation}
+so pions are light because they are pseudo-Goldstone bosons.
+This is one of the key low-energy lessons encoded systematically in chiral EFT
+\citep{donoghue1992,schwartz2014,thomson2013}.
+
+\section{Including nucleons: why $m_N$ does not vanish as $m_q\to 0$}
+
+Let $\psi=(p,n)^T$ be the nucleon isodoublet, with chiral projections $\psi_{L,R}$.
+A direct nucleon mass term $\bar\psi\psi$ violates chiral symmetry.
+However, a chiral-invariant Yukawa structure is
+\begin{equation}
+\mathcal{L}_N
+=\bar\psi_L i\slashed{\partial}\psi_L+\bar\psi_R i\slashed{\partial}\psi_R
+- d\,\bar\psi_L M \psi_R - d\,\bar\psi_R M^\dagger \psi_L.
+\label{eq:nucleon_yukawa}
+\end{equation}
+When $M$ condenses, $M\to f_\pi I_2$, this generates
+\begin{equation}
+m_N = d\,f_\pi,
+\label{eq:mN_from_fpi}
+\end{equation}
+which remains finite in the chiral limit. Therefore,
+\begin{equation}
+m_\pi \to 0 \ \ (m_q\to 0),
+\qquad \text{but}\qquad
+m_N \sim f_\pi \neq 0.
+\end{equation}
+Physically, most of the nucleon mass is tied to the scale of spontaneous chiral symmetry breaking,
+not directly to the small explicit quark masses
+\citep{peskin1995,schwartz2014,donoghue1992}.
+
+At low energies, explicit breaking induces corrections analytic in $m_q$,
+so one expects at leading order
+\begin{equation}
+m_N = d f_\pi + \mathcal{O}(m_q),
+\end{equation}
+while the pion mass begins already at order $m_q$ as in \eqref{eq:mpi_scaling}.
+
+\section{The non-linear sigma model and chiral perturbation theory (EFT)}
+
+\subsection{Low-energy regime and building blocks}
+
+At momenta well below the hadronic scale, and in particular for processes with
+\begin{equation}
+p \ll m_N,
+\end{equation}
+pions can be produced, but most other hadrons cannot. This motivates an EFT built
+only out of pion degrees of freedom: \textbf{chiral perturbation theory}.
+
+The building blocks are:
+\begin{itemize}
+  \item the pion field matrix $U(x)\in SU(2)$, with $U^\dagger U=1$,
+  \item an explicit-breaking spurion $M_q$ that transforms as $M_q\to g_L M_q g_R^\dagger$
+  and is set at the end to $M_q=m_q I_2$.
+\end{itemize}
+Power counting is
+\begin{equation}
+\partial_\mu \sim p \sim m_\pi,
+\qquad
+M_q \sim m_q \sim m_\pi^2 \sim p^2.
+\end{equation}
+Then one writes \emph{all} operators consistent with Lorentz symmetry,
+chiral symmetry (with spurions), parity, and charge conjugation, organized
+by order in $p$. The UV physics is encoded in low-energy constants multiplying
+these operators. This is the general EFT philosophy in a concrete hadronic setting
+\citep{donoghue1992,schwartz2014,weinberg1995qtf1}.
+
+\subsection{Leading order: only two universal terms}
+
+At leading order, $\mathcal{O}(p^2)$, the pion EFT has the universal form
+\begin{equation}
+\mathcal{L}^{(2)}_{\chi}
+=
+\frac{f_\pi^2}{4}\,\mathrm{tr}\!\left(\partial_\mu U^\dagger \partial^\mu U\right)
++
+\frac{f_\pi^2 B}{2}\,\mathrm{tr}\!\left(M_q\,U^\dagger + U\,M_q^\dagger\right).
+\label{eq:chpt_LO}
+\end{equation}
+Thus, at very low energies pion physics depends essentially on $f_\pi$ and on one
+additional constant $B$ (which sets $m_\pi$ once $M_q$ is fixed).
+At next-to-leading order, $\mathcal{O}(p^4)$, many additional operators appear,
+each with its own low-energy constant, encoding short-distance QCD effects
+\citep{donoghue1992,schwartz2014}.
+
+\section{Pion--nucleon EFT and the axial coupling $g_A$}
+
+\subsection{Chiral-covariant building blocks}
+
+To include nucleons while keeping a controlled expansion for $p\ll m_N$,
+it is convenient to introduce $u(x)$ such that
+\begin{equation}
+U(x)=u(x)^2.
+\end{equation}
+Define
+\begin{equation}
+v_\mu \equiv \frac12\left(u\partial_\mu u^\dagger + u^\dagger\partial_\mu u\right),
+\qquad
+a_\mu \equiv \frac12\left(u\partial_\mu u^\dagger - u^\dagger\partial_\mu u\right),
+\label{eq:va_def}
+\end{equation}
+which transform as chiral-covariant vector/axial combinations.
+Then the leading pion--nucleon Lagrangian can be written schematically as
+\begin{equation}
+\mathcal{L}_{\pi N}^{(1)}
+=
+\bar N\left(i\slashed{\partial}+\slashed{v}\right)N
++ g_A\,\bar N\,\slashed{a}\gamma^5 N
+- m_N\,\bar N N
++ \cdots,
+\label{eq:piN_LO}
+\end{equation}
+where the ellipsis denotes higher-order terms in the derivative/mass expansion.
+The coefficient multiplying the axial structure is the \textbf{axial coupling} $g_A$.
+It is not fixed by symmetry alone; it must be taken from experiment.
+This is a typical EFT feature: symmetry fixes the operator basis and power counting,
+but not the numerical values of the low-energy constants
+\citep{donoghue1992,schwartz2014,thomson2013}.
+
+\subsection{Very low-energy scattering}
+
+Expanding $u$ in pion fields yields, schematically,
+\begin{equation}
+a_\mu \simeq \frac{i}{2f_\pi}\,\partial_\mu(\vec\pi\cdot\vec\tau) + \cdots,
+\qquad
+v_\mu \simeq \mathcal{O}\!\left(\frac{\pi\,\partial\pi}{f_\pi^2}\right),
+\end{equation}
+so at the lowest energies pion--nucleon interactions are governed primarily by
+$f_\pi$ and $g_A$ through the leading terms in \eqref{eq:piN_LO}.
+This explains why a small set of measured constants can control a large class of
+low-energy processes in the pion sector \citep{donoghue1992,schwartz2014}.
+
+\section{Final remarks and SU(3) generalization}
+
+\begin{itemize}
+  \item The heavy scalar mode in the linear sigma model is \emph{model-dependent}.
+  The \emph{universal} low-energy content is encoded in the EFT for $U(x)$
+  (and in the pion--nucleon EFT if baryons are included).
+  \item The general EFT logic (separation of scales, symmetry-based operator expansion,
+  and low-energy constants) is part of the standard QFT toolkit
+  \citep{peskin1995,schwartz2014,weinberg1995qtf1}.
+\end{itemize}
+
+Finally, the non-linear sigma model generalizes to flavor SU(3). In the idealized limit
+$m_u\simeq m_d\simeq m_s\simeq 0$ one has
+\begin{equation}
+SU_L(3)\otimes SU_R(3)\ \longrightarrow\ SU(3),
+\end{equation}
+with $U(x)\in SU(3)$ written as
+\begin{equation}
+U(x)=\exp\!\left(\frac{i\,\lambda_a \phi^a}{f}\right),
+\end{equation}
+so that kaons and the $\eta$ appear as additional approximate Goldstone bosons.
+In the isospin limit, explicit breaking can be represented by a mass spurion
+\begin{equation}
+M_q=
+\begin{pmatrix}
+m_q & 0 & 0\\
+0 & m_q & 0\\
+0 & 0 & m_s
+\end{pmatrix},
+\end{equation}
+which generates the observed mass pattern among the pseudo-Goldstone multiplet
+\citep{thomson2013,donoghue1992}.

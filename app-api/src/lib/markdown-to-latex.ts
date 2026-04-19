@@ -244,14 +244,51 @@ const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
     hr: '\\vspace{0.2em}\\hrule\\vspace{0.2em}',
   },
 
+  'clean_3cols_landscape': {
+    wrapBody: (body, title) => {
+      const escapedTitle = escapeTitle(title);
+      return [
+        '\\begin{document}',
+        '\\noindent\\colorbox{headerblue}{%',
+        '  \\parbox{\\dimexpr\\textwidth-2\\fboxsep\\relax}{%',
+        '    \\vspace{3pt}',
+        `    \\centering{\\Large\\bfseries\\color{white} ${escapedTitle}}\\\\[1pt]`,
+        '    {\\small\\color{white!85} Clean review format}',
+        '    \\vspace{3pt}',
+        '  }%',
+        '}',
+        '\\vspace{4pt}',
+        '',
+        '\\begin{multicols}{3}',
+        '',
+        body,
+        '',
+        '\\end{multicols}',
+        '\\begin{flushright}\\tiny\\textit{Generated with BetterNotes}\\end{flushright}',
+        '\\end{document}',
+      ].join('\n');
+    },
+    h2: (title, _isFirst) => `\\cheatsection{${processInline(title)}}`,
+    h3: (title) => `\\cheatsub{${processInline(title)}}`,
+    hr: '\\vspace{3pt}\\hrule\\vspace{3pt}',
+  },
+
   'study_form': {
     wrapBody: (body, title) => {
       const escapedTitle = escapeTitle(title);
       return [
         '\\begin{document}',
-        `{\\footnotesize\\bfseries\\color{headblue} ${escapedTitle}}\\vspace{2pt}\\hrule\\vspace{3pt}`,
+        '\\footnotesize',
+        '',
+        '\\begin{center}',
+        `    {\\Large \\textbf{${escapedTitle}}}`,
+        '\\end{center}',
+        '',
+        '\\vspace{-0.4em}',
+        '',
         '\\begin{multicols}{3}',
-        '\\scriptsize',
+        '\\raggedcolumns',
+        '\\justifying',
         '',
         body,
         '',
@@ -259,12 +296,29 @@ const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         '\\end{document}',
       ].join('\n');
     },
-    h2: (title, _isFirst) => `\\sectionbar{${processInline(title)}}`,
-    h3: (title) => `\\textbf{${processInline(title)}}\\\\`,
-    hr: '\\HR',
+    h2: (title, _isFirst) => `\\section{${processInline(title)}}`,
+    h3: (title) => `\\subsection{${processInline(title)}}`,
+    hr: '\\vspace{0.15em}\\hrule\\vspace{0.2em}',
   },
 
   'lecture_notes': {
+    wrapBody: (body, title) => {
+      const escapedTitle = escapeTitle(title);
+      return [
+        '\\begin{document}',
+        `\\section*{${escapedTitle}}`,
+        '',
+        body,
+        '',
+        '\\end{document}',
+      ].join('\n');
+    },
+    h2: (title, _isFirst) => `\\section{${processInline(title)}}`,
+    h3: (title) => `\\subsection{${processInline(title)}}`,
+    hr: '\\vspace{0.5em}\\hrule\\vspace{0.5em}',
+  },
+
+  'classic_lecture_notes': {
     wrapBody: (body, title) => {
       const escapedTitle = escapeTitle(title);
       return [
@@ -502,7 +556,7 @@ function convertBody(md: string, cfg: TemplateConfig): string {
  * Convert Markdown cheat sheet to a complete .tex document string.
  *
  * @param md         Markdown source (may contain $...$ and $$...$$ LaTeX math)
- * @param templateId One of: 2cols_portrait | landscape_3col_maths | study_form | lecture_notes
+ * @param templateId One of: 2cols_portrait | landscape_3col_maths | clean_3cols_landscape | study_form | lecture_notes | classic_lecture_notes
  * @param title      Document title (used in the wrapper, not parsed from md)
  * @returns          Complete .tex file content ready to feed to pdflatex
  */

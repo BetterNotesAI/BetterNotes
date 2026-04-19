@@ -10,7 +10,7 @@ const TEMPLATE_ID = 'lecture_notes';
 
 function buildLectureNotesTitle(prompt: string): string {
   const compact = prompt.replace(/\s+/g, ' ').trim();
-  if (!compact) return 'Untitled Lecture Notes';
+  if (!compact) return 'Untitled Extended Lecture Notes';
   const clipped = compact.length > 80 ? `${compact.slice(0, 80).trimEnd()}...` : compact;
   return clipped;
 }
@@ -87,7 +87,7 @@ export default function NewProjectLectureNotesPage() {
       };
 
       if (!resp.ok) {
-        setCreateError(respData.error ?? 'Failed to create lecture notes.');
+        setCreateError(respData.error ?? 'Failed to create extended lecture notes.');
         return;
       }
 
@@ -122,7 +122,7 @@ export default function NewProjectLectureNotesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold truncate">New Lecture Notes</h1>
+          <h1 className="text-lg font-semibold truncate">New Extended Lecture Notes</h1>
         </div>
         <button
           onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}`)}
@@ -137,11 +137,11 @@ export default function NewProjectLectureNotesPage() {
           <h2 className="text-3xl font-semibold tracking-tight mb-2">
             Build project{' '}
             <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-              lecture notes
+              extended lecture notes
             </span>
           </h2>
           <p className="text-white/50 text-sm mb-8">
-            This flow uses the Long Notes template and saves everything inside this project.
+            This flow uses the Extended Lecture Notes template and saves everything inside this project.
           </p>
 
           <div ref={barRef}>
@@ -167,7 +167,7 @@ export default function NewProjectLectureNotesPage() {
               <div className="relative aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border border-white/20 bg-white/5">
                 <Image
                   src={getTemplateThumbnailSrc(TEMPLATE_ID)}
-                  alt="Long Notes"
+                  alt="Extended Lecture Notes"
                   fill
                   className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                   onError={(e) => {
@@ -176,7 +176,7 @@ export default function NewProjectLectureNotesPage() {
                 />
               </div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
-                <p className="text-xs font-semibold text-white/85 leading-snug">Long Notes</p>
+                <p className="text-xs font-semibold text-white/85 leading-snug">Extended Lecture Notes</p>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-400/30 text-indigo-200">
                   Locked
                 </span>
@@ -189,4 +189,3 @@ export default function NewProjectLectureNotesPage() {
     </div>
   );
 }
-

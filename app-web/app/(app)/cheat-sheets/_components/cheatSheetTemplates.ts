@@ -1,5 +1,6 @@
 export type CheatSheetTemplateId =
   | 'landscape_3col_maths'
+  | 'clean_3cols_landscape'
   | '2cols_portrait'
   | 'lecture_notes'
   | 'study_form';
@@ -16,11 +17,19 @@ export interface CheatSheetTemplateOption {
 export const CHEAT_SHEET_TEMPLATE_OPTIONS: CheatSheetTemplateOption[] = [
   {
     id: 'landscape_3col_maths',
-    cardName: '3-Column Landscape',
-    label: '3-Col Landscape',
+    cardName: 'Compact 3 Columns Landscape',
+    label: 'Compact 3 Columns Landscape',
     accent: '#8b5cf6',
     linkColor: 'text-violet-400 group-hover:text-violet-300',
     description: 'Dense math and larger formulas',
+  },
+  {
+    id: 'clean_3cols_landscape',
+    cardName: 'Clean 3 Columns Landscape',
+    label: 'Clean 3 Columns Landscape',
+    accent: '#14b8a6',
+    linkColor: 'text-teal-400 group-hover:text-teal-300',
+    description: 'Balanced spacing and section strips',
   },
   {
     id: '2cols_portrait',
@@ -32,8 +41,8 @@ export const CHEAT_SHEET_TEMPLATE_OPTIONS: CheatSheetTemplateOption[] = [
   },
   {
     id: 'lecture_notes',
-    cardName: 'Lecture Notes',
-    label: 'Long Notes',
+    cardName: 'Extended Lecture Notes',
+    label: 'Extended Notes',
     accent: '#3b82f6',
     linkColor: 'text-blue-400 group-hover:text-blue-300',
     description: 'Structured concepts with more context',
@@ -56,8 +65,8 @@ export const CHEAT_SHEET_TEMPLATE_BY_ID: Record<CheatSheetTemplateId, CheatSheet
 
 export const CHEAT_SHEET_FEATURED_TEMPLATE_IDS: CheatSheetTemplateId[] = [
   'landscape_3col_maths',
+  'clean_3cols_landscape',
   '2cols_portrait',
-  'lecture_notes',
 ];
 
 export const CHEAT_SHEET_DEFAULT_TEMPLATE_ID: CheatSheetTemplateId = '2cols_portrait';

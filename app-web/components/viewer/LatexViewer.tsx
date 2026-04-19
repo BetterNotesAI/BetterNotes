@@ -57,6 +57,8 @@ function getBlockTypeLabel(type: BlockType | null): string {
   if (!type) return '';
   switch (type) {
     case 'section': return 'Heading';
+    case 'chapter': return 'Chapter';
+    case 'cover': return 'Cover';
     case 'formula-block': return 'Formula (block)';
     case 'formula-inline': return 'Formula (inline)';
     case 'paragraph': return 'Paragraph';
@@ -306,7 +308,7 @@ export default function LatexViewer({
   const activeLatexSource = pendingDocumentEdit ?? latexSource;
 
   // ── Parse blocks (mutable state for inline editing) ──────────────────────
-  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(activeLatexSource));
+  const [blocks, setBlocks] = useState<Block[]>(() => parseLatex(activeLatexSource, { templateId }));
 
   // ── F3-M4.7: undo/redo history ────────────────────────────────────────────
   // History stores past blocks snapshots; pointer starts at -1 (no history yet)
@@ -378,13 +380,13 @@ export default function LatexViewer({
 
   // Re-parse when the active source changes (preview or persisted)
   useEffect(() => {
-    const parsed = parseLatex(activeLatexSource);
+    const parsed = parseLatex(activeLatexSource, { templateId });
     setBlocks(parsed);
     // Reset history when a completely new source is loaded
     historyRef.current = [];
     historyIndexRef.current = -1;
     setUndoCount(0);
-  }, [activeLatexSource]);
+  }, [activeLatexSource, templateId]);
 
   // ── Template profile ──────────────────────────────────────────────────────
   const profile = useMemo(() => getTemplateProfile(templateId), [templateId]);

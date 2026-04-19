@@ -44,6 +44,7 @@ const FILLER_WORDS = new Set([
 const CHEAT_SHEET_TEMPLATE_IDS = new Set([
   '2cols_portrait',
   'landscape_3col_maths',
+  'clean_3cols_landscape',
   'cornell',
   'study_form',
 ]);
@@ -106,11 +107,11 @@ function detectReplyLanguage(prompt: string, recentMessages: IntentContextMessag
 
 function resolveTemplateLabel(templateId: string, language: 'es' | 'en'): string {
   if (language === 'es') {
-    if (templateId === 'lecture_notes') return 'apuntes de clase';
+    if (templateId === 'lecture_notes' || templateId === 'classic_lecture_notes') return 'apuntes de clase';
     if (CHEAT_SHEET_TEMPLATE_IDS.has(templateId)) return 'cheat sheet';
     return 'documento';
   }
-  if (templateId === 'lecture_notes') return 'lecture notes';
+  if (templateId === 'lecture_notes' || templateId === 'classic_lecture_notes') return 'lecture notes';
   if (CHEAT_SHEET_TEMPLATE_IDS.has(templateId)) return 'cheat sheet';
   return 'document';
 }

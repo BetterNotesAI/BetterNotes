@@ -1,18 +1,20 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PdfViewer } from '../_components/PdfViewer';
 import { ChatPanel } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
+import { LatexProjectViewer } from '../_components/LatexProjectViewer';
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import InteractiveBuildPreview from '../_components/InteractiveBuildPreview';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
+import { buildExtendedLectureNotesProjectFiles } from '@/lib/extended-lecture-notes-project';
 import {
   consumePendingGenerationIntent,
   savePendingGenerationIntent,
@@ -24,15 +26,17 @@ type ViewerTab = 'interactive' | 'pdf' | 'latex' | 'split';
 
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
-  landscape_3col_maths: '3-Col Landscape',
-  cornell: 'Cornell Notes',
+  landscape_3col_maths: 'Compact 3 Columns Landscape',
+  clean_3cols_landscape: 'Clean 3 Columns Landscape',
+  cornell: 'Cornell Review Notes',
   problem_solving: 'Problem Set',
   zettelkasten: 'Zettelkasten',
   academic_paper: 'Academic Paper',
   lab_report: 'Lab Report',
   data_analysis: 'Data Analysis',
   study_form: 'Study Form',
-  lecture_notes: 'Lecture Notes',
+  lecture_notes: 'Extended Lecture Notes',
+  classic_lecture_notes: 'Classic Lecture Notes',
   long_template: 'Long Document',
 };
 
@@ -532,6 +536,18 @@ export default function DocumentWorkspacePage() {
     }
   }, [documentId, isBlockMutating, reloadDocument]);
 
+  const currentTemplateId = docData?.template_id ?? '';
+  const isExtendedLectureTemplate = currentTemplateId === 'lecture_notes';
+  const extendedLectureProjectFiles = useMemo(() => {
+    if (!isExtendedLectureTemplate) return [];
+    if (!editedLatex.trim()) return [];
+    try {
+      return buildExtendedLectureNotesProjectFiles(editedLatex);
+    } catch {
+      return [];
+    }
+  }, [isExtendedLectureTemplate, editedLatex]);
+
   if (isLoading && !docData) {
     return (
       <div className="h-full bg-transparent flex items-center justify-center">
@@ -560,8 +576,11 @@ export default function DocumentWorkspacePage() {
   const isCheatSheetTemplate =
     docData.template_id === '2cols_portrait' ||
     docData.template_id === 'landscape_3col_maths' ||
+    docData.template_id === 'clean_3cols_landscape' ||
     docData.template_id === 'study_form';
-  const isLectureNotesTemplate = docData.template_id === 'lecture_notes';
+  const isLectureNotesTemplate =
+    docData.template_id === 'lecture_notes' ||
+    docData.template_id === 'classic_lecture_notes';
   const chatLeftLayout = isCheatSheetWorkspace || isCheatSheetTemplate || isLectureNotesTemplate;
   const transparentInteractiveBackground = isCheatSheetWorkspace || isCheatSheetTemplate;
   const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
@@ -979,11 +998,15 @@ export default function DocumentWorkspacePage() {
                 className={`flex flex-col min-h-0 min-w-0 ${viewerTab !== 'split' ? 'flex-1' : ''}`}
               >
                 {latexContent !== null ? (
-                  <LatexHighlighter
-                    value={editedLatex}
-                    onChange={setEditedLatex}
-                    readOnly={false}
-                  />
+                  isExtendedLectureTemplate ? (
+                    <LatexProjectViewer files={extendedLectureProjectFiles} />
+                  ) : (
+                    <LatexHighlighter
+                      value={editedLatex}
+                      onChange={setEditedLatex}
+                      readOnly={false}
+                    />
+                  )
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-white/30 text-sm" style={{ background: 'rgba(0,0,0,0.20)' }}>
                     No LaTeX content yet

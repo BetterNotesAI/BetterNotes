@@ -1,0 +1,258 @@
+% =======================
+% packages.tex
+% =======================
+
+% --- Encoding / language ---
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+
+% --- Math ---
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{slashed}
+\usepackage{cancel}
+
+% --- Graphics / floats / tables ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{makecell}
+\renewcommand\theadfont{\bfseries}
+\usepackage{threeparttable}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.1}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+
+% --- Colors / links / layout helpers ---
+\usepackage[dvipsnames]{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+% --- Text / spacing / formatting ---
+\usepackage{bold-extra}
+\usepackage[document]{ragged2e}
+\usepackage{setspace}
+\usepackage{epigraph}
+\usepackage{abstract}
+\renewcommand{\abstractnamefont}{\normalfont\Large\bfseries}
+
+% --- Captions ---
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[font=small,labelfont=bf]{subcaption}
+
+% --- TikZ ---
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+% --- Misc ---
+\usepackage{wasysym}
+\usepackage{tablefootnote}
+\usepackage{pdflscape}
+\usepackage{pgfgantt}
+
+% --- Geometry ---
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  total={160mm,248mm},
+  left=25mm,
+  top=25mm,
+}
+
+% --- Chapter/section formatting ---
+\usepackage{titlesec, blindtext, color}
+
+% ---------- Document fields (edit these) ----------
+\newcommand{\BNTitle}{Elementary Particles}
+\newcommand{\BNSubtitle}{Course notes / Problem sets} % Leave empty {} if not needed
+\newcommand{\BNAuthor}{Martí Massó Moreno}
+\newcommand{\BNProfessor}{Joan Soto Riera}
+\newcommand{\BNYear}{2025/2026}
+\newcommand{\BNDepartment}{Department of Quantum Physics and Astrophysics}
+\newcommand{\BNInstitution}{Universitat de Barcelona} % Optional
+\newcommand{\BNLogoPath}{Figures/logo.png} % Set {} if no logo
+
+% ---------- Styling knobs (updated blues) ----------
+\definecolor{BNTitleGray}{rgb}{0.0, 0.2, 0.5}   % Navy blue for title
+\definecolor{BNLineGray}{rgb}{0.3, 0.5, 0.8}    % Steel blue for rules/lines
+\newcommand{\BNRule}{\textcolor{BNLineGray}{\rule{\textwidth}{0.9pt}}}
+
+% --- Theme colors ---
+\definecolor{themecolor}{rgb}{0.0, 0.2, 0.5}      % Primary (dark blue)
+\definecolor{secondarycolor}{rgb}{0.3, 0.5, 0.8}   % Secondary (light blue)
+\definecolor{citescolor}{rgb}{0.0, 0.4, 0.6}       % Citation blue
+\definecolor{darkgray}{gray}{0.95}
+\definecolor{lightgray}{gray}{0.70}
+
+% --- Title formatting ---
+\newcommand{\hsp}{\hspace{20pt}}
+\titleformat{\chapter}[hang]
+  {\huge\bfseries{\color{secondarycolor}\titlerule}\vspace{2mm}}
+  {\textcolor{themecolor}{\thechapter}\hspace{7pt}\textcolor{themecolor}{.}\hsp}
+  {0pt}
+  {\huge\bfseries}[\vspace{4mm}{\color{secondarycolor}\titlerule}]
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries}
+  {\textcolor{themecolor}{\thesection}}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries}
+  {\textcolor{themecolor}{\thesubsection}}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries}
+  {\textcolor{themecolor}{\thesubsubsection}}{1em}{}
+
+% --- Epigraph / part formatting ---
+\makeatletter
+\titleformat{\part}[hang]
+  {\Huge\bfseries{\color{secondarycolor}\titlerule\vspace{5mm}}\filcenter}
+  {\textcolor{secondarycolor}{\textsc{\thepart}}}
+  {30pt}
+  {\\ \normalfont \scshape \vspace{2mm} \setstretch{1.1}\thispagestyle{epigraph}}
+\makeatother
+\setlength\epigraphwidth{0.6\textwidth}
+
+% --- Table helpers ---
+\makeatletter
+\newcommand{\thickhline}{%
+  \noalign {\ifnum 0=`}\fi \hrule height 1pt
+  \futurelet \reserved@a \@xhline
+}
+\makeatother
+
+% --- Paragraph spacing ---
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0.0em}
+\renewcommand{\baselinestretch}{1.0}
+
+% --- Vector / differential conventions ---
+\renewcommand{\vec}[1]{\mathbf{#1}}
+\newcommand{\der}{\operatorname{d\!}{}}
+
+% --- Common field symbols ---
+\newcommand{\E}{\mathbf{E}}
+\newcommand{\B}{\mathbf{B}}
+\newcommand{\J}{\mathbf{J}}
+\newcommand{\vr}{\mathbf{r}}
+\newcommand{\vv}{\textbf{v}}
+\newcommand{\vxi}{\boldsymbol{\xi}}
+
+% --- Theorems (standard) ---
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}{Proposition}[section]
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{convention}{Convention}[section]
+\newtheorem{observation}{Observation}
+
+% --- Math shortcuts ---
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\C}{\ensuremath{\mathbb{C}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\ur}{\ensuremath{\bm{\hat{r}}}}
+\newcommand{\ut}{\ensuremath{\bm{\hat{\theta}}}}
+\newcommand{\uz}{\ensuremath{\bm{\hat{z}}}}
+\newcommand{\bnabla}{\ensuremath{\bm{\nabla}}}
+\newcommand{\lp}{\ensuremath{\left(}}
+\newcommand{\rp}{\ensuremath{\right)}}
+\newcommand{\dd}{\textup{d}}
+
+\newcommand{\Dt}[1]{\frac{D #1}{Dt}}
+\newcommand{\dt}[1]{\frac{\partial #1}{\partial t}}
+\newcommand{\dtt}[1]{\frac{\partial^2 #1}{\partial t^2}}
+\newcommand{\dr}[1]{\frac{\partial #1}{\partial r}}
+\newcommand{\dz}[1]{\frac{\partial #1}{\partial z}}
+\newcommand{\dth}[1]{\frac{\partial #1}{\partial \theta}}
+\newcommand{\n}{\nabla}
+\newcommand{\Q}{\nabla\times(\boldsymbol{\xi}\times \textbf{B})}
+\newcommand{\jxb}{\textbf{J}\times\textbf{B}}
+\newcommand{\tim}[2]{#1\times#2}
+\newcommand{\ddp}{\nabla p}
+
+% --- QED symbol ---
+\newcommand*{\QED}{\hfill\ensuremath{\square}}
+
+% --- Number a single equation inside align ---
+\newcommand\numberthis{\addtocounter{equation}{1}\tag{\theequation}}
+
+% =======================
+% tcolorbox theorem styles
+% =======================
+\usepackage{tcolorbox}
+\tcbuselibrary{theorems}
+
+% Default tcolorbox settings
+\tcbset{
+  detach title,
+  fonttitle=\bfseries,
+  coltitle=black,
+  before upper={\tcbtitle},
+  terminator sign={.},
+  boxrule=0.5pt,
+}
+
+% Theorem-like boxes (using the theme blue)
+\newtcbtheorem[auto counter, number within=chapter]{theo}{Theorem}{
+  colback=darkgray,
+  colframe=themecolor,
+  before upper={\tcbtitle~},
+  before skip=10pt
+}{theorem}
+
+\newtcbtheorem[use counter from=theo]{lemm}{Lemma}{
+  colback=white,
+  colframe=themecolor,
+  before upper={\tcbtitle~},
+  before skip=10pt
+}{lemma}
+
+\newtcbtheorem[use counter from=theo]{cor}{Corollary}{
+  colback=white,
+  colframe=themecolor,
+  before upper={\tcbtitle~},
+  before skip=10pt
+}{corollary}
+
+% =======================
+% Lists
+% =======================
+\usepackage{enumitem}
+\renewcommand{\labelitemi}{$\diamond$}
+\let\OLDitemize\itemize
+\renewcommand\itemize{\OLDitemize\addtolength{\itemsep}{-2pt}}
+\setlist[itemize]{itemsep=1pt, topsep=1pt}
+\setlist[enumerate]{itemsep=1pt, topsep=3pt}
+
+% =======================
+% Bibliography / citations
+% =======================
+\usepackage[round,authoryear]{natbib}
+\setcitestyle{authoryear,open={(},close={)}}
+
+% Hyperref colors (blue citations, blue internal links, black URLs)
+\hypersetup{
+  colorlinks=true,
+  citecolor=citescolor,
+  linkcolor=themecolor,
+  urlcolor=black
+}
+
+% =======================
+% Reference helpers
+% =======================
+\usepackage{nameref}
+\newcommand\getcurrentref[1]{%
+ \ifnumequal{\value{#1}}{0}
+  {??}
+  {\the\value{#1}}%
+}

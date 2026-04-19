@@ -26,12 +26,20 @@ const TEMPLATES = [
     prompt: 'Linear algebra reference sheet: matrix operations, determinants, eigenvalues and eigenvectors, vector spaces, linear transformations, and inner products.',
   },
   {
+    id: 'clean_3cols_landscape',
+    prompt: 'Clean calculus cheat sheet: limits, derivative rules, integral shortcuts, optimization conditions, and compact comparison tables.',
+  },
+  {
     id: 'study_form',
     prompt: 'Thermodynamics formula sheet: laws of thermodynamics, ideal gas law, heat transfer equations, entropy, Carnot efficiency, and key physical constants.',
   },
   {
     id: 'lecture_notes',
-    prompt: 'Lecture notes on quantum mechanics: wave-particle duality, Schrödinger equation, quantum numbers, atomic orbitals, and the uncertainty principle.',
+    prompt: 'Extended lecture notes on quantum mechanics: wave-particle duality, Schrödinger equation, operators, quantum numbers, atomic orbitals, and uncertainty principle.',
+  },
+  {
+    id: 'classic_lecture_notes',
+    prompt: 'Engineering thermodynamics lecture notes: fundamental laws, isothermal and adiabatic processes, Carnot cycle efficiency, and worked examples.',
   },
   {
     id: 'cornell',

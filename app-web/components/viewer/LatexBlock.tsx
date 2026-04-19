@@ -51,6 +51,9 @@ function escapeHtml(text: string): string {
  * return an HTML string with those formulas rendered by KaTeX.
  */
 function renderInlineMath(text: string): string {
+  // Normalize \( ... \) inline math into $...$ so both notations render.
+  const normalized = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, inner: string) => `$${inner}$`);
+
   // Match $...$ but not $$...$$
   // Use a simple approach: split on single $ boundaries
   const parts: string[] = [];
@@ -58,8 +61,8 @@ function renderInlineMath(text: string): string {
   let inMath = false;
   let current = '';
 
-  while (i < text.length) {
-    if (text[i] === '$' && text[i + 1] !== '$' && (i === 0 || text[i - 1] !== '$')) {
+  while (i < normalized.length) {
+    if (normalized[i] === '$' && normalized[i + 1] !== '$' && (i === 0 || normalized[i - 1] !== '$')) {
       if (!inMath) {
         // Flush plain text — renderLatexCommands returns HTML; do NOT escape it
         if (current) parts.push(`<span>${renderLatexCommands(current)}</span>`);
@@ -73,7 +76,7 @@ function renderInlineMath(text: string): string {
       }
       i++;
     } else {
-      current += text[i];
+      current += normalized[i];
       i++;
     }
   }
@@ -130,6 +133,48 @@ function renderLatexCommands(text: string): string {
 
   return out;
 }
+
+/**
+ * Render box/theorem-like body content, which may contain both display math
+ * (\[...\], $$...$$) and inline math ($...$). Returns an HTML string.
+ */
+function renderBoxContentHtml(text: string): string {
+  const re = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])/g;
+  const parts: string[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      parts.push(renderInlineMath(text.slice(last, m.index)));
+    }
+    let inner = m[0];
+    inner = inner.startsWith('$$') ? inner.slice(2, -2) : inner.slice(2, -2);
+    parts.push(
+      `<div style="text-align:center;margin:0.3em 0;overflow-x:auto;">${renderKatex(inner.trim(), true)}</div>`
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    parts.push(renderInlineMath(text.slice(last)));
+  }
+  return parts.join('');
+}
+
+// Human-readable labels for theorem-like environments
+const BOX_SUBTYPE_LABELS: Record<string, string> = {
+  definition: 'Definition',
+  theorem: 'Theorem',
+  proposition: 'Proposition',
+  observation: 'Observation',
+  example: 'Example',
+  lemma: 'Lemma',
+  corollary: 'Corollary',
+  remark: 'Remark',
+  proof: 'Proof',
+  workedexample: 'Worked Example',
+  keypoint: 'Key Point',
+  warning: 'Note',
+};
 
 // ─── list renderer ────────────────────────────────────────────────────────────
 
@@ -701,24 +746,166 @@ export default function LatexBlock({
           : 'var(--accent, #374151)';
       const isTypedTheoremLike = !!block.boxSubtype;
       const bgColor = isTypedTheoremLike ? 'rgba(246,248,252,0.7)' : 'transparent';
+      const heading = block.boxSubtype ? BOX_SUBTYPE_LABELS[block.boxSubtype] ?? null : null;
       return (
         <div
           style={{
             breakInside: 'avoid',
+            borderLeft: `3px solid ${borderColor}`,
             border: `1px solid ${borderColor}`,
-            padding: '0.16em 0.28em',
-            margin: '0.2em 0 0.26em',
+            borderRadius: '3px',
+            padding: '0.35em 0.55em',
+            margin: '0.35em 0 0.45em',
             background: bgColor,
             overflow: 'visible',
             fontSize: '1em',
-            lineHeight: 1.2,
+            lineHeight: 1.25,
           }}
           className={interactiveClass}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
         >
-          <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }} />
+          {(heading || block.label) && (
+            <div
+              style={{
+                fontWeight: 700,
+                color: borderColor,
+                fontSize: '0.9em',
+                marginBottom: '0.2em',
+                letterSpacing: '0.01em',
+              }}
+            >
+              {heading}
+              {block.label ? (
+                <span style={{ fontWeight: 500, color: '#374151' }}>
+                  {heading ? ' — ' : ''}
+                  {block.label}
+                </span>
+              ) : null}
+            </div>
+          )}
+          <div dangerouslySetInnerHTML={{ __html: renderBoxContentHtml(block.latex_source) }} />
+          {actionBar}
+        </div>
+      );
+    }
+
+    case 'cover': {
+      return (
+        <div
+          className={interactiveClass}
+          style={{
+            breakAfter: 'page',
+            padding: '2.6em 0 2.2em',
+            margin: '0 0 1.4em',
+            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            textAlign: 'center',
+            overflow: 'visible',
+          }}
+          data-block-id={block.id}
+          {...a11yProps}
+          {...interactiveHandlers}
+        >
+          {block.title && (
+            <h1
+              style={{
+                fontSize: '2.3em',
+                fontWeight: 700,
+                color: 'var(--accent, #1f2937)',
+                margin: '0 auto 0.45em',
+                lineHeight: 1.18,
+                maxWidth: '85%',
+              }}
+            >
+              {block.title}
+            </h1>
+          )}
+          {block.title && (
+            <div
+              style={{
+                width: '40%',
+                height: '2px',
+                margin: '0 auto 1.2em',
+                background: 'var(--accent, #1f2937)',
+                opacity: 0.6,
+              }}
+            />
+          )}
+          {block.author && (
+            <div
+              style={{
+                fontSize: '1.15em',
+                color: '#333',
+                margin: '0.3em 0 0.2em',
+                fontStyle: 'italic',
+              }}
+            >
+              {block.author}
+            </div>
+          )}
+          {block.date && (
+            <div style={{ fontSize: '0.95em', color: '#555', margin: '0.35em 0 0' }}>
+              {block.date}
+            </div>
+          )}
+          <div
+            style={{
+              marginTop: '2.2em',
+              fontSize: '0.78em',
+              color: '#888',
+              fontStyle: 'italic',
+              letterSpacing: '0.03em',
+            }}
+          >
+            Document generated with BetterNotes AI
+          </div>
+          {actionBar}
+        </div>
+      );
+    }
+
+    case 'chapter': {
+      return (
+        <div
+          className={interactiveClass}
+          style={{
+            margin: '1.4em 0 0.8em',
+            breakBefore: 'page',
+            breakAfter: 'avoid',
+            overflow: 'visible',
+          }}
+          data-block-id={block.id}
+          {...a11yProps}
+          {...interactiveHandlers}
+        >
+          {block.chapterNumber !== undefined && (
+            <div
+              style={{
+                fontSize: '0.78em',
+                fontWeight: 600,
+                color: 'var(--accent, #005AAA)',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                margin: '0 0 0.25em',
+              }}
+            >
+              Chapter {block.chapterNumber}
+            </div>
+          )}
+          <h1
+            style={{
+              fontSize: '1.85em',
+              fontWeight: 700,
+              color: 'var(--accent, #1f2937)',
+              margin: '0 0 0.35em',
+              lineHeight: 1.18,
+              borderBottom: '2px solid var(--accent, #005AAA)',
+              paddingBottom: '0.18em',
+            }}
+          >
+            {block.latex_source}
+          </h1>
           {actionBar}
         </div>
       );

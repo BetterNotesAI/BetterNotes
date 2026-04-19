@@ -10,10 +10,10 @@ import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 const FEATURED = [
   {
     id: 'landscape_3col_maths',
-    name: '3-Column Landscape',
+    name: 'Compact 3 Columns Landscape',
     desc: 'A4 landscape with 3 dense columns — ideal for math reference sheets and formula summaries.',
     accent: '#8b5cf6',
-    category: 'Notes',
+    category: 'CheatSheets',
     linkColor: 'text-violet-400 group-hover:text-violet-300',
     schematic: <ThreeColSchematic />,
   },
@@ -22,16 +22,16 @@ const FEATURED = [
     name: '2-Column Cheat Sheet',
     desc: 'Compact A4 portrait layout with 2 columns for formulas, definitions and key results. Perfect for exam prep.',
     accent: '#6366f1',
-    category: 'Notes',
+    category: 'CheatSheets',
     linkColor: 'text-indigo-400 group-hover:text-indigo-300',
     schematic: <TwoColSchematic />,
   },
   {
     id: 'lecture_notes',
-    name: 'Lecture Notes',
-    desc: 'Multi-page structured notes with learning objectives, sections, examples and a summary box.',
+    name: 'Extended Lecture Notes',
+    desc: 'Extended long-form notes with chapter-style structure, examples, and end summaries.',
     accent: '#3b82f6',
-    category: 'Notes',
+    category: 'Lecture Notes',
     linkColor: 'text-blue-400 group-hover:text-blue-300',
     schematic: <LectureSchematic />,
   },
@@ -173,7 +173,7 @@ export function LandingInteractive() {
           <a href="/signup" className="text-white/60 hover:text-white underline underline-offset-2 transition-colors">
             3-Column Portrait
           </a>
-          {' '}— ultra-compact A4 with formula boxes and constant tables.
+          {' '}— compact A4 with clean sections, formulas, and exam-ready bullets.
         </p>
       </section>
     </>

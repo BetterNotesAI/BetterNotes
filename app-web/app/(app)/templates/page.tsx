@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
@@ -11,21 +11,32 @@ interface Template {
   displayName: string;
   description: string;
   isPro: boolean;
-  category: string;
+  category: 'CheatSheets' | 'Reports' | 'Lecture Notes';
   accent: string;
   schematic: React.ReactNode;
 }
+
+type TemplateFilter = 'all' | 'CheatSheets' | 'Lecture Notes' | 'Reports' | 'favorites';
 
 // All available templates. The home page and DocumentCreationBar only show the
 // 4 most popular ones; this page shows all of them.
 const TEMPLATES: Template[] = [
   {
     id: 'landscape_3col_maths',
-    displayName: '3-Column Landscape',
+    displayName: 'Compact 3 Columns Landscape',
     description: 'A4 landscape with 3 columns — dense math reference sheets and formula summaries.',
     isPro: false,
-    category: 'Notes',
+    category: 'CheatSheets',
     accent: '#8b5cf6',
+    schematic: <ThreeColSchematic />,
+  },
+  {
+    id: 'clean_3cols_landscape',
+    displayName: 'Clean 3 Columns Landscape',
+    description: 'A4 landscape with 3 clean columns and balanced spacing for readable, scan-friendly cheat sheets.',
+    isPro: false,
+    category: 'CheatSheets',
+    accent: '#14b8a6',
     schematic: <ThreeColSchematic />,
   },
   {
@@ -33,34 +44,43 @@ const TEMPLATES: Template[] = [
     displayName: '2-Column Portrait',
     description: 'Compact A4 portrait sheet with 2 columns for formulas, definitions, and key results.',
     isPro: false,
-    category: 'Notes',
+    category: 'CheatSheets',
     accent: '#6366f1',
     schematic: <TwoColSchematic />,
   },
   {
     id: 'lecture_notes',
-    displayName: 'Long Notes (Chapters)',
-    description: 'Multi-page structured notes with learning objectives, numbered examples, and a summary box.',
+    displayName: 'Extended Lecture Notes',
+    description: 'Extended long-form notes with chapter-style structure, learning objectives, worked examples, and summary blocks.',
     isPro: false,
-    category: 'Notes',
+    category: 'Lecture Notes',
     accent: '#3b82f6',
+    schematic: <LectureSchematic />,
+  },
+  {
+    id: 'classic_lecture_notes',
+    displayName: 'Classic Lecture Notes',
+    description: 'Traditional lecture-notes layout with objectives, theorem blocks, worked examples, and a concise summary.',
+    isPro: false,
+    category: 'Lecture Notes',
+    accent: '#0891b2',
     schematic: <LectureSchematic />,
   },
   {
     id: 'study_form',
     displayName: '3-Column Portrait',
-    description: 'Ultra-compact A4 portrait with 3 columns — formula boxes, constant tables, and property lists.',
+    description: 'Compact A4 portrait with 3 columns — clean sections, quick formulas, and short exam-ready bullets.',
     isPro: false,
-    category: 'Notes',
+    category: 'CheatSheets',
     accent: '#22c55e',
     schematic: <StudyFormSchematic />,
   },
   {
     id: 'cornell',
-    displayName: 'Cornell Notes',
+    displayName: 'Cornell Review Notes',
     description: 'Classic Cornell layout with cue column, notes area and summary box at the bottom.',
     isPro: false,
-    category: 'Notes',
+    category: 'Lecture Notes',
     accent: '#f59e0b',
     schematic: <CornellSchematic />,
   },
@@ -69,7 +89,7 @@ const TEMPLATES: Template[] = [
     displayName: 'Problem Solving',
     description: 'Structured blocks for problem statement, given data, solution steps and final answer.',
     isPro: false,
-    category: 'Notes',
+    category: 'CheatSheets',
     accent: '#ef4444',
     schematic: <ProblemSchematic />,
   },
@@ -78,7 +98,7 @@ const TEMPLATES: Template[] = [
     displayName: 'Zettelkasten',
     description: 'Atomic note cards with ID, title, body and tags — ideal for linked knowledge bases.',
     isPro: false,
-    category: 'Notes',
+    category: 'CheatSheets',
     accent: '#10b981',
     schematic: <ZettelSchematic />,
   },
@@ -87,7 +107,7 @@ const TEMPLATES: Template[] = [
     displayName: 'Academic Paper',
     description: 'Two-column academic layout with abstract, sections, equations and figure placeholders.',
     isPro: true,
-    category: 'Papers',
+    category: 'Reports',
     accent: '#6b7280',
     schematic: <AcademicPaperSchematic />,
   },
@@ -96,7 +116,7 @@ const TEMPLATES: Template[] = [
     displayName: 'Lab Report',
     description: 'Lab report structure with introduction, setup diagram, data table and analysis.',
     isPro: true,
-    category: 'Papers',
+    category: 'Reports',
     accent: '#14b8a6',
     schematic: <LabSchematic />,
   },
@@ -105,7 +125,7 @@ const TEMPLATES: Template[] = [
     displayName: 'Data Analysis',
     description: 'Data analysis report with methodology, results tables, charts and conclusions.',
     isPro: true,
-    category: 'Papers',
+    category: 'Reports',
     accent: '#f97316',
     schematic: <DataSchematic />,
   },
@@ -113,15 +133,46 @@ const TEMPLATES: Template[] = [
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const [activeTemplateId, setActiveTemplateId] = useState<string>(() =>
-    typeof window !== 'undefined' ? (localStorage.getItem('lastTemplateId') ?? '') : ''
-  );
+  const [activeTemplateId, setActiveTemplateId] = useState<string>('');
+  const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all');
+  const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
   const selected = TEMPLATES.find(t => t.id === activeTemplateId) ?? null;
   const [modalOpen, setModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [pdfPreviewId, setPdfPreviewId] = useState<string | null>(null);
   const pdfPreviewTemplate = TEMPLATES.find(t => t.id === pdfPreviewId) ?? null;
+
+  useEffect(() => {
+    const saved = localStorage.getItem('lastTemplateId') ?? '';
+    setActiveTemplateId(saved);
+    try {
+      const raw = localStorage.getItem('favoriteTemplateIds');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        setFavoriteTemplateIds(parsed.filter((id): id is string => typeof id === 'string'));
+      }
+    } catch {
+      setFavoriteTemplateIds([]);
+    }
+  }, []);
+
+  function toggleFavorite(templateId: string) {
+    setFavoriteTemplateIds((prev) => {
+      const next = prev.includes(templateId)
+        ? prev.filter((id) => id !== templateId)
+        : [...prev, templateId];
+      localStorage.setItem('favoriteTemplateIds', JSON.stringify(next));
+      return next;
+    });
+  }
+
+  const visibleTemplates = TEMPLATES.filter((template) => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'favorites') return favoriteTemplateIds.includes(template.id);
+    return template.category === activeFilter;
+  });
 
   async function handleCreate(data: CreateDocumentInput) {
     setIsCreating(true);
@@ -164,9 +215,34 @@ export default function TemplatesPage() {
           <p className="text-sm text-white/50 mb-6">
             Choose a starting point for your document. All templates are AI-filled based on your description.
           </p>
+          <div className="mb-5 flex flex-wrap gap-2">
+            {([
+              { id: 'all', label: 'All' },
+              { id: 'CheatSheets', label: 'CheatSheets' },
+              { id: 'Lecture Notes', label: 'Lecture Notes' },
+              { id: 'Reports', label: 'Reports' },
+              { id: 'favorites', label: 'Favorites' },
+            ] as Array<{ id: TemplateFilter; label: string }>).map((filter) => {
+              const isActive = activeFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                    isActive
+                      ? 'bg-indigo-500/20 border-indigo-500/45 text-indigo-200'
+                      : 'bg-white/5 border-white/12 text-white/55 hover:bg-white/10 hover:text-white/75'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TEMPLATES.map(template => {
+            {visibleTemplates.map(template => {
               const isSelected = !!activeTemplateId && activeTemplateId === template.id;
+              const isFavorite = favoriteTemplateIds.includes(template.id);
               return (
               <div
                 key={template.id}
@@ -194,10 +270,31 @@ export default function TemplatesPage() {
                   boxShadow: isSelected ? `0 0 0 1px ${template.accent}66, 0 4px_24px rgba(0,0,0,0.3)` : undefined,
                 }}
               >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(template.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+                  }}
+                  title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                  className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${
+                    isFavorite
+                      ? 'bg-amber-400/25 border-amber-300/45 text-amber-200'
+                      : 'bg-black/35 border-white/20 text-white/50 hover:text-amber-200 hover:border-amber-300/45'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321 1.01l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.386a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0l-4.725 2.886a.562.562 0 01-.84-.611l1.285-5.386a.563.563 0 00-.182-.557L2.04 9.407a.562.562 0 01.321-1.01l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                </button>
+
                 {/* Selected check */}
                 {isSelected && (
                   <div
-                    className="absolute top-3 right-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+                    className="absolute top-3 left-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
                     style={{ background: template.accent }}
                   >
                     <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -239,7 +336,7 @@ export default function TemplatesPage() {
                 </div>
                 <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
 
-                {/* Category pill + eye button */}
+                {/* Category pill + preview button */}
                 <div className="mt-2.5 flex items-center justify-between">
                   <span
                     className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
@@ -252,19 +349,30 @@ export default function TemplatesPage() {
                       e.stopPropagation();
                       setPdfPreviewId(template.id);
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+                    }}
                     title="Preview sample PDF"
-                    className="text-white/35 hover:text-white/70 transition-colors flex items-center gap-1 text-[10px]"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/20
+                      bg-white/8 text-white/75 hover:text-white hover:bg-white/12 hover:border-white/30
+                      transition-colors text-[11px] font-medium"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
+                    <span>Preview</span>
                   </button>
                 </div>
               </div>
               );
             })}
           </div>
+          {visibleTemplates.length === 0 && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/50">
+              No templates match this filter yet.
+            </div>
+          )}
         </div>
       </div>
 
