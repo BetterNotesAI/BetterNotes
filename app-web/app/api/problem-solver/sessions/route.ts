@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { inferFolderIdFromRequest } from '@/lib/request-project-context';
 
 function isMissingColumnError(error: unknown, column: string): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -96,7 +97,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const { title, folder_id } = body as { title?: string; folder_id?: string | null };
-  const folderId = typeof folder_id === 'string' && folder_id.trim().length > 0 ? folder_id.trim() : null;
+  const requestedFolderId = typeof folder_id === 'string' && folder_id.trim().length > 0 ? folder_id.trim() : null;
+  const inferredFolderId = inferFolderIdFromRequest(req);
+  const folderId = requestedFolderId ?? inferredFolderId;
 
   if (folderId) {
     const { data: folder, error: folderError } = await supabase

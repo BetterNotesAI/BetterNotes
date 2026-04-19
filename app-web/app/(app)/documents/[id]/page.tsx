@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PdfViewer } from '../_components/PdfViewer';
-import { ChatPanel } from '../_components/ChatPanel';
+import { ChatPanel, type ChatMessage } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
@@ -328,6 +328,11 @@ export default function DocumentWorkspacePage() {
     documentId,
     onNewVersion: handleNewVersion,
   });
+  const [optimisticDraftMessages, setOptimisticDraftMessages] = useState<ChatMessage[]>([]);
+  const visibleMessages = useMemo(
+    () => [...messages, ...optimisticDraftMessages],
+    [messages, optimisticDraftMessages],
+  );
 
   const isDraft = docData?.status === 'draft';
   const isDocumentGenerating = isGenerating || docData?.status === 'generating';
@@ -416,13 +421,25 @@ export default function DocumentWorkspacePage() {
 
     if (isDraft) {
       // First generation
+      const optimisticId = `draft-temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setOptimisticDraftMessages((prev) => [
+        ...prev,
+        {
+          id: optimisticId,
+          role: 'user',
+          content,
+          created_at: new Date().toISOString(),
+        },
+      ]);
       try {
         const result = await generate(content);
         if (result && 'pdfSignedUrl' in result && result.pdfSignedUrl) {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
+        setOptimisticDraftMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
       } catch (err: unknown) {
+        setOptimisticDraftMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
         if (isAuthRequiredError(err)) {
           openAuthForGeneration(content);
         } else if (isGuestLimitError(err)) {
@@ -1054,7 +1071,7 @@ export default function DocumentWorkspacePage() {
           <WorkspaceAttachmentsPanel documentId={documentId} />
           <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel
-              messages={messages}
+              messages={visibleMessages}
               isLoading={showGenerating}
               isDraft={isDraft}
               onSend={handleSend}

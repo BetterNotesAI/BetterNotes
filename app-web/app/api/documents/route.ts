@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildTitleFromPrompt } from '@/lib/document-title';
 import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
+import { inferFolderIdFromRequest } from '@/lib/request-project-context';
 
 // GET /api/documents — list user's documents
 // Query params:
@@ -101,7 +102,9 @@ export async function POST(req: NextRequest) {
       sizeBytes: number;
     }>;
   };
-  const folderId = typeof folder_id === 'string' ? folder_id.trim() || null : folder_id ?? null;
+  const requestedFolderId = typeof folder_id === 'string' ? folder_id.trim() || null : folder_id ?? null;
+  const inferredFolderId = inferFolderIdFromRequest(req);
+  const folderId = requestedFolderId ?? inferredFolderId;
 
   if (!template_id || typeof template_id !== 'string') {
     return NextResponse.json({ error: 'template_id is required' }, { status: 400 });
