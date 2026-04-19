@@ -261,11 +261,16 @@ export function SolutionPanel({
   onClearContext,
   onClearAllContexts,
 }: Props) {
+  type TooltipPosition = { x: number; y: number; placement: 'above' | 'below' };
+  type SelectionFrame = { left: number; top: number; width: number; height: number };
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const solutionRef = useRef<HTMLDivElement>(null);
+  const skipSelectionCollapseRef = useRef(false);
 
   // Selection tooltip
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<TooltipPosition | null>(null);
+  const [selectionFrame, setSelectionFrame] = useState<SelectionFrame | null>(null);
   const [pendingSelection, setPendingSelection] = useState<{
     id: string;
     text: string;
@@ -338,6 +343,7 @@ export function SolutionPanel({
 
   const hideSelectionTooltip = useCallback(() => {
     setTooltipPos(null);
+    setSelectionFrame(null);
     setPendingSelection(null);
   }, []);
 
@@ -390,6 +396,33 @@ export function SolutionPanel({
     }
   }, []);
 
+  const inflateRect = useCallback((rect: DOMRect, padX = 8, padY = 6): SelectionFrame => {
+    return {
+      left: Math.max(4, rect.left - padX),
+      top: Math.max(4, rect.top - padY),
+      width: rect.width + padX * 2,
+      height: rect.height + padY * 2,
+    };
+  }, []);
+
+  const buildUnionRectFromRange = useCallback((range: Range): SelectionFrame | null => {
+    const rects = Array.from(range.getClientRects())
+      .filter((r) => r.width > 0 || r.height > 0);
+
+    if (rects.length === 0) return null;
+
+    const left = Math.min(...rects.map((r) => r.left));
+    const top = Math.min(...rects.map((r) => r.top));
+    const right = Math.max(...rects.map((r) => r.right));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+
+    return inflateRect(
+      new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top)),
+      8,
+      6,
+    );
+  }, [inflateRect]);
+
   // Auto-scroll during streaming
   useEffect(() => {
     if (isStreaming) {
@@ -428,6 +461,7 @@ export function SolutionPanel({
     const blocks = getIntersectingBlocks(range);
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
+    let frameRect: SelectionFrame | null = null;
     let anchorBlockIndex = -1;
 
     if (blocks.length > 0) {
@@ -447,11 +481,12 @@ export function SolutionPanel({
         anchorBlockIndex = Math.max(...blockIndices);
       }
 
-      const firstRect = blocks[0].getBoundingClientRect();
-      if (firstRect.width > 0 || firstRect.height > 0) {
-        tooltipX = firstRect.right;
-        tooltipY = firstRect.top;
-      }
+    }
+
+    frameRect = buildUnionRectFromRange(range);
+    if (frameRect) {
+      tooltipX = frameRect.left + frameRect.width;
+      tooltipY = frameRect.top;
     }
 
     if (tooltipX === null || tooltipY === null) {
@@ -460,17 +495,40 @@ export function SolutionPanel({
         hideSelectionTooltip();
         return;
       }
+      frameRect = inflateRect(rect);
       tooltipX = rect.right;
       tooltipY = rect.top;
     }
 
-    setTooltipPos({ x: tooltipX, y: tooltipY });
+    if (!frameRect) {
+      hideSelectionTooltip();
+      return;
+    }
+
+    const placement: 'above' | 'below' = tooltipY > 20 ? 'above' : 'below';
+    const finalY = placement === 'above'
+      ? frameRect.top
+      : frameRect.top + frameRect.height;
+
+    setSelectionFrame(frameRect);
+    setTooltipPos({ x: tooltipX, y: finalY, placement });
     setPendingSelection({ id: createSelectionId(), text: rawSelection, blockIndex: anchorBlockIndex });
+
+    // Keep only the custom frame UI; remove native browser text highlight.
+    skipSelectionCollapseRef.current = true;
+    requestAnimationFrame(() => {
+      window.getSelection()?.removeAllRanges();
+      requestAnimationFrame(() => {
+        skipSelectionCollapseRef.current = false;
+      });
+    });
   }, [
+    buildUnionRectFromRange,
     createSelectionId,
     getClosestSolutionBlock,
     getIntersectingBlocks,
     hideSelectionTooltip,
+    inflateRect,
     isStreaming,
     isRangeInsideSolution,
     normalizeSelectionText,
@@ -497,6 +555,26 @@ export function SolutionPanel({
       hideSelectionTooltip();
     }
   }, [hideSelectionTooltip, isStreaming]);
+
+  useEffect(() => {
+    function handleSelectionChange() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        if (skipSelectionCollapseRef.current && pendingSelection) return;
+        hideSelectionTooltip();
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!isRangeInsideSolution(range)) {
+        hideSelectionTooltip();
+      }
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [hideSelectionTooltip, isRangeInsideSolution, pendingSelection]);
 
   // ---------------------------------------------------------------------------
   // Action handlers
@@ -764,6 +842,25 @@ export function SolutionPanel({
       </div>
 
       {/* Selection tooltip — 2 buttons: Add to chat + Subchat */}
+      {selectionFrame && typeof document !== 'undefined' && createPortal(
+        <div
+          id="selection-frame"
+          aria-hidden="true"
+          className="fixed pointer-events-none rounded-xl border"
+          style={{
+            left: selectionFrame.left,
+            top: selectionFrame.top,
+            width: selectionFrame.width,
+            height: selectionFrame.height,
+            borderColor: 'rgba(251, 146, 60, 0.75)',
+            background: 'rgba(249, 115, 22, 0.10)',
+            boxShadow: 'inset 0 0 0 1px rgba(251,146,60,0.25), 0 0 0 1px rgba(249,115,22,0.35)',
+            zIndex: 2147483644,
+          }}
+        />,
+        document.body,
+      )}
+
       {tooltipPos && pendingSelection && typeof document !== 'undefined' && createPortal(
         <div
           id="selection-tooltip"
@@ -771,11 +868,13 @@ export function SolutionPanel({
           style={{
             left: tooltipPos.x,
             top: tooltipPos.y,
-            transform: 'translate(-100%, -50%)',
+            transform: tooltipPos.placement === 'above'
+              ? 'translate(-100%, -100%)'
+              : 'translate(-100%, 0%)',
             zIndex: 2147483646,
           }}
         >
-          <div className="flex items-center gap-0.5 rounded-xl bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40 border border-white/10 p-[3px]">
+          <div className="flex items-center gap-0.5 rounded-xl bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/45 border border-orange-400/40 p-[3px]">
             <button
               onPointerDown={(e) => {
                 e.preventDefault();
@@ -790,7 +889,7 @@ export function SolutionPanel({
                 e.stopPropagation();
                 handleAddToChat();
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-orange-500/15 text-white/70 hover:text-orange-300 text-[11px] font-medium transition-all whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-orange-500/18 text-orange-100/80 hover:text-orange-200 text-[11px] font-medium transition-all whitespace-nowrap"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -799,7 +898,7 @@ export function SolutionPanel({
             </button>
             {pendingSelection.blockIndex >= 0 && (
               <>
-                <div className="w-px h-4 bg-white/10" />
+                <div className="w-px h-4 bg-orange-300/25" />
                 <button
                   onPointerDown={(e) => {
                     e.preventDefault();
@@ -818,7 +917,7 @@ export function SolutionPanel({
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
                     creatingSubchatBlock === pendingSelection.blockIndex
                       ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                      : 'hover:bg-orange-500/15 text-white/70 hover:text-orange-300'
+                      : 'hover:bg-orange-500/18 text-orange-100/80 hover:text-orange-200'
                   }`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
