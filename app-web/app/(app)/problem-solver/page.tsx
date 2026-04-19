@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProblemUploadZone } from './_components/ProblemUploadZone';
 import { SessionCard, type ProblemSession } from './_components/SessionCard';
+import { useProjectName } from '@/lib/use-project-name';
 
 export default function ProblemSolverPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams?.get('projectId')?.trim() || null;
   const isProjectMode = !!projectId;
+  const projectName = useProjectName(projectId);
 
   const [sessions, setSessions] = useState<ProblemSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +80,21 @@ export default function ProblemSolverPage() {
             </svg>
           </button>
         )}
-        <h1 className="text-xl font-semibold">Problem Solver</h1>
+        <h1 className="text-xl font-semibold flex items-center gap-2 min-w-0">
+          {isProjectMode && projectName && (
+            <>
+              <button
+                onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
+                className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
+                title={`Go to project "${projectName}"`}
+              >
+                {projectName}
+              </button>
+              <span className="text-white/25 shrink-0">/</span>
+            </>
+          )}
+          <span className="truncate">Problem Solver</span>
+        </h1>
       </div>
 
       {/* Body */}

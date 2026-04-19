@@ -353,6 +353,19 @@ export function DocumentCreationBar({
   const canSubmit     = prompt.trim().length > 0 && !isLoading;
   const specsActive   = specsApplied || openPanel === 'specs';
   const displayError = resumeError ?? error;
+  const allTemplatesHref = (() => {
+    if (!pathname.startsWith('/cheat-sheets')) return '/templates';
+    const back = currentReturnUrl(pathname || '/cheat-sheets');
+    try {
+      const projectId = new URL(back, 'http://localhost').searchParams.get('projectId')?.trim();
+      if (projectId) {
+        return `/templates?from=cheatsheets&projectId=${encodeURIComponent(projectId)}&back=${encodeURIComponent(back)}`;
+      }
+    } catch {
+      // fall through
+    }
+    return `/templates?from=cheatsheets&back=${encodeURIComponent(back)}`;
+  })();
 
   // Portal popovers
   const templatePopover = openPanel === 'template' && popoverPos && typeof window !== 'undefined'
@@ -410,7 +423,7 @@ export function DocumentCreationBar({
           </div>
           {pathname !== '/templates' && (
             <button
-              onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push('/templates'); }}
+              onClick={() => { setOpenPanel(null); setPopoverPos(null); router.push(allTemplatesHref); }}
               className="mt-2 w-full text-center text-xs text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               View all templates →

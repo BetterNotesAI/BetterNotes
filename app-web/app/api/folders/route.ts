@@ -65,11 +65,20 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { name, color } = body as { name?: string; color?: string };
+  const { name, color, description } = body as {
+    name?: string;
+    color?: string;
+    description?: string;
+  };
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
+
+  const cleanedDescription =
+    typeof description === 'string' && description.trim().length > 0
+      ? description.trim()
+      : null;
 
   const { data: folder, error } = await supabase
     .from('folders')
@@ -77,8 +86,9 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       name: name.trim(),
       color: color?.trim() || null,
+      description: cleanedDescription,
     })
-    .select('id, name, color, is_starred, created_at')
+    .select('id, name, color, description, is_starred, created_at')
     .single();
 
   if (error) {

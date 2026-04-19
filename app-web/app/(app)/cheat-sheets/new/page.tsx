@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCreationBar, type CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
+import { useProjectName } from '@/lib/use-project-name';
 import {
   CHEAT_SHEET_DEFAULT_TEMPLATE_ID,
   CHEAT_SHEET_FEATURED_TEMPLATE_IDS,
@@ -26,12 +27,19 @@ export default function NewCheatSheetPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams?.get('projectId')?.trim() || null;
+  const projectName = useProjectName(projectId);
   const barRef = useRef<HTMLDivElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(CHEAT_SHEET_DEFAULT_TEMPLATE_ID);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [pdfPreviewId, setPdfPreviewId] = useState<CheatSheetTemplateId | null>(null);
   const backHref = projectId ? `/projects/${encodeURIComponent(projectId)}` : '/cheat-sheets';
+  const templatesBackHref = projectId
+    ? `/cheat-sheets/new?projectId=${encodeURIComponent(projectId)}`
+    : '/cheat-sheets/new';
+  const templatesHref = projectId
+    ? `/templates?from=cheatsheets&projectId=${encodeURIComponent(projectId)}&back=${encodeURIComponent(templatesBackHref)}`
+    : `/templates?from=cheatsheets&back=${encodeURIComponent(templatesBackHref)}`;
 
   useEffect(() => {
     const saved = localStorage.getItem(TEMPLATE_STORAGE_KEY) ?? localStorage.getItem('lastTemplateId');
@@ -166,7 +174,21 @@ export default function NewCheatSheetPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-lg font-semibold truncate">New Cheat Sheet</h1>
+            <h1 className="text-lg font-semibold truncate flex items-center gap-2 min-w-0">
+              {projectName && (
+                <>
+                  <button
+                    onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
+                    className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
+                    title={`Go to project "${projectName}"`}
+                  >
+                    {projectName}
+                  </button>
+                  <span className="text-white/25 shrink-0">/</span>
+                </>
+              )}
+              <span className="truncate">New Cheat Sheet</span>
+            </h1>
           </div>
           <button
             onClick={() => router.push(backHref)}
@@ -205,7 +227,7 @@ export default function NewCheatSheetPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-white/60">Popular templates</h3>
                 <button
-                  onClick={() => router.push('/templates')}
+                  onClick={() => router.push(templatesHref)}
                   className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
                   View all

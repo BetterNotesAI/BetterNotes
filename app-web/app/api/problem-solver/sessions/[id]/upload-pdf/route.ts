@@ -100,6 +100,22 @@ export async function POST(
     const parsed = await pdfParse(buffer);
     pdfText = parsed.text ?? '';
 
+    // If extraction yields only whitespace, the session cannot be solved.
+    if (!pdfText.trim()) {
+      await supabase
+        .from('problem_solver_sessions')
+        .update({ status: 'error', pdf_text: null })
+        .eq('id', sessionId);
+
+      return NextResponse.json(
+        {
+          error: 'No readable text could be extracted from this PDF. Please upload a text-based PDF or run OCR first.',
+          pdf_path: storagePath,
+        },
+        { status: 422 },
+      );
+    }
+
     if (pdfText.length > PDF_TEXT_MAX_CHARS) {
       pdfText =
         pdfText.slice(0, PDF_TEXT_MAX_CHARS) +

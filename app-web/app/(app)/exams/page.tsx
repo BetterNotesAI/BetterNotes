@@ -10,6 +10,7 @@ import ExamResults from './_components/ExamResults';
 import ExamStats, { type ExamStatsHandle } from './_components/ExamStats';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
+import { useProjectName } from '@/lib/use-project-name';
 import {
   consumePendingGenerationIntent,
   savePendingGenerationIntent,
@@ -139,6 +140,7 @@ export default function ExamsPage() {
   const router = useRouter();
   const projectId = searchParams?.get('projectId')?.trim() || null;
   const isProjectMode = !!projectId;
+  const projectName = useProjectName(projectId);
   const [isGuest, setIsGuest] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [showGuestModal, setShowGuestModal] = useState(false);
@@ -457,7 +459,21 @@ export default function ExamsPage() {
                 </svg>
               </button>
             )}
-            <h1 className="text-xl font-semibold">Exams</h1>
+            <h1 className="text-xl font-semibold flex items-center gap-2 min-w-0">
+              {isProjectMode && projectName && (
+                <>
+                  <button
+                    onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
+                    className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
+                    title={`Go to project "${projectName}"`}
+                  >
+                    {projectName}
+                  </button>
+                  <span className="text-white/25 shrink-0">/</span>
+                </>
+              )}
+              <span className="truncate">Exams</span>
+            </h1>
 
             {/* Tab menu — only visible on setup screen */}
             {state.screen === 'setup' && (

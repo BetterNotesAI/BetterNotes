@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
@@ -17,6 +17,17 @@ interface Template {
 }
 
 type TemplateFilter = 'all' | 'CheatSheets' | 'Lecture Notes' | 'Reports' | 'favorites';
+
+function extractProjectIdFromBackHref(backHref: string): string | null {
+  if (!backHref.startsWith('/')) return null;
+  try {
+    const parsed = new URL(backHref, 'http://localhost');
+    const id = parsed.searchParams.get('projectId')?.trim();
+    return id || null;
+  } catch {
+    return null;
+  }
+}
 
 // All available templates. The home page and DocumentCreationBar only show the
 // 4 most popular ones; this page shows all of them.
@@ -133,6 +144,13 @@ const TEMPLATES: Template[] = [
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isCheatSheetsContext = searchParams?.get('from') === 'cheatsheets';
+  const rawBackHref = searchParams?.get('back')?.trim() ?? '';
+  const backHref = rawBackHref.startsWith('/') ? rawBackHref : '/cheat-sheets/new';
+  const explicitProjectId = searchParams?.get('projectId')?.trim() ?? '';
+  const inferredProjectId = extractProjectIdFromBackHref(backHref);
+  const projectId = explicitProjectId || inferredProjectId;
   const [activeTemplateId, setActiveTemplateId] = useState<string>('');
   const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all');
   const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
@@ -168,11 +186,19 @@ export default function TemplatesPage() {
     });
   }
 
-  const visibleTemplates = TEMPLATES.filter((template) => {
+  const visibleTemplates = useMemo(() => TEMPLATES.filter((template) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'favorites') return favoriteTemplateIds.includes(template.id);
     return template.category === activeFilter;
-  });
+  }), [activeFilter, favoriteTemplateIds]);
+  const cheatSheetTemplates = useMemo(
+    () => TEMPLATES.filter((template) => template.category === 'CheatSheets'),
+    []
+  );
+  const nonCheatSheetTemplates = useMemo(
+    () => TEMPLATES.filter((template) => template.category !== 'CheatSheets'),
+    []
+  );
 
   async function handleCreate(data: CreateDocumentInput) {
     setIsCreating(true);
@@ -190,11 +216,18 @@ export default function TemplatesPage() {
       const resp = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: data.templateId, prompt: data.prompt, attachments: uploadedAttachments }),
+        body: JSON.stringify({
+          template_id: data.templateId,
+          prompt: data.prompt,
+          ...(projectId ? { folder_id: projectId } : {}),
+          attachments: uploadedAttachments,
+        }),
       });
       const docData = await resp.json().catch(() => ({}));
       if (!resp.ok) { setCreateError(docData?.error ?? 'Failed to create document'); return; }
-      router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
+      const query = new URLSearchParams({ prompt: data.prompt });
+      if (projectId) query.set('projectId', projectId);
+      router.push(`/documents/${docData.document.id}?${query.toString()}`);
     } catch {
       setCreateError('Something went wrong. Please try again.');
     } finally {
@@ -202,176 +235,210 @@ export default function TemplatesPage() {
     }
   }
 
+  function renderTemplateCards(templates: Template[]) {
+    return templates.map(template => {
+      const isSelected = !!activeTemplateId && activeTemplateId === template.id;
+      const isFavorite = favoriteTemplateIds.includes(template.id);
+      return (
+      <div
+        key={template.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          setActiveTemplateId(template.id);
+          localStorage.setItem('lastTemplateId', template.id);
+          setModalOpen(true);
+          setCreateError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setActiveTemplateId(template.id);
+            localStorage.setItem('lastTemplateId', template.id);
+            setModalOpen(true);
+            setCreateError(null);
+          }
+        }}
+        className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
+          backdrop-blur p-4 text-left transition-all duration-200 cursor-pointer
+          hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+        style={{
+          borderColor: isSelected ? template.accent + 'cc' : 'rgba(255,255,255,0.15)',
+          boxShadow: isSelected ? `0 0 0 1px ${template.accent}66, 0 4px_24px rgba(0,0,0,0.3)` : undefined,
+        }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFavorite(template.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+          }}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${
+            isFavorite
+              ? 'bg-amber-400/25 border-amber-300/45 text-amber-200'
+              : 'bg-black/35 border-white/20 text-white/50 hover:text-amber-200 hover:border-amber-300/45'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321 1.01l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.386a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0l-4.725 2.886a.562.562 0 01-.84-.611l1.285-5.386a.563.563 0 00-.182-.557L2.04 9.407a.562.562 0 01.321-1.01l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+          </svg>
+        </button>
+
+        {isSelected && (
+          <div
+            className="absolute top-3 left-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+            style={{ background: template.accent }}
+          >
+            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        )}
+
+        <div
+          className="relative aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
+            border bg-black/20 group-hover:border-white/15 transition-colors"
+          style={{
+            borderColor: isSelected ? template.accent + '55' : 'rgba(255,255,255,0.08)',
+            background: `linear-gradient(135deg, ${template.accent}12, transparent)`,
+          }}
+        >
+          <div className="w-full h-full p-3 scale-100 group-hover:scale-[1.03] transition-transform duration-300">
+            {template.schematic}
+          </div>
+          <Image
+            src={getTemplateThumbnailSrc(template.id)}
+            alt={template.displayName}
+            fill
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <span className="text-sm font-semibold text-white/90 leading-snug">{template.displayName}</span>
+          {template.isPro && (
+            <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-md
+              bg-yellow-400/15 border border-yellow-400/30 text-yellow-300/90">
+              Pro
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
+
+        <div className="mt-2.5 flex items-center justify-between">
+          <span
+            className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
+            style={{ background: `${template.accent}22`, color: template.accent }}
+          >
+            {template.category}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPdfPreviewId(template.id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+            }}
+            title="Preview sample PDF"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/20
+              bg-white/8 text-white/75 hover:text-white hover:bg-white/12 hover:border-white/30
+              transition-colors text-[11px] font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Preview</span>
+          </button>
+        </div>
+      </div>
+      );
+    });
+  }
+
   return (
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
-      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
-        <h1 className="text-xl font-semibold">Templates</h1>
+      <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0 gap-2.5">
+        {isCheatSheetsContext && (
+          <button
+            onClick={() => router.push(backHref)}
+            className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
+            title="Back"
+            aria-label="Back"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
+        <h1 className="text-xl font-semibold">
+          {isCheatSheetsContext ? 'Cheat Sheet Templates' : 'Templates'}
+        </h1>
       </div>
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-8">
           <p className="text-sm text-white/50 mb-6">
-            Choose a starting point for your document. All templates are AI-filled based on your description.
+            {isCheatSheetsContext
+              ? 'Choose a starting point for your cheat sheet. You can still switch to another format below.'
+              : 'Choose a starting point for your document. All templates are AI-filled based on your description.'}
           </p>
-          <div className="mb-5 flex flex-wrap gap-2">
-            {([
-              { id: 'all', label: 'All' },
-              { id: 'CheatSheets', label: 'CheatSheets' },
-              { id: 'Lecture Notes', label: 'Lecture Notes' },
-              { id: 'Reports', label: 'Reports' },
-              { id: 'favorites', label: 'Favorites' },
-            ] as Array<{ id: TemplateFilter; label: string }>).map((filter) => {
-              const isActive = activeFilter === filter.id;
-              return (
-                <button
-                  key={filter.id}
-                  onClick={() => setActiveFilter(filter.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
-                    isActive
-                      ? 'bg-indigo-500/20 border-indigo-500/45 text-indigo-200'
-                      : 'bg-white/5 border-white/12 text-white/55 hover:bg-white/10 hover:text-white/75'
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {visibleTemplates.map(template => {
-              const isSelected = !!activeTemplateId && activeTemplateId === template.id;
-              const isFavorite = favoriteTemplateIds.includes(template.id);
-              return (
-              <div
-                key={template.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  setActiveTemplateId(template.id);
-                  localStorage.setItem('lastTemplateId', template.id);
-                  setModalOpen(true);
-                  setCreateError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    setActiveTemplateId(template.id);
-                    localStorage.setItem('lastTemplateId', template.id);
-                    setModalOpen(true);
-                    setCreateError(null);
-                  }
-                }}
-                className="group relative rounded-2xl border bg-white/[0.04] hover:bg-white/[0.08]
-                  backdrop-blur p-4 text-left transition-all duration-200 cursor-pointer
-                  hover:shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
-                style={{
-                  borderColor: isSelected ? template.accent + 'cc' : 'rgba(255,255,255,0.15)',
-                  boxShadow: isSelected ? `0 0 0 1px ${template.accent}66, 0 4px_24px rgba(0,0,0,0.3)` : undefined,
-                }}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleFavorite(template.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-                  }}
-                  title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                  aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                  className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${
-                    isFavorite
-                      ? 'bg-amber-400/25 border-amber-300/45 text-amber-200'
-                      : 'bg-black/35 border-white/20 text-white/50 hover:text-amber-200 hover:border-amber-300/45'
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321 1.01l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.386a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0l-4.725 2.886a.562.562 0 01-.84-.611l1.285-5.386a.563.563 0 00-.182-.557L2.04 9.407a.562.562 0 01.321-1.01l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                  </svg>
-                </button>
-
-                {/* Selected check */}
-                {isSelected && (
-                  <div
-                    className="absolute top-3 left-3 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
-                    style={{ background: template.accent }}
-                  >
-                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Schematic preview */}
-                <div
-                  className="relative aspect-[4/3] rounded-xl mb-3 overflow-hidden flex items-center justify-center
-                    border bg-black/20 group-hover:border-white/15 transition-colors"
-                  style={{
-                    borderColor: isSelected ? template.accent + '55' : 'rgba(255,255,255,0.08)',
-                    background: `linear-gradient(135deg, ${template.accent}12, transparent)`,
-                  }}
-                >
-                  <div className="w-full h-full p-3 scale-100 group-hover:scale-[1.03] transition-transform duration-300">
-                    {template.schematic}
-                  </div>
-                  <Image
-                    src={getTemplateThumbnailSrc(template.id)}
-                    alt={template.displayName}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
-                  />
-                </div>
-
-                {/* Info */}
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="text-sm font-semibold text-white/90 leading-snug">{template.displayName}</span>
-                  {template.isPro && (
-                    <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-md
-                      bg-yellow-400/15 border border-yellow-400/30 text-yellow-300/90">
-                      Pro
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-white/45 leading-relaxed line-clamp-2">{template.description}</p>
-
-                {/* Category pill + preview button */}
-                <div className="mt-2.5 flex items-center justify-between">
-                  <span
-                    className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ background: `${template.accent}22`, color: template.accent }}
-                  >
-                    {template.category}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPdfPreviewId(template.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-                    }}
-                    title="Preview sample PDF"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/20
-                      bg-white/8 text-white/75 hover:text-white hover:bg-white/12 hover:border-white/30
-                      transition-colors text-[11px] font-medium"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>Preview</span>
-                  </button>
-                </div>
+          {isCheatSheetsContext ? (
+            <>
+              <div className="mb-3 text-xs uppercase tracking-wide text-white/35">CheatSheets</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {renderTemplateCards(cheatSheetTemplates)}
               </div>
-              );
-            })}
-          </div>
-          {visibleTemplates.length === 0 && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/50">
-              No templates match this filter yet.
-            </div>
+
+              <div className="mt-10 mb-3 text-xs uppercase tracking-wide text-white/35">
+                Do you want to generate another format?
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {renderTemplateCards(nonCheatSheetTemplates)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-5 flex flex-wrap gap-2">
+                {([
+                  { id: 'all', label: 'All' },
+                  { id: 'CheatSheets', label: 'CheatSheets' },
+                  { id: 'Lecture Notes', label: 'Lecture Notes' },
+                  { id: 'Reports', label: 'Reports' },
+                  { id: 'favorites', label: 'Favorites' },
+                ] as Array<{ id: TemplateFilter; label: string }>).map((filter) => {
+                  const isActive = activeFilter === filter.id;
+                  return (
+                    <button
+                      key={filter.id}
+                      onClick={() => setActiveFilter(filter.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                        isActive
+                          ? 'bg-indigo-500/20 border-indigo-500/45 text-indigo-200'
+                          : 'bg-white/5 border-white/12 text-white/55 hover:bg-white/10 hover:text-white/75'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {renderTemplateCards(visibleTemplates)}
+              </div>
+              {visibleTemplates.length === 0 && (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/50">
+                  No templates match this filter yet.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
