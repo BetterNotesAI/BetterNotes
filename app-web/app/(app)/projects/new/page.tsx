@@ -192,7 +192,7 @@ export default function NewProjectPage() {
                     : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <span className="w-2.5 h-2.5 rounded-full bg-white/45" />
+                <span className="w-2 h-2 rounded-full bg-white/45" />
                 Default
               </button>
 
@@ -205,7 +205,7 @@ export default function NewProjectPage() {
                     onClick={() => setLabelColor(option.value)}
                     aria-label={`Set label color to ${option.label}`}
                     aria-pressed={isSelected}
-                    className={`relative inline-flex items-center justify-center w-8 h-8 rounded-full border transition-all ${
+                    className={`relative inline-flex items-center justify-center w-6 h-6 rounded-full border transition-all ${
                       isSelected
                         ? 'border-white/70 shadow-[0_0_0_2px_rgba(99,102,241,0.45)]'
                         : 'border-white/20 hover:border-white/45'
@@ -214,7 +214,7 @@ export default function NewProjectPage() {
                     title={option.label}
                   >
                     {isSelected && (
-                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.8}>
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.6}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     )}

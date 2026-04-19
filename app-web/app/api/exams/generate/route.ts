@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
+import { inferFolderIdFromRequest } from '@/lib/request-project-context';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -64,7 +65,9 @@ export async function POST(req: NextRequest) {
     custom_instructions?: string;
     folder_id?: string | null;
   };
-  const folderId = typeof folder_id === 'string' && folder_id.trim().length > 0 ? folder_id.trim() : null;
+  const requestedFolderId = typeof folder_id === 'string' && folder_id.trim().length > 0 ? folder_id.trim() : null;
+  const inferredFolderId = inferFolderIdFromRequest(req);
+  const folderId = requestedFolderId ?? inferredFolderId;
 
   const hasDocuments =
     (Array.isArray(document_ids) && document_ids.length > 0) ||

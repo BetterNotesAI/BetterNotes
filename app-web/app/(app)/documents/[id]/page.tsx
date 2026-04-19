@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PdfViewer } from '../_components/PdfViewer';
-import { ChatPanel } from '../_components/ChatPanel';
+import { ChatPanel, type ChatMessage } from '../_components/ChatPanel';
 import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
@@ -329,6 +329,11 @@ export default function DocumentWorkspacePage() {
     documentId,
     onNewVersion: handleNewVersion,
   });
+  const [optimisticDraftMessages, setOptimisticDraftMessages] = useState<ChatMessage[]>([]);
+  const visibleMessages = useMemo(
+    () => [...messages, ...optimisticDraftMessages],
+    [messages, optimisticDraftMessages],
+  );
 
   const isDraft = docData?.status === 'draft';
   const isDocumentGenerating = isGenerating || docData?.status === 'generating';
@@ -417,13 +422,25 @@ export default function DocumentWorkspacePage() {
 
     if (isDraft) {
       // First generation
+      const optimisticId = `draft-temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setOptimisticDraftMessages((prev) => [
+        ...prev,
+        {
+          id: optimisticId,
+          role: 'user',
+          content,
+          created_at: new Date().toISOString(),
+        },
+      ]);
       try {
         const result = await generate(content);
         if (result && 'pdfSignedUrl' in result && result.pdfSignedUrl) {
           setCurrentPdfUrl(result.pdfSignedUrl);
         }
         await Promise.all([reloadDocument(), reloadMessages()]);
+        setOptimisticDraftMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
       } catch (err: unknown) {
+        setOptimisticDraftMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
         if (isAuthRequiredError(err)) {
           openAuthForGeneration(content);
         } else if (isGuestLimitError(err)) {
@@ -1112,7 +1129,7 @@ export default function DocumentWorkspacePage() {
               <WorkspaceAttachmentsPanel documentId={documentId} />
               <div className="flex-1 min-h-0 overflow-hidden">
                 <ChatPanel
-                  messages={messages}
+                  messages={visibleMessages}
                   isLoading={showGenerating}
                   isDraft={isDraft}
                   onSend={handleSend}
@@ -1138,12 +1155,14 @@ export default function DocumentWorkspacePage() {
               </div>
             </>
           ) : (
-            /* Non-owner: invite them to fork before chatting */
             <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-5">
               <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center">
                 <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5"
+                  />
                 </svg>
               </div>
               <div className="space-y-1.5">
@@ -1167,8 +1186,11 @@ export default function DocumentWorkspacePage() {
                   text-indigo-300 text-sm font-medium hover:bg-indigo-500/30 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5"
+                  />
                 </svg>
                 Fork &amp; Chat
               </button>
