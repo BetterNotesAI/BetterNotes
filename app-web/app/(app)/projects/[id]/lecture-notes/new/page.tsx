@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { DocumentCreationBar, type CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
+import { useProjectName } from '@/lib/use-project-name';
 
 const TEMPLATE_ID = 'lecture_notes';
 
@@ -19,6 +20,7 @@ export default function NewProjectLectureNotesPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const projectId = params?.id ?? '';
+  const projectName = useProjectName(projectId || null);
   const barRef = useRef<HTMLDivElement>(null);
 
   const [isCreating, setIsCreating] = useState(false);
@@ -122,7 +124,21 @@ export default function NewProjectLectureNotesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold truncate">New Extended Lecture Notes</h1>
+          <h1 className="text-lg font-semibold truncate flex items-center gap-2 min-w-0">
+            {projectName && (
+              <>
+                <button
+                  onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}`)}
+                  className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
+                  title={`Go to project "${projectName}"`}
+                >
+                  {projectName}
+                </button>
+                <span className="text-white/25 shrink-0">/</span>
+              </>
+            )}
+            <span className="truncate">New Extended Lecture Notes</span>
+          </h1>
         </div>
         <button
           onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}`)}

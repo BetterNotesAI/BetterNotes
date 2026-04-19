@@ -17,7 +17,7 @@ export async function GET(
 
   const { data: folder, error } = await supabase
     .from('folders')
-    .select('id, name, color, is_starred, archived_at, created_at, updated_at')
+    .select('id, name, color, description, is_starred, archived_at, created_at, updated_at')
     .eq('id', folderId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -47,9 +47,10 @@ export async function PATCH(
 
   const { id: folderId } = await params;
   const body = await req.json().catch(() => ({}));
-  const { name, color, is_starred, archived_at } = body as {
+  const { name, color, description, is_starred, archived_at } = body as {
     name?: string;
     color?: string;
+    description?: string | null;
     is_starred?: boolean;
     archived_at?: string | null;
   };
@@ -61,6 +62,12 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name.trim();
   if (color !== undefined) updates.color = color?.trim() || null;
+  if (description !== undefined) {
+    updates.description =
+      typeof description === 'string' && description.trim().length > 0
+        ? description.trim()
+        : null;
+  }
   if (is_starred !== undefined) updates.is_starred = Boolean(is_starred);
   if (archived_at !== undefined) updates.archived_at = archived_at ?? null;
 

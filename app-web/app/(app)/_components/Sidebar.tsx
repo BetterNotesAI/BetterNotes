@@ -117,7 +117,6 @@ export function Sidebar() {
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   const newFolderInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -342,24 +341,10 @@ export function Sidebar() {
     router.push('/documents');
   }
 
-  async function handleCreateProject() {
-    if (isCreatingProject) return;
-    setIsCreatingProject(true);
-    try {
-      const res = await fetch('/api/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New Project' }),
-      });
-      if (!res.ok) return;
-      const data = (await res.json().catch(() => ({}))) as { folder?: { id?: string } };
-      const projectId = data.folder?.id;
-      if (!projectId) return;
-      window.dispatchEvent(new Event('folders:updated'));
-      router.push(`/projects/${projectId}`);
-    } finally {
-      setIsCreatingProject(false);
-    }
+  function handleCreateProject() {
+    // Navigate to the setup page; the folder is created only when the user
+    // fills in the form and clicks Continue (see app/(app)/projects/new/page.tsx).
+    router.push('/projects/new');
   }
 
   // ── Folder CRUD ─────────────────────────────────────────────
@@ -542,7 +527,6 @@ export function Sidebar() {
           {/* New Project CTA */}
           <button
             onClick={handleCreateProject}
-            disabled={isCreatingProject}
             title={collapsed ? 'New Project' : undefined}
             className={`w-full flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
               bg-gradient-to-r from-[#b04cff] via-[#7d5cff] to-[#3d7dff] hover:from-[#c06bff] hover:via-[#8a6fff] hover:to-[#5290ff]
@@ -550,15 +534,8 @@ export function Sidebar() {
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             }`}
           >
-            {isCreatingProject ? (
-              <svg className="w-4 h-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            ) : (
-              <PlusIcon className="w-4 h-4 shrink-0" />
-            )}
-            {!collapsed && <span className="text-sm truncate">{isCreatingProject ? 'Creating...' : 'New Project'}</span>}
+            <PlusIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">New Project</span>}
           </button>
 
           {/* Home */}
@@ -635,11 +612,11 @@ export function Sidebar() {
             collapsed={collapsed}
           />
 
-          {/* All Documents */}
+          {/* All Projects */}
           {collapsed ? (
             <Link
               href="/documents"
-              title="All Documents"
+              title="All Projects"
               className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
                   ? activeNavClass
@@ -675,7 +652,7 @@ export function Sidebar() {
                   className="flex items-center gap-3 flex-1 min-w-0 text-left"
                 >
                   <DocumentsIcon className="w-4 h-4 shrink-0" />
-                  <span className="text-sm truncate">All Documents</span>
+                  <span className="text-sm truncate">All Projects</span>
                 </button>
                 <button
                   onClick={() => setDocsExpanded(e => !e)}

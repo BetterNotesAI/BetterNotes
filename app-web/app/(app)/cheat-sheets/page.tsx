@@ -172,6 +172,7 @@ export default function CheatSheetsPage() {
   }
 
   const recentDocs = documents.slice(0, 5);
+  const templatesHref = `/templates?from=cheatsheets&back=${encodeURIComponent('/cheat-sheets')}`;
 
   return (
     <>
@@ -210,7 +211,7 @@ export default function CheatSheetsPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-white/60">Popular templates</h3>
                 <button
-                  onClick={() => router.push('/templates')}
+                  onClick={() => router.push(templatesHref)}
                   className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
                   View all
