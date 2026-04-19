@@ -30,6 +30,29 @@ interface PendingProblemSolvePayload {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function normalizeSolveError(message: string): string {
+  const trimmed = message.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (
+    lower.includes('no readable text')
+    || lower.includes('pdf text not extracted')
+    || lower.includes('pdftext is required')
+  ) {
+    return 'No readable text was extracted from this PDF. It is likely image-only/scanned. Upload a text PDF or run OCR first.';
+  }
+  if (lower.includes('limit_reached')) {
+    return 'You have reached your credit limit for now. Please wait or upgrade your plan.';
+  }
+  if (lower.includes('all providers failed')) {
+    return 'The AI providers failed to respond to this problem. Please try again in a moment.';
+  }
+  if (!trimmed) {
+    return 'Something went wrong while solving.';
+  }
+  return trimmed.length > 220 ? `${trimmed.slice(0, 220).trimEnd()}...` : trimmed;
+}
+
 function StatusBadge({ status }: { status: SessionStatus }) {
   const map: Record<SessionStatus, { label: string; classes: string; dot: string }> = {
     pending: {
@@ -96,6 +119,7 @@ export default function ProblemSessionPage() {
   // Solution streaming
   const [streamedMd, setStreamedMd] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [solveError, setSolveError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Title editing
@@ -194,9 +218,14 @@ export default function ProblemSessionPage() {
           throw new Error(data.error ?? 'Failed to load session');
         }
         const data = await res.json();
-        const s: ProblemSession = data.session;
+        const s = data.session as ProblemSession & { pdf_text?: string | null };
         setSession(s);
         setTitleDraft(s.title);
+        if (s.status === 'error' && (!s.pdf_text || !s.pdf_text.trim())) {
+          setSolveError(normalizeSolveError('No readable text was extracted from this PDF.'));
+        } else {
+          setSolveError(null);
+        }
         if (s.solution_md) setStreamedMd(s.solution_md);
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : 'Unknown error');
@@ -261,6 +290,7 @@ export default function ProblemSessionPage() {
     abortRef.current = ctrl;
 
     setIsStreaming(true);
+    setSolveError(null);
     setStreamedMd('');
     setSession((prev) => prev ? { ...prev, status: 'solving' } : prev);
 
@@ -285,7 +315,7 @@ export default function ProblemSessionPage() {
           openAuthForSolve(providerToUse);
           return;
         }
-        throw new Error(data.error ?? 'Solve request failed');
+        throw new Error(data.error ?? `Solve request failed (${res.status})`);
       }
 
       // Read SSE stream
@@ -310,12 +340,14 @@ export default function ProblemSessionPage() {
               const parsed = JSON.parse(payload) as Record<string, unknown>;
               if (parsed.done === true) {
                 setIsStreaming(false);
+                setSolveError(null);
                 setSession((prev) => prev ? { ...prev, status: 'done' } : prev);
                 return;
               } else if (typeof parsed.chunk === 'string') {
                 setStreamedMd((prev) => (prev ?? '') + parsed.chunk);
               } else if (typeof parsed.error === 'string') {
                 setIsStreaming(false);
+                setSolveError(normalizeSolveError(parsed.error));
                 setSession((prev) => prev ? { ...prev, status: 'error' } : prev);
                 return;
               }
@@ -327,6 +359,7 @@ export default function ProblemSessionPage() {
       }
 
       setIsStreaming(false);
+      setSolveError(null);
       setSession((prev) => prev ? { ...prev, status: 'done' } : prev);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -342,6 +375,7 @@ export default function ProblemSessionPage() {
         return;
       }
       setIsStreaming(false);
+      setSolveError(normalizeSolveError(err instanceof Error ? err.message : 'Solve request failed'));
       setSession((prev) => prev ? { ...prev, status: 'error' } : prev);
     }
   }, [
@@ -913,7 +947,8 @@ export default function ProblemSessionPage() {
             solutionMd={displayMd}
             status={activeStatus}
             isStreaming={isStreaming}
-            onSolve={handleSolve}
+            errorMessage={solveError}
+            onSolve={() => { void handleSolve(); }}
             selectedContexts={selectedContexts}
             onTextSelect={(context) => {
               setSelectedContexts((prev) => (

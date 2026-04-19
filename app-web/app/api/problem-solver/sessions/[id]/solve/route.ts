@@ -76,10 +76,13 @@ export async function POST(
     });
   }
 
-  // ── 3. Verify pdf_text exists ────────────────────────────────────────────────
-  if (!session.pdf_text) {
+  // ── 3. Verify pdf_text exists and is not empty ───────────────────────────────
+  const normalizedPdfText = typeof session.pdf_text === 'string' ? session.pdf_text.trim() : '';
+  if (!normalizedPdfText) {
     return new Response(
-      JSON.stringify({ error: 'PDF text not extracted yet' }),
+      JSON.stringify({
+        error: 'No readable text was extracted from this PDF. Upload a text-based PDF or run OCR first.',
+      }),
       { status: 422, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -121,7 +124,7 @@ export async function POST(
           projectId: sessionId,
         }),
         body: JSON.stringify({
-          pdfText: session.pdf_text,
+          pdfText: normalizedPdfText,
           ...(preferredProvider ? { provider: preferredProvider } : {}),
         }),
       });

@@ -241,6 +241,7 @@ interface Props {
   solutionMd: string | null;
   status: 'pending' | 'solving' | 'done' | 'error';
   isStreaming: boolean;
+  errorMessage?: string | null;
   onSolve: () => void;
   selectedContexts: Array<{ id: string; text: string }>;
   onTextSelect: (context: { id: string; text: string }) => void;
@@ -253,6 +254,7 @@ export function SolutionPanel({
   solutionMd,
   status,
   isStreaming,
+  errorMessage,
   onSolve,
   selectedContexts,
   onTextSelect,
@@ -611,6 +613,8 @@ export function SolutionPanel({
 
   const blocks = useMemo(() => (solutionMd ? markdownToBlocks(solutionMd) : null), [solutionMd]);
   const showSubchats = status === 'done' && !isStreaming;
+  const effectiveErrorMessage = (errorMessage ?? '').trim() || 'Something went wrong while solving.';
+  const extractionHint = /no readable text|pdf text not extracted|pdftext is required/i.test(effectiveErrorMessage);
 
   function renderBlocks(blockList: SolutionBlock[]) {
     return (
@@ -683,7 +687,7 @@ export function SolutionPanel({
               </p>
             </div>
             <button
-              onClick={onSolve}
+              onClick={() => onSolve()}
               className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-medium text-sm transition-colors shadow-lg shadow-orange-500/20"
             >
               Solve with AI
@@ -724,9 +728,14 @@ export function SolutionPanel({
                   d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-red-400 text-sm">Something went wrong while solving.</p>
+            <p className="text-red-400 text-sm max-w-md">{effectiveErrorMessage}</p>
+            {extractionHint && (
+              <p className="text-white/45 text-xs max-w-md">
+                Tip: if this is a scanned PDF, run OCR and upload the OCR version.
+              </p>
+            )}
             <button
-              onClick={onSolve}
+              onClick={() => onSolve()}
               className="text-xs text-white/50 hover:text-white underline"
             >
               Try again
