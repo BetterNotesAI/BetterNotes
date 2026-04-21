@@ -93,19 +93,19 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
     focusedBlockType === 'formula-block' || focusedBlockType === 'formula-inline';
 
   const btnBase =
-    'px-2 py-1 text-xs rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
-  const btnActive = 'bg-indigo-100 text-indigo-700 border border-indigo-300 hover:bg-indigo-200';
-  const btnInactive = 'text-gray-500 hover:text-gray-700 hover:bg-gray-200 border border-transparent';
+    'px-2 py-1 text-xs rounded-md transition-colors duration-150 disabled:opacity-30 disabled:cursor-not-allowed';
+  const btnActive = 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/40 hover:bg-indigo-500/35';
+  const btnInactive = 'text-white/60 hover:text-white hover:bg-white/10 border border-transparent';
 
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-100 bg-gray-50 shrink-0 flex-wrap">
+    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/10 bg-white/[0.02] shrink-0 flex-wrap">
       {/* M3.7: block type label */}
       {focusedBlockType && (
         <>
-          <span className="text-[10px] text-indigo-500 font-medium bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 mr-1">
+          <span className="text-[10px] text-indigo-200 font-medium bg-indigo-500/20 border border-indigo-400/30 rounded px-1.5 py-0.5 mr-1">
             {getBlockTypeLabel(focusedBlockType)}
           </span>
-          <div className="w-px h-4 bg-gray-200 mx-0.5" />
+          <div className="w-px h-4 bg-white/10 mx-0.5" />
         </>
       )}
 
@@ -129,7 +129,7 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
         H2
       </button>
 
-      <div className="w-px h-4 bg-gray-200 mx-0.5" />
+      <div className="w-px h-4 bg-white/10 mx-0.5" />
 
       {/* Bold */}
       <button
@@ -161,7 +161,7 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
         U
       </button>
 
-      <div className="w-px h-4 bg-gray-200 mx-0.5" />
+      <div className="w-px h-4 bg-white/10 mx-0.5" />
 
       {/* Math toggle */}
       <button
@@ -184,7 +184,7 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
       </button>
 
       {!focusedBlockType && (
-        <span className="text-[10px] text-gray-400 ml-1">Click a block to activate formatting</span>
+        <span className="text-[10px] text-white/40 ml-1">Click a block to activate formatting</span>
       )}
     </div>
   );
@@ -201,11 +201,19 @@ interface ContextMenuState {
 
 interface ContextMenuProps {
   menu: ContextMenuState;
+  onAddToEditChat: (selectedText: string) => void;
+  onAddToAskChat: (selectedText: string) => void;
   onReference: (blockId: string) => void;
   onClose: () => void;
 }
 
-function ContextMenu({ menu, onReference, onClose }: ContextMenuProps) {
+function ContextMenu({
+  menu,
+  onAddToEditChat,
+  onAddToAskChat,
+  onReference,
+  onClose,
+}: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -233,6 +241,35 @@ function ContextMenu({ menu, onReference, onClose }: ContextMenuProps) {
       <button
         className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
         onClick={() => {
+          onAddToEditChat(menu.selectedText);
+          onClose();
+        }}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h2M5 19h14a2 2 0 002-2V9.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 0015.586 4H5a2 2 0 00-2 2v11a2 2 0 002 2zm8-9l-5 5m0 0H8m0 0v-3" />
+        </svg>
+        Add to Edit chat
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 flex items-center gap-2 transition-colors"
+        onClick={() => {
+          onAddToAskChat(menu.selectedText);
+          onClose();
+        }}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        Add to Ask chat
+      </button>
+      {menu.blockId && (
+        <div className="my-1 border-t border-gray-200" />
+      )}
+      <button
+        disabled={!menu.blockId}
+        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+        onClick={() => {
+          if (!menu.blockId) return;
           onReference(menu.blockId);
           onClose();
         }}
@@ -270,6 +307,14 @@ interface LatexViewerProps {
    */
   onReferenceInChat?: (ref: BlockReference) => void;
   /**
+   * Add selected text as context for Edit chat.
+   */
+  onAddSelectionToEditChat?: (selectedText: string) => void;
+  /**
+   * Add selected text as context for Ask chat.
+   */
+  onAddSelectionToAskChat?: (selectedText: string) => void;
+  /**
    * F3-M4.5: called when "Apply" is used in the chat to replace a block.
    * Provides the current full reconstructed LaTeX so the parent can persist it.
    */
@@ -299,6 +344,8 @@ export default function LatexViewer({
   className,
   hideToolbar = false,
   onReferenceInChat,
+  onAddSelectionToEditChat,
+  onAddSelectionToAskChat,
   onLatexChange,
   applyBlockEdit,
   pendingDocumentEdit,
@@ -594,6 +641,114 @@ export default function LatexViewer({
 
   // ── M3.5: context menu state ──────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const getClosestBlockId = useCallback((node: Node | null): string => {
+    if (!node) return '';
+    const baseEl = node.nodeType === Node.ELEMENT_NODE
+      ? (node as HTMLElement)
+      : node.parentElement;
+    if (!baseEl) return '';
+    let el: HTMLElement | null = baseEl;
+    while (el && el !== contentRef.current) {
+      if (el.dataset?.blockId) return el.dataset.blockId;
+      el = el.parentElement;
+    }
+    return '';
+  }, []);
+
+  const getBlockIdFromRange = useCallback((range: Range): string => {
+    const fromAncestor = getClosestBlockId(range.commonAncestorContainer);
+    if (fromAncestor) return fromAncestor;
+
+    const fromStart = getClosestBlockId(range.startContainer);
+    if (fromStart) return fromStart;
+
+    return getClosestBlockId(range.endContainer);
+  }, [getClosestBlockId]);
+
+  const isSelectionInsideContent = useCallback((range: Range): boolean => {
+    const contentEl = contentRef.current;
+    if (!contentEl) return false;
+
+    if (contentEl.contains(range.commonAncestorContainer)) {
+      return true;
+    }
+
+    const startEl = range.startContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.startContainer as Element)
+      : range.startContainer.parentElement;
+    const endEl = range.endContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.endContainer as Element)
+      : range.endContainer.parentElement;
+
+    return Boolean(startEl && endEl && contentEl.contains(startEl) && contentEl.contains(endEl));
+  }, []);
+
+  useEffect(() => {
+    const showSelectionActions = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setContextMenu(null);
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      if (!isSelectionInsideContent(range)) {
+        setContextMenu(null);
+        return;
+      }
+
+      const selectedText = sel.toString().trim();
+      if (!selectedText) {
+        setContextMenu(null);
+        return;
+      }
+
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        setContextMenu(null);
+        return;
+      }
+
+      const blockId = getBlockIdFromRange(range);
+      setContextMenu({
+        x: Math.min(rect.right + 8, window.innerWidth - 12),
+        y: Math.max(rect.top - 8, 12),
+        selectedText,
+        blockId,
+      });
+    };
+
+    const handleMouseUp = () => {
+      requestAnimationFrame(showSelectionActions);
+    };
+
+    const handleTouchEnd = () => {
+      requestAnimationFrame(showSelectionActions);
+    };
+
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setContextMenu(null);
+      }
+    };
+
+    const handleScroll = () => {
+      setContextMenu(null);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('selectionchange', handleSelectionChange);
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [getBlockIdFromRange, isSelectionInsideContent]);
 
   useEffect(() => {
     function handleContextMenu(e: MouseEvent) {
@@ -607,17 +762,12 @@ export default function LatexViewer({
       if (!selectedText || !contentRef.current?.contains(e.target as Node)) return;
       e.preventDefault();
       // Find closest block id via DOM traversal
-      let el = e.target as HTMLElement | null;
-      let blockId = '';
-      while (el && el !== contentRef.current) {
-        if (el.dataset?.blockId) { blockId = el.dataset.blockId; break; }
-        el = el.parentElement;
-      }
+      const blockId = getClosestBlockId(e.target as Node | null);
       setContextMenu({ x: e.clientX, y: e.clientY, selectedText, blockId });
     }
     document.addEventListener('contextmenu', handleContextMenu);
     return () => document.removeEventListener('contextmenu', handleContextMenu);
-  }, []);
+  }, [getClosestBlockId]);
 
   // ── F3-M4.5: apply block edit from ChatPanel (Mejora E: robust replace) ──
   const appliedTokenRef = useRef<number>(-1);
@@ -785,17 +935,17 @@ export default function LatexViewer({
     <div className={`flex flex-col h-full ${className ?? ''}`}>
       {/* ── Zoom + undo toolbar ── */}
       {!hideToolbar && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 shrink-0 bg-gray-50">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0 bg-white/[0.03] backdrop-blur-sm">
           {/* Zoom presets */}
           <div className="flex items-center gap-1">
             {ZOOM_PRESETS.map((z) => (
               <button
                 key={z}
                 onClick={() => setZoom(z)}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors duration-150 ${
                   zoom === z
-                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+                    ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/40'
+                    : 'text-white/60 hover:text-white hover:bg-white/10 border border-transparent'
                 }`}
               >
                 {z}%
@@ -804,7 +954,7 @@ export default function LatexViewer({
           </div>
 
           {/* Separator */}
-          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-1" />
 
           {/* Mejora C: undo step indicator */}
           <div className="flex items-center gap-1">
@@ -812,15 +962,15 @@ export default function LatexViewer({
               onClick={undo}
               disabled={undoCount <= 0}
               title={undoCount > 0 ? `Undo (${undoCount} step${undoCount !== 1 ? 's' : ''} available)` : 'Nothing to undo'}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
-                disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:text-gray-700 hover:bg-gray-200 disabled:hover:bg-transparent"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs transition-colors duration-150
+                disabled:opacity-30 disabled:cursor-not-allowed text-white/60 hover:text-white hover:bg-white/10 disabled:hover:bg-transparent"
               aria-label={`Undo — ${undoCount} step${undoCount !== 1 ? 's' : ''} available`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a4 4 0 010 8H7m-4-8l4-4-4 4z" />
               </svg>
               {undoCount > 0 && (
-                <span className="tabular-nums text-[10px] text-indigo-600 font-semibold">{undoCount}</span>
+                <span className="tabular-nums text-[10px] text-indigo-300 font-semibold">{undoCount}</span>
               )}
             </button>
             <button
@@ -828,8 +978,8 @@ export default function LatexViewer({
               disabled={redoCount <= 0}
               title={redoCount > 0 ? `Redo (${redoCount} step${redoCount !== 1 ? 's' : ''} available)` : 'Nothing to redo'}
               aria-label={`Redo — ${redoCount} step${redoCount !== 1 ? 's' : ''} available`}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
-                disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:text-gray-700 hover:bg-gray-200 disabled:hover:bg-transparent"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs transition-colors duration-150
+                disabled:opacity-30 disabled:cursor-not-allowed text-white/60 hover:text-white hover:bg-white/10 disabled:hover:bg-transparent"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a4 4 0 000 8h6m4-8l-4-4 4 4z" />
@@ -840,12 +990,12 @@ export default function LatexViewer({
           {/* Hint */}
           <div className="flex-1" />
           {!focusedBlockId && (
-            <span className="text-[10px] text-gray-400 hidden sm:inline">
+            <span className="text-[10px] text-white/40 hidden sm:inline">
               Click to focus · Double-click to edit
             </span>
           )}
           {focusedBlockId && (
-            <span className="text-[10px] text-gray-400 hidden sm:inline">
+            <span className="text-[10px] text-white/40 hidden sm:inline">
               Double-click to edit · Esc to cancel
             </span>
           )}
@@ -901,6 +1051,7 @@ export default function LatexViewer({
             )}
             <BlockRegionRenderer
               blocks={blocks}
+              templateId={templateId}
               hoveredBlockId={hoveredBlockId}
               focusedBlockId={focusedBlockId}
               editingBlockId={editingBlockId}
@@ -930,6 +1081,12 @@ export default function LatexViewer({
       {contextMenu && (
         <ContextMenu
           menu={contextMenu}
+          onAddToEditChat={(selectedText) => {
+            onAddSelectionToEditChat?.(selectedText);
+          }}
+          onAddToAskChat={(selectedText) => {
+            onAddSelectionToAskChat?.(selectedText);
+          }}
           onReference={(blockId) => {
             const ref = buildBlockReference(blockId);
             if (ref) onReferenceInChat?.(ref);
@@ -945,6 +1102,7 @@ export default function LatexViewer({
 
 interface BlockRegionRendererProps {
   blocks: Block[];
+  templateId?: string;
   hoveredBlockId: string | null;
   focusedBlockId: string | null;
   editingBlockId: string | null;
@@ -964,6 +1122,7 @@ interface BlockRegionRendererProps {
 
 function BlockRegionRenderer({
   blocks,
+  templateId,
   hoveredBlockId,
   focusedBlockId,
   editingBlockId,
@@ -1014,6 +1173,7 @@ function BlockRegionRenderer({
             onAddBlock={onAddBlock}
             onDeleteBlock={onDeleteBlock}
             onMoveBlock={onMoveBlock}
+            templateId={templateId}
             canMoveUp={bIdx > firstInteractiveIdx}
             canMoveDown={bIdx < lastInteractiveIdx}
           />
@@ -1050,6 +1210,7 @@ function BlockRegionRenderer({
           onAddBlock={onAddBlock}
           onDeleteBlock={onDeleteBlock}
           onMoveBlock={onMoveBlock}
+          templateId={templateId}
           canMoveUp={i > firstInteractiveIdx}
           canMoveDown={i < lastInteractiveIdx}
         />

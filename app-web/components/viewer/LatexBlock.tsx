@@ -20,6 +20,9 @@ import 'katex/dist/katex.min.css';
 import type { Block } from '@/lib/latex-parser';
 import { KATEX_MACROS } from '@/lib/katex-macros';
 
+const CLEAN3_TITLE_MARKER = '__BN_CLEAN3_TITLE__';
+const CLEAN3_SUB_MARKER = '__BN_CLEAN3_SUB__';
+
 // ─── render a single KaTeX formula string ─────────────────────────────────────
 
 function renderKatex(formula: string, displayMode: boolean): string {
@@ -99,10 +102,18 @@ function renderInlineMath(text: string): string {
  * Processing order: escape bare chars first, then substitute LaTeX commands.
  */
 function renderLatexCommands(text: string): string {
+  const protectedText = text
+    .replace(/\\&/g, '___BN_ESC_AMP___')
+    .replace(/\\%/g, '___BN_ESC_PCT___')
+    .replace(/\\_/g, '___BN_ESC_UND___')
+    .replace(/\\#/g, '___BN_ESC_HASH___')
+    .replace(/\\\$/g, '___BN_ESC_DOLLAR___');
+
   // Step 1 — escape raw HTML-significant chars (except inside LaTeX args, handled below)
   // We escape the whole string first, then substitute LaTeX commands.
   // This is safe because LaTeX args use {} not < >.
-  const out = text
+  const out = protectedText
+    .replace(/(^|[^\\])%[^\n]*/g, '$1')
     .replace(/&/g, '&amp;')
     // Step 2 — LaTeX text commands (applied on escaped string; args use {} so safe)
     // \textbf{...}
@@ -129,7 +140,13 @@ function renderLatexCommands(text: string): string {
     // by only stripping the command token and optional [...] arg, keeping the {} content
     .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^}]*)\}/g, '$1')
     // Remove any truly bare \command tokens with no argument
-    .replace(/\\[a-zA-Z]+\*?\b/g, '');
+    .replace(/\\[a-zA-Z]+\*?\b/g, '')
+    // Common escaped text symbols
+    .replace(/___BN_ESC_AMP___/g, '&amp;')
+    .replace(/___BN_ESC_PCT___/g, '%')
+    .replace(/___BN_ESC_UND___/g, '_')
+    .replace(/___BN_ESC_HASH___/g, '#')
+    .replace(/___BN_ESC_DOLLAR___/g, '$');
 
   return out;
 }
@@ -178,7 +195,8 @@ const BOX_SUBTYPE_LABELS: Record<string, string> = {
 
 // ─── list renderer ────────────────────────────────────────────────────────────
 
-function renderList(latex: string): React.ReactElement {
+function renderList(latex: string, templateId?: string): React.ReactElement {
+  const isClean3 = templateId === 'clean_3cols_landscape';
   const isEnumerate = latex.includes('\\begin{enumerate}');
   // Extract \item entries
   const inner = latex
@@ -202,8 +220,15 @@ function renderList(latex: string): React.ReactElement {
       {rawItems.map((item, idx) => {
         const cleaned = item.trim();
         return (
-          <li key={idx} style={{ margin: '0.1em 0' }}>
+          <li
+            key={idx}
+            style={{
+              margin: '0.1em 0',
+              color: isClean3 ? 'var(--accent, #1E4C7C)' : undefined,
+            }}
+          >
             <span
+              style={{ color: '#111111' }}
               dangerouslySetInnerHTML={{ __html: renderInlineMath(cleaned) }}
             />
           </li>
@@ -462,6 +487,8 @@ export interface LatexBlockInteractiveProps {
   canMoveUp?: boolean;
   /** Whether this block can move down (not last in list). */
   canMoveDown?: boolean;
+  /** Current template id for style-specific rendering tweaks. */
+  templateId?: string;
 }
 
 interface LatexBlockProps extends LatexBlockInteractiveProps {
@@ -483,6 +510,7 @@ export default function LatexBlock({
   onMoveBlock,
   canMoveUp = true,
   canMoveDown = true,
+  templateId,
 }: LatexBlockProps) {
   const [editValue, setEditValue] = useState(block.latex_source);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -644,6 +672,94 @@ export default function LatexBlock({
   // ── Normal rendered view ───────────────────────────────────────────────────
   switch (block.type) {
     case 'section': {
+      const isClean3 = templateId === 'clean_3cols_landscape';
+      const clean3HeaderMatch = block.latex_source
+        .trim()
+        .match(new RegExp(`^${CLEAN3_TITLE_MARKER}([\\s\\S]*?)${CLEAN3_SUB_MARKER}([\\s\\S]*)$`));
+      if (isClean3 && clean3HeaderMatch) {
+        const title = clean3HeaderMatch[1].trim();
+        const subtitle = clean3HeaderMatch[2].trim();
+        return (
+          <div
+            className={interactiveClass}
+            style={{ overflow: 'visible', margin: '0 0 0.34em', breakInside: 'avoid' }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <div
+              style={{
+                background: 'var(--accent, #1E4C7C)',
+                color: '#ffffff',
+                textAlign: 'center',
+                padding: '0.3em 0.45em 0.34em',
+                lineHeight: 1.1,
+              }}
+            >
+              <div
+                style={{ fontWeight: 700, fontSize: '1.55em' }}
+                dangerouslySetInnerHTML={{ __html: renderInlineMath(title) }}
+              />
+              {subtitle && (
+                <div
+                  style={{ marginTop: '0.14em', opacity: 0.88, fontSize: '0.9em' }}
+                  dangerouslySetInnerHTML={{ __html: renderInlineMath(subtitle) }}
+                />
+              )}
+            </div>
+            {actionBar}
+          </div>
+        );
+      }
+
+      if (isClean3 && block.level === 1) {
+        return (
+          <div
+            className={interactiveClass}
+            style={{ overflow: 'visible', margin: '0.34em 0 0.15em', breakInside: 'avoid' }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <div
+              style={{
+                background: 'var(--accent, #1E4C7C)',
+                color: '#ffffff',
+                fontSize: '1.02em',
+                fontWeight: 700,
+                lineHeight: 1.12,
+                padding: '0.1em 0.35em 0.14em',
+              }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }}
+            />
+            {actionBar}
+          </div>
+        );
+      }
+
+      if (isClean3 && block.level && block.level >= 2) {
+        return (
+          <div
+            className={interactiveClass}
+            style={{ overflow: 'visible', margin: '0.2em 0 0.06em', breakInside: 'avoid' }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <div
+              style={{
+                color: 'var(--accent, #1E4C7C)',
+                fontWeight: 700,
+                fontSize: block.level === 2 ? '1em' : '0.95em',
+                lineHeight: 1.16,
+              }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }}
+            />
+            {actionBar}
+          </div>
+        );
+      }
+
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
       const headingStyle: React.CSSProperties =
         block.level === 1
@@ -715,7 +831,7 @@ export default function LatexBlock({
     case 'list':
       return (
         <div className={interactiveClass} style={{ overflow: 'visible', margin: '0.1em 0' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
-          {renderList(block.latex_source)}
+          {renderList(block.latex_source, templateId)}
           {actionBar}
         </div>
       );
