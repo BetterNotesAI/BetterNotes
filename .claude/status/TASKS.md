@@ -1,6 +1,6 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-04-01 (cierre de sesión) — IA-M1 e IA-M2 verificados funcionales. Fix color ecuaciones LaTeX aplicado. Merge a main completado (commit 4ece957). Pendiente operacional: git push origin main + OPENAI_API_KEY en Vercel/Railway + rebuild Docker app-api + migración SQL F3-M5 en Supabase. Siguiente: F4-M1 Problem Solver._
+_Última actualización: 2026-04-15 — Roadmap ampliado con visión estratégica de producto. Fase 5 expandida (catálogo de cursos, búsqueda semántica, reputación, fork/remix). Fases 8-10 añadidas (retención, colaboración, institucional). Ver STATUS.md para contexto estratégico completo._
 _Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
 
 ---
@@ -299,11 +299,18 @@ desde el perfil de usuario.
 
 ## Fase 5 — COMUNIDAD Y DESCUBRIMIENTO
 
-### F5-M1 — My Studies
-Primera vez: picker de universidad (BD completa universidades españolas) + picker de grado.
-Soporte multi-universidad con botón (+). Estructura jerárquica: Universidad → Grado →
-Asignaturas → carpetas por tipo (apuntes, formularios, exámenes). Diseño estilo Proxus.
-Sistema de likes y visualizaciones por documento.
+> **Objetivo estratégico:** construir la biblioteca académica STEM más completa y estructurada,
+> organizada por cursos reales (no carpetas genéricas). El catálogo de contenido es el moat a largo plazo.
+
+### F5-M1 — Catálogo de cursos estructurado
+_Prioridad: 🔴 Alta — base de toda la estrategia de comunidad_
+
+Estructura jerárquica real: Universidad → Grado → Asignatura → Semestre.
+- Primera vez: picker de universidad (BD completa universidades) + picker de grado. Soporte multi-universidad con botón (+).
+- Los documentos publicados se etiquetan con universidad + grado + asignatura real (ej: "MIT 8.04 Quantum Mechanics").
+- Navegación browseable estilo árbol: al entrar en My Studies puedes navegar por la jerarquía.
+- Sistema de likes y visualizaciones por documento.
+- **Seed inicial:** generar notas de muestra para 50 cursos STEM populares (MIT OCW, ETH Zürich, etc.) antes del lanzamiento público — resolver el cold start problem.
 
 ---
 
@@ -316,12 +323,36 @@ con el botón ya implementado en F3-M5.)
 
 ---
 
-### F5-M3 — Search
+### F5-M3 — Búsqueda semántica
 _Prerrequisito: F5-M2 completado_
 
-Buscador con lista split: arriba "Tus Proyectos", abajo "Proyectos de otros" (con universidad
-y likes). Filtros: Tipo (Cheat Sheet/Apuntes/Problemas/Examen), Universidad, Grado, Año,
-Materia, Idioma. Ordenación por likes o más reciente. Thumbnails, autor y fecha en resultados.
+Buscador con lista split: arriba "Tus Proyectos", abajo "Proyectos de otros" (con universidad y likes).
+Filtros: Tipo (Cheat Sheet/Apuntes/Problemas/Examen), Universidad, Grado, Año, Materia, Idioma.
+Ordenación por likes o más reciente. Thumbnails, autor y fecha en resultados.
+- **Búsqueda semántica:** embeddings del contenido de los documentos (no solo metadatos). Permite buscar "Lagrangian mechanics exam problems" y encontrar documentos relevantes aunque no contengan esas palabras exactas. Usar pgvector en Supabase.
+- Índice actualizado al publicar / editar un documento.
+
+---
+
+### F5-M4 — Sistema de reputación y señal de calidad
+_Prerrequisito: F5-M3 completado_
+
+Sin señal de calidad, la biblioteca se llena de contenido basura (problema de Course Hero).
+- Upvotes, número de descargas y visualizaciones por documento.
+- **Etiquetas verificadas de asignatura**: cuando 5+ estudiantes de la misma universidad etiquetan un documento con el mismo curso, se marca como "verificado".
+- Badges para contribuidores top por universidad y materia.
+- Filtro "Most trusted" además de "Most recent" y "Most liked".
+
+---
+
+### F5-M5 — Fork & Remix
+_Prerrequisito: F5-M4 completado_
+
+Modelo GitHub aplicado al contenido académico — crea el flywheel de contribución.
+- Botón "Fork" en cualquier documento publicado: crea una copia en tu espacio con crédito al autor original.
+- El fork es editable con el visor interactivo (F3).
+- Al re-publicar, se muestra "Forked from [autor]" + enlace al original.
+- Historial de forks visible: "Este documento ha sido forkeado 12 veces".
 
 ---
 
@@ -359,6 +390,110 @@ Mejoras de SEO y meta tags Open Graph.
 ### F7-M3 — Onboarding interactivo
 Tour guiado con tooltips al primer login. Cubre: crear primer documento, usar el visor
 interactivo, publicar en My Studies. Omitible por el usuario. Estado persistido en DB.
+
+---
+
+---
+
+## Fase 8 — RETENCIÓN Y HÁBITO DE ESTUDIO
+
+> **Objetivo:** convertir BetterNotes en parte del flujo semanal del estudiante, no una herramienta puntual.
+> Sin un loop de retención, los usuarios generan un PDF y no vuelven.
+
+### F8-M1 — Repetición espaciada (Spaced Repetition)
+_Prerrequisito: F4-M2 (Exams) completado_
+
+- Auto-generar flashcards desde cualquier documento con un click.
+- Algoritmo SM-2 (o similar) para programar revisiones: "tienes 12 tarjetas pendientes de Mecánica Cuántica".
+- Integración con el calendario de estudio (F8-M2).
+- Estadísticas de retención por materia.
+
+---
+
+### F8-M2 — Planificador de estudio
+- El usuario registra sus asignaturas y fechas de examen.
+- BetterNotes sugiere automáticamente: "Tu examen de Termodinámica es en 5 días — aquí están tus apuntes + flashcards pendientes".
+- Notificaciones en app (y email opcional) con recordatorios de revisión.
+- Vista de calendario semanal con sesiones de estudio planificadas.
+
+---
+
+### F8-M3 — Gamificación y rachas
+_Prerrequisito: F8-M1 + F8-M2_
+
+- Racha de días estudiando (estilo Duolingo).
+- Pantalla de resultados animada tras completar examen o sesión de flashcards.
+- Logros desbloqueables (primer documento publicado, 10 exámenes completados, etc.).
+- Estadísticas de progreso accesibles desde el perfil de usuario.
+
+---
+
+## Fase 9 — COLABORACIÓN
+
+> **Objetivo:** los estudiantes estudian en grupo — BetterNotes debe soportarlo.
+> La colaboración también es el principal driver de adquisición orgánica (un usuario invita a varios).
+
+### F9-M1 — Grupos de estudio
+- Crear grupo con nombre e invitar miembros por email o link.
+- Carpetas compartidas: los documentos de la carpeta son visibles y editables por todos los miembros.
+- Feed de actividad del grupo: "Ana publicó apuntes de Álgebra Lineal".
+- Chat básico de grupo (o integración con Discord/Slack).
+
+---
+
+### F9-M2 — Co-edición de documentos
+_Prerrequisito: F9-M1_
+
+- Edición colaborativa en tiempo real del visor interactivo (WebSockets o Supabase Realtime).
+- Cursores de otros usuarios visibles en el documento.
+- Comentarios inline: seleccionar un bloque → añadir comentario → otros miembros reciben notificación.
+- Historial de cambios con atribución por usuario.
+
+---
+
+### F9-M3 — Importación desde cualquier fuente
+> **Reducir el coste de migración a cero** — si importar es trivial, el switching cost desaparece.
+
+- Import desde Notion (export JSON/HTML → parser → LaTeX).
+- Import desde Google Docs (.docx → pandoc → LaTeX).
+- Import desde Obsidian (Markdown + Math → LaTeX).
+- Fotos de apuntes manuscritos → OCR + AI cleanup → LaTeX.
+- Import desde PDF (ya implementado como adjunto — mejorar extracción estructurada).
+
+---
+
+## Fase 10 — INSTITUCIONAL
+
+> **Objetivo estratégico:** el revenue real a escala está en licencias institucionales, no en $9/mes de usuarios individuales.
+> Requiere masa crítica de contenido (Fase 5) y funcionalidades de colaboración (Fase 9) como prerrequisitos.
+
+### F10-M1 — Herramientas para profesores
+_Prerrequisito: F9-M1_
+
+- Los profesores crean "asignaciones": template + prompt base → los estudiantes generan sus propios apuntes.
+- El profesor puede ver y comentar los documentos generados por sus alumnos.
+- Exportación masiva de documentos de clase en PDF.
+- Panel de analytics: qué temas generan más dudas, qué estudiantes están activos.
+
+---
+
+### F10-M2 — Licencias universitarias
+_Prerrequisito: F10-M1_
+
+- Plan "University": acceso Pro para todos los estudiantes de una institución.
+- SSO via SAML (integración con el sistema de identidad universitario).
+- Panel de administración para IT de la universidad: usuarios activos, uso, etc.
+- Pricing: negociado por institución (per-seat o flat fee).
+
+---
+
+### F10-M3 — Integración LMS (Canvas, Moodle, Blackboard)
+_Prerrequisito: F10-M2_
+
+- Plugin para Canvas y Moodle: BetterNotes aparece como herramienta dentro del LMS.
+- Los estudiantes acceden desde el LMS sin registro adicional (LTI 1.3).
+- Las entregas de apuntes o exámenes pueden enviarse directamente al gradebook.
+- Objetivo: entrar en infraestructura universitaria sin ciclo de ventas.
 
 ---
 
