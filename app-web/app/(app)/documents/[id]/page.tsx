@@ -10,6 +10,7 @@ import { LatexHighlighter } from '../_components/LatexHighlighter';
 import { LatexProjectViewer } from '../_components/LatexProjectViewer';
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import InteractiveBuildPreview from '../_components/InteractiveBuildPreview';
+import { DocumentQaInlineChat } from '../_components/DocumentQaInlineChat';
 import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
@@ -144,11 +145,14 @@ export default function DocumentWorkspacePage() {
   const hasResumedPendingIntentRef = useRef(false);
 
   const [mobileTab, setMobileTab] = useState<'pdf' | 'chat'>('pdf');
+  const [chatTab, setChatTab] = useState<'edit' | 'qa'>('edit');
   const [viewerTab, setViewerTab] = useState<ViewerTab>('pdf');
   // F3-M3.5 / F3-M4.2: BlockReference from interactive viewer → chat panel
   const [chatPrefill, setChatPrefill] = useState<string | undefined>(undefined);
   const chatPrefillCounterRef = useRef(0);
   const [blockReference, setBlockReference] = useState<BlockReference | null>(null);
+  const [qaQueuedContextSelection, setQaQueuedContextSelection] = useState<{ token: number; text: string } | null>(null);
+  const contextSelectionCounterRef = useRef(0);
   // F3-M4.5: applyBlockEdit signal from ChatPanel → LatexViewer
   const [applyBlockEdit, setApplyBlockEdit] = useState<{ blockId: string; newBlockLatex: string; token: number } | null>(null);
   // F3-M4.6: current full latex (updated when viewer applies a block edit, used to persist)
@@ -220,10 +224,25 @@ export default function DocumentWorkspacePage() {
     setEditedLatex(latexContent ?? '');
   }, [latexContent]);
 
+  const currentTemplateId = docData?.template_id ?? '';
+  const isCheatSheetTemplate =
+    currentTemplateId === '2cols_portrait' ||
+    currentTemplateId === 'landscape_3col_maths' ||
+    currentTemplateId === 'clean_3cols_landscape' ||
+    currentTemplateId === 'study_form';
+  const isLectureNotesTemplate =
+    currentTemplateId === 'lecture_notes' ||
+    currentTemplateId === 'classic_lecture_notes';
+  const chatLeftLayout = isCheatSheetWorkspace || isCheatSheetTemplate || isLectureNotesTemplate;
+  const transparentInteractiveBackground = isCheatSheetWorkspace || isCheatSheetTemplate;
+
   // --- Task 5: resizable split ---
   const [splitRatio, setSplitRatio] = useState(0.5);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const workspaceColumnsRef = useRef<HTMLDivElement>(null);
+  const [chatPanelWidth, setChatPanelWidth] = useState(420);
+  const isDraggingChatPanelRef = useRef(false);
 
   // Ctrl+scroll zoom: must listen on window with passive:false so preventDefault
   // actually reaches Chrome before it handles the native page zoom.
@@ -267,6 +286,52 @@ export default function DocumentWorkspacePage() {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, []);
+
+  const clampChatPanelWidth = useCallback((rawWidth: number, workspaceWidth: number) => {
+    const minWidth = 300;
+    const maxWidth = Math.max(minWidth, Math.min(760, workspaceWidth - 360));
+    return Math.min(maxWidth, Math.max(minWidth, rawWidth));
+  }, []);
+
+  const handleChatPanelResizerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingChatPanelRef.current = true;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingChatPanelRef.current || !workspaceColumnsRef.current) return;
+
+      const rect = workspaceColumnsRef.current.getBoundingClientRect();
+      const rawWidth = chatLeftLayout
+        ? ev.clientX - rect.left
+        : rect.right - ev.clientX;
+
+      setChatPanelWidth(clampChatPanelWidth(rawWidth, rect.width));
+    };
+
+    const onMouseUp = () => {
+      isDraggingChatPanelRef.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [chatLeftLayout, clampChatPanelWidth]);
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      if (!workspaceColumnsRef.current) return;
+      const rect = workspaceColumnsRef.current.getBoundingClientRect();
+      setChatPanelWidth((current) => clampChatPanelWidth(current, rect.width));
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, [clampChatPanelWidth]);
 
   useEffect(() => {
     async function loadUsage() {
@@ -553,7 +618,6 @@ export default function DocumentWorkspacePage() {
     }
   }, [documentId, isBlockMutating, reloadDocument]);
 
-  const currentTemplateId = docData?.template_id ?? '';
   const isExtendedLectureTemplate = currentTemplateId === 'lecture_notes';
   const extendedLectureProjectFiles = useMemo(() => {
     if (!isExtendedLectureTemplate) return [];
@@ -590,16 +654,6 @@ export default function DocumentWorkspacePage() {
   }
 
   const templateLabel = TEMPLATE_LABELS[docData.template_id] ?? docData.template_id;
-  const isCheatSheetTemplate =
-    docData.template_id === '2cols_portrait' ||
-    docData.template_id === 'landscape_3col_maths' ||
-    docData.template_id === 'clean_3cols_landscape' ||
-    docData.template_id === 'study_form';
-  const isLectureNotesTemplate =
-    docData.template_id === 'lecture_notes' ||
-    docData.template_id === 'classic_lecture_notes';
-  const chatLeftLayout = isCheatSheetWorkspace || isCheatSheetTemplate || isLectureNotesTemplate;
-  const transparentInteractiveBackground = isCheatSheetWorkspace || isCheatSheetTemplate;
   const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
   const showInteractiveBuildPreview =
     viewerTab === 'interactive' &&
@@ -807,7 +861,10 @@ export default function DocumentWorkspacePage() {
       </div>
 
       {/* Main content: viewer area + Chat */}
-      <div className={`flex-1 flex overflow-hidden min-h-0 ${chatLeftLayout ? 'md:flex-row-reverse' : ''}`}>
+      <div
+        ref={workspaceColumnsRef}
+        className={`flex-1 flex overflow-hidden min-h-0 ${chatLeftLayout ? 'md:flex-row-reverse' : ''}`}
+      >
 
         {/* Viewer column — hidden on mobile when chat tab is active */}
         <div className={`flex-[3] flex-col min-w-0 min-h-0 ${
@@ -966,10 +1023,31 @@ export default function DocumentWorkspacePage() {
                   latexSource={latexContent}
                   templateId={docData.template_id}
                   onReferenceInChat={(ref) => {
+                    setChatTab('edit');
                     chatPrefillCounterRef.current += 1;
                     setBlockReference(ref);
                     // Also set prefillText for backwards compat (shows in input)
                     setChatPrefill(`__ref${chatPrefillCounterRef.current}__${ref.latex_source.slice(0, 120)}`);
+                    setMobileTab('chat');
+                  }}
+                  onAddSelectionToEditChat={(selectedText) => {
+                    const trimmed = selectedText.trim();
+                    if (!trimmed) return;
+                    contextSelectionCounterRef.current += 1;
+                    setChatTab('edit');
+                    setBlockReference(null);
+                    setChatPrefill(`__ref${contextSelectionCounterRef.current}__${trimmed.slice(0, 220)}`);
+                    setMobileTab('chat');
+                  }}
+                  onAddSelectionToAskChat={(selectedText) => {
+                    const trimmed = selectedText.trim();
+                    if (!trimmed) return;
+                    contextSelectionCounterRef.current += 1;
+                    setChatTab('qa');
+                    setQaQueuedContextSelection({
+                      token: contextSelectionCounterRef.current,
+                      text: trimmed,
+                    });
                     setMobileTab('chat');
                   }}
                   applyBlockEdit={applyBlockEdit}
@@ -1119,39 +1197,79 @@ export default function DocumentWorkspacePage() {
           </div>
         </div>
 
-        {/* Right column: attachments panel + chat — hidden on mobile when pdf tab is active */}
-        <div className={`flex-[2] flex-col min-h-0 overflow-hidden ${
-          mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
-        } md:min-w-[300px] md:max-w-[420px] max-w-none`}>
+        {/* Divider between viewer and chat (desktop only) */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat panel"
+          onMouseDown={handleChatPanelResizerMouseDown}
+          className="hidden md:block w-1.5 shrink-0 cursor-col-resize bg-white/[0.04] hover:bg-indigo-400/60 transition-colors"
+        />
 
+        {/* Right column: attachments panel + chat — hidden on mobile when pdf tab is active */}
+        <div
+          style={{ '--chat-panel-width': `${chatPanelWidth}px` } as React.CSSProperties}
+          className={`flex-[2] flex-col min-h-0 overflow-hidden ${
+            mobileTab === 'pdf' ? 'hidden md:flex' : 'flex'
+          } md:flex-none md:w-[var(--chat-panel-width)] md:min-w-[300px] max-w-none`}
+        >
           {isOwner ? (
             <>
               <WorkspaceAttachmentsPanel documentId={documentId} />
+              <div className="px-3 py-2 border-b border-white/10 shrink-0 flex items-center gap-1.5 bg-white/[0.02]">
+                <button
+                  onClick={() => setChatTab('edit')}
+                  className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    chatTab === 'edit'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/60 hover:text-white/85 hover:bg-white/10'
+                  }`}
+                >
+                  Edit document
+                </button>
+                <button
+                  onClick={() => setChatTab('qa')}
+                  className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    chatTab === 'qa'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/60 hover:text-white/85 hover:bg-white/10'
+                  }`}
+                >
+                  Ask document
+                </button>
+              </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <ChatPanel
-                  messages={visibleMessages}
-                  isLoading={showGenerating}
-                  isDraft={isDraft}
-                  onSend={handleSend}
-                  loadingLabel={loadingLabel}
-                  prefillText={chatPrefill}
-                  blockReference={blockReference}
-                  onClearBlockReference={() => setBlockReference(null)}
-                  documentId={documentId}
-                  latexSource={latexContent ?? ''}
-                  onApplyBlockEdit={(blockId, newBlockLatex) => {
-                    chatPrefillCounterRef.current += 1;
-                    setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
-                  }}
-                  onApplyPersisted={() => {
-                    reloadDocument();
-                    setLastSavedAt(new Date());
-                  }}
-                  pendingApplyLatex={pendingApplyLatex}
-                  onDocumentEditPreview={handleDocumentEditPreview}
-                  onApplyDocumentEdit={handleApplyDocumentEdit}
-                  onDiscardDocumentEdit={handleDiscardDocumentEdit}
-                />
+                {chatTab === 'edit' ? (
+                  <ChatPanel
+                    messages={visibleMessages}
+                    isLoading={showGenerating}
+                    isDraft={isDraft}
+                    onSend={handleSend}
+                    loadingLabel={loadingLabel}
+                    prefillText={chatPrefill}
+                    blockReference={blockReference}
+                    onClearBlockReference={() => setBlockReference(null)}
+                    documentId={documentId}
+                    latexSource={latexContent ?? ''}
+                    onApplyBlockEdit={(blockId, newBlockLatex) => {
+                      chatPrefillCounterRef.current += 1;
+                      setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
+                    }}
+                    onApplyPersisted={() => {
+                      reloadDocument();
+                      setLastSavedAt(new Date());
+                    }}
+                    pendingApplyLatex={pendingApplyLatex}
+                    onDocumentEditPreview={handleDocumentEditPreview}
+                    onApplyDocumentEdit={handleApplyDocumentEdit}
+                    onDiscardDocumentEdit={handleDiscardDocumentEdit}
+                  />
+                ) : (
+                  <DocumentQaInlineChat
+                    documentId={documentId}
+                    queuedContextSelection={qaQueuedContextSelection}
+                  />
+                )}
               </div>
             </>
           ) : (

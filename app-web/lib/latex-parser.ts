@@ -77,6 +77,67 @@ function makeId(prefix: string): string {
   return `${prefix}-${++_idCounter}`;
 }
 
+const CLEAN3_TITLE_MARKER = '__BN_CLEAN3_TITLE__';
+const CLEAN3_SUB_MARKER = '__BN_CLEAN3_SUB__';
+
+function stripLatexComments(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      let out = '';
+      let escaped = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '%' && !escaped) break;
+        out += ch;
+        escaped = ch === '\\' && !escaped;
+      }
+      return out;
+    })
+    .join('\n');
+}
+
+function sanitizeMarkerText(raw: string): string {
+  return raw
+    .replace(/\\text(?:bf|it)\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^}]*)\}/g, '$1')
+    .replace(/\\([#$%&_{}])/g, '$1')
+    .replace(/\\[a-zA-Z]+\*?\b/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function preprocessClean3TitleBar(text: string): string {
+  let out = text;
+  const vspaceMarker = '\\vspace{4pt}';
+  const startMarker = '\\noindent\\colorbox{headerblue}';
+
+  while (true) {
+    const start = out.indexOf(startMarker);
+    if (start === -1) break;
+    const endVspace = out.indexOf(vspaceMarker, start);
+    if (endVspace === -1) break;
+    const end = endVspace + vspaceMarker.length;
+    const chunk = out.slice(start, end);
+
+    const titleMatch = chunk.match(
+      /\\centering\s*\{\s*\\Large\\bfseries\\color\{white\}\s*([\s\S]*?)\}\s*\\\\\s*\[[^\]]*\]/
+    );
+    if (!titleMatch) break;
+    const subtitleMatch = chunk.match(/\{\s*\\small\\color\{white!85\}\s*([\s\S]*?)\s*\}/);
+
+    const title = sanitizeMarkerText(titleMatch[1]);
+    const subtitle = sanitizeMarkerText(subtitleMatch?.[1] ?? '');
+    const syntheticSection = `\\section{${CLEAN3_TITLE_MARKER}${title}${CLEAN3_SUB_MARKER}${subtitle}}`;
+
+    out = `${out.slice(0, start)}\n${syntheticSection}\n${out.slice(end)}`;
+  }
+
+  return out;
+}
+
 /**
  * Extract the balanced content inside \begin{env}...\end{env}.
  * Returns [fullMatch, innerContent] or null.
@@ -209,6 +270,8 @@ const BLOCK_ENVS = [
   'workedexample', 'keypoint', 'warning',
   // multicol (study_form, 2cols_portrait, landscape_3col_maths)
   'multicols', 'multicols*',
+  // alignment/text wrappers
+  'flushright', 'flushleft', 'center',
   // other common
   'figure', 'table', 'minipage', 'abstract', 'verbatim',
 ] as const;
@@ -347,10 +410,18 @@ function preprocessFormulabox(text: string): string {
  *  - display math ($$...$$, \[...\])
  *  - paragraphs (with inline math if present)
  */
-function tokenizeTextChunk(text: string, blocks: Block[]): void {
+function tokenizeTextChunk(text: string, blocks: Block[], templateId?: string): void {
+  text = stripLatexComments(text);
+
   // Pre-process custom template commands before tokenizing
   // \sectionbar{title} → \section{title}
   text = text.replace(/\\sectionbar\{([^}]*)\}/g, '\\section{$1}');
+  // \cheatsection{title} / \cheatsub{title} for clean_3cols_landscape
+  text = text.replace(/\\cheatsection\{([^}]*)\}/g, '\\section{$1}');
+  text = text.replace(/\\cheatsub\{([^}]*)\}/g, '\\subsection{$1}');
+  if (templateId === 'clean_3cols_landscape') {
+    text = preprocessClean3TitleBar(text);
+  }
   // \MyBox{content} → ___box___content___endbox___ marker
   text = preprocessMyBox(text);
   // \formulabox{label}{formula} → $$formula$$
@@ -409,19 +480,19 @@ function tokenizeTextChunk(text: string, blocks: Block[]): void {
       boxRe.lastIndex = 0;
       while ((boxMatch = boxRe.exec(hrPart)) !== null) {
         if (boxMatch.index > boxLast) {
-          processTextSegment(hrPart.slice(boxLast, boxMatch.index), blocks);
+          processTextSegment(hrPart.slice(boxLast, boxMatch.index), blocks, templateId);
         }
         blocks.push({ id: makeId('box'), type: 'box', latex_source: boxMatch[1].trim() });
         boxLast = boxMatch.index + boxMatch[0].length;
       }
       if (boxLast < hrPart.length) {
-        processTextSegment(hrPart.slice(boxLast), blocks);
+        processTextSegment(hrPart.slice(boxLast), blocks, templateId);
       }
     }
   }
 }
 
-function processTextSegment(text: string, blocks: Block[]): void {
+function processTextSegment(text: string, blocks: Block[], templateId?: string): void {
   const mathSegments = splitDisplayMath(text);
   for (const seg of mathSegments) {
     if (seg.isMath) {
@@ -450,6 +521,23 @@ function processTextSegment(text: string, blocks: Block[]): void {
       // Strip orphaned braces left after LaTeX command removal (e.g. from title groups)
       const cleaned = trimmed.replace(/^\{([\s\S]*)\}$/, '$1').trim();
       if (!cleaned) continue;
+
+      if (templateId === 'clean_3cols_landscape') {
+        const cleanTitleMatch = cleaned.match(
+          new RegExp(`^${CLEAN3_TITLE_MARKER}([\\s\\S]*?)${CLEAN3_SUB_MARKER}([\\s\\S]*)$`)
+        );
+        if (cleanTitleMatch) {
+          const title = cleanTitleMatch[1].trim();
+          const subtitle = cleanTitleMatch[2].trim();
+          blocks.push({
+            id: makeId('section'),
+            type: 'section',
+            latex_source: `${CLEAN3_TITLE_MARKER}${title}${CLEAN3_SUB_MARKER}${subtitle}`,
+            level: 1,
+          });
+          continue;
+        }
+      }
 
       // Detect title-like lines: original text used \Large, \huge, \bfseries as document title
       const isTitle = /\\(?:Large|LARGE|huge|Huge|bfseries)/.test(trimmed);
@@ -482,7 +570,7 @@ function processTextSegment(text: string, blocks: Block[]): void {
  * Internal parser that does NOT reset _idCounter.
  * Used for recursive calls (e.g. multicols) so IDs remain unique across the document.
  */
-function parseLatexInternal(latex: string): Block[] {
+function parseLatexInternal(latex: string, templateId?: string): Block[] {
   const blocks: Block[] = [];
   let remaining = stripPreamble(latex);
 
@@ -504,13 +592,13 @@ function parseLatexInternal(latex: string): Block[] {
 
     if (earliest === null) {
       // No more known environments — tokenize remaining text
-      tokenizeTextChunk(remaining, blocks);
+      tokenizeTextChunk(remaining, blocks, templateId);
       break;
     }
 
     // Tokenize text before this environment
     if (earliest.start > 0) {
-      tokenizeTextChunk(remaining.slice(0, earliest.start), blocks);
+      tokenizeTextChunk(remaining.slice(0, earliest.start), blocks, templateId);
     }
 
     // Extract the environment
@@ -548,7 +636,7 @@ function parseLatexInternal(latex: string): Block[] {
       const innerContent = extracted.inner.replace(/^\s*\{[^}]*\}/, '');
       // Emit col-start marker, recurse using internal parser (no counter reset), emit col-end marker
       blocks.push({ id: makeId('col-start'), type: 'col-start', latex_source: colCount });
-      const innerBlocks = parseLatexInternal(innerContent);
+      const innerBlocks = parseLatexInternal(innerContent, templateId);
       blocks.push(...innerBlocks);
       blocks.push({ id: makeId('col-end'), type: 'col-end', latex_source: '' });
     } else if (
@@ -591,7 +679,7 @@ function parseLatexInternal(latex: string): Block[] {
     } else {
       // tcolorbox, workedexample, keypoint, warning, lemma, corollary, remark, proof, etc.
       // Recurse into inner content so math/text blocks are preserved
-      const innerBlocks = parseLatexFragment(extracted.inner);
+      const innerBlocks = parseLatexFragment(extracted.inner, templateId);
       blocks.push(...innerBlocks);
     }
 
@@ -673,7 +761,7 @@ export function parseLatex(latex: string, options?: ParseOptions): Block[] {
 
   // For report-style templates, promote top-level \section{...} to \chapter{...}
   // so the Interactive view mirrors the PDF's chapter numbering.
-  let sourceForParse = meta.stripped;
+  let sourceForParse = stripLatexComments(meta.stripped);
   if (isReportStyle) {
     sourceForParse = promoteTopLevelSectionsToChapters(sourceForParse);
   }
@@ -690,7 +778,7 @@ export function parseLatex(latex: string, options?: ParseOptions): Block[] {
     });
   }
 
-  const bodyBlocks = parseLatexInternal(sourceForParse);
+  const bodyBlocks = parseLatexInternal(sourceForParse, templateId);
 
   // Auto-assign sequential chapter numbers for `chapter` blocks so the renderer
   // can display "Chapter N" prefixes identical to the PDF output.
@@ -827,8 +915,8 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
  * Parse a fragment (inner content of an env) without stripping preamble.
  * Used for theorem-like and tcolorbox environments.
  */
-function parseLatexFragment(fragment: string): Block[] {
-  return parseLatexInternal(fragment).filter(b =>
+function parseLatexFragment(fragment: string, templateId?: string): Block[] {
+  return parseLatexInternal(fragment, templateId).filter(b =>
     b.latex_source.trim().length > 0 || b.type === 'hr' || b.type === 'col-end'
   );
 }
