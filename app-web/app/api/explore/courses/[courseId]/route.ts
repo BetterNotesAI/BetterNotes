@@ -54,7 +54,7 @@ export async function GET(
   // ── Public documents for this course ──────────────────────────────────────
   const { data: docs, error: docsErr } = await supabase
     .from('documents')
-    .select('id, title, template_id, published_at, university, degree, subject, keywords, view_count, like_count, user_id')
+    .select('id, title, template_id, published_at, university, degree, subject, keywords, view_count, like_count, user_id, profiles(display_name, username, avatar_url)')
     .eq('course_id', courseId)
     .eq('is_published', true)
     .eq('visibility', 'public')
@@ -79,20 +79,29 @@ export async function GET(
     likedSet = new Set((likedRows ?? []).map((r) => r.document_id));
   }
 
-  const enriched = documents.map((doc) => ({
-    id:           doc.id,
-    title:        doc.title,
-    template_id:  doc.template_id,
-    published_at: doc.published_at,
-    university:   doc.university,
-    degree:       doc.degree,
-    subject:      doc.subject,
-    keywords:     doc.keywords ?? [],
-    view_count:   doc.view_count ?? 0,
-    like_count:   doc.like_count ?? 0,
-    user_liked:   likedSet.has(doc.id),
-    is_own:       user ? doc.user_id === user.id : false,
-  }));
+  const enriched = documents.map((doc) => {
+    const d = doc as typeof doc & {
+      profiles?: { display_name: string | null; username: string | null; avatar_url: string | null } | null;
+    };
+    const authorName = d.profiles?.display_name || d.profiles?.username || null;
+    return {
+      id:           doc.id,
+      title:        doc.title,
+      template_id:  doc.template_id,
+      published_at: doc.published_at,
+      university:   doc.university,
+      degree:       doc.degree,
+      subject:      doc.subject,
+      keywords:     doc.keywords ?? [],
+      view_count:   doc.view_count ?? 0,
+      like_count:   doc.like_count ?? 0,
+      user_liked:   likedSet.has(doc.id),
+      is_own:       user ? doc.user_id === user.id : false,
+      author_id:    doc.user_id,
+      author_name:  authorName,
+      author_avatar: d.profiles?.avatar_url ?? null,
+    };
+  });
 
   return NextResponse.json({ course, documents: enriched });
 }
