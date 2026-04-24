@@ -264,8 +264,9 @@ export function SolutionPanel({
   type TooltipPosition = { x: number; y: number; placement: 'above' | 'below' };
   type SelectionFrame = { left: number; top: number; width: number; height: number };
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const solutionRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
   const skipSelectionCollapseRef = useRef(false);
 
   // Selection tooltip
@@ -423,11 +424,41 @@ export function SolutionPanel({
     );
   }, [inflateRect]);
 
-  // Auto-scroll during streaming
+  const updateStickyScrollState = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 96;
+  }, []);
+
+  const handleScrollWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) {
+      shouldStickToBottomRef.current = false;
+    }
+  }, []);
+
   useEffect(() => {
     if (isStreaming) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      shouldStickToBottomRef.current = true;
     }
+  }, [isStreaming]);
+
+  // Auto-scroll during streaming only while the user stays near the bottom.
+  useEffect(() => {
+    if (!isStreaming || !shouldStickToBottomRef.current) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      if (!shouldStickToBottomRef.current) return;
+      container.scrollTo({
+        top: Math.max(0, container.scrollHeight - container.clientHeight),
+        behavior: 'auto',
+      });
+    });
   }, [solutionMd, isStreaming]);
 
   // ---------------------------------------------------------------------------
@@ -738,7 +769,12 @@ export function SolutionPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-6 py-6"
+        onScroll={updateStickyScrollState}
+        onWheel={handleScrollWheel}
+      >
 
         {/* PENDING state */}
         {status === 'pending' && !solutionMd && (
@@ -838,7 +874,6 @@ export function SolutionPanel({
           />
         )}
 
-        <div ref={bottomRef} />
       </div>
 
       {/* Selection tooltip — 2 buttons: Add to chat + Subchat */}

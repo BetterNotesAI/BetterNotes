@@ -13,8 +13,16 @@ interface SidebarFolder {
   id: string;
   name: string;
   color: string | null;
+  is_starred: boolean;
   document_count: number;
+  input_count?: number;
+  archived_at?: string | null;
   created_at: string;
+}
+
+interface SidebarFolderDoc {
+  id: string;
+  title: string;
 }
 
 interface UsageSnapshot {
@@ -28,8 +36,10 @@ interface UsageSnapshot {
 }
 
 const COLLAPSED_KEY = 'bn_sidebar_collapsed';
+const RECENTS_VISIBLE_KEY = 'bn_sidebar_recents_visible';
 const EDITOR_PREFIX = '/documents/';
 const MAX_FOLDERS_VISIBLE = 5;
+const MAX_VISIBLE_FOLDER_DOCS = 4;
 
 const PRESET_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
@@ -45,7 +55,7 @@ function SectionDivider({ label, collapsed }: { label: string; collapsed: boolea
   return (
     <div className="flex items-center gap-2 px-2 pt-4 pb-1.5">
       <div className="flex-1 h-px bg-white/10" />
-      <span className="text-[10px] font-semibold text-white/30 uppercase tracking-widest whitespace-nowrap">
+      <span className="text-[10px] font-semibold text-white/42 uppercase tracking-widest whitespace-nowrap">
         {label}
       </span>
       <div className="flex-1 h-px bg-white/10" />
@@ -69,15 +79,15 @@ function PlaceholderNavItem({
     <Link
       href={href}
       title={collapsed ? `${label} (Coming soon)` : undefined}
-      className={`flex items-center gap-3 rounded-xl transition-colors duration-150 opacity-50 hover:opacity-70 ${
+      className={`flex items-center gap-3 rounded-xl transition-colors duration-150 opacity-65 hover:opacity-85 ${
         collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-      } text-white/40 hover:bg-white/5 hover:text-white/60`}
+      } text-white/55 hover:bg-white/5 hover:text-white/75`}
     >
       {icon}
       {!collapsed && (
         <span className="flex items-center gap-2 min-w-0 flex-1">
           <span className="text-sm truncate">{label}</span>
-          <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/40 uppercase tracking-wide leading-none">
+          <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/55 uppercase tracking-wide leading-none">
             Soon
           </span>
         </span>
@@ -96,6 +106,7 @@ export function Sidebar() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
+  const [recentsVisible, setRecentsVisible] = useState(true);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
   const [docsExpanded, setDocsExpanded] = useState(true);
   const [activeFolderIdInSidebar, setActiveFolderIdInSidebar] = useState<string | null>(null);
@@ -103,11 +114,15 @@ export function Sidebar() {
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Folder CRUD state
-  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [creatingFolderParentId, setCreatingFolderParentId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renameName, setRenameName] = useState('');
-  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set());
+  const [folderDocsById, setFolderDocsById] = useState<Record<string, SidebarFolderDoc[]>>({});
+  const [folderDocsLoadingById, setFolderDocsLoadingById] = useState<Record<string, boolean>>({});
+  const [folderMenuFolderId, setFolderMenuFolderId] = useState<string | null>(null);
+  const [folderMenuPos, setFolderMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [colorPickerFolderId, setColorPickerFolderId] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState<{ top: number; left: number } | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -126,11 +141,17 @@ export function Sidebar() {
   useEffect(() => {
     const stored = localStorage.getItem(COLLAPSED_KEY);
     if (stored !== null) setCollapsed(stored === 'true');
+    const storedRecents = localStorage.getItem(RECENTS_VISIBLE_KEY);
+    if (storedRecents !== null) setRecentsVisible(storedRecents === 'true');
   }, []);
 
   useEffect(() => {
     localStorage.setItem(COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    localStorage.setItem(RECENTS_VISIBLE_KEY, String(recentsVisible));
+  }, [recentsVisible]);
 
   useEffect(() => {
     if (pathname.startsWith(EDITOR_PREFIX)) {
@@ -235,9 +256,10 @@ export function Sidebar() {
       .then(r => r.ok ? r.json() : { folders: [] })
       .then(data => {
         const sorted: SidebarFolder[] = (data.folders ?? [])
-          .sort((a: SidebarFolder, b: SidebarFolder) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
+          .sort((a: SidebarFolder, b: SidebarFolder) => {
+            if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
         setFolders(sorted);
       })
       .catch(() => {});
@@ -290,10 +312,24 @@ export function Sidebar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [colorPickerFolderId]);
 
+  // Close folder menu on outside click
+  useEffect(() => {
+    if (!folderMenuFolderId) return;
+    function handler(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-folder-menu]') && !target.closest('[data-folder-menu-button]')) {
+        setFolderMenuFolderId(null);
+        setFolderMenuPos(null);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [folderMenuFolderId]);
+
   // Auto-focus inputs when they appear
   useEffect(() => {
-    if (creatingFolder) newFolderInputRef.current?.focus();
-  }, [creatingFolder]);
+    if (creatingFolderParentId) newFolderInputRef.current?.focus();
+  }, [creatingFolderParentId]);
 
   useEffect(() => {
     if (renamingFolderId) renameInputRef.current?.focus();
@@ -351,14 +387,18 @@ export function Sidebar() {
 
   async function handleCreateFolder() {
     const name = newFolderName.trim();
-    if (!name) { setCreatingFolder(false); setNewFolderName(''); return; }
+    if (!name) {
+      setCreatingFolderParentId(null);
+      setNewFolderName('');
+      return;
+    }
     const res = await fetch('/api/folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
     if (res.ok) {
-      setCreatingFolder(false);
+      setCreatingFolderParentId(null);
       setNewFolderName('');
       loadFolders();
       window.dispatchEvent(new Event('folders:updated'));
@@ -384,6 +424,7 @@ export function Sidebar() {
   }
 
   async function handleColorChange(id: string, color: string) {
+    closeFolderMenu();
     setColorPickerFolderId(null);
     setColorPickerPos(null);
     const previous = folders.find(f => f.id === id)?.color ?? null;
@@ -399,7 +440,7 @@ export function Sidebar() {
   }
 
   async function handleDeleteFolder(id: string) {
-    setDeletingFolderId(null);
+    closeFolderMenu();
     setFolders(prev => prev.filter(f => f.id !== id));
     await fetch(`/api/folders/${id}`, { method: 'DELETE' });
     window.dispatchEvent(new Event('folders:updated'));
@@ -409,6 +450,101 @@ export function Sidebar() {
     const rect = dotEl.getBoundingClientRect();
     setColorPickerFolderId(id);
     setColorPickerPos({ top: rect.bottom + 6, left: rect.left });
+  }
+
+  function closeFolderMenu() {
+    setFolderMenuFolderId(null);
+    setFolderMenuPos(null);
+  }
+
+  function openFolderMenu(id: string, buttonEl: HTMLElement) {
+    const rect = buttonEl.getBoundingClientRect();
+    setFolderMenuFolderId(id);
+    setFolderMenuPos({
+      top: rect.bottom + 6,
+      left: Math.max(8, rect.right - 176),
+    });
+  }
+
+  function startCreateFolderInside(id: string) {
+    closeFolderMenu();
+    setCreatingFolderParentId(id);
+    setNewFolderName('');
+    setExpandedFolderIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+  async function toggleFolderPin(folder: SidebarFolder) {
+    closeFolderMenu();
+    const nextPinned = !folder.is_starred;
+    setFolders(prev => prev.map(f => (
+      f.id === folder.id
+        ? { ...f, is_starred: nextPinned }
+        : f
+    )));
+    const res = await fetch(`/api/folders/${folder.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_starred: nextPinned }),
+    });
+    if (!res.ok) {
+      setFolders(prev => prev.map(f => (
+        f.id === folder.id
+          ? { ...f, is_starred: folder.is_starred }
+          : f
+      )));
+    } else {
+      loadFolders();
+      window.dispatchEvent(new Event('folders:updated'));
+    }
+  }
+
+  async function loadFolderDocuments(folderId: string) {
+    if (folderDocsLoadingById[folderId]) return;
+    setFolderDocsLoadingById(prev => ({ ...prev, [folderId]: true }));
+    try {
+      const response = await fetch(`/api/documents?sort=date_desc&folder_id=${encodeURIComponent(folderId)}`);
+      const data = response.ok ? await response.json() : { documents: [] };
+      const docs = Array.isArray(data.documents)
+        ? data.documents.map((doc: { id?: string; title?: string }) => ({
+          id: String(doc.id ?? ''),
+          title: String(doc.title ?? 'Untitled'),
+        })).filter((doc: SidebarFolderDoc) => doc.id.length > 0)
+        : [];
+      setFolderDocsById(prev => ({ ...prev, [folderId]: docs }));
+    } catch {
+      setFolderDocsById(prev => ({ ...prev, [folderId]: [] }));
+    } finally {
+      setFolderDocsLoadingById(prev => ({ ...prev, [folderId]: false }));
+    }
+  }
+
+  function toggleFolderExpanded(folderId: string) {
+    const isExpanded = expandedFolderIds.has(folderId);
+    if (!isExpanded && folderDocsById[folderId] === undefined) {
+      void loadFolderDocuments(folderId);
+    }
+    setExpandedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }
+
+  function handleCreateDocumentInFolder(folderId: string) {
+    closeFolderMenu();
+    if (pathname.startsWith('/documents')) {
+      window.dispatchEvent(new CustomEvent('folder:create-document', { detail: { folderId } }));
+      return;
+    }
+    router.push(`/documents?new=1&folder=${encodeURIComponent(folderId)}`);
   }
 
   function openFeedbackModal() {
@@ -470,7 +606,7 @@ export function Sidebar() {
   const visibleFolders = folders.slice(0, MAX_FOLDERS_VISIBLE);
   const hasMoreFolders = folders.length > MAX_FOLDERS_VISIBLE;
   const activeNavClass = 'bg-white/12 text-white font-medium ring-1 ring-indigo-300/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]';
-  const aiResourceInactiveNavClass = 'text-indigo-100/85 bg-indigo-500/10 border border-indigo-300/20 hover:bg-indigo-500/16 hover:border-indigo-300/35 hover:text-white';
+  const aiResourceInactiveNavClass = 'text-white/90 font-medium bg-indigo-500/10 border border-indigo-300/20 hover:bg-indigo-500/16 hover:border-indigo-300/35 hover:text-white';
   const aiResourceActiveNavClass = 'bg-gradient-to-r from-indigo-500/35 to-violet-500/25 text-white font-semibold border border-indigo-300/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]';
   const creditsUsed = usage ? usage.credits_used ?? usage.message_count : 0;
   const creditsLimit = usage ? usage.credits_limit ?? usage.limit : 0;
@@ -488,6 +624,9 @@ export function Sidebar() {
     : usage?.plan === 'free'
       ? 'Upgrade'
       : 'Manage plan';
+  const folderInMenu = folderMenuFolderId
+    ? folders.find(folder => folder.id === folderMenuFolderId) ?? null
+    : null;
 
   function formatCredits(value: number): string {
     return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -508,13 +647,13 @@ export function Sidebar() {
                 <div className="text-[18px] leading-none font-semibold tracking-tight text-white truncate">
                   BetterNotes
                 </div>
-                <div className="text-[11px] text-white/45 truncate mt-0.5">AI Workspace</div>
+                <div className="text-[11px] text-white/58 truncate mt-0.5">AI Workspace</div>
               </div>
             </Link>
           )}
           <button
             onClick={toggle}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors shrink-0"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/55 hover:text-white/85 hover:bg-white/10 transition-colors shrink-0"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -547,7 +686,7 @@ export function Sidebar() {
             } ${
               isActive('/home')
                 ? activeNavClass
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
+                : 'text-white/72 hover:bg-white/10 hover:text-white'
             }`}
           >
             <HomeIcon className="w-4 h-4 shrink-0" />
@@ -620,7 +759,7 @@ export function Sidebar() {
               className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
                   ? activeNavClass
-                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+                  : 'text-white/72 hover:bg-white/10 hover:text-white'
               }`}
             >
               <DocumentsIcon className="w-4 h-4 shrink-0" />
@@ -631,7 +770,7 @@ export function Sidebar() {
                 className={`flex items-center gap-3 rounded-xl transition-colors duration-150 px-3 py-2.5 ${
                   isActiveDocuments()
                     ? activeNavClass
-                    : 'text-white/60 hover:bg-white/10 hover:text-white'
+                    : 'text-white/72 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <button
@@ -670,123 +809,140 @@ export function Sidebar() {
 
               {docsExpanded && (
                 <div className="mt-0.5 space-y-0.5">
-                  {/* New folder item — always first */}
-                  {creatingFolder ? (
-                    <div className="flex items-center gap-2 pl-9 pr-2 py-1">
-                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                        <span className="w-2 h-2 rounded-full border border-dashed border-white/30" />
-                      </span>
-                      <input
-                        ref={newFolderInputRef}
-                        value={newFolderName}
-                        onChange={e => setNewFolderName(e.target.value)}
-                        onBlur={handleCreateFolder}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleCreateFolder();
-                          if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
-                        }}
-                        placeholder="Folder name"
-                        className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/30"
-                      />
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setCreatingFolder(true)}
-                      className="flex items-center gap-2 w-full pl-9 pr-3 py-1.5 rounded-xl transition-colors duration-150 text-white/30 hover:bg-white/5 hover:text-white/60"
-                    >
-                      <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                        <span className="w-3.5 h-3.5 rounded-full border border-dashed border-current flex items-center justify-center">
-                          <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                          </svg>
-                        </span>
-                      </span>
-                      <span className="text-sm">New folder</span>
-                    </button>
-                  )}
-
-                  {visibleFolders.map(folder => (
-                    renamingFolderId === folder.id ? (
-                      /* Inline rename input */
-                      <div key={folder.id} className="flex items-center gap-2 pl-9 pr-2 py-1">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: folder.color ?? '#6366f1' }}
-                        />
-                        <input
-                          ref={renameInputRef}
-                          value={renameName}
-                          onChange={e => setRenameName(e.target.value)}
-                          onBlur={() => handleRenameFolder(folder.id)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleRenameFolder(folder.id);
-                            if (e.key === 'Escape') setRenamingFolderId(null);
-                          }}
-                          className="flex-1 min-w-0 bg-white/10 text-white/90 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60"
-                        />
-                      </div>
-                    ) : (
-                      /* Normal folder row */
-                      <div
-                        key={folder.id}
-                        className={`group flex items-center gap-2 w-full pl-9 pr-2 py-1.5 rounded-xl transition-colors duration-150 ${activeFolderIdInSidebar === folder.id ? 'bg-white/10 text-white' : 'text-white/50 hover:bg-white/5 hover:text-white/80'}`}
-                        onMouseLeave={() => {
-                          if (deletingFolderId === folder.id) setDeletingFolderId(null);
-                        }}
-                      >
-                        {/* Color dot — click to open color picker */}
-                        <button
-                          data-color-dot
-                          onClick={e => openColorPicker(folder.id, e.currentTarget)}
-                          className="shrink-0 w-4 h-4 flex items-center justify-center rounded-sm hover:bg-white/10 transition-colors"
-                          title="Change color"
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: folder.color ?? '#6366f1' }}
-                          />
-                        </button>
-
-                        {/* Name — click to navigate */}
-                        <button
-                          onClick={() => navigateToFolder(folder)}
-                          className="flex-1 truncate text-sm text-left"
-                        >
-                          {folder.name}
-                        </button>
-
-                        {/* Hover actions */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {/* Rename */}
-                          <button
-                            onClick={() => { setRenamingFolderId(folder.id); setRenameName(folder.name); }}
-                            className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors"
-                            title="Rename"
+                  {visibleFolders.map(folder => {
+                    const isExpanded = expandedFolderIds.has(folder.id);
+                    const folderDocs = folderDocsById[folder.id] ?? [];
+                    const visibleFolderDocs = folderDocs.slice(0, MAX_VISIBLE_FOLDER_DOCS);
+                    const isLoadingFolderDocs = Boolean(folderDocsLoadingById[folder.id]);
+                    const hasMoreFolderDocs = folderDocs.length > MAX_VISIBLE_FOLDER_DOCS;
+                    const isActiveFolder = activeFolderIdInSidebar === folder.id;
+                    const hasContent = folder.document_count > 0 || (folder.input_count ?? 0) > 0 || folderDocs.length > 0;
+                    return (
+                      <div key={folder.id} className="space-y-0.5">
+                        {renamingFolderId === folder.id ? (
+                          <div className="flex items-center gap-1.5 pl-7 pr-2 py-1">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color ?? '#6366f1' }}
+                            />
+                            {hasContent ? (
+                              <FolderListIcon className="w-3.5 h-3.5 shrink-0 text-white/55" />
+                            ) : (
+                              <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/55" />
+                            )}
+                            <input
+                              ref={renameInputRef}
+                              value={renameName}
+                              onChange={e => setRenameName(e.target.value)}
+                              onBlur={() => handleRenameFolder(folder.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRenameFolder(folder.id);
+                                if (e.key === 'Escape') setRenamingFolderId(null);
+                              }}
+                              className="flex-1 min-w-0 bg-white/10 text-white/95 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className={`flex items-center gap-1.5 w-full pl-7 pr-2 py-1.5 rounded-xl transition-colors duration-150 ${isActiveFolder ? 'bg-white/10 text-white' : 'text-white/68 hover:bg-white/5 hover:text-white/92'}`}
                           >
-                            <PencilIcon />
-                          </button>
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color ?? '#6366f1' }}
+                            />
+                            {hasContent ? (
+                              <FolderListIcon className="w-3.5 h-3.5 shrink-0 text-white/55" />
+                            ) : (
+                              <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/55" />
+                            )}
 
-                          {/* Delete (two-step) */}
-                          {deletingFolderId === folder.id ? (
                             <button
-                              onClick={() => handleDeleteFolder(folder.id)}
-                              className="h-5 px-1.5 flex items-center rounded text-[10px] font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                              onClick={() => navigateToFolder(folder)}
+                              className="flex-1 truncate text-sm text-left"
+                              title={folder.name}
                             >
-                              Delete?
+                              {folder.name}
                             </button>
-                          ) : (
+
+                            {hasContent && (
+                              <button
+                                onClick={() => toggleFolderExpanded(folder.id)}
+                                className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+                                aria-label={isExpanded ? 'Collapse folder content' : 'Expand folder content'}
+                                title={isExpanded ? 'Collapse folder content' : 'Expand folder content'}
+                              >
+                                <ChevronDownIcon className={`w-3 h-3 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`} />
+                              </button>
+                            )}
+
                             <button
-                              onClick={() => setDeletingFolderId(folder.id)}
-                              className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/40 hover:text-red-400/70 transition-colors"
-                              title="Delete folder"
+                              data-folder-menu-button
+                              onClick={e => openFolderMenu(folder.id, e.currentTarget)}
+                              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+                              aria-label="Open folder menu"
+                              title="Folder options"
                             >
-                              <TrashIcon />
+                              <DotsVerticalIcon />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
+
+                        {(isExpanded || creatingFolderParentId === folder.id) && (
+                          <div className="ml-14 mr-2 pb-1 space-y-1">
+                            {isExpanded && (
+                              <>
+                                {isLoadingFolderDocs ? (
+                                  <p className="text-[11px] text-white/50 px-1 py-0.5">Loading...</p>
+                                ) : visibleFolderDocs.length > 0 ? (
+                                  visibleFolderDocs.map(doc => (
+                                    <Link
+                                      key={doc.id}
+                                      href={`/documents/${doc.id}`}
+                                      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-white/60 hover:text-white/88 hover:bg-white/6 transition-colors"
+                                    >
+                                      <FileIcon className="w-3 h-3 shrink-0 text-white/45" />
+                                      <span className="truncate">{doc.title || 'Untitled'}</span>
+                                    </Link>
+                                  ))
+                                ) : (
+                                  <p className="text-[11px] text-white/45 px-1 py-0.5">No documents yet</p>
+                                )}
+
+                                {hasMoreFolderDocs && (
+                                  <button
+                                    onClick={() => navigateToFolder(folder)}
+                                    className="text-[11px] text-indigo-300/85 hover:text-indigo-200 transition-colors px-1.5 py-0.5"
+                                  >
+                                    View all docs →
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {creatingFolderParentId === folder.id && (
+                              <div className="flex items-center gap-2 py-0.5">
+                                <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                                  <FolderPlusIcon className="w-3 h-3 text-white/50" />
+                                </span>
+                                <input
+                                  ref={newFolderInputRef}
+                                  value={newFolderName}
+                                  onChange={e => setNewFolderName(e.target.value)}
+                                  onBlur={handleCreateFolder}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') handleCreateFolder();
+                                    if (e.key === 'Escape') { setCreatingFolderParentId(null); setNewFolderName(''); }
+                                  }}
+                                  placeholder="Folder name"
+                                  className="flex-1 min-w-0 bg-white/10 text-white/95 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/40"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )
-                  ))}
+                    );
+                  })}
 
                   {hasMoreFolders && (
                     <Link
@@ -817,7 +973,7 @@ export function Sidebar() {
             } ${
               isActive('/templates')
                 ? activeNavClass
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
+                : 'text-white/72 hover:bg-white/10 hover:text-white'
             }`}
           >
             <TemplatesIcon className="w-4 h-4 shrink-0" />
@@ -827,18 +983,39 @@ export function Sidebar() {
           {/* ── Recents section ── */}
           {recentDocs.length > 0 && (
             <>
-              <SectionDivider label="Recents" collapsed={collapsed} />
-              {!collapsed && recentDocs.map(doc => (
+              {collapsed ? (
+                <SectionDivider label="Recents" collapsed={collapsed} />
+              ) : (
+                <div className="flex items-center gap-2 px-2 pt-4 pb-1.5">
+                  <div className="w-12 shrink-0" />
+                  <div className="flex-1 flex items-center gap-2">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-[10px] font-semibold text-white/42 uppercase tracking-widest whitespace-nowrap">
+                      Recents
+                    </span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  <button
+                    onClick={() => setRecentsVisible((v) => !v)}
+                    className="w-12 shrink-0 text-right text-[11px] text-white/60 hover:text-white/85 transition-colors"
+                    aria-label={recentsVisible ? 'Hide recents' : 'Show recents'}
+                    title={recentsVisible ? 'Hide recents' : 'Show recents'}
+                  >
+                    {recentsVisible ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              )}
+              {!collapsed && recentsVisible && recentDocs.map(doc => (
                 <Link
                   key={doc.id}
                   href={`/documents/${doc.id}`}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors duration-150 truncate ${
                     pathname === `/documents/${doc.id}`
                       ? activeNavClass
-                      : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+                      : 'text-white/68 hover:bg-white/5 hover:text-white/90'
                   }`}
                 >
-                  <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/30" />
+                  <FileIcon className="w-3.5 h-3.5 shrink-0 text-white/45" />
                   <span className="truncate">{doc.title || 'Untitled'}</span>
                 </Link>
               ))}
@@ -852,7 +1029,7 @@ export function Sidebar() {
             title={collapsed ? 'Suggestions' : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-            } text-white/60 hover:bg-white/10 hover:text-white`}
+            } text-white/72 hover:bg-white/10 hover:text-white`}
           >
             <FeedbackIcon className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="text-sm truncate">Suggestions</span>}
@@ -866,7 +1043,7 @@ export function Sidebar() {
               <Link
                 href={billingHref}
                 title="Credits"
-                className="flex items-center justify-center px-2 py-2.5 rounded-xl text-white/60 hover:bg-indigo-500/15 hover:text-indigo-200 transition-colors"
+                className="flex items-center justify-center px-2 py-2.5 rounded-xl text-white/72 hover:bg-indigo-500/15 hover:text-indigo-200 transition-colors"
               >
                 <CreditsIcon className="w-4 h-4 shrink-0" />
               </Link>
@@ -974,6 +1151,70 @@ export function Sidebar() {
           )}
         </div>
       </aside>
+
+      {/* Folder actions menu */}
+      {folderInMenu && folderMenuPos && createPortal(
+        <div
+          data-folder-menu
+          style={{ top: folderMenuPos.top, left: folderMenuPos.left }}
+          className="fixed z-[10000] w-44 rounded-xl border border-white/20 bg-neutral-900/96 backdrop-blur-xl p-1 shadow-2xl"
+        >
+          <button
+            onClick={() => {
+              setRenamingFolderId(folderInMenu.id);
+              setRenameName(folderInMenu.name);
+              closeFolderMenu();
+            }}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <PencilIcon />
+            Edit
+          </button>
+          <button
+            onClick={(e) => {
+              closeFolderMenu();
+              openColorPicker(folderInMenu.id, e.currentTarget);
+            }}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <PaletteIcon className="w-3.5 h-3.5" />
+            Color
+          </button>
+          <button
+            onClick={() => void toggleFolderPin(folderInMenu)}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <PinIcon className="w-3.5 h-3.5" />
+            {folderInMenu.is_starred ? 'Unpin' : 'Pin to top'}
+          </button>
+          <button
+            onClick={() => startCreateFolderInside(folderInMenu.id)}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <FolderPlusIcon className="w-3.5 h-3.5" />
+            Create subfolder
+          </button>
+          <button
+            onClick={() => handleCreateDocumentInFolder(folderInMenu.id)}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <DocumentPlusIcon className="w-3.5 h-3.5" />
+            Create document
+          </button>
+          <button
+            onClick={() => {
+              closeFolderMenu();
+              if (!window.confirm(`Delete folder "${folderInMenu.name}"?`)) return;
+              void handleDeleteFolder(folderInMenu.id);
+            }}
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-red-300/85 hover:bg-red-500/15 hover:text-red-200 transition-colors"
+          >
+            <TrashIcon />
+            Delete
+          </button>
+        </div>,
+        document.body
+      )}
 
       {/* Color picker portal */}
       {colorPickerFolderId && colorPickerPos && createPortal(
@@ -1169,17 +1410,74 @@ function SignOutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function PencilIcon() {
+function PencilIcon({ className }: { className?: string }) {
   return (
-    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={className ?? 'w-3 h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
     </svg>
   );
 }
-function TrashIcon() {
+function TrashIcon({ className }: { className?: string }) {
   return (
-    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={className ?? 'w-3 h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  );
+}
+function DotsVerticalIcon() {
+  return (
+    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="19" r="2" />
+    </svg>
+  );
+}
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+function PaletteIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a9 9 0 100 18h1.1a2.9 2.9 0 002.9-2.9 2.1 2.1 0 012.1-2.1h.4A2.5 2.5 0 0021 13.5 10.5 10.5 0 0012 3z" />
+      <circle cx="7.5" cy="10" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="10.5" cy="7.5" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="14.25" cy="7.25" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 3l6 6-3 1.5v3L13.5 18l-1.5-1.5L7.5 21 6 19.5l4.5-4.5L9 13.5v-3L3 9l6-6h6z" />
+    </svg>
+  );
+}
+function FolderPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v5m2.5-2.5h-5" />
+    </svg>
+  );
+}
+function FolderListIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 7.5A2.5 2.5 0 016 5h4l1.9 2H18a2.5 2.5 0 012.5 2.5v6.9A2.6 2.6 0 0117.9 19H6.1A2.6 2.6 0 013.5 16.4V7.5z" />
+    </svg>
+  );
+}
+function DocumentPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v5m2.5-2.5h-5" />
     </svg>
   );
 }

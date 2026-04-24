@@ -29,6 +29,8 @@ interface ExamSetupProps {
   isLoading: boolean;
   error: string | null;
   onClose?: () => void;
+  /** Render without page heading, modal wrapper or internal submit button. The parent owns the submit button and targets `form="exam-setup-form"`. */
+  embedded?: boolean;
 }
 
 interface DocumentItem {
@@ -102,7 +104,7 @@ function autoDistribute(total: number, fmts: ExamQuestionType[]): Partial<Record
   return Object.fromEntries(fmts.map((t, i) => [t, base + (i < remainder ? 1 : 0)]));
 }
 
-export default function ExamSetup({ onSubmit, isLoading, error, onClose }: ExamSetupProps) {
+export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedded }: ExamSetupProps) {
   const [subject, setSubject] = useState('');
   const [tier, setTier] = useState<string>('');
   const [difficulty, setDifficulty] = useState<string>('');
@@ -296,9 +298,9 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose }: ExamS
   const displayError = validationError ?? error;
 
   const formContent = (
-    <div className={onClose ? 'px-6 py-5' : 'max-w-xl mx-auto px-4 py-10'}>
-      {/* Page heading — only shown outside modal */}
-      {!onClose && (
+    <div className={embedded ? 'py-0' : onClose ? 'px-6 py-5' : 'max-w-xl mx-auto px-4 py-10'}>
+      {/* Page heading — only shown standalone, never in modal nor embedded */}
+      {!onClose && !embedded && (
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25 shrink-0">
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -925,8 +927,8 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose }: ExamS
           </div>
         )}
 
-        {/* Submit — only shown outside modal */}
-        {!onClose && (
+        {/* Submit — only when standalone; hidden in modal and embedded modes */}
+        {!onClose && !embedded && (
           <button
             type="submit"
             disabled={isLoading || !isBalanced || !isCogBalanced || !tier || !difficulty}

@@ -26,6 +26,7 @@ interface Props {
   autoFocus?: boolean;
   submitLabel?: string;
   initialTemplateId?: string;
+  initialPrompt?: string;
   /** Controlled: when this changes, the internal templateId updates */
   selectedTemplateId?: string;
   /** Called whenever the user picks a different template */
@@ -71,13 +72,14 @@ export function DocumentCreationBar({
   autoFocus = false,
   submitLabel,
   initialTemplateId,
+  initialPrompt = '',
   selectedTemplateId,
   onTemplateChange,
   lockTemplateSelection = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname() ?? '';
-  const [prompt, setPrompt]   = useState('');
+  const [prompt, setPrompt]   = useState(initialPrompt);
   const [templateId, setTemplateId] = useState<string | null>(initialTemplateId ?? null);
   const [pages, setPages]     = useState(2);
   const [density, setDensity] = useState<'compact' | 'balanced' | 'spacious'>('balanced');
@@ -110,6 +112,10 @@ export function DocumentCreationBar({
   useEffect(() => {
     if (selectedTemplateId) setTemplateId(selectedTemplateId);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    setPrompt(initialPrompt);
+  }, [initialPrompt]);
 
   useEffect(() => {
     if (!initialTemplateId && !selectedTemplateId) {

@@ -8,6 +8,7 @@ import { UsageBanner } from '../_components/UsageBanner';
 import { UpgradeModal } from '../_components/UpgradeModal';
 import { LatexHighlighter } from '../_components/LatexHighlighter';
 import { LatexProjectViewer } from '../_components/LatexProjectViewer';
+import { ProjectAttachmentsPanel } from '../_components/ProjectAttachmentsPanel';
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import InteractiveBuildPreview from '../_components/InteractiveBuildPreview';
 import { DocumentQaInlineChat } from '../_components/DocumentQaInlineChat';
@@ -84,16 +85,6 @@ export default function DocumentWorkspacePage() {
   const searchParamsDoc = useSearchParams();
   const documentId = params?.id ?? '';
   const projectId = searchParamsDoc?.get('projectId')?.trim() || null;
-  const backListHref = projectId
-    ? `/projects/${encodeURIComponent(projectId)}`
-    : pathname.startsWith('/cheat-sheets/')
-      ? '/cheat-sheets'
-      : '/documents';
-  const backListLabel = projectId
-    ? 'Back to project'
-    : backListHref === '/cheat-sheets'
-      ? 'Back to cheat sheets'
-      : 'Back to documents';
   const isCheatSheetWorkspace = pathname.startsWith('/cheat-sheets/');
 
   const {
@@ -401,6 +392,17 @@ export default function DocumentWorkspacePage() {
   );
 
   const isDraft = docData?.status === 'draft';
+  const effectiveProjectId = projectId ?? docData?.folder_id ?? null;
+  const backListHref = effectiveProjectId
+    ? `/projects/${encodeURIComponent(effectiveProjectId)}`
+    : pathname.startsWith('/cheat-sheets/')
+      ? '/cheat-sheets'
+      : '/documents';
+  const backListLabel = effectiveProjectId
+    ? 'Back to project'
+    : backListHref === '/cheat-sheets'
+      ? 'Back to cheat sheets'
+      : 'Back to documents';
   const isDocumentGenerating = isGenerating || docData?.status === 'generating';
 
   function isLimitReachedError(err: unknown): boolean {
@@ -1215,7 +1217,11 @@ export default function DocumentWorkspacePage() {
         >
           {isOwner ? (
             <>
-              <WorkspaceAttachmentsPanel documentId={documentId} />
+              {effectiveProjectId ? (
+                <ProjectAttachmentsPanel projectId={effectiveProjectId} />
+              ) : (
+                <WorkspaceAttachmentsPanel documentId={documentId} />
+              )}
               <div className="px-3 py-2 border-b border-white/10 shrink-0 flex items-center gap-1.5 bg-white/[0.02]">
                 <button
                   onClick={() => setChatTab('edit')}

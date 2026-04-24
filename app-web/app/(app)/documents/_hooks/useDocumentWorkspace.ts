@@ -9,6 +9,7 @@ export interface DocumentData {
   template_id: string;
   status: 'draft' | 'generating' | 'ready' | 'error';
   is_starred: boolean;
+  folder_id: string | null;
   current_version_id: string | null;
   created_at: string;
   updated_at: string;

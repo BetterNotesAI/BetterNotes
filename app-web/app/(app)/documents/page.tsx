@@ -5,9 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
 import { FolderSectionMenu } from './_components/FolderSectionMenu';
+import { ProjectAttachmentsPanel } from './_components/ProjectAttachmentsPanel';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
+
+interface ProjectFolder {
+  id: string;
+  name: string;
+  color: string | null;
+  is_starred: boolean;
+  archived_at?: string | null;
+  document_count?: number;
+  input_count?: number;
+}
 
 const ONBOARDING_STEPS = [
   {
@@ -45,12 +56,13 @@ const ONBOARDING_STEPS = [
   },
 ];
 
-function NewDocumentWatcher({ onTrigger }: { onTrigger: () => void }) {
+function NewDocumentWatcher({ onTrigger }: { onTrigger: (folderId: string | null) => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   useEffect(() => {
     if (searchParams?.get('new') === '1') {
-      onTrigger();
+      const rawFolder = searchParams.get('folder');
+      onTrigger(rawFolder && rawFolder.trim().length > 0 ? rawFolder.trim() : null);
       router.replace('/documents', { scroll: false });
     }
   }, [searchParams, router, onTrigger]);
@@ -80,7 +92,7 @@ export default function DocumentsPage() {
   });
 
   // Folders for DocumentCard "move to folder" menu
-  const [folders, setFolders] = useState<{ id: string; name: string; color: string | null; is_starred: boolean; archived_at?: string | null }[]>([]);
+  const [folders, setFolders] = useState<ProjectFolder[]>([]);
 
   // Create modal state
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -88,6 +100,7 @@ export default function DocumentsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   // Folder pre-selected when opening modal via "New document here"
   const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
+  const [projectAttachmentsOpen, setProjectAttachmentsOpen] = useState(false);
 
   // Initial load: load folders for card menu + register sidebar events
   useEffect(() => {
@@ -112,11 +125,19 @@ export default function DocumentsPage() {
       }
       setActiveFolderId(null);
     }
+    // Handle sidebar "Create document in folder" action
+    function handleCreateDocumentInFolder(e: Event) {
+      const folderId = (e as CustomEvent<{ folderId: string }>).detail.folderId;
+      if (folderId) setPendingFolderId(folderId);
+      setShowNewDocModal(true);
+    }
     window.addEventListener('folder:activate', handleFolderActivate);
     window.addEventListener('folder:reset', handleFolderReset);
+    window.addEventListener('folder:create-document', handleCreateDocumentInFolder);
     return () => {
       window.removeEventListener('folder:activate', handleFolderActivate);
       window.removeEventListener('folder:reset', handleFolderReset);
+      window.removeEventListener('folder:create-document', handleCreateDocumentInFolder);
     };
   }, []);
 
@@ -125,6 +146,10 @@ export default function DocumentsPage() {
     loadDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy, filterStarred, showArchived, activeFolderId]);
+
+  useEffect(() => {
+    if (!activeFolderId) setProjectAttachmentsOpen(false);
+  }, [activeFolderId]);
 
   // --- Grouped view helpers (F2-M6.3 + F2-M6.4) ---
   // Only active when no folder filter is applied (All Documents view).
@@ -137,11 +162,12 @@ export default function DocumentsPage() {
 
     const starred = visibleDocs.filter((d) => d.is_starred);
 
-    // All non-starred docs (including those inside folders)
+    // All non-starred docs.
     const nonStarred = filterStarred ? [] : visibleDocs.filter((d) => !d.is_starred);
-    const looseDocs = nonStarred;
+    const looseDocs = nonStarred.filter((d) => d.folder_id === null);
 
-    // Folder groups: non-starred docs that belong to a folder, grouped by folder_id
+    // Non-starred docs grouped by folder_id. Folder cards are built from
+    // folder metadata below so projects with only input files are still visible.
     const inFolderDocs = nonStarred.filter((d) => d.folder_id !== null);
     const folderMap = new Map<string, DocumentItem[]>();
     for (const doc of inFolderDocs) {
@@ -150,30 +176,58 @@ export default function DocumentsPage() {
       folderMap.get(fid)!.push(doc);
     }
 
-    // Sort folder groups alphabetically by folder name
-    const folderGroups = Array.from(folderMap.entries())
-      .map(([fid, docs]) => {
-        const folderMeta = folders.find((f) => f.id === fid);
-        return { folderId: fid, folderName: folderMeta?.name ?? '', folderColor: folderMeta?.color ?? null, docs };
-      })
-      .sort((a, b) => a.folderName.localeCompare(b.folderName));
-
     // Separate archived and non-archived folders
     const nonArchivedFolders = folders.filter((f) => !f.archived_at);
     const archivedFolders = showArchived ? folders.filter((f) => !!f.archived_at) : [];
     const starredFolders = nonArchivedFolders.filter((f) => f.is_starred);
     const starredFolderIds = new Set(starredFolders.map((f) => f.id));
 
-    // Build set of non-archived folder ids for filtering folder groups
-    const nonArchivedFolderIds = new Set(nonArchivedFolders.map((f) => f.id));
-
-    // Exclude starred folders and archived folders from the Folders section
-    const filteredFolderGroups = folderGroups.filter(
-      (g) => !starredFolderIds.has(g.folderId) && nonArchivedFolderIds.has(g.folderId)
-    );
+    // Project cards: include every non-archived, non-starred folder, even when
+    // it only has project-level input files and no generated documents yet.
+    const filteredFolderGroups = showArchived
+      ? []
+      : nonArchivedFolders
+        .filter((folder) => !starredFolderIds.has(folder.id))
+        .map((folder) => {
+          const docs = folderMap.get(folder.id) ?? [];
+          return {
+            folderId: folder.id,
+            folderName: folder.name,
+            folderColor: folder.color,
+            docs,
+            documentCount: folder.document_count ?? docs.length,
+            inputCount: folder.input_count ?? 0,
+            folder,
+          };
+        })
+        .sort((a, b) => a.folderName.localeCompare(b.folderName));
 
     return { starred, folderGroups: filteredFolderGroups, looseDocs, visibleDocs, starredFolders, archivedFolders };
   }, [activeFolderId, filterStarred, showArchived, documents, folders]);
+
+  function formatFolderCounts(folder: Pick<ProjectFolder, 'document_count' | 'input_count'>, docsFallback = 0) {
+    const documentCount = folder.document_count ?? docsFallback;
+    const inputCount = folder.input_count ?? 0;
+    const parts: string[] = [];
+    if (documentCount > 0) parts.push(`${documentCount} document${documentCount === 1 ? '' : 's'}`);
+    if (inputCount > 0) parts.push(`${inputCount} file${inputCount === 1 ? '' : 's'}`);
+    return parts.length > 0 ? parts.join(' · ') : 'No files yet';
+  }
+
+  function updateProjectInputCount(folderId: string, count: number) {
+    const currentCount = folders.find((folder) => folder.id === folderId)?.input_count ?? 0;
+    if (currentCount === count) return;
+    setFolders((prev) => prev.map((folder) => (
+      folder.id === folderId ? { ...folder, input_count: count } : folder
+    )));
+    window.dispatchEvent(new Event('folders:updated'));
+  }
+
+  function documentHref(doc: DocumentItem): string {
+    return doc.folder_id
+      ? `/documents/${doc.id}?projectId=${encodeURIComponent(doc.folder_id)}`
+      : `/documents/${doc.id}`;
+  }
 
   async function loadDocuments() {
     const silent = silentNextLoad.current;
@@ -447,7 +501,9 @@ export default function DocumentsPage() {
         setCreateError(docData?.error ?? 'Failed to create document. Please try again.');
         return;
       }
-      router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
+      const query = new URLSearchParams({ prompt: data.prompt });
+      if (pendingFolderId) query.set('projectId', pendingFolderId);
+      router.push(`/documents/${docData.document.id}?${query.toString()}`);
     } catch {
       setCreateError('Something went wrong. Please try again.');
     } finally {
@@ -455,10 +511,19 @@ export default function DocumentsPage() {
     }
   }
 
+  const activeProjectFolder = activeFolderId
+    ? folders.find((folder) => folder.id === activeFolderId) ?? null
+    : null;
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-transparent text-white">
       <Suspense fallback={null}>
-        <NewDocumentWatcher onTrigger={() => setShowNewDocModal(true)} />
+        <NewDocumentWatcher
+          onTrigger={(folderId) => {
+            setPendingFolderId(folderId);
+            setShowNewDocModal(true);
+          }}
+        />
       </Suspense>
 
       {/* Header */}
@@ -533,9 +598,33 @@ export default function DocumentsPage() {
         setFilterStarred={(v) => { setIsLoadingDocs(true); setFilterStarred(v); }}
         showArchived={showArchived}
         setShowArchived={(v) => { setIsLoadingDocs(true); setShowArchived(v); }}
+        rightAccessory={activeFolderId ? (
+          <button
+            onClick={() => setProjectAttachmentsOpen((open) => !open)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+              projectAttachmentsOpen
+                ? 'bg-indigo-500/18 border-indigo-400/45 text-white'
+                : 'bg-white/5 border-white/10 text-white/70 hover:bg-indigo-500/10 hover:border-indigo-500/25 hover:text-white'
+            }`}
+            aria-pressed={projectAttachmentsOpen}
+            title="Project attachments"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+            Attachments
+            {activeProjectFolder && (
+              <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-white/55">
+                {activeProjectFolder.input_count ?? 0}
+              </span>
+            )}
+          </button>
+        ) : null}
       />
 
       {/* Documents list */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-8">
           {isLoadingDocs ? (
@@ -675,7 +764,10 @@ export default function DocumentsPage() {
                             <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                             </svg>
-                            <span className="text-sm font-medium text-white/80 truncate">{f.name}</span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-white/80 truncate">{f.name}</span>
+                              <span className="block text-[11px] text-white/35 truncate">{formatFolderCounts(f)}</span>
+                            </span>
                           </div>
                           <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
                             <FolderSectionMenu
@@ -726,7 +818,7 @@ export default function DocumentsPage() {
                           onStar={(isStarred) => handleStar(doc.id, isStarred)}
                           onArchive={(archive) => handleArchive(doc.id, archive)}
                           onDelete={() => handleDelete(doc.id)}
-                          onNavigate={() => router.push(`/documents/${doc.id}`)}
+                          onNavigate={() => router.push(documentHref(doc))}
                           onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
                           folders={folders}
                           onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
@@ -752,7 +844,7 @@ export default function DocumentsPage() {
                     <span className="text-[10px] text-white/30 font-medium">{groupedView.folderGroups.length}</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {groupedView.folderGroups.map(({ folderId: groupFolderId, folderName, folderColor }) => (
+                    {groupedView.folderGroups.map(({ folderId: groupFolderId, folderName, folderColor, documentCount, inputCount }) => (
                       <div
                         key={groupFolderId}
                         className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl
@@ -769,8 +861,13 @@ export default function DocumentsPage() {
                           <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                           </svg>
-                          <span className="text-sm font-medium text-white/80 truncate">
-                            {folderName}
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-white/80 truncate">
+                              {folderName}
+                            </span>
+                            <span className="block text-[11px] text-white/35 truncate">
+                              {formatFolderCounts({ document_count: documentCount, input_count: inputCount })}
+                            </span>
                           </span>
                         </div>
                         <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -850,7 +947,10 @@ export default function DocumentsPage() {
                           <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                           </svg>
-                          <span className="text-sm font-medium text-white/60 truncate">{f.name}</span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-white/60 truncate">{f.name}</span>
+                            <span className="block text-[11px] text-white/30 truncate">{formatFolderCounts(f)}</span>
+                          </span>
                         </div>
                         <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
                           <FolderSectionMenu
@@ -899,7 +999,7 @@ export default function DocumentsPage() {
                         onStar={(isStarred) => handleStar(doc.id, isStarred)}
                         onArchive={(archive) => handleArchive(doc.id, archive)}
                         onDelete={() => handleDelete(doc.id)}
-                        onNavigate={() => router.push(`/documents/${doc.id}`)}
+                        onNavigate={() => router.push(documentHref(doc))}
                         onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
                         folders={folders}
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
@@ -914,7 +1014,10 @@ export default function DocumentsPage() {
               )}
 
               {/* All Documents empty state (only shown when there are truly no docs at all) */}
-              {groupedView.visibleDocs.length === 0 && !(showArchived && groupedView.archivedFolders.length > 0) && (
+              {groupedView.visibleDocs.length === 0
+                && groupedView.folderGroups.length === 0
+                && groupedView.starredFolders.length === 0
+                && !(showArchived && groupedView.archivedFolders.length > 0) && (
                 filterStarred || showArchived ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <p className="text-white/40 text-sm mb-3">No documents match the current filters.</p>
@@ -999,7 +1102,7 @@ export default function DocumentsPage() {
                         onStar={(isStarred) => handleStar(doc.id, isStarred)}
                         onArchive={(archive) => handleArchive(doc.id, archive)}
                         onDelete={() => handleDelete(doc.id)}
-                        onNavigate={() => router.push(`/documents/${doc.id}`)}
+                        onNavigate={() => router.push(documentHref(doc))}
                         onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
                         folders={folders}
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
@@ -1014,6 +1117,17 @@ export default function DocumentsPage() {
             })()
           )}
         </div>
+      </div>
+      {activeFolderId && projectAttachmentsOpen && (
+        <aside className="hidden md:block w-[360px] shrink-0 border-l border-white/10 bg-neutral-950/45">
+          <ProjectAttachmentsPanel
+            projectId={activeFolderId}
+            mode="sidebar"
+            onClose={() => setProjectAttachmentsOpen(false)}
+            onCountChange={(count) => updateProjectInputCount(activeFolderId, count)}
+          />
+        </aside>
+      )}
       </div>
 
       {/* New document modal */}

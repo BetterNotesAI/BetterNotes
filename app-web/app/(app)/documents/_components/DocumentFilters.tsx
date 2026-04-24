@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
 
@@ -18,6 +18,7 @@ interface DocumentFiltersProps {
   setFilterStarred: (value: boolean) => void;
   showArchived: boolean;
   setShowArchived: (value: boolean) => void;
+  rightAccessory?: ReactNode;
 }
 
 export function DocumentFilters({
@@ -27,6 +28,7 @@ export function DocumentFilters({
   setFilterStarred,
   showArchived,
   setShowArchived,
+  rightAccessory,
 }: DocumentFiltersProps) {
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -135,6 +137,12 @@ export function DocumentFilters({
         >
           Clear filters
         </button>
+      )}
+
+      {rightAccessory && (
+        <div className="ml-auto flex items-center">
+          {rightAccessory}
+        </div>
       )}
     </div>
   );
