@@ -7,13 +7,20 @@
 
 ## Estado actual
 
-**Fase:** 3 — Visor Interactivo — COMPLETA ✅ (2026-03-28) + extensiones IA-M1/M2
-**Milestone activo:** ninguno — IA-M1 e IA-M2 verificados y mergeados a main (2026-04-01)
-**Tarea activa:** ninguna. Siguiente: F4-M1 Problem Solver o IA-M3 multi-modelo
-**Último hito cerrado:** IA-M2 ✅ — gestión dinámica de bloques
+**Fase:** 5 — Comunidad y Descubrimiento — EN PROGRESO
+**Milestone activo:** ninguno — Community v1 (F5-M1, F5-M2, F6-M1 + extras) mergeado a main (2026-04-24)
+**Tarea activa:** ninguna. Siguiente: F5-M3 (búsqueda semántica), F4-M1 (Problem Solver), o IA-M3 (multi-modelo)
+**Último hito cerrado:** Community v1 ✅ — catálogo UC3M, publish flow, My Studies, explore pages, perfil público
 **Fases cerradas:** Fase 2 ✅ (2026-03-26) · Fase 3 ✅ (2026-03-28)
-**Rama activa:** main (merge completado 2026-04-01, commit 4ece957)
+**Rama activa:** main (merge completado 2026-04-24)
 **Bloqueantes:** ninguno técnico.
+
+**Sesion 2026-04-24 — cerrada:**
+- Community v1 completo: catálogo UC3M (177 programas, 7.625 cursos), publish flow con selects en cascada, My Studies árbol navegable, explore pages por curso, perfil público con stats
+- Generic seed script `seed-university.mjs` — añadir nueva universidad = un JSON + un comando
+- Author attribution en community cards (AuthorChip → /profile/[userId])
+- Sidebar: My Studies activo. Fork-to-chat gate para no propietarios.
+- PRs mergeados: feature/community-v1, feature/profile-page
 
 **Sesion 2026-04-01 — cerrada:**
 - Verificacion funcional de IA-M1 e IA-M2 completada — sin blockers
@@ -108,4 +115,4 @@ El roadmap actualizado prioriza construir esta plataforma de contenido académic
 
 ---
 
-*Última actualización: 2026-04-15 — Visión estratégica de producto añadida. Roadmap ampliado con Fases 8 (Retención), 9 (Colaboración) y 10 (Institucional). Fase 5 expandida con catálogo de cursos estructurado, búsqueda semántica, sistema de reputación y fork/remix. Ver TASKS.md para detalle completo.*
+*Última actualización: 2026-04-24 — Community v1 completado y mergeado. F5-M1 (catálogo), F5-M2 (publish flow), F6-M1 (perfil público) implementados. Generic seed script para nuevas universidades. Ver TASKS.md para detalle completo.*

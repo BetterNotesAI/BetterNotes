@@ -302,24 +302,25 @@ desde el perfil de usuario.
 > **Objetivo estratégico:** construir la biblioteca académica STEM más completa y estructurada,
 > organizada por cursos reales (no carpetas genéricas). El catálogo de contenido es el moat a largo plazo.
 
-### F5-M1 — Catálogo de cursos estructurado
-_Prioridad: 🔴 Alta — base de toda la estrategia de comunidad_
+### F5-M1 — Catálogo de cursos estructurado ✅ COMPLETADO (2026-04-24)
 
 Estructura jerárquica real: Universidad → Grado → Asignatura → Semestre.
-- Primera vez: picker de universidad (BD completa universidades) + picker de grado. Soporte multi-universidad con botón (+).
-- Los documentos publicados se etiquetan con universidad + grado + asignatura real (ej: "MIT 8.04 Quantum Mechanics").
-- Navegación browseable estilo árbol: al entrar en My Studies puedes navegar por la jerarquía.
-- Sistema de likes y visualizaciones por documento.
-- **Seed inicial:** generar notas de muestra para 50 cursos STEM populares (MIT OCW, ETH Zürich, etc.) antes del lanzamiento público — resolver el cold start problem.
+- [x] Tablas `universities`, `degree_programs`, `courses` con RLS público de lectura
+- [x] FK columns `university_id`, `program_id`, `course_id` en `documents`
+- [x] UC3M seeded: 177 programas, 7.625 cursos (`seed-uc3m.mjs`)
+- [x] Generic seed script `seed-university.mjs` — CLI flags `--file` y `--slug` para cualquier universidad
+- [x] `GET /api/catalogue` — selects en cascada (universities → programs → courses)
+- [x] Navegación árbol en My Studies (university → program → course)
+- [x] Sistema de likes y visualizaciones por documento (upvotes + view_count)
 
 ---
 
-### F5-M2 — Publish to My Studies workflow
-_Prerrequisito: F5-M1 completado_
+### F5-M2 — Publish to My Studies workflow ✅ COMPLETADO (2026-04-24)
 
-Workflow completo de publicación desde cualquier feature. Keywords auto-generadas via GPT-4o.
-Visibilidad pública/privada. Categorización dentro de la estructura de My Studies. (Integra
-con el botón ya implementado en F3-M5.)
+- [x] `PublishModal` reescrito: toggle "My University" vs "Independent"; selects en cascada (universidad → grado → curso agrupado por Año+Semestre); skeleton loaders; pre-fills al reabrir
+- [x] `/api/documents/[id]/publish` acepta `university_id`, `program_id`, `course_id`; popula columnas denormalizadas
+- [x] Keywords auto-generadas via GPT-4o
+- [x] Visibilidad pública/privada
 
 ---
 
@@ -358,11 +359,13 @@ Modelo GitHub aplicado al contenido académico — crea el flywheel de contribuc
 
 ## Fase 6 — PERFIL Y CONFIGURACIÓN
 
-### F6-M1 — User Profile
-Página /profile/[username]: foto de perfil, imagen de banner, bio corta, universidad/estudios,
-botón "Edit" para el propio usuario. Catálogo público estilo Lovable (grid con thumbnails,
-toggle visible/oculto por documento). Estadísticas (materias estudiadas, progreso en exámenes,
-documentos publicados). Otros usuarios pueden visitar el perfil desde documentos publicados.
+### F6-M1 — User Profile ✅ COMPLETADO (2026-04-24)
+
+- [x] `GET /api/profile/[userId]` — perfil + stats (published_count, total_views, total_likes, forks_received) + docs enriquecidos; respeta `profile_visibility`
+- [x] `/profile/[userId]/page.tsx` — banner (gradiente o custom), avatar, nombre/@username, bio, stats bar, grid de notas públicas con like toggle
+- [x] Perfil privado: pantalla de bloqueo para no propietarios
+- [x] AuthorChip en community cards → navega a /profile/[userId]
+- [x] Sidebar: "Edit profile" + "View public profile" en dropdown de cuenta
 
 ---
 

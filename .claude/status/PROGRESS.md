@@ -4,6 +4,35 @@ _Las sesiones más recientes aparecen primero._
 
 ---
 
+## Sesion 2026-04-24 — Community v1: Catálogo + Publish + My Studies + Explore + Profile
+
+**Completado:**
+- M1: Migración DB (universities, degree_programs, courses) + seed UC3M (177 programas, 7.625 cursos). Generic seed script `seed-university.mjs` con flags `--file` y `--slug` para cualquier universidad futura.
+- M2: Publish flow reestructurado con selects en cascada (universidad → grado → curso). `PublishModal` reescrito con modo "My University" vs "Independent". API `/catalogue` para los selects.
+- M3: My Studies convertido en árbol navegable dos paneles (universidad → programa → curso en sidebar izquierda, grid de documentos a la derecha). Botón "Community notes" → explore page del curso.
+- M4: Explore page pública por curso (`/explore/[uniSlug]/[programSlug]/[courseId]`). Community cards con like/fork, filtro público, ordenación por likes.
+- M5: Perfil público (`/profile/[userId]`): banner, avatar, bio, stats bar (publicados · vistas · likes · forks recibidos), grid de notas públicas, gating de privacidad.
+- Extras: sidebar My Studies activado (ya no placeholder). Fork-to-chat gate para no propietarios. AuthorChip en community cards con navegación a perfil.
+- Generic seed script: `seed-university.mjs` — nueva universidad = scraped JSON + `node ... --file X --slug Y`.
+
+**Decisiones tomadas:**
+- Columnas de texto denormalizadas (university/degree/subject) se conservan junto a los FK — retrocompatibilidad con queries existentes sin cambios.
+- Script genérico usa `resolve(process.cwd(), FILE_PATH)` para rutas absolutas o relativas al cwd — no relativo a __dirname.
+- Perfil privado: API devuelve `{ private: true, display_name }` a no propietarios; UI muestra pantalla de bloqueo.
+- Forks recibidos: contador de documentos donde `forked_from_id IN (ids del usuario)`.
+
+**Problemas encontrados durante el desarrollo:**
+- ECTS type era smallint (valores fraccionarios como 1.5 existen) — fix con ALTER TABLE a numeric(4,1).
+- Columna semester era NOT NULL (Masters usan agrupaciones no estándar) — fix con DROP NOT NULL + semester_label.
+- ESM module resolution: seed script debe vivir dentro de app-web/ donde están los node_modules.
+- Rate limit en agentes durante la sesión — tareas completadas directamente.
+
+**Ramas mergeadas:** feature/community-v1, feature/profile-page → main
+
+**Siguiente:** F5-M3 (búsqueda semántica con pgvector), F4-M1 (Problem Solver), o IA-M3 (multi-modelo).
+
+---
+
 ## Sesion 2026-04-01 — Verificacion IA-M1/M2 + fix LaTeX color + merge a main
 
 **Completado:**
