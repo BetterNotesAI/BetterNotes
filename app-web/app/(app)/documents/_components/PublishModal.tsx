@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface University { id: string; name: string; slug: string; }
 interface Program    { id: string; tipo: string; title: string; }
-interface Course     { id: string; name: string; year: number; semester: number | null; semester_label: string | null; }
+interface Course     { id: string; name: string; year: number; semester: number | null; semester_label: string | null; ects: number | null; }
 
 interface PublishModalProps {
   documentId: string;
