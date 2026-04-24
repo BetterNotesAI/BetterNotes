@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCreationBar, type CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 import { useProjectName } from '@/lib/use-project-name';
@@ -19,7 +19,9 @@ function buildLectureNotesTitle(prompt: string): string {
 export default function NewProjectLectureNotesPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = params?.id ?? '';
+  const initialPrompt = searchParams?.get('prompt')?.trim() || '';
   const projectName = useProjectName(projectId || null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +169,7 @@ export default function NewProjectLectureNotesPage() {
               error={createError}
               placeholder="Describe the lecture notes you want to create..."
               autoFocus
+              initialPrompt={initialPrompt}
               selectedTemplateId={TEMPLATE_ID}
               lockTemplateSelection
             />

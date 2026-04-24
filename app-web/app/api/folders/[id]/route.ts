@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { code, message } = error as { code?: string; message?: string };
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    Boolean(
+      message?.includes('folder_inputs') &&
+      (message.includes('schema cache') || message.includes('does not exist'))
+    )
+  );
+}
+
 // GET /api/folders/[id] — fetch single folder metadata
 export async function GET(
   _req: NextRequest,
@@ -30,7 +43,22 @@ export async function GET(
     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ folder });
+  const { count: inputCount, error: inputCountError } = await supabase
+    .from('folder_inputs')
+    .select('id', { count: 'exact', head: true })
+    .eq('folder_id', folderId)
+    .eq('user_id', user.id);
+
+  if (inputCountError && !isMissingRelationError(inputCountError)) {
+    return NextResponse.json({ error: inputCountError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    folder: {
+      ...folder,
+      input_count: inputCount ?? 0,
+    },
+  });
 }
 
 // PATCH /api/folders/[id] — rename folder, change color, or toggle starred

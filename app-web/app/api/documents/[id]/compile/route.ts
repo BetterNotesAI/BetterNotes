@@ -26,18 +26,27 @@ export async function POST(
   // Verify ownership
   const { data: doc } = await supabase
     .from('documents')
-    .select('id')
+    .select('id, folder_id')
     .eq('id', documentId)
     .eq('user_id', user.id)
     .single();
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Fetch document attachments and generate short-lived signed URLs for images
-  const { data: attachmentRows } = await supabase
-    .from('document_attachments')
-    .select('name, storage_path, mime_type')
-    .eq('document_id', documentId)
-    .eq('user_id', user.id);
+  // Fetch project-global attachments when present; loose documents keep
+  // document-level attachments for backwards compatibility.
+  const attachmentQuery = doc.folder_id
+    ? supabase
+      .from('folder_inputs')
+      .select('name, storage_path, mime_type')
+      .eq('folder_id', doc.folder_id)
+      .eq('user_id', user.id)
+    : supabase
+      .from('document_attachments')
+      .select('name, storage_path, mime_type')
+      .eq('document_id', documentId)
+      .eq('user_id', user.id);
+
+  const { data: attachmentRows } = await attachmentQuery;
 
   const attachmentFiles = await Promise.all(
     (attachmentRows ?? []).map(async (row) => {

@@ -25,6 +25,7 @@ export async function GET(
       template_id,
       status,
       is_starred,
+      folder_id,
       current_version_id,
       created_at,
       updated_at,

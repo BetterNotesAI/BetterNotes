@@ -97,7 +97,7 @@ export async function POST(
   // Load document and verify ownership
   const { data: doc, error: docError } = await supabase
     .from('documents')
-    .select('id, template_id, status, current_version_id')
+    .select('id, template_id, status, current_version_id, folder_id')
     .eq('id', documentId)
     .eq('user_id', user.id)
     .single();
@@ -184,11 +184,20 @@ export async function POST(
     baseLatex = currentVersion?.latex_content ?? undefined;
   }
 
-  // Load attachments from DB and generate short-lived signed URLs (same as generate route)
-  const { data: attachmentRows } = await supabase
-    .from('document_attachments')
-    .select('id, name, storage_path, mime_type')
-    .eq('document_id', documentId);
+  // Load project-global attachments when the document belongs to a project.
+  const attachmentQuery = doc.folder_id
+    ? supabase
+      .from('folder_inputs')
+      .select('id, name, storage_path, mime_type')
+      .eq('folder_id', doc.folder_id)
+      .eq('user_id', user.id)
+    : supabase
+      .from('document_attachments')
+      .select('id, name, storage_path, mime_type')
+      .eq('document_id', documentId)
+      .eq('user_id', user.id);
+
+  const { data: attachmentRows } = await attachmentQuery;
 
   const attachmentFiles = await Promise.all(
     (attachmentRows ?? []).map(async (row) => {

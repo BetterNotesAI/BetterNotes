@@ -140,6 +140,30 @@ export async function POST(req: NextRequest) {
     if (!folder) {
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
+
+    if (attachments && attachments.length > 0) {
+      const { data: existingProjectInputs, error: projectInputsError } = await supabase
+        .from('folder_inputs')
+        .select('size_bytes')
+        .eq('folder_id', folderId)
+        .eq('user_id', user.id);
+
+      if (projectInputsError) {
+        return NextResponse.json({ error: projectInputsError.message }, { status: 500 });
+      }
+
+      const currentProjectBytes = (existingProjectInputs ?? []).reduce(
+        (acc, row) => acc + (typeof row.size_bytes === 'number' ? row.size_bytes : 0),
+        0
+      );
+
+      if (currentProjectBytes + totalAttachmentBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
+        return NextResponse.json(
+          { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
+          { status: 400 }
+        );
+      }
+    }
   }
 
   // Check guest limits before creating the document
@@ -166,7 +190,7 @@ export async function POST(req: NextRequest) {
   const { data: doc, error } = await supabase
     .from('documents')
     .insert(insertPayload)
-    .select('id, title, template_id, status, created_at')
+    .select('id, title, template_id, status, folder_id, created_at')
     .single();
 
   if (error) {
@@ -174,16 +198,29 @@ export async function POST(req: NextRequest) {
   }
 
   if (attachments && attachments.length > 0) {
-    await supabase.from('document_attachments').insert(
-      attachments.map((a) => ({
-        document_id: doc.id,
-        user_id: user.id,
-        name: a.name,
-        storage_path: a.storagePath,
-        mime_type: a.mimeType,
-        size_bytes: a.sizeBytes,
-      }))
-    );
+    if (folderId) {
+      await supabase.from('folder_inputs').insert(
+        attachments.map((a) => ({
+          folder_id: folderId,
+          user_id: user.id,
+          name: a.name,
+          storage_path: a.storagePath,
+          mime_type: a.mimeType,
+          size_bytes: a.sizeBytes,
+        }))
+      );
+    } else {
+      await supabase.from('document_attachments').insert(
+        attachments.map((a) => ({
+          document_id: doc.id,
+          user_id: user.id,
+          name: a.name,
+          storage_path: a.storagePath,
+          mime_type: a.mimeType,
+          size_bytes: a.sizeBytes,
+        }))
+      );
+    }
   }
 
   return NextResponse.json({ document: doc }, { status: 201 });

@@ -27,6 +27,7 @@ export default function NewCheatSheetPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams?.get('projectId')?.trim() || null;
+  const initialPrompt = searchParams?.get('prompt')?.trim() || '';
   const projectName = useProjectName(projectId);
   const barRef = useRef<HTMLDivElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(CHEAT_SHEET_DEFAULT_TEMPLATE_ID);
@@ -218,6 +219,7 @@ export default function NewCheatSheetPage() {
                 error={createError}
                 placeholder="Describe the cheat sheet you want to create..."
                 autoFocus
+                initialPrompt={initialPrompt}
                 selectedTemplateId={selectedTemplateId}
                 onTemplateChange={setTemplateFromUI}
               />
