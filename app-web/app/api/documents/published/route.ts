@@ -19,7 +19,7 @@ export async function GET() {
   const { data: documents, error } = await supabase
     .from('documents')
     .select(
-      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count'
+      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id'
     )
     .eq('user_id', user.id)
     .eq('is_published', true)

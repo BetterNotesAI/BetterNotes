@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface PublishedDocument {
   id: string;
@@ -17,7 +19,19 @@ interface PublishedDocument {
   like_count: number;
   user_liked: boolean;
   is_own: boolean;
+  university_id: string | null;
+  program_id: string | null;
+  course_id: string | null;
 }
+
+type SelectedNode =
+  | { type: 'all' }
+  | { type: 'university'; id: string }
+  | { type: 'program'; id: string }
+  | { type: 'course'; id: string }
+  | { type: 'independent' };
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
@@ -36,12 +50,10 @@ const TEMPLATE_LABELS: Record<string, string> = {
 };
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function EyeIcon({ className }: { className?: string }) {
   return (
@@ -72,11 +84,21 @@ function ForkIcon({ className }: { className?: string }) {
   );
 }
 
+function ChevronIcon({ className, open }: { className?: string; open: boolean }) {
+  return (
+    <svg
+      className={`${className} transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+// ── Document card (unchanged from before) ────────────────────────────────────
+
 function DocumentCard({
-  doc,
-  onOpen,
-  onLikeToggle,
-  onFork,
+  doc, onOpen, onLikeToggle, onFork,
 }: {
   doc: PublishedDocument;
   onOpen: () => void;
@@ -92,34 +114,24 @@ function DocumentCard({
     e.stopPropagation();
     if (isLiking) return;
     setIsLiking(true);
-    try {
-      await onLikeToggle(doc.id);
-    } finally {
-      setIsLiking(false);
-    }
+    try { await onLikeToggle(doc.id); } finally { setIsLiking(false); }
   }
 
   async function handleFork(e: React.MouseEvent) {
     e.stopPropagation();
     if (isForking) return;
     setIsForking(true);
-    try {
-      await onFork(doc.id);
-    } finally {
-      setIsForking(false);
-    }
+    try { await onFork(doc.id); } finally { setIsForking(false); }
   }
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role="button" tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(); }}
-      className="group cursor-pointer text-left bg-white/4 hover:bg-white/7 border border-white/10 hover:border-white/20
-        rounded-2xl p-5 transition-all duration-200 flex flex-col gap-3"
+      className="group cursor-pointer text-left bg-white/4 hover:bg-white/7 border border-white/10
+        hover:border-white/20 rounded-2xl p-5 transition-all duration-200 flex flex-col gap-3"
     >
-      {/* Title row */}
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 flex-1">
           {doc.title}
@@ -131,7 +143,6 @@ function DocumentCard({
         )}
       </div>
 
-      {/* Meta row */}
       <div className="space-y-1">
         {doc.subject && (
           <p className="text-xs text-white/60 flex items-center gap-1.5">
@@ -148,69 +159,44 @@ function DocumentCard({
         )}
       </div>
 
-      {/* Keywords */}
       {doc.keywords.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {doc.keywords.slice(0, 4).map((kw) => (
-            <span
-              key={kw}
-              className="text-[10px] text-indigo-300/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-2 py-0.5"
-            >
+            <span key={kw} className="text-[10px] text-indigo-300/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-2 py-0.5">
               {kw}
             </span>
           ))}
-          {doc.keywords.length > 4 && (
-            <span className="text-[10px] text-white/30">+{doc.keywords.length - 4}</span>
-          )}
+          {doc.keywords.length > 4 && <span className="text-[10px] text-white/30">+{doc.keywords.length - 4}</span>}
         </div>
       )}
 
-      {/* Footer: template + date on left, stats on right */}
       <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/6">
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-white/30">{templateLabel}</span>
           <span className="text-[10px] text-white/30">{formatDate(doc.published_at)}</span>
         </div>
-
-        {/* Stats */}
         <div className="flex items-center gap-3">
-          {/* View count */}
           <span className="flex items-center gap-1 text-[10px] text-white/30">
-            <EyeIcon className="w-3 h-3" />
-            {doc.view_count}
+            <EyeIcon className="w-3 h-3" />{doc.view_count}
           </span>
-
-          {/* Like button */}
           <button
-            onClick={handleLike}
-            disabled={isLiking}
-            aria-label={doc.user_liked ? 'Unlike document' : 'Like document'}
+            onClick={handleLike} disabled={isLiking}
+            aria-label={doc.user_liked ? 'Unlike' : 'Like'}
             className={`flex items-center gap-1 text-[10px] transition-colors rounded px-1 py-0.5
-              ${doc.user_liked
-                ? 'text-pink-400 hover:text-pink-300'
-                : 'text-white/30 hover:text-pink-400'
-              }
+              ${doc.user_liked ? 'text-pink-400 hover:text-pink-300' : 'text-white/30 hover:text-pink-400'}
               disabled:opacity-50`}
           >
-            <HeartIcon className="w-3.5 h-3.5" filled={doc.user_liked} />
-            {doc.like_count}
+            <HeartIcon className="w-3.5 h-3.5" filled={doc.user_liked} />{doc.like_count}
           </button>
-
-          {/* Fork button — only visible on other people's documents */}
           {!doc.is_own && (
             <button
-              onClick={handleFork}
-              disabled={isForking}
+              onClick={handleFork} disabled={isForking}
               aria-label="Fork document"
-              title="Fork to my documents"
-              className="flex items-center gap-1 text-[10px] text-white/30 hover:text-indigo-400
-                transition-colors rounded px-1 py-0.5 disabled:opacity-50"
+              className="flex items-center gap-1 text-[10px] text-white/30 hover:text-indigo-400 transition-colors rounded px-1 py-0.5 disabled:opacity-50"
             >
-              {isForking ? (
-                <span className="w-3 h-3 border border-white/20 border-t-indigo-400 rounded-full animate-spin" />
-              ) : (
-                <ForkIcon className="w-3.5 h-3.5" />
-              )}
+              {isForking
+                ? <span className="w-3 h-3 border border-white/20 border-t-indigo-400 rounded-full animate-spin" />
+                : <ForkIcon className="w-3.5 h-3.5" />}
               Fork
             </button>
           )}
@@ -220,22 +206,238 @@ function DocumentCard({
   );
 }
 
+// ── Tree sidebar ──────────────────────────────────────────────────────────────
+
+interface TreeNode {
+  id: string;
+  name: string;
+  count: number;
+  children: TreeNode[];
+}
+
+function buildTree(documents: PublishedDocument[]): {
+  universities: TreeNode[];
+  independentCount: number;
+} {
+  const uniMap = new Map<string, { name: string; programs: Map<string, { name: string; courses: Map<string, { name: string; count: number }> }> }>();
+
+  for (const doc of documents) {
+    if (!doc.university_id) continue;
+    if (!uniMap.has(doc.university_id)) {
+      uniMap.set(doc.university_id, { name: doc.university ?? doc.university_id, programs: new Map() });
+    }
+    const uni = uniMap.get(doc.university_id)!;
+
+    if (doc.program_id) {
+      if (!uni.programs.has(doc.program_id)) {
+        uni.programs.set(doc.program_id, { name: doc.degree ?? doc.program_id, courses: new Map() });
+      }
+      const prog = uni.programs.get(doc.program_id)!;
+
+      if (doc.course_id) {
+        const cur = prog.courses.get(doc.course_id);
+        prog.courses.set(doc.course_id, { name: doc.subject ?? doc.course_id, count: (cur?.count ?? 0) + 1 });
+      }
+    }
+  }
+
+  const universities: TreeNode[] = [];
+  for (const [uniId, uni] of uniMap) {
+    const programs: TreeNode[] = [];
+    for (const [progId, prog] of uni.programs) {
+      const courses: TreeNode[] = [];
+      for (const [courseId, course] of prog.courses) {
+        courses.push({ id: courseId, name: course.name, count: course.count, children: [] });
+      }
+      const progCount = documents.filter((d) => d.program_id === progId).length;
+      programs.push({ id: progId, name: prog.name, count: progCount, children: courses });
+    }
+    const uniCount = documents.filter((d) => d.university_id === uniId).length;
+    universities.push({ id: uniId, name: uni.name, count: uniCount, children: programs });
+  }
+
+  const independentCount = documents.filter((d) => !d.university_id).length;
+  return { universities, independentCount };
+}
+
+function CountBadge({ n }: { n: number }) {
+  return (
+    <span className="ml-auto text-[10px] text-white/30 bg-white/6 rounded-full px-1.5 py-0.5 tabular-nums shrink-0">
+      {n}
+    </span>
+  );
+}
+
+function TreeSidebar({
+  documents,
+  selected,
+  onSelect,
+}: {
+  documents: PublishedDocument[];
+  selected: SelectedNode;
+  onSelect: (node: SelectedNode) => void;
+}) {
+  const { universities, independentCount } = useMemo(() => buildTree(documents), [documents]);
+  const [openUniversities, setOpenUniversities] = useState<Set<string>>(new Set());
+  const [openPrograms, setOpenPrograms] = useState<Set<string>>(new Set());
+
+  // Auto-expand the university/program of the active selection
+  useEffect(() => {
+    if (selected.type === 'program') {
+      const uni = universities.find((u) => u.children.some((p) => p.id === selected.id));
+      if (uni) setOpenUniversities((s) => new Set([...s, uni.id]));
+    }
+    if (selected.type === 'course') {
+      for (const uni of universities) {
+        for (const prog of uni.children) {
+          if (prog.children.some((c) => c.id === selected.id)) {
+            setOpenUniversities((s) => new Set([...s, uni.id]));
+            setOpenPrograms((s) => new Set([...s, prog.id]));
+          }
+        }
+      }
+    }
+  }, [selected, universities]);
+
+  function isActive(node: SelectedNode): boolean {
+    return JSON.stringify(node) === JSON.stringify(selected);
+  }
+
+  function rowClass(active: boolean) {
+    return `flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left
+      ${active ? 'bg-indigo-500/20 text-indigo-300' : 'text-white/50 hover:text-white hover:bg-white/6'}`;
+  }
+
+  return (
+    <div className="flex flex-col gap-1 py-3 px-2">
+      {/* All */}
+      <button className={rowClass(isActive({ type: 'all' }))} onClick={() => onSelect({ type: 'all' })}>
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+        </svg>
+        All documents
+        <CountBadge n={documents.length} />
+      </button>
+
+      {/* Universities */}
+      {universities.map((uni) => (
+        <div key={uni.id}>
+          {/* University row */}
+          <div className="flex items-center gap-1">
+            <button
+              className={rowClass(isActive({ type: 'university', id: uni.id }))}
+              onClick={() => onSelect({ type: 'university', id: uni.id })}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
+              </svg>
+              <span className="truncate">{uni.name}</span>
+              <CountBadge n={uni.count} />
+            </button>
+            <button
+              onClick={() => setOpenUniversities((s) => {
+                const n = new Set(s);
+                n.has(uni.id) ? n.delete(uni.id) : n.add(uni.id);
+                return n;
+              })}
+              className="p-1 text-white/20 hover:text-white/50 rounded transition-colors shrink-0"
+            >
+              <ChevronIcon className="w-3 h-3" open={openUniversities.has(uni.id)} />
+            </button>
+          </div>
+
+          {/* Degree programmes */}
+          {openUniversities.has(uni.id) && (
+            <div className="ml-4 mt-0.5 flex flex-col gap-0.5">
+              {uni.children.map((prog) => (
+                <div key={prog.id}>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className={rowClass(isActive({ type: 'program', id: prog.id }))}
+                      onClick={() => onSelect({ type: 'program', id: prog.id })}
+                    >
+                      <svg className="w-3 h-3 shrink-0 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+                      </svg>
+                      <span className="truncate">{prog.name}</span>
+                      <CountBadge n={prog.count} />
+                    </button>
+                    {prog.children.length > 0 && (
+                      <button
+                        onClick={() => setOpenPrograms((s) => {
+                          const n = new Set(s);
+                          n.has(prog.id) ? n.delete(prog.id) : n.add(prog.id);
+                          return n;
+                        })}
+                        className="p-1 text-white/20 hover:text-white/50 rounded transition-colors shrink-0"
+                      >
+                        <ChevronIcon className="w-3 h-3" open={openPrograms.has(prog.id)} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Courses */}
+                  {openPrograms.has(prog.id) && (
+                    <div className="ml-4 mt-0.5 flex flex-col gap-0.5">
+                      {prog.children.map((course) => (
+                        <button
+                          key={course.id}
+                          className={rowClass(isActive({ type: 'course', id: course.id }))}
+                          onClick={() => onSelect({ type: 'course', id: course.id })}
+                        >
+                          <svg className="w-3 h-3 shrink-0 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                          <span className="truncate">{course.name}</span>
+                          <CountBadge n={course.count} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Independent */}
+      {independentCount > 0 && (
+        <>
+          <div className="mx-3 my-1 border-t border-white/8" />
+          <button
+            className={rowClass(isActive({ type: 'independent' }))}
+            onClick={() => onSelect({ type: 'independent' })}
+          >
+            <svg className="w-3.5 h-3.5 shrink-0 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+            </svg>
+            Independent
+            <CountBadge n={independentCount} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function MyStudiesPage() {
   const router = useRouter();
   const [documents, setDocuments] = useState<PublishedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SelectedNode>({ type: 'all' });
+  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
 
   useEffect(() => {
-    async function loadPublished() {
+    async function load() {
       try {
         setIsLoading(true);
         setError(null);
         const res = await fetch('/api/documents/published');
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? 'Failed to load published documents');
-        }
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to load');
         const data = await res.json();
         setDocuments(data.documents ?? []);
       } catch (err) {
@@ -244,57 +446,62 @@ export default function MyStudiesPage() {
         setIsLoading(false);
       }
     }
-    loadPublished();
+    load();
   }, []);
 
-  // Optimistic like toggle: flip state immediately, call API, revert on error
+  // Filter documents based on selected tree node
+  const filteredDocs = useMemo(() => {
+    if (selected.type === 'all') return documents;
+    if (selected.type === 'university') return documents.filter((d) => d.university_id === selected.id);
+    if (selected.type === 'program') return documents.filter((d) => d.program_id === selected.id);
+    if (selected.type === 'course') return documents.filter((d) => d.course_id === selected.id);
+    if (selected.type === 'independent') return documents.filter((d) => !d.university_id);
+    return documents;
+  }, [documents, selected]);
+
+  // Section label for the content area header
+  const sectionLabel = useMemo(() => {
+    if (selected.type === 'all') return 'All documents';
+    if (selected.type === 'independent') return 'Independent';
+    const doc = documents.find((d) =>
+      selected.type === 'university' ? d.university_id === selected.id :
+      selected.type === 'program'    ? d.program_id    === selected.id :
+                                       d.course_id     === selected.id
+    );
+    if (!doc) return 'Documents';
+    if (selected.type === 'university') return doc.university ?? 'University';
+    if (selected.type === 'program')    return doc.degree    ?? 'Degree';
+    if (selected.type === 'course')     return doc.subject   ?? 'Course';
+    return 'Documents';
+  }, [selected, documents]);
+
   const handleLikeToggle = useCallback(async (documentId: string) => {
-    // Optimistic update
     setDocuments((prev) =>
       prev.map((doc) =>
         doc.id === documentId
-          ? {
-              ...doc,
-              user_liked: !doc.user_liked,
-              like_count: doc.user_liked ? doc.like_count - 1 : doc.like_count + 1,
-            }
+          ? { ...doc, user_liked: !doc.user_liked, like_count: doc.user_liked ? doc.like_count - 1 : doc.like_count + 1 }
           : doc
       )
     );
-
     try {
       const res = await fetch(`/api/documents/${documentId}/like`, { method: 'POST' });
-      const data = await res.json(); // parse first so we can read error details
-      if (!res.ok) {
-        throw new Error(data?.error ?? `HTTP ${res.status}`);
-      }
-      // Sync with server's authoritative count
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
       setDocuments((prev) =>
-        prev.map((doc) =>
-          doc.id === documentId
-            ? { ...doc, user_liked: data.liked, like_count: data.like_count }
-            : doc
-        )
+        prev.map((doc) => doc.id === documentId ? { ...doc, user_liked: data.liked, like_count: data.like_count } : doc)
       );
     } catch (err) {
-      // Log so we can see the real error in the browser console
       console.error('[Like toggle failed]', err);
-      // Revert optimistic update
       setDocuments((prev) =>
         prev.map((doc) =>
           doc.id === documentId
-            ? {
-                ...doc,
-                user_liked: !doc.user_liked,
-                like_count: doc.user_liked ? doc.like_count - 1 : doc.like_count + 1,
-              }
+            ? { ...doc, user_liked: !doc.user_liked, like_count: doc.user_liked ? doc.like_count - 1 : doc.like_count + 1 }
             : doc
         )
       );
     }
   }, []);
 
-  // Fork a document — creates a copy in the user's All Documents then navigates there
   const handleFork = useCallback(async (documentId: string) => {
     try {
       const res = await fetch(`/api/documents/${documentId}/fork`, { method: 'POST' });
@@ -306,105 +513,162 @@ export default function MyStudiesPage() {
     }
   }, [router]);
 
-  // Track view when navigating to a document
   const handleOpen = useCallback(async (doc: PublishedDocument) => {
     router.push(`/documents/${doc.id}`);
-    // Fire-and-forget view tracking (non-blocking)
     fetch(`/api/documents/${doc.id}/view`, { method: 'POST' }).catch(() => {});
   }, [router]);
 
+  const hasSidebar = !isLoading && !error && documents.length > 0;
+
   return (
-    <div className="h-full flex flex-col bg-transparent text-white">
-      {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">My Studies</h1>
-            {!isLoading && documents.length > 0 && (
-              <p className="text-xs text-white/40 mt-0.5">
-                {documents.length} published document{documents.length !== 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
+    <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
+
+      {/* Top bar */}
+      <div className="border-b border-white/10 px-6 py-4 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">My Studies</h1>
+          {!isLoading && documents.length > 0 && (
+            <p className="text-xs text-white/40 mt-0.5">
+              {documents.length} published document{documents.length !== 1 ? 's' : ''}
+            </p>
+          )}
         </div>
+        {/* Mobile sidebar toggle */}
+        {hasSidebar && (
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="md:hidden flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/15 hover:border-white/30 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+            </svg>
+            Filter
+          </button>
+        )}
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="flex-1 flex overflow-hidden min-h-0">
 
-          {/* Loading state */}
-          {isLoading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white/4 border border-white/8 rounded-2xl p-5 h-44" />
-              ))}
+        {/* Sidebar — hidden on mobile unless toggled */}
+        {hasSidebar && (
+          <>
+            {/* Desktop sidebar */}
+            <div className="hidden md:flex flex-col w-64 shrink-0 border-r border-white/10 overflow-y-auto">
+              <TreeSidebar documents={documents} selected={selected} onSelect={setSelected} />
             </div>
-          )}
 
-          {/* Error state */}
-          {!isLoading && error && (
-            <div className="flex items-center justify-center py-20 text-center">
-              <div className="space-y-3">
-                <p className="text-red-400 text-sm">{error}</p>
+            {/* Mobile sidebar overlay */}
+            {sidebarOpen && (
+              <div className="md:hidden fixed inset-0 z-40 flex">
+                <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
+                <div className="relative w-72 bg-neutral-950 border-r border-white/15 overflow-y-auto z-50">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                    <span className="text-sm font-medium text-white">Filter</span>
+                    <button onClick={() => setSidebarOpen(false)} className="text-white/40 hover:text-white">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <TreeSidebar
+                    documents={documents}
+                    selected={selected}
+                    onSelect={(node) => { setSelected(node); setSidebarOpen(false); }}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto min-w-0">
+          <div className="max-w-5xl mx-auto px-6 py-8">
+
+            {/* Loading */}
+            {isLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-white/4 border border-white/8 rounded-2xl p-5 h-44" />
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {!isLoading && error && (
+              <div className="flex items-center justify-center py-20 text-center">
+                <div className="space-y-3">
+                  <p className="text-red-400 text-sm">{error}</p>
+                  <button onClick={() => window.location.reload()} className="text-xs text-white/50 hover:text-white underline">Try again</button>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state — no published docs at all */}
+            {!isLoading && !error && documents.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-pink-500/15 border border-pink-500/25 mb-6">
+                  <svg className="w-7 h-7 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">No published documents yet</h2>
+                <p className="text-white/50 text-sm mb-6 max-w-sm">
+                  Open any document and click <span className="text-indigo-400 font-medium">Publish</span> to add it to your studies.
+                </p>
                 <button
-                  onClick={() => window.location.reload()}
-                  className="text-xs text-white/50 hover:text-white underline"
+                  onClick={() => router.push('/documents')}
+                  className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors"
                 >
-                  Try again
+                  Browse my documents
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Empty state */}
-          {!isLoading && !error && documents.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-pink-500/15 border border-pink-500/25 mb-6">
-                <svg
-                  className="w-7 h-7 text-pink-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"
-                  />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">No published documents yet</h2>
-              <p className="text-white/50 text-sm mb-6 max-w-sm">
-                Open any document and click the{' '}
-                <span className="text-indigo-400 font-medium">Publish</span> button in the header
-                to add it to your studies.
-              </p>
-              <button
-                onClick={() => router.push('/documents')}
-                className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors"
-              >
-                Browse my documents
-              </button>
-            </div>
-          )}
+            {/* Section header + grid */}
+            {!isLoading && !error && documents.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">{sectionLabel}</h2>
+                    <p className="text-xs text-white/35 mt-0.5">
+                      {filteredDocs.length} document{filteredDocs.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
 
-          {/* Document grid */}
-          {!isLoading && !error && documents.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {documents.map((doc) => (
-                <DocumentCard
-                  key={doc.id}
-                  doc={doc}
-                  onOpen={() => handleOpen(doc)}
-                  onLikeToggle={handleLikeToggle}
-                  onFork={handleFork}
-                />
-              ))}
-            </div>
-          )}
+                {/* Empty filtered state */}
+                {filteredDocs.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <p className="text-white/30 text-sm">No documents in this section yet.</p>
+                    <button
+                      onClick={() => router.push('/documents')}
+                      className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline"
+                    >
+                      Go publish a document
+                    </button>
+                  </div>
+                )}
 
+                {/* Grid */}
+                {filteredDocs.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredDocs.map((doc) => (
+                      <DocumentCard
+                        key={doc.id}
+                        doc={doc}
+                        onOpen={() => handleOpen(doc)}
+                        onLikeToggle={handleLikeToggle}
+                        onFork={handleFork}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
         </div>
       </div>
     </div>
