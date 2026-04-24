@@ -28,7 +28,10 @@ export async function GET(
       current_version_id,
       created_at,
       updated_at,
-      forked_from_id
+      forked_from_id,
+      university_id,
+      program_id,
+      course_id
     `)
     .eq('id', documentId)
     .eq('user_id', user.id)

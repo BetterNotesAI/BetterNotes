@@ -33,6 +33,9 @@ export async function POST(
     university,
     degree,
     subject,
+    university_id,
+    program_id,
+    course_id,
     visibility = 'private',
     keywords = [],
   } = body as {
@@ -40,6 +43,9 @@ export async function POST(
     university?: string;
     degree?: string;
     subject?: string;
+    university_id?: string | null;
+    program_id?: string | null;
+    course_id?: string | null;
     visibility?: 'private' | 'public';
     keywords?: string[];
   };
@@ -85,9 +91,45 @@ export async function POST(
     updated_at: new Date().toISOString(),
   };
 
-  if (university !== undefined) updates.university = university.trim() || null;
-  if (degree !== undefined) updates.degree = degree.trim() || null;
-  if (subject !== undefined) updates.subject = subject.trim() || null;
+  // Structured catalogue path — resolve display names from IDs
+  if (university_id) {
+    const { data: uniRow } = await supabase
+      .from('universities')
+      .select('name')
+      .eq('id', university_id)
+      .maybeSingle();
+    updates.university_id = university_id;
+    updates.university = uniRow?.name ?? null;
+  } else {
+    updates.university_id = null;
+    if (university !== undefined) updates.university = university.trim() || null;
+  }
+
+  if (program_id) {
+    const { data: progRow } = await supabase
+      .from('degree_programs')
+      .select('title')
+      .eq('id', program_id)
+      .maybeSingle();
+    updates.program_id = program_id;
+    updates.degree = progRow?.title ?? null;
+  } else {
+    updates.program_id = null;
+    if (degree !== undefined) updates.degree = degree.trim() || null;
+  }
+
+  if (course_id) {
+    const { data: courseRow } = await supabase
+      .from('courses')
+      .select('name')
+      .eq('id', course_id)
+      .maybeSingle();
+    updates.course_id = course_id;
+    updates.subject = courseRow?.name ?? null;
+  } else {
+    updates.course_id = null;
+    if (subject !== undefined) updates.subject = subject.trim() || null;
+  }
 
   const { error } = await supabase
     .from('documents')
