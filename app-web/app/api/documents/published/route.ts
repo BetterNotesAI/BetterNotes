@@ -19,7 +19,7 @@ export async function GET() {
   const { data: documents, error } = await supabase
     .from('documents')
     .select(
-      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id, universities(slug), degree_programs(slug)'
+      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id'
     )
     .eq('user_id', user.id)
     .eq('is_published', true)
@@ -34,6 +34,22 @@ export async function GET() {
     return NextResponse.json({ documents: [] });
   }
 
+  // Fetch university and program slugs separately (avoids FK join issues)
+  const uniIds  = [...new Set(documents.map((d) => d.university_id).filter(Boolean))] as string[];
+  const progIds = [...new Set(documents.map((d) => d.program_id).filter(Boolean))]    as string[];
+
+  const [uniResult, progResult] = await Promise.all([
+    uniIds.length
+      ? supabase.from('universities').select('id, slug').in('id', uniIds)
+      : Promise.resolve({ data: [] as { id: string; slug: string }[] }),
+    progIds.length
+      ? supabase.from('degree_programs').select('id, slug').in('id', progIds)
+      : Promise.resolve({ data: [] as { id: string; slug: string }[] }),
+  ]);
+
+  const uniSlugs  = Object.fromEntries((uniResult.data  ?? []).map((r) => [r.id, r.slug]));
+  const progSlugs = Object.fromEntries((progResult.data ?? []).map((r) => [r.id, r.slug]));
+
   // Fetch which documents the current user has liked (single query)
   const documentIds = documents.map((d) => d.id);
   const { data: likedRows } = await supabase
@@ -44,21 +60,13 @@ export async function GET() {
 
   const likedSet = new Set((likedRows ?? []).map((r) => r.document_id));
 
-  const enriched = documents.map((doc) => {
-    const d = doc as typeof doc & {
-      universities?: { slug: string } | null;
-      degree_programs?: { slug: string } | null;
-    };
-    return {
-      ...doc,
-      university_slug: d.universities?.slug ?? null,
-      program_slug: d.degree_programs?.slug ?? null,
-      universities: undefined,
-      degree_programs: undefined,
-      user_liked: likedSet.has(doc.id),
-      is_own: true,
-    };
-  });
+  const enriched = documents.map((doc) => ({
+    ...doc,
+    university_slug: doc.university_id ? (uniSlugs[doc.university_id] ?? null) : null,
+    program_slug:    doc.program_id    ? (progSlugs[doc.program_id]    ?? null) : null,
+    user_liked: likedSet.has(doc.id),
+    is_own: true,
+  }));
 
   return NextResponse.json({ documents: enriched });
 }

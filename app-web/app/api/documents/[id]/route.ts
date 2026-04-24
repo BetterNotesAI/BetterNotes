@@ -31,7 +31,13 @@ export async function GET(
       forked_from_id,
       university_id,
       program_id,
-      course_id
+      course_id,
+      is_published,
+      university,
+      degree,
+      subject,
+      visibility,
+      keywords
     `)
     .eq('id', documentId)
     .eq('user_id', user.id)

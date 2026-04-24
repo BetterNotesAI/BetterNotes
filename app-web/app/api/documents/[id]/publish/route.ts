@@ -92,43 +92,58 @@ export async function POST(
   };
 
   // Structured catalogue path — resolve display names from IDs
-  if (university_id) {
-    const { data: uniRow } = await supabase
-      .from('universities')
-      .select('name')
-      .eq('id', university_id)
-      .maybeSingle();
-    updates.university_id = university_id;
-    updates.university = uniRow?.name ?? null;
+  // When university_id is provided (even null), always overwrite text + FK columns together
+  // so they never get out of sync.
+  const isStructuredMode = university_id !== undefined; // sent in body = university mode
+
+  if (isStructuredMode) {
+    // University
+    if (university_id) {
+      const { data: uniRow } = await supabase
+        .from('universities')
+        .select('name')
+        .eq('id', university_id)
+        .maybeSingle();
+      updates.university_id = university_id;
+      updates.university = uniRow?.name ?? null;
+    } else {
+      updates.university_id = null;
+      updates.university = null;
+    }
+    // Program
+    if (program_id) {
+      const { data: progRow } = await supabase
+        .from('degree_programs')
+        .select('title')
+        .eq('id', program_id)
+        .maybeSingle();
+      updates.program_id = program_id;
+      updates.degree = progRow?.title ?? null;
+    } else {
+      updates.program_id = null;
+      updates.degree = null;
+    }
+    // Course
+    if (course_id) {
+      const { data: courseRow } = await supabase
+        .from('courses')
+        .select('name')
+        .eq('id', course_id)
+        .maybeSingle();
+      updates.course_id = course_id;
+      updates.subject = courseRow?.name ?? null;
+    } else {
+      updates.course_id = null;
+      updates.subject = null;
+    }
   } else {
+    // Independent / free-text mode — clear FK columns, use text values
     updates.university_id = null;
-    if (university !== undefined) updates.university = university.trim() || null;
-  }
-
-  if (program_id) {
-    const { data: progRow } = await supabase
-      .from('degree_programs')
-      .select('title')
-      .eq('id', program_id)
-      .maybeSingle();
-    updates.program_id = program_id;
-    updates.degree = progRow?.title ?? null;
-  } else {
-    updates.program_id = null;
-    if (degree !== undefined) updates.degree = degree.trim() || null;
-  }
-
-  if (course_id) {
-    const { data: courseRow } = await supabase
-      .from('courses')
-      .select('name')
-      .eq('id', course_id)
-      .maybeSingle();
-    updates.course_id = course_id;
-    updates.subject = courseRow?.name ?? null;
-  } else {
-    updates.course_id = null;
-    if (subject !== undefined) updates.subject = subject.trim() || null;
+    updates.program_id    = null;
+    updates.course_id     = null;
+    updates.university = typeof university === 'string' ? university.trim() || null : null;
+    updates.degree     = typeof degree     === 'string' ? degree.trim()     || null : null;
+    updates.subject    = typeof subject    === 'string' ? subject.trim()    || null : null;
   }
 
   const { error } = await supabase
