@@ -283,11 +283,21 @@ function TreeSidebar({
   const [openUniversities, setOpenUniversities] = useState<Set<string>>(new Set());
   const [openPrograms, setOpenPrograms] = useState<Set<string>>(new Set());
 
-  // Auto-expand the university/program of the active selection
+  // Auto-expand when a node is selected, and auto-expand the only university on load
   useEffect(() => {
+    if (universities.length === 1) {
+      setOpenUniversities(new Set([universities[0].id]));
+    }
+  }, [universities]);
+
+  useEffect(() => {
+    if (selected.type === 'university') {
+      setOpenUniversities((s) => new Set([...s, selected.id]));
+    }
     if (selected.type === 'program') {
       const uni = universities.find((u) => u.children.some((p) => p.id === selected.id));
       if (uni) setOpenUniversities((s) => new Set([...s, uni.id]));
+      setOpenPrograms((s) => new Set([...s, selected.id]));
     }
     if (selected.type === 'course') {
       for (const uni of universities) {
@@ -300,6 +310,13 @@ function TreeSidebar({
       }
     }
   }, [selected, universities]);
+
+  function toggleUni(id: string) {
+    setOpenUniversities((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleProg(id: string) {
+    setOpenPrograms((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
 
   function isActive(node: SelectedNode): boolean {
     return JSON.stringify(node) === JSON.stringify(selected);
@@ -324,59 +341,46 @@ function TreeSidebar({
       {/* Universities */}
       {universities.map((uni) => (
         <div key={uni.id}>
-          {/* University row */}
-          <div className="flex items-center gap-1">
-            <button
-              className={rowClass(isActive({ type: 'university', id: uni.id }))}
-              onClick={() => onSelect({ type: 'university', id: uni.id })}
-            >
+          {/* University row — click selects + toggles expand */}
+          <button
+            className={`${rowClass(isActive({ type: 'university', id: uni.id }))} justify-between`}
+            onClick={() => { onSelect({ type: 'university', id: uni.id }); toggleUni(uni.id); }}
+          >
+            <span className="flex items-center gap-2 min-w-0">
               <svg className="w-3.5 h-3.5 shrink-0 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
               </svg>
               <span className="truncate">{uni.name}</span>
+            </span>
+            <span className="flex items-center gap-1.5 shrink-0 ml-1">
               <CountBadge n={uni.count} />
-            </button>
-            <button
-              onClick={() => setOpenUniversities((s) => {
-                const n = new Set(s);
-                n.has(uni.id) ? n.delete(uni.id) : n.add(uni.id);
-                return n;
-              })}
-              className="p-1 text-white/20 hover:text-white/50 rounded transition-colors shrink-0"
-            >
-              <ChevronIcon className="w-3 h-3" open={openUniversities.has(uni.id)} />
-            </button>
-          </div>
+              <ChevronIcon className="w-3 h-3 text-white/30" open={openUniversities.has(uni.id)} />
+            </span>
+          </button>
 
           {/* Degree programmes */}
           {openUniversities.has(uni.id) && (
             <div className="ml-4 mt-0.5 flex flex-col gap-0.5">
               {uni.children.map((prog) => (
                 <div key={prog.id}>
-                  <div className="flex items-center gap-1">
-                    <button
-                      className={rowClass(isActive({ type: 'program', id: prog.id }))}
-                      onClick={() => onSelect({ type: 'program', id: prog.id })}
-                    >
+                  {/* Program row — click selects + toggles expand if has courses */}
+                  <button
+                    className={`${rowClass(isActive({ type: 'program', id: prog.id }))} justify-between`}
+                    onClick={() => { onSelect({ type: 'program', id: prog.id }); if (prog.children.length > 0) toggleProg(prog.id); }}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
                       <svg className="w-3 h-3 shrink-0 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
                       </svg>
                       <span className="truncate">{prog.name}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0 ml-1">
                       <CountBadge n={prog.count} />
-                    </button>
-                    {prog.children.length > 0 && (
-                      <button
-                        onClick={() => setOpenPrograms((s) => {
-                          const n = new Set(s);
-                          n.has(prog.id) ? n.delete(prog.id) : n.add(prog.id);
-                          return n;
-                        })}
-                        className="p-1 text-white/20 hover:text-white/50 rounded transition-colors shrink-0"
-                      >
-                        <ChevronIcon className="w-3 h-3" open={openPrograms.has(prog.id)} />
-                      </button>
-                    )}
-                  </div>
+                      {prog.children.length > 0 && (
+                        <ChevronIcon className="w-3 h-3 text-white/30" open={openPrograms.has(prog.id)} />
+                      )}
+                    </span>
+                  </button>
 
                   {/* Courses */}
                   {openPrograms.has(prog.id) && (
