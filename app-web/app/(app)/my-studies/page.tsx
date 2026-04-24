@@ -290,14 +290,13 @@ function TreeSidebar({
     }
   }, [universities]);
 
+  // Only auto-open PARENT nodes when a child is selected externally.
+  // Never re-open a node that the click handler may have just collapsed.
   useEffect(() => {
-    if (selected.type === 'university') {
-      setOpenUniversities((s) => new Set([...s, selected.id]));
-    }
     if (selected.type === 'program') {
       const uni = universities.find((u) => u.children.some((p) => p.id === selected.id));
       if (uni) setOpenUniversities((s) => new Set([...s, uni.id]));
-      setOpenPrograms((s) => new Set([...s, selected.id]));
+      // do NOT auto-expand the program itself — the click row handler toggles it
     }
     if (selected.type === 'course') {
       for (const uni of universities) {
