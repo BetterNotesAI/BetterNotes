@@ -801,12 +801,20 @@ export function Sidebar() {
             </div>
           )}
 
-          <PlaceholderNavItem
+          <Link
             href="/my-studies"
-            icon={<MyStudiesIcon className="w-4 h-4 shrink-0" />}
-            label="My Studies"
-            collapsed={collapsed}
-          />
+            title={collapsed ? 'My Studies' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/my-studies')
+                ? activeNavClass
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <MyStudiesIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-sm truncate">My Studies</span>}
+          </Link>
 
           {/* Templates */}
           <Link

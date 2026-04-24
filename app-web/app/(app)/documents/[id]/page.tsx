@@ -174,6 +174,9 @@ export default function DocumentWorkspacePage() {
     subject?: string | null;
     visibility?: string;
     keywords?: string[];
+    university_id?: string | null;
+    program_id?: string | null;
+    course_id?: string | null;
   } | undefined>(undefined);
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc?.get('history') === '1');
   const [zoom, setZoom] = useState(100);
@@ -187,12 +190,15 @@ export default function DocumentWorkspacePage() {
     if (!docData) return;
     const d = docData as unknown as Record<string, unknown>;
     setPublishData({
-      is_published: (d.is_published as boolean) ?? false,
-      university: (d.university as string | null) ?? null,
-      degree: (d.degree as string | null) ?? null,
-      subject: (d.subject as string | null) ?? null,
-      visibility: (d.visibility as string) ?? 'private',
-      keywords: (d.keywords as string[]) ?? [],
+      is_published:  (d.is_published  as boolean)        ?? false,
+      university:    (d.university    as string | null)   ?? null,
+      degree:        (d.degree        as string | null)   ?? null,
+      subject:       (d.subject       as string | null)   ?? null,
+      visibility:    (d.visibility    as string)          ?? 'private',
+      keywords:      (d.keywords      as string[])        ?? [],
+      university_id: (d.university_id as string | null)   ?? null,
+      program_id:    (d.program_id    as string | null)   ?? null,
+      course_id:     (d.course_id     as string | null)   ?? null,
     });
   }, [docData]);
 
