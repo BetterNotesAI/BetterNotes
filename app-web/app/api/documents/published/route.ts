@@ -19,7 +19,7 @@ export async function GET() {
   const { data: documents, error } = await supabase
     .from('documents')
     .select(
-      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id'
+      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id, universities(slug), degree_programs(slug)'
     )
     .eq('user_id', user.id)
     .eq('is_published', true)
@@ -44,11 +44,21 @@ export async function GET() {
 
   const likedSet = new Set((likedRows ?? []).map((r) => r.document_id));
 
-  const enriched = documents.map((doc) => ({
-    ...doc,
-    user_liked: likedSet.has(doc.id),
-    is_own: true, // all docs from this endpoint are the current user's own
-  }));
+  const enriched = documents.map((doc) => {
+    const d = doc as typeof doc & {
+      universities?: { slug: string } | null;
+      degree_programs?: { slug: string } | null;
+    };
+    return {
+      ...doc,
+      university_slug: d.universities?.slug ?? null,
+      program_slug: d.degree_programs?.slug ?? null,
+      universities: undefined,
+      degree_programs: undefined,
+      user_liked: likedSet.has(doc.id),
+      is_own: true,
+    };
+  });
 
   return NextResponse.json({ documents: enriched });
 }
