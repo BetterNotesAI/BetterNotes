@@ -24,6 +24,9 @@ interface PublishedDocument {
   course_id: string | null;
   university_slug: string | null;
   program_slug: string | null;
+  user_id: string;
+  author_name: string | null;
+  author_avatar: string | null;
 }
 
 type SelectedNode =
@@ -100,15 +103,15 @@ function ChevronIcon({ className, open }: { className?: string; open: boolean })
 // ── Document card (unchanged from before) ────────────────────────────────────
 
 function DocumentCard({
-  doc, onOpen, onLikeToggle, onFork,
+  doc, onOpen, onLikeToggle, onFork, onAuthorClick,
 }: {
   doc: PublishedDocument;
   onOpen: () => void;
   onLikeToggle: (id: string) => void;
   onFork: (id: string) => Promise<void>;
+  onAuthorClick: (userId: string) => void;
 }) {
   const templateLabel = TEMPLATE_LABELS[doc.template_id] ?? doc.template_id;
-  const isPublic = doc.visibility === 'public';
   const [isLiking, setIsLiking] = useState(false);
   const [isForking, setIsForking] = useState(false);
 
@@ -126,40 +129,46 @@ function DocumentCard({
     try { await onFork(doc.id); } finally { setIsForking(false); }
   }
 
+  const authorInitial = (doc.author_name ?? '?')[0].toUpperCase();
+
   return (
     <div
-      role="button" tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(); }}
-      className="group cursor-pointer text-left bg-white/4 hover:bg-white/7 border border-white/10
+      className="group bg-white/4 hover:bg-white/7 border border-white/10
         hover:border-white/20 rounded-2xl p-5 transition-all duration-200 flex flex-col gap-3"
     >
+      {/* Title row */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 flex-1">
+        <h3
+          role="button" tabIndex={0}
+          onClick={onOpen}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(); }}
+          className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 flex-1 cursor-pointer"
+        >
           {doc.title}
         </h3>
-        {isPublic && (
-          <span className="shrink-0 text-[10px] font-medium text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-2 py-0.5">
-            Public
+        {doc.is_own && (
+          <span className="shrink-0 text-[10px] font-medium text-indigo-300 bg-indigo-500/15 border border-indigo-400/25 rounded-full px-2 py-0.5">
+            Yours
           </span>
         )}
       </div>
 
-      <div className="space-y-1">
-        {doc.subject && (
-          <p className="text-xs text-white/60 flex items-center gap-1.5">
-            <svg className="w-3 h-3 text-white/30 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            <span className="truncate">{doc.subject}</span>
-          </p>
-        )}
-        {doc.university && (
-          <p className="text-xs text-white/40 truncate">
-            {doc.university}{doc.degree ? ` · ${doc.degree}` : ''}
-          </p>
-        )}
-      </div>
+      {/* Author chip */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onAuthorClick(doc.user_id); }}
+        className="flex items-center gap-1.5 group/author w-fit"
+      >
+        <div
+          className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40
+            border border-white/15 flex items-center justify-center shrink-0 bg-cover bg-center"
+          style={doc.author_avatar ? { backgroundImage: `url(${doc.author_avatar})` } : undefined}
+        >
+          {!doc.author_avatar && <span className="text-[9px] font-semibold text-white/70">{authorInitial}</span>}
+        </div>
+        <span className="text-[11px] text-white/40 group-hover/author:text-white/70 transition-colors truncate max-w-[140px]">
+          {doc.is_own ? 'You' : (doc.author_name ?? 'Anonymous')}
+        </span>
+      </button>
 
       {doc.keywords.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -177,27 +186,35 @@ function DocumentCard({
           <span className="text-[10px] text-white/30">{templateLabel}</span>
           <span className="text-[10px] text-white/30">{formatDate(doc.published_at)}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-[10px] text-white/30">
             <EyeIcon className="w-3 h-3" />{doc.view_count}
           </span>
           <button
             onClick={handleLike} disabled={isLiking}
             aria-label={doc.user_liked ? 'Unlike' : 'Like'}
-            className={`flex items-center gap-1 text-[10px] transition-colors rounded px-1 py-0.5
-              ${doc.user_liked ? 'text-pink-400 hover:text-pink-300' : 'text-white/30 hover:text-pink-400'}
-              disabled:opacity-50`}
+            className={`flex items-center gap-1 text-[10px] transition-colors rounded px-1 py-0.5 disabled:opacity-50
+              ${doc.user_liked ? 'text-pink-400 hover:text-pink-300' : 'text-white/30 hover:text-pink-400'}`}
           >
             <HeartIcon className="w-3.5 h-3.5" filled={doc.user_liked} />{doc.like_count}
           </button>
-          {!doc.is_own && (
+          {doc.is_own ? (
+            <button
+              onClick={onOpen}
+              className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 hover:bg-white/15 text-white/70
+                hover:text-white border border-white/10 hover:border-white/25 transition-colors"
+            >
+              Open
+            </button>
+          ) : (
             <button
               onClick={handleFork} disabled={isForking}
-              aria-label="Fork document"
-              className="flex items-center gap-1 text-[10px] text-white/30 hover:text-indigo-400 transition-colors rounded px-1 py-0.5 disabled:opacity-50"
+              className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg
+                bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-400/25
+                hover:border-indigo-400/40 transition-colors disabled:opacity-50"
             >
               {isForking
-                ? <span className="w-3 h-3 border border-white/20 border-t-indigo-400 rounded-full animate-spin" />
+                ? <span className="w-3 h-3 border border-indigo-400/40 border-t-indigo-300 rounded-full animate-spin" />
                 : <ForkIcon className="w-3.5 h-3.5" />}
               Fork
             </button>
@@ -523,6 +540,10 @@ export default function MyStudiesPage() {
     fetch(`/api/documents/${doc.id}/view`, { method: 'POST' }).catch(() => {});
   }, [router]);
 
+  const handleAuthorClick = useCallback((userId: string) => {
+    router.push(`/profile/${userId}`);
+  }, [router]);
+
   const hasSidebar = !isLoading && !error && documents.length > 0;
 
   return (
@@ -618,9 +639,9 @@ export default function MyStudiesPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-white mb-2">No published documents yet</h2>
+                <h2 className="text-xl font-bold text-white mb-2">No public notes yet</h2>
                 <p className="text-white/50 text-sm mb-6 max-w-sm">
-                  Open any document and click <span className="text-indigo-400 font-medium">Publish</span> to add it to your studies.
+                  Be the first — open any document, click <span className="text-indigo-400 font-medium">Publish</span>, and set visibility to <span className="text-indigo-400 font-medium">Public</span>.
                 </p>
                 <button
                   onClick={() => router.push('/documents')}
@@ -685,6 +706,7 @@ export default function MyStudiesPage() {
                         onOpen={() => handleOpen(doc)}
                         onLikeToggle={handleLikeToggle}
                         onFork={handleFork}
+                        onAuthorClick={handleAuthorClick}
                       />
                     ))}
                   </div>

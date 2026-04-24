@@ -4,25 +4,29 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * GET /api/documents/published
  *
- * Returns all documents the current user has published (is_published = true),
- * ordered by published_at descending. Includes view_count, like_count,
- * and whether the current user has liked each document.
+ * Returns ALL publicly published documents across all users, ordered by
+ * published_at descending. This powers the My Studies community library.
+ *
+ * Enriches each doc with:
+ *   - is_own        : true if the doc belongs to the current user
+ *   - user_liked    : whether the current user has liked it
+ *   - university_slug / program_slug : for explore page URL construction
+ *   - author_name / author_avatar   : for attribution on community cards
  */
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Auth is optional — anonymous users can still browse public docs
+  // but won't get personalised is_own / user_liked enrichment.
 
   const { data: documents, error } = await supabase
     .from('documents')
     .select(
-      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id'
+      'id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, university_id, program_id, course_id, user_id'
     )
-    .eq('user_id', user.id)
     .eq('is_published', true)
+    .eq('visibility', 'public')
     .is('archived_at', null)
     .order('published_at', { ascending: false });
 
@@ -34,7 +38,7 @@ export async function GET() {
     return NextResponse.json({ documents: [] });
   }
 
-  // Fetch university and program slugs separately (avoids FK join issues)
+  // ── Fetch university and program slugs ────────────────────────────────────
   const uniIds  = [...new Set(documents.map((d) => d.university_id).filter(Boolean))] as string[];
   const progIds = [...new Set(documents.map((d) => d.program_id).filter(Boolean))]    as string[];
 
@@ -50,23 +54,42 @@ export async function GET() {
   const uniSlugs  = Object.fromEntries((uniResult.data  ?? []).map((r) => [r.id, r.slug]));
   const progSlugs = Object.fromEntries((progResult.data ?? []).map((r) => [r.id, r.slug]));
 
-  // Fetch which documents the current user has liked (single query)
-  const documentIds = documents.map((d) => d.id);
-  const { data: likedRows } = await supabase
-    .from('document_likes')
-    .select('document_id')
-    .eq('user_id', user.id)
-    .in('document_id', documentIds);
+  // ── Fetch author profiles ─────────────────────────────────────────────────
+  const authorIds = [...new Set(documents.map((d) => d.user_id).filter(Boolean))] as string[];
+  const { data: profiles } = authorIds.length
+    ? await supabase
+        .from('profiles')
+        .select('id, display_name, username, avatar_url')
+        .in('id', authorIds)
+    : { data: [] as { id: string; display_name: string | null; username: string | null; avatar_url: string | null }[] };
 
-  const likedSet = new Set((likedRows ?? []).map((r) => r.document_id));
+  const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
 
-  const enriched = documents.map((doc) => ({
-    ...doc,
-    university_slug: doc.university_id ? (uniSlugs[doc.university_id] ?? null) : null,
-    program_slug:    doc.program_id    ? (progSlugs[doc.program_id]    ?? null) : null,
-    user_liked: likedSet.has(doc.id),
-    is_own: true,
-  }));
+  // ── Fetch liked set for current user ──────────────────────────────────────
+  let likedSet = new Set<string>();
+  if (user) {
+    const documentIds = documents.map((d) => d.id);
+    const { data: likedRows } = await supabase
+      .from('document_likes')
+      .select('document_id')
+      .eq('user_id', user.id)
+      .in('document_id', documentIds);
+    likedSet = new Set((likedRows ?? []).map((r) => r.document_id));
+  }
+
+  // ── Enrich ────────────────────────────────────────────────────────────────
+  const enriched = documents.map((doc) => {
+    const profile = profileMap[doc.user_id];
+    return {
+      ...doc,
+      university_slug: doc.university_id ? (uniSlugs[doc.university_id] ?? null) : null,
+      program_slug:    doc.program_id    ? (progSlugs[doc.program_id]    ?? null) : null,
+      user_liked:  likedSet.has(doc.id),
+      is_own:      user ? doc.user_id === user.id : false,
+      author_name:   profile?.display_name || profile?.username || null,
+      author_avatar: profile?.avatar_url ?? null,
+    };
+  });
 
   return NextResponse.json({ documents: enriched });
 }
