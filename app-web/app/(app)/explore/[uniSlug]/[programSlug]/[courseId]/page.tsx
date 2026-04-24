@@ -18,6 +18,9 @@ interface CourseDoc {
   like_count: number;
   user_liked: boolean;
   is_own: boolean;
+  author_id: string;
+  author_name: string | null;
+  author_avatar: string | null;
 }
 
 interface CourseInfo {
@@ -75,16 +78,40 @@ function HeartIcon({ filled, className }: { filled: boolean; className?: string 
 
 // ── Community document card ───────────────────────────────────────────────────
 
+function AuthorChip({ doc, onClick }: { doc: CourseDoc; onClick: () => void }) {
+  const initial = (doc.author_name ?? '?')[0].toUpperCase();
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="flex items-center gap-1.5 group/author w-fit"
+      title={`View profile of ${doc.author_name ?? 'author'}`}
+    >
+      <div
+        className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40
+          border border-white/15 flex items-center justify-center shrink-0 bg-cover bg-center"
+        style={doc.author_avatar ? { backgroundImage: `url(${doc.author_avatar})` } : undefined}
+      >
+        {!doc.author_avatar && <span className="text-[9px] font-semibold text-white/70">{initial}</span>}
+      </div>
+      <span className="text-[11px] text-white/40 group-hover/author:text-white/70 transition-colors truncate max-w-[120px]">
+        {doc.is_own ? 'You' : (doc.author_name ?? 'Anonymous')}
+      </span>
+    </button>
+  );
+}
+
 function CommunityCard({
   doc,
   onLike,
   onForkAndOpen,
   onOpen,
+  onAuthorClick,
 }: {
   doc: CourseDoc;
   onLike: (id: string) => void;
   onForkAndOpen: (id: string) => Promise<void>;
   onOpen: (id: string) => void;
+  onAuthorClick: (userId: string) => void;
 }) {
   const [isForking, setIsForking] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -119,6 +146,9 @@ function CommunityCard({
           </span>
         )}
       </div>
+
+      {/* Author */}
+      <AuthorChip doc={doc} onClick={() => onAuthorClick(doc.author_id)} />
 
       {/* Keywords */}
       {doc.keywords.length > 0 && (
@@ -244,6 +274,10 @@ export default function CourseExplorePage() {
 
   const handleOpen = useCallback((docId: string) => {
     router.push(`/documents/${docId}`);
+  }, [router]);
+
+  const handleAuthorClick = useCallback((authorId: string) => {
+    router.push(`/profile/${authorId}`);
   }, [router]);
 
   // ── Breadcrumb labels ─────────────────────────────────────
@@ -375,6 +409,7 @@ export default function CourseExplorePage() {
                     onLike={handleLike}
                     onForkAndOpen={handleForkAndOpen}
                     onOpen={handleOpen}
+                    onAuthorClick={handleAuthorClick}
                   />
                 ))}
               </div>
