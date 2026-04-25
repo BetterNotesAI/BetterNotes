@@ -6,6 +6,7 @@ import { compileLatexToPdf, applyLatexFallbacks, compileMultiFileProject, type P
 import { trimHugeLog } from '../lib/errors';
 import { processAttachments } from '../lib/attachments';
 import { recordModelUsage } from '../lib/usage/tracker';
+import { getUsageContext } from '../lib/usage/context';
 import { markdownToLatexDoc } from '../lib/markdown-to-latex';
 import { buildExtendedLectureNotesProjectFiles } from '../lib/templates/extended_lecture_notes_project';
 
@@ -229,6 +230,17 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         const summaryB64 = Buffer.from(generated.summary, 'utf8').toString('base64');
         res.set('X-Betternotes-Summary', summaryB64);
       }
+
+      // Forward accumulated token usage to app-web so it can record credits
+      // authoritatively (app-web always has Supabase credentials; app-api may not).
+      const { accumulatedUsage } = getUsageContext();
+      if (accumulatedUsage) {
+        res.set(
+          'X-Betternotes-Usage',
+          Buffer.from(JSON.stringify(accumulatedUsage), 'utf8').toString('base64'),
+        );
+      }
+
       res.send(pdfBuffer!);
     } catch (err: any) {
       const status = err?.statusCode ?? err?.status ?? 500;
