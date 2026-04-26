@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from './_components/Sidebar'
+import { SearchPalette } from './_components/SearchPalette'
 import AppBackground from '../components/AppBackground'
 import { UserPreferencesSync } from './_components/UserPreferencesSync'
 
@@ -14,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <UserPreferencesSync />
       <AppBackground />
       <Sidebar />
+      <SearchPalette />
       <main className="flex-1 overflow-hidden relative z-10">
         {children}
       </main>
