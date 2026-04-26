@@ -364,6 +364,8 @@ function DegreeStep({
           profile_program_id: selectedProgram.id,
           profile_year: selectedYear,
           onboarding_completed_at: new Date().toISOString(),
+          university: university.name,
+          degree: selectedProgram.title,
         }),
       })
       if (!res.ok) throw new Error('Failed to save')
