@@ -183,11 +183,23 @@ interface SubchatData {
 // Props
 // ---------------------------------------------------------------------------
 
+const GENERATION_PHASE_LABELS: Record<string, string> = {
+  calling_ai: 'Generating content...',
+  compiling: 'Compiling...',
+  uploading: 'Finalizing...',
+};
+
+const LOADING_PHASES = ['Generating content', 'Compiling'] as const;
+
 interface Props {
   sessionId: string;
   contentMd: string | null;
   status: 'pending' | 'generating' | 'done' | 'error';
   isStreaming: boolean;
+  /** Phase label from the parent hook — kept in sync with the chat panel progress bar. */
+  generationPhase?: string | null;
+  /** 0 = first phase active, 1 = second phase active. Mirrors the chat panel loadingPhaseIndex. */
+  loadingPhaseIndex?: number;
   onGenerate: () => void;
   selectedContexts: Array<{ id: string; text: string; rawMd: string; startLine: number; endLine: number }>;
   onTextSelect: (context: { id: string; text: string; rawMd: string; startLine: number; endLine: number }) => void;
@@ -204,6 +216,8 @@ export function CheatSheetPanel({
   contentMd,
   status,
   isStreaming,
+  generationPhase,
+  loadingPhaseIndex = 0,
   onGenerate,
   selectedContexts,
   onTextSelect,
@@ -790,7 +804,24 @@ export function CheatSheetPanel({
         {(status === 'generating' || isStreaming) && !contentMd && (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center py-12">
             <div className="w-10 h-10 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
-            <p className="text-sm text-white/45">Generating cheat sheet...</p>
+            <p className="text-sm text-white/45">
+              {generationPhase
+                ? (GENERATION_PHASE_LABELS[generationPhase] ?? 'Generating cheat sheet...')
+                : 'Generating cheat sheet...'}
+            </p>
+            {/* Phase progress dots — same structure as ChatPanel/PdfViewer for visual sync */}
+            <div className="flex items-center gap-2">
+              {LOADING_PHASES.map((phase, i) => (
+                <div key={phase} className="flex flex-col items-center gap-1">
+                  <div className={`h-0.5 w-16 rounded-full transition-all duration-500 ${
+                    i <= loadingPhaseIndex ? 'bg-cyan-300/70' : 'bg-white/15'
+                  }`} />
+                  <span className={`text-[11px] transition-colors duration-500 ${
+                    i === loadingPhaseIndex ? 'text-white/55' : 'text-white/25'
+                  }`}>{phase}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

@@ -917,8 +917,8 @@ export default function DocumentWorkspacePage() {
 
           {/* Tab + controls bar */}
           <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
-            {/* Viewer tabs — Interactive shown only when LaTeX content exists */}
-            {viewerLatexContent && (
+            {/* Viewer tabs — Interactive shown only when LaTeX content exists and user is owner */}
+            {viewerLatexContent && isOwner && (
               <button
                 onClick={() => setViewerTab('interactive')}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
