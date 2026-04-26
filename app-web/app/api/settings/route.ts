@@ -157,7 +157,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({})) as SettingsPatchBody;
-  const updates: Record<string, string | null> = {};
+  const updates: Record<string, string | number | null> = {};
 
   try {
     if ('displayName' in body) {
@@ -249,7 +249,7 @@ export async function PATCH(req: NextRequest) {
       if (body.profile_year !== null && typeof body.profile_year !== 'number') {
         return NextResponse.json({ error: 'Invalid profile_year.' }, { status: 400 });
       }
-      updates.profile_year = body.profile_year as unknown as string | null;
+      updates.profile_year = body.profile_year as number | null;
     }
 
     if ('onboarding_completed_at' in body) {
