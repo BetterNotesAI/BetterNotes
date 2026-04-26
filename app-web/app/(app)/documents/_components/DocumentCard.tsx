@@ -1,7 +1,9 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Image from 'next/image';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 
 export interface DocumentItem {
   id: string;
@@ -39,6 +41,122 @@ const TEMPLATE_LABELS: Record<string, string> = {
   classic_lecture_notes: 'Classic Lecture Notes',
   long_template: 'Long Document',
 };
+
+type DocumentKind = 'cheatsheet' | 'problem' | 'notes' | 'exam';
+
+const DOCUMENT_KIND_META: Record<DocumentKind, {
+  title: string;
+  className: string;
+  icon: ReactNode;
+}> = {
+  cheatsheet: {
+    title: 'CheatSheet document',
+    className: 'text-cyan-300 bg-cyan-400/15 border-cyan-300/25 shadow-[0_0_18px_rgba(34,211,238,0.14)]',
+    icon: (
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.75h5.5v5.5h-5.5zM13.75 5.75h5.5v5.5h-5.5zM4.75 14.75h5.5v3.5h-5.5zM13.75 14.75h5.5v3.5h-5.5z" />
+      </svg>
+    ),
+  },
+  problem: {
+    title: 'Problem document',
+    className: 'text-amber-300 bg-amber-400/15 border-amber-300/25 shadow-[0_0_18px_rgba(251,191,36,0.13)]',
+    icon: (
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 5.75h7.5M8.25 18.25h7.5M9.5 5.75l5 12.5M7.25 10h9.5M6.5 14h11" />
+      </svg>
+    ),
+  },
+  notes: {
+    title: 'Notes document',
+    className: 'text-sky-300 bg-sky-400/15 border-sky-300/25 shadow-[0_0_18px_rgba(56,189,248,0.13)]',
+    icon: (
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 4.75h8.25l2.25 2.25v12.25H6.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.75 4.75v2.5h2.5M9 11h6M9 14h6M9 17h3.25" />
+      </svg>
+    ),
+  },
+  exam: {
+    title: 'Exam document',
+    className: 'text-rose-300 bg-rose-400/15 border-rose-300/25 shadow-[0_0_18px_rgba(251,113,133,0.13)]',
+    icon: (
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.75 5.75h6.5M9.5 4.25h5a1.25 1.25 0 0 1 1.25 1.25v1H8.25v-1A1.25 1.25 0 0 1 9.5 4.25z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 6.5H5.75v13h12.5v-13H17M8.75 12.25l1.75 1.75 4-4M9 17h6" />
+      </svg>
+    ),
+  },
+};
+
+const TEMPLATE_THUMBNAIL_IDS = new Set([
+  '2cols_portrait',
+  'landscape_3col_maths',
+  'clean_3cols_landscape',
+  'cornell',
+  'zettelkasten',
+  'academic_paper',
+  'lab_report',
+  'data_analysis',
+  'study_form',
+  'lecture_notes',
+  'classic_lecture_notes',
+]);
+
+function getDocumentKind(templateId: string): DocumentKind {
+  if (templateId === 'problem_solving' || templateId.includes('problem')) return 'problem';
+  if (templateId === 'exam' || templateId === 'exams' || templateId.includes('exam')) return 'exam';
+  if (
+    templateId === '2cols_portrait' ||
+    templateId === 'landscape_3col_maths' ||
+    templateId === 'clean_3cols_landscape' ||
+    templateId === 'study_form'
+  ) {
+    return 'cheatsheet';
+  }
+  return 'notes';
+}
+
+function DocumentVisual({
+  templateId,
+  kind,
+}: {
+  templateId: string;
+  kind: DocumentKind;
+}) {
+  const meta = DOCUMENT_KIND_META[kind];
+  const thumbnailSrc = TEMPLATE_THUMBNAIL_IDS.has(templateId) && kind !== 'problem' && kind !== 'exam'
+    ? getTemplateThumbnailSrc(templateId)
+    : null;
+
+  if (thumbnailSrc) {
+    return (
+      <div
+        className="relative w-[58px] h-[74px] shrink-0 overflow-hidden rounded-lg border border-white/15 bg-white/8 shadow-[0_8px_22px_rgba(0,0,0,0.22)]"
+        title={meta.title}
+        aria-label={meta.title}
+      >
+        <Image
+          src={thumbnailSrc}
+          alt=""
+          fill
+          sizes="58px"
+          className="object-cover object-top"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`w-[58px] h-[74px] shrink-0 rounded-lg border flex items-center justify-center ${meta.className}`}
+      title={meta.title}
+      aria-label={meta.title}
+    >
+      <span className="scale-[1.65]">{meta.icon}</span>
+    </div>
+  );
+}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -253,6 +371,8 @@ export function DocumentCard({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const statusInfo = STATUS_LABELS[doc.status] ?? { label: doc.status, color: 'text-gray-500' };
+  const documentKind = getDocumentKind(doc.template_id);
+  const showStatus = doc.status !== 'ready';
 
   // Focus input when rename mode starts
   useEffect(() => {
@@ -390,112 +510,107 @@ export function DocumentCard({
         setIsDragging(true);
       }}
       onDragEnd={() => setIsDragging(false)}
-      className={`relative text-left bg-white/10 border border-white/20 rounded-xl p-4
+      className={`relative text-left bg-white/10 border border-white/20 rounded-xl px-4 py-3
         hover:bg-white/15 hover:border-white/30 backdrop-blur transition-all group cursor-pointer
         ${isDragging ? 'opacity-50' : ''}`}
       onClick={() => {
         if (!isRenaming) onNavigate();
       }}
     >
-      {/* Top-right row: folder badge + star — flex so they stay vertically centered */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
-        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 max-w-[120px]">
-          {folderBadge ? (
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ backgroundColor: folderBadge.color ?? '#6366f1' }}
-            />
-          ) : null}
-          <span className="text-[10px] text-white/40 truncate">
-            {folderBadge ? folderBadge.name : 'none'}
-          </span>
-        </div>
+      <div className="flex min-h-[78px] gap-3">
+        <DocumentVisual templateId={doc.template_id} kind={documentKind} />
 
-        {/* Star button */}
-        <button
-        onClick={handleStarClick}
-        className="group/star"
-        aria-label={doc.is_starred ? 'Unstar document' : 'Star document'}
-        title={doc.is_starred ? 'Remove from starred' : 'Add to starred'}
-      >
-        {doc.is_starred ? (
-          <>
-            {/* Filled star — visible by default, preview outline on hover */}
-            <svg className="w-4 h-4 text-yellow-400 group-hover/star:hidden transition-colors" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
-            <svg className="w-4 h-4 text-white/50 hidden group-hover/star:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
-          </>
-        ) : (
-          /* Outline star — grey, turns yellow on hover */
-          <svg className="w-4 h-4 text-white/30 group-hover/star:text-yellow-300 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-          </svg>
-        )}
-      </button>
-      </div>
+        <div className="min-w-0 flex-1 flex flex-col">
+          <div className="min-w-0">
+            {isRenaming ? (
+              <input
+                ref={inputRef}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={handleRenameKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                className="text-sm font-semibold text-white bg-white/10 border border-white/30
+                  rounded px-1.5 py-0.5 outline-none focus:border-indigo-400 min-w-0 w-full leading-snug"
+                maxLength={120}
+              />
+            ) : (
+              <h3
+                className="text-sm font-semibold text-white truncate leading-snug cursor-pointer select-none"
+                onClick={handleTitleClick}
+              >
+                {doc.title}
+              </h3>
+            )}
 
-      {/* Title row */}
-      <div className="flex items-start mb-2 pr-28">
-        {isRenaming ? (
-          <input
-            ref={inputRef}
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={handleRenameKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className="text-sm font-semibold text-white bg-white/10 border border-white/30
-              rounded px-1.5 py-0.5 outline-none focus:border-indigo-400 w-full leading-snug"
-            maxLength={120}
-          />
-        ) : (
-          <h3
-            className="text-sm font-semibold text-white truncate leading-snug cursor-pointer select-none"
-            onClick={handleTitleClick}
-          >
-            {doc.title}
-          </h3>
-        )}
-      </div>
+            <div className="mt-1 flex items-center gap-2 min-w-0">
+              <p className="text-xs text-white/48 truncate">
+                {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
+              </p>
+              {doc.forked_from_id && (
+                <span className="text-[10px] text-indigo-300/75 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-1.5 py-0.5 shrink-0">
+                  Forked
+                </span>
+              )}
+            </div>
+          </div>
 
-      {/* Template label + forked badge */}
-      <div className="flex items-center gap-2 mb-3">
-        <p className="text-xs text-white/50">
-          {TEMPLATE_LABELS[doc.template_id] ?? doc.template_id}
-        </p>
-        {doc.forked_from_id && (
-          <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-1.5 py-0.5 shrink-0">
-            Forked
-          </span>
-        )}
-      </div>
+          <div className="mt-auto pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-center gap-2">
+                {showStatus && (
+                  <span className={`text-xs font-medium shrink-0 ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </span>
+                )}
+                {folderBadge && (
+                  <div className="flex items-center gap-1.5 min-w-0 max-w-[132px] px-2 py-1 rounded-md bg-white/[0.06] border border-white/10">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: folderBadge.color ?? '#6366f1' }}
+                    />
+                    <span className="text-[10px] text-white/45 truncate">{folderBadge.name}</span>
+                  </div>
+                )}
+              </div>
 
-      {/* Footer row */}
-      <div className="flex items-center justify-between">
-        <span className={`text-xs font-medium ${statusInfo.color}`}>
-          {statusInfo.label}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-white/30">
-            {formatDate(doc.updated_at)}
-          </span>
-
-          {/* Three-dot menu — always visible */}
-          <div className="-mr-1 flex items-center">
-            <button
-              ref={menuButtonRef}
-              onClick={handleMenuToggle}
-              className="text-white/30 hover:text-white/80 transition-colors p-0.5 rounded"
-              aria-label="More actions"
-              title="More actions"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-              </svg>
-            </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleStarClick}
+                  className="group/star p-0.5 rounded hover:bg-white/8 transition-colors"
+                  aria-label={doc.is_starred ? 'Unstar document' : 'Star document'}
+                  title={doc.is_starred ? 'Remove from starred' : 'Add to starred'}
+                >
+                  {doc.is_starred ? (
+                    <>
+                      <svg className="w-4 h-4 text-yellow-400 group-hover/star:hidden transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                      </svg>
+                      <svg className="w-4 h-4 text-white/50 hidden group-hover/star:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                      </svg>
+                    </>
+                  ) : (
+                    <svg className="w-4 h-4 text-white/30 group-hover/star:text-yellow-300 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    </svg>
+                  )}
+                </button>
+                <span className="text-xs text-white/30">
+                  {formatDate(doc.updated_at)}
+                </span>
+                <div className="-mr-1 flex items-center">
+                  <button
+                    ref={menuButtonRef}
+                    onClick={handleMenuToggle}
+                    className="text-white/30 hover:text-white/80 transition-colors p-0.5 rounded"
+                    aria-label="More actions"
+                    title="More actions"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                    </svg>
+                  </button>
 
             {menuOpen && menuPos && typeof window !== 'undefined' && createPortal(
               <div
@@ -776,6 +891,9 @@ export function DocumentCard({
               </div>,
               document.body
             )}
+          </div>
+        </div>
+      </div>
           </div>
         </div>
       </div>

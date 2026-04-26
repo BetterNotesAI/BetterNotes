@@ -40,6 +40,42 @@ function renderKatex(formula: string, displayMode: boolean): string {
   }
 }
 
+function normalizeDisplayFormula(source: string): { formula: string; displayMode: boolean } {
+  let formula = source.trim();
+
+  if (formula.startsWith('$$') && formula.endsWith('$$')) {
+    formula = formula.slice(2, -2).trim();
+  } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
+    formula = formula.slice(2, -2).trim();
+  }
+
+  const envMatch = formula.match(/^\\begin\{([^}]+)\}([\s\S]*)\\end\{\1\}$/);
+  if (!envMatch) {
+    return { formula, displayMode: true };
+  }
+
+  const env = envMatch[1];
+  const inner = envMatch[2].trim();
+
+  if (/^equation\*?$/.test(env)) {
+    return { formula: inner, displayMode: true };
+  }
+
+  if (/^(align|alignat|flalign|eqnarray)\*?$/.test(env)) {
+    return { formula: `\\begin{aligned}${inner}\\end{aligned}`, displayMode: true };
+  }
+
+  if (/^gather\*?$/.test(env)) {
+    return { formula: `\\begin{gathered}${inner}\\end{gathered}`, displayMode: true };
+  }
+
+  if (/^multline\*?$/.test(env)) {
+    return { formula: `\\begin{aligned}${inner}\\end{aligned}`, displayMode: true };
+  }
+
+  return { formula, displayMode: false };
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -191,6 +227,19 @@ const BOX_SUBTYPE_LABELS: Record<string, string> = {
   workedexample: 'Worked Example',
   keypoint: 'Key Point',
   warning: 'Note',
+  summary: 'Summary',
+};
+
+const CORNELL_BOX_LABELS: Record<string, string> = {
+  definition: 'Def.',
+  theorem: 'Thm.',
+  proposition: 'Prop.',
+  observation: 'Obs.',
+  example: 'Ex.',
+  lemma: 'Lemma.',
+  corollary: 'Cor.',
+  remark: 'Rmk.',
+  proof: 'Proof.',
 };
 
 // ─── list renderer ────────────────────────────────────────────────────────────
@@ -289,6 +338,8 @@ function renderTable(latex: string): React.ReactElement {
 
 interface BlockActionBarProps {
   blockId: string;
+  onAddBlockToEditChat?: (id: string) => void;
+  onAddBlockToAskChat?: (id: string) => void;
   onAddBlock?: (id: string, type: AddBlockType, position: 'before' | 'after') => void;
   onDeleteBlock?: (id: string) => void;
   onMoveBlock?: (id: string, direction: -1 | 1) => void;
@@ -299,6 +350,8 @@ interface BlockActionBarProps {
 /** Tiny action bar shown when a block is focused. */
 function BlockActionBar({
   blockId,
+  onAddBlockToEditChat,
+  onAddBlockToAskChat,
   onAddBlock,
   onDeleteBlock,
   onMoveBlock,
@@ -306,10 +359,12 @@ function BlockActionBar({
   canMoveDown,
 }: BlockActionBarProps) {
   const [showAddMenu, setShowAddMenu] = useState<'before' | 'after' | null>(null);
+  const [showContextMenu, setShowContextMenu] = useState(false);
 
   const btnBase =
     'flex items-center justify-center w-5 h-5 rounded text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors text-[10px] font-medium select-none';
   const btnDisabled = 'opacity-30 cursor-not-allowed pointer-events-none';
+  const hasContextTargets = !!onAddBlockToEditChat || !!onAddBlockToAskChat;
 
   function stopProp(e: React.MouseEvent) {
     e.stopPropagation();
@@ -322,6 +377,37 @@ function BlockActionBar({
       onClick={stopProp}
       style={{ pointerEvents: 'auto' }}
     >
+      {hasContextTargets && (
+        <div className="relative">
+          <button
+            title="Add block to chat context"
+            className={`${btnBase} ${showContextMenu ? 'text-indigo-600 bg-indigo-50' : ''}`}
+            onClick={() => setShowContextMenu((open) => !open)}
+            tabIndex={-1}
+            aria-label="Add block to chat context"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M7 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4H7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18 19v-4m-2 2h4" />
+            </svg>
+          </button>
+          {showContextMenu && (
+            <BlockContextMenu
+              blockId={blockId}
+              onAddToEditChat={(id) => {
+                onAddBlockToEditChat?.(id);
+                setShowContextMenu(false);
+              }}
+              onAddToAskChat={(id) => {
+                onAddBlockToAskChat?.(id);
+                setShowContextMenu(false);
+              }}
+              onClose={() => setShowContextMenu(false)}
+            />
+          )}
+        </div>
+      )}
+
       {/* Move up */}
       <button
         title="Move block up"
@@ -410,6 +496,56 @@ function BlockActionBar({
   );
 }
 
+interface BlockContextMenuProps {
+  blockId: string;
+  onAddToEditChat?: (id: string) => void;
+  onAddToAskChat?: (id: string) => void;
+  onClose: () => void;
+}
+
+function BlockContextMenu({
+  blockId,
+  onAddToEditChat,
+  onAddToAskChat,
+  onClose,
+}: BlockContextMenuProps) {
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute left-full top-0 ml-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[132px] z-50"
+      style={{ fontSize: '11px' }}
+    >
+      <div className="px-2 py-0.5 text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+        Add context
+      </div>
+      <button
+        className="w-full text-left px-2.5 py-1.5 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+        onClick={() => onAddToEditChat?.(blockId)}
+      >
+        Edit document
+      </button>
+      <button
+        className="w-full text-left px-2.5 py-1.5 text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 transition-colors"
+        onClick={() => onAddToAskChat?.(blockId)}
+      >
+        Ask document
+      </button>
+    </div>
+  );
+}
+
 interface AddBlockMenuProps {
   blockId: string;
   position: 'before' | 'after';
@@ -476,6 +612,10 @@ export interface LatexBlockInteractiveProps {
   /** Confirm edit: new latex_source value */
   onConfirm?: (id: string, newSource: string) => void;
   onCancel?: (id: string) => void;
+  /** Add this rendered block as context to the edit chat. */
+  onAddBlockToEditChat?: (id: string) => void;
+  /** Add this rendered block as context to the ask-document chat. */
+  onAddBlockToAskChat?: (id: string) => void;
   // ── IA-M2: block management ────────────────────────────────────────────
   /** Add a new block before or after this block. */
   onAddBlock?: (id: string, type: AddBlockType, position: 'before' | 'after') => void;
@@ -505,6 +645,8 @@ export default function LatexBlock({
   onEdit,
   onConfirm,
   onCancel,
+  onAddBlockToEditChat,
+  onAddBlockToAskChat,
   onAddBlock,
   onDeleteBlock,
   onMoveBlock,
@@ -551,7 +693,7 @@ export default function LatexBlock({
   const interactiveClass = [
     'group relative transition-colors duration-100',
     // M3.1: hover highlight — subtle ring on hover (non-editing, non-section)
-    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end'
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end' && block.type !== 'page-header'
       ? isEditing
         ? 'ring-1 ring-indigo-400'
         : isFocused
@@ -566,7 +708,7 @@ export default function LatexBlock({
 
   // Event handlers for interactive blocks
   const interactiveHandlers =
-    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end'
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end' && block.type !== 'page-header'
       ? {
           onMouseEnter: () => onHover?.(block.id),
           onMouseLeave: () => onHover?.(null),
@@ -596,18 +738,8 @@ export default function LatexBlock({
   const rendered = useMemo(() => {
     switch (block.type) {
       case 'formula-block': {
-        // Strip outer $$...$$ or \[...\] wrappers before passing to KaTeX
-        let formula = block.latex_source;
-        if (formula.startsWith('$$') && formula.endsWith('$$')) {
-          formula = formula.slice(2, -2).trim();
-        } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
-          formula = formula.slice(2, -2).trim();
-        }
-        // If the formula contains a \begin{env} environment (align*, equation*, gather*, etc.)
-        // pass displayMode: false — KaTeX honours the environment's own display semantics
-        // and double-wrapping with displayMode: true causes rendering errors.
-        const hasEnv = /\\begin\s*\{/.test(formula);
-        return renderKatex(formula, !hasEnv);
+        const { formula, displayMode } = normalizeDisplayFormula(block.latex_source);
+        return renderKatex(formula, displayMode);
       }
 
       case 'formula-inline':
@@ -622,7 +754,7 @@ export default function LatexBlock({
 
   // ── Accessibility props for interactive blocks ────────────────────────────
   const isInteractive =
-    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end';
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end' && block.type !== 'page-header';
   const a11yProps = isInteractive
     ? {
         tabIndex: 0,
@@ -633,10 +765,12 @@ export default function LatexBlock({
 
   // IA-M2: action bar (only for interactive, non-structural blocks when focused)
   const isInteractiveForActions =
-    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end';
+    block.type !== 'hr' && block.type !== 'col-start' && block.type !== 'col-end' && block.type !== 'page-header';
   const actionBar = isInteractiveForActions && isFocused && !isEditing && (
     <BlockActionBar
       blockId={block.id}
+      onAddBlockToEditChat={onAddBlockToEditChat}
+      onAddBlockToAskChat={onAddBlockToAskChat}
       onAddBlock={onAddBlock}
       onDeleteBlock={onDeleteBlock}
       onMoveBlock={onMoveBlock}
@@ -644,6 +778,25 @@ export default function LatexBlock({
       canMoveDown={canMoveDown}
     />
   );
+
+  const cueLabel = templateId === 'cornell' ? block.cue?.trim() : '';
+  const cueElement = cueLabel ? (
+    <aside
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        left: '-11.15rem',
+        top: block.type === 'formula-block' ? '0.18em' : '0.1em',
+        width: '10.25rem',
+        color: '#00468c',
+        fontSize: '0.86em',
+        fontWeight: 700,
+        lineHeight: 1.12,
+        textAlign: 'left',
+      }}
+      dangerouslySetInnerHTML={{ __html: renderInlineMath(cueLabel) }}
+    />
+  ) : null;
 
   // ── Inline editor overlay — shown when isEditing ───────────────────────────
   if (isEditing) {
@@ -671,8 +824,39 @@ export default function LatexBlock({
 
   // ── Normal rendered view ───────────────────────────────────────────────────
   switch (block.type) {
+    case 'page-header': {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: '1em',
+            margin: '-0.25em 0 0.55em',
+            paddingBottom: '0.18em',
+            borderBottom: templateId === 'cornell' ? '2px solid #B31B1B' : '1px solid #8f8f8f',
+            color: '#111111',
+            fontSize: templateId === 'cornell' ? '1.08em' : '1em',
+            fontWeight: 700,
+            lineHeight: 1.12,
+            breakAfter: 'avoid',
+          }}
+          data-block-id={block.id}
+        >
+          <span dangerouslySetInnerHTML={{ __html: renderInlineMath(block.headerLeft ?? '') }} />
+          {block.headerRight && (
+            <span
+              style={{ flexShrink: 0, textAlign: 'right', fontSize: '0.92em' }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMath(block.headerRight) }}
+            />
+          )}
+        </div>
+      );
+    }
+
     case 'section': {
       const isClean3 = templateId === 'clean_3cols_landscape';
+      const isCornell = templateId === 'cornell';
       const clean3HeaderMatch = block.latex_source
         .trim()
         .match(new RegExp(`^${CLEAN3_TITLE_MARKER}([\\s\\S]*?)${CLEAN3_SUB_MARKER}([\\s\\S]*)$`));
@@ -760,6 +944,35 @@ export default function LatexBlock({
         );
       }
 
+      if (isCornell) {
+        const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
+        const isTopLevel = block.level === 1;
+        return (
+          <div
+            className={interactiveClass}
+            style={{ overflow: 'visible', margin: isTopLevel ? '0.42em 0 0.28em' : '0.26em 0 0.08em', breakInside: 'avoid' }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <HeadingTag
+              style={{
+                color: isTopLevel ? '#B31B1B' : '#00783c',
+                fontSize: isTopLevel ? '1.52em' : '1.04em',
+                fontWeight: 700,
+                lineHeight: 1.12,
+                margin: 0,
+                paddingBottom: isTopLevel ? '0.08em' : 0,
+                borderBottom: isTopLevel ? '1px solid #B31B1B' : 'none',
+                breakAfter: 'avoid',
+              }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }}
+            />
+            {actionBar}
+          </div>
+        );
+      }
+
       const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
       const headingStyle: React.CSSProperties =
         block.level === 1
@@ -802,14 +1015,15 @@ export default function LatexBlock({
       return (
         <div
           className={`text-center ${interactiveClass}`}
-          style={{ overflow: 'visible', margin: '0.16em 0 0.24em', breakInside: 'avoid' }}
+          style={{ overflow: 'visible', margin: templateId === 'cornell' ? '0.1em 0 0.22em' : '0.16em 0 0.24em', breakInside: 'avoid' }}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
         >
+          {cueElement}
           <div
             className="overflow-x-auto"
-            style={{ fontSize: '1em', lineHeight: 1.12 }}
+            style={{ fontSize: templateId === 'cornell' ? '0.98em' : '1em', lineHeight: 1.12 }}
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
           {actionBar}
@@ -820,8 +1034,9 @@ export default function LatexBlock({
     case 'paragraph':
       return (
         <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+          {cueElement}
           <p
-            style={{ margin: '0.12em 0', fontSize: '1em', lineHeight: 1.22 }}
+            style={{ margin: templateId === 'cornell' ? '0.1em 0' : '0.12em 0', fontSize: '1em', lineHeight: templateId === 'cornell' ? 1.2 : 1.22 }}
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
           {actionBar}
@@ -831,6 +1046,7 @@ export default function LatexBlock({
     case 'list':
       return (
         <div className={interactiveClass} style={{ overflow: 'visible', margin: '0.1em 0' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+          {cueElement}
           {renderList(block.latex_source, templateId)}
           {actionBar}
         </div>
@@ -839,6 +1055,7 @@ export default function LatexBlock({
     case 'table':
       return (
         <div className={interactiveClass} style={{ overflow: 'visible', breakInside: 'avoid' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+          {cueElement}
           {renderTable(block.latex_source)}
           {actionBar}
         </div>
@@ -848,6 +1065,79 @@ export default function LatexBlock({
       return <hr style={{ margin: '0.2em 0 0.26em', borderTop: '1px solid #8f8f8f', breakBefore: 'avoid' }} />;
 
     case 'box': {
+      if (templateId === 'cornell' && block.boxSubtype === 'summary') {
+        return (
+          <div
+            style={{
+              breakInside: 'avoid',
+              border: '1px solid #B31B1B',
+              margin: '0.8em 0 0.35em',
+              background: '#fff5f5',
+              overflow: 'hidden',
+              fontSize: '0.96em',
+              lineHeight: 1.22,
+            }}
+            className={interactiveClass}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            {cueElement}
+            <div
+              style={{
+                background: '#B31B1B',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '0.86em',
+                padding: '0.22em 0.45em',
+                letterSpacing: '0.02em',
+              }}
+            >
+              SUMMARY
+            </div>
+            <div style={{ padding: '0.38em 0.52em' }} dangerouslySetInnerHTML={{ __html: renderBoxContentHtml(block.latex_source) }} />
+            {actionBar}
+          </div>
+        );
+      }
+
+      if (templateId === 'cornell' && block.boxSubtype) {
+        const labelColor =
+          block.boxSubtype === 'definition'
+            ? '#3DB000'
+            : block.boxSubtype === 'proposition'
+            ? '#0064B4'
+            : block.boxSubtype === 'remark'
+            ? '#00468c'
+            : block.boxSubtype === 'example'
+            ? '#00783c'
+            : '#B40000';
+        const label = CORNELL_BOX_LABELS[block.boxSubtype] ?? BOX_SUBTYPE_LABELS[block.boxSubtype] ?? '';
+        return (
+          <div
+            style={{
+              breakInside: 'avoid',
+              margin: '0.08em 0 0.18em',
+              overflow: 'visible',
+              fontSize: '1em',
+              lineHeight: 1.2,
+            }}
+            className={interactiveClass}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            {cueElement}
+            <span style={{ color: labelColor, fontWeight: 700 }}>{label}</span>
+            {block.label ? (
+              <span style={{ color: '#111111', fontWeight: 600 }}> {block.label}. </span>
+            ) : ' '}
+            <span dangerouslySetInnerHTML={{ __html: renderBoxContentHtml(block.latex_source) }} />
+            {actionBar}
+          </div>
+        );
+      }
+
       const borderColor =
         block.boxSubtype === 'definition'
           ? 'var(--def-color, #0891B2)'
@@ -882,6 +1172,7 @@ export default function LatexBlock({
           {...a11yProps}
           {...interactiveHandlers}
         >
+          {cueElement}
           {(heading || block.label) && (
             <div
               style={{

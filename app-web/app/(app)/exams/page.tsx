@@ -438,7 +438,7 @@ export default function ExamsPage() {
                 onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40
                   hover:text-white/80 hover:bg-white/8 transition-colors"
-                title="Back to project"
+                title="Back to notebook"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -465,7 +465,7 @@ export default function ExamsPage() {
                   <button
                     onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
                     className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
-                    title={`Go to project "${projectName}"`}
+                    title={`Go to notebook "${projectName}"`}
                   >
                     {projectName}
                   </button>

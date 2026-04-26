@@ -50,7 +50,7 @@ export async function GET(
     .maybeSingle();
 
   if (folderError) return NextResponse.json({ error: folderError.message }, { status: 500 });
-  if (!folder) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!folder) return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
 
   const { data: inputs, error } = await supabase
     .from('folder_inputs')
@@ -90,7 +90,7 @@ export async function POST(
   const { id: folderId } = await params;
   const { folder, error: folderError } = await verifyFolderOwner(folderId, user.id);
   if (folderError) return NextResponse.json({ error: folderError.message }, { status: 500 });
-  if (!folder) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!folder) return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -132,7 +132,7 @@ export async function POST(
 
   if (sizesError) {
     if (isMissingRelationError(sizesError)) {
-      return NextResponse.json({ error: 'Project attachments table is not ready' }, { status: 500 });
+      return NextResponse.json({ error: 'Notebook attachments table is not ready' }, { status: 500 });
     }
     return NextResponse.json({ error: sizesError.message }, { status: 500 });
   }
@@ -144,7 +144,7 @@ export async function POST(
 
   if (currentTotalBytes + sizeBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
+      { error: `Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.` },
       { status: 400 }
     );
   }

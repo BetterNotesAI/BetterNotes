@@ -18,6 +18,7 @@ export interface GenerateLatexArgs {
   structureExample: string;
   baseLatex?: string;
   files?: AttachmentInput[];
+  forceDocument?: boolean;
 }
 
 export interface GenerateLatexResult {

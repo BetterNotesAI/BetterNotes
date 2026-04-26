@@ -193,7 +193,7 @@ export function LatexProjectViewer({ files }: Props) {
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden" style={{ background: 'rgba(0,0,0,0.20)' }}>
       <aside className="w-56 shrink-0 border-r border-white/10 overflow-y-auto">
         <div className="px-3 py-2 text-[11px] text-white/60 border-b border-white/10">
-          Project Files
+          Source Files
         </div>
         <div className="py-1">
           {renderDir(tree, 0)}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { QA_PERSISTENCE_UNAVAILABLE_ERROR } from '@/lib/document-qa-persistence';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +22,19 @@ interface DocumentQaSubChatProps {
   contextText: string;
   initialMessages: ChatMessage[];
   onDelete: () => void;
+}
+
+const QA_SECTION_CHAT_UNAVAILABLE_COPY =
+  'Section chats need the latest database migration before they can be saved.';
+
+function getApiErrorMessage(
+  data: { error?: string; message?: string },
+  fallback: string,
+): string {
+  if (data.error === QA_PERSISTENCE_UNAVAILABLE_ERROR) {
+    return QA_SECTION_CHAT_UNAVAILABLE_COPY;
+  }
+  return data.message ?? data.error ?? fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,8 +225,8 @@ export function DocumentQaSubChat({ subchatId, documentId, contextText, initialM
       );
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error ?? 'Failed to send message');
+        const data = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        throw new Error(getApiErrorMessage(data, 'Failed to send message'));
       }
 
       const data = await res.json() as {

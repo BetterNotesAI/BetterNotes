@@ -125,7 +125,7 @@ export async function POST(
     );
   }
 
-  // Enforce total attachment size per project/document
+  // Enforce total attachment size per notebook/document
   const { data: existingSizes, error: sizesError } = await supabase
     .from('document_attachments')
     .select('size_bytes')
@@ -143,7 +143,7 @@ export async function POST(
 
   if (currentTotalBytes + sizeBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
+      { error: `Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.` },
       { status: 400 }
     );
   }

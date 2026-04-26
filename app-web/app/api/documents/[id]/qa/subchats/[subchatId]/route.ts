@@ -2,6 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  isMissingDocumentQaTableError,
+  qaPersistenceUnavailablePayload,
+} from '@/lib/document-qa-persistence';
 
 type RouteContext = { params: Promise<{ id: string; subchatId: string }> };
 
@@ -32,6 +36,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
     .eq('document_id', documentId);
 
   if (error) {
+    if (isMissingDocumentQaTableError(error)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

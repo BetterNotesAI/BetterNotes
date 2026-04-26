@@ -754,7 +754,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
     }
 
     if (currentTotalBytes + file.size > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
-      setError(`Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.`);
+      setError(`Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.`);
       return;
     }
 
@@ -1000,7 +1000,7 @@ export function WorkspaceAttachmentsPanel({ documentId }: WorkspaceAttachmentsPa
             onFile={handleUploadFile}
           />
           <p className="text-[10px] text-white/30 px-0.5">
-            Total project files: {formatBytes(totalBytes)} / {formatBytes(MAX_PROJECT_TOTAL_UPLOAD_BYTES)} ({MAX_PROJECT_TOTAL_UPLOAD_MB} MB max)
+            Total notebook files: {formatBytes(totalBytes)} / {formatBytes(MAX_PROJECT_TOTAL_UPLOAD_BYTES)} ({MAX_PROJECT_TOTAL_UPLOAD_MB} MB max)
           </p>
         </div>
       )}

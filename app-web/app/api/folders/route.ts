@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
   const totalInputBytes = cleanedInputs.reduce((acc, input) => acc + (input.sizeBytes ?? 0), 0);
   if (totalInputBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `Project input file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.` },
+      { error: `Notebook input file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB.` },
       { status: 400 }
     );
   }

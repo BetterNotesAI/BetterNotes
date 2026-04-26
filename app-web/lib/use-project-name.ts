@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Fetch the folder (project) display name for a given projectId.
+ * Fetch the folder (notebook) display name for a given projectId.
  * Returns null while loading or when no projectId is provided.
- * Caches results in-memory so repeated navigation within the same project
+ * Caches results in-memory so repeated navigation within the same notebook
  * does not re-fetch the folder metadata.
  */
 const projectNameCache = new Map<string, string>();

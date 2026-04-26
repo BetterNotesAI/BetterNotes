@@ -153,7 +153,7 @@ export function AttachmentDropzone({
             </svg>
             <p className="text-sm text-gray-300">Drop files here or click to upload</p>
             <p className="text-xs text-gray-600 mt-1">
-              PDF, DOCX, JPG, PNG, WEBP · Up to {MAX_PROJECT_TOTAL_UPLOAD_MB}MB total per project · Up to 3 files
+              PDF, DOCX, JPG, PNG, WEBP · Up to {MAX_PROJECT_TOTAL_UPLOAD_MB}MB total per notebook · Up to 3 files
             </p>
           </div>
         )}
