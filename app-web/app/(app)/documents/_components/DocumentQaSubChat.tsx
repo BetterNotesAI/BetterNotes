@@ -21,6 +21,7 @@ interface DocumentQaSubChatProps {
   documentId: string;
   contextText: string;
   initialMessages: ChatMessage[];
+  isTemporary?: boolean;
   onDelete: () => void;
 }
 
@@ -162,7 +163,14 @@ function markdownToHtml(md: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function DocumentQaSubChat({ subchatId, documentId, contextText, initialMessages, onDelete }: DocumentQaSubChatProps) {
+export function DocumentQaSubChat({
+  subchatId,
+  documentId,
+  contextText,
+  initialMessages,
+  isTemporary = false,
+  onDelete,
+}: DocumentQaSubChatProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -215,14 +223,27 @@ export function DocumentQaSubChat({ subchatId, documentId, contextText, initialM
     setMessages((prev) => [...prev, optimisticMsg]);
 
     try {
-      const res = await fetch(
-        `/api/documents/${documentId}/qa/subchats/${subchatId}/chat`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: trimmed }),
-        },
-      );
+      const res = isTemporary
+        ? await fetch(`/api/documents/${documentId}/qa/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: trimmed,
+              selectedTexts: contextText ? [contextText] : [],
+              transientHistory: messages.map((msg) => ({
+                role: msg.role,
+                content: msg.content,
+              })),
+            }),
+          })
+        : await fetch(
+            `/api/documents/${documentId}/qa/subchats/${subchatId}/chat`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: trimmed }),
+            },
+          );
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string; message?: string };
@@ -236,7 +257,7 @@ export function DocumentQaSubChat({ subchatId, documentId, contextText, initialM
 
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempId),
-        data.userMessage,
+        isTemporary ? { ...data.userMessage, content: trimmed } : data.userMessage,
         data.assistantMessage,
       ]);
     } catch (err: unknown) {
@@ -265,6 +286,11 @@ export function DocumentQaSubChat({ subchatId, documentId, contextText, initialM
               d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
           <span className="text-[11px] font-medium text-white/50">Subchat</span>
+          {isTemporary && (
+            <span className="text-[10px] text-orange-300/45 border border-orange-400/15 rounded-full px-1.5 py-0.5">
+              Temporary
+            </span>
+          )}
           {messages.length > 0 && (
             <span className="text-[10px] text-white/30">{messages.length} msg{messages.length !== 1 ? 's' : ''}</span>
           )}
@@ -289,6 +315,11 @@ export function DocumentQaSubChat({ subchatId, documentId, contextText, initialM
               d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
           <span className="text-[11px] font-medium text-white/50">Subchat</span>
+          {isTemporary && (
+            <span className="text-[10px] text-orange-300/45 border border-orange-400/15 rounded-full px-1.5 py-0.5">
+              Temporary
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <button

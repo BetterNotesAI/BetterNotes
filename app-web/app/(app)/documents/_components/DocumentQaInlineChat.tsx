@@ -29,13 +29,49 @@ interface DocumentQaInlineChatProps {
 interface InlineSubchatData {
   id: string;
   assistantIndex: number;
+  blockIndex: number | null;
+  storageBlockIndex: number;
   contextText: string;
   messages: ChatMessage[];
+  isTemporary?: boolean;
 }
 
-const INLINE_SUBCHAT_BASE_BLOCK_INDEX = 1_000_000;
+const INLINE_SUBCHAT_LEGACY_BASE_BLOCK_INDEX = 1_000_000;
+const INLINE_SUBCHAT_SELECTION_BASE_BLOCK_INDEX = 1_100_000;
+const INLINE_SUBCHAT_SELECTION_BLOCK_STRIDE = 10_000;
 const QA_SECTION_CHAT_UNAVAILABLE_COPY =
   'Section chats need the latest database migration before they can be saved.';
+
+function getInlineSubchatStorageBlockIndex(assistantIndex: number, blockIndex: number): number {
+  return INLINE_SUBCHAT_SELECTION_BASE_BLOCK_INDEX
+    + (assistantIndex * INLINE_SUBCHAT_SELECTION_BLOCK_STRIDE)
+    + blockIndex;
+}
+
+function decodeInlineSubchatStorageBlockIndex(storageBlockIndex: number): {
+  assistantIndex: number;
+  blockIndex: number | null;
+  storageBlockIndex: number;
+} | null {
+  if (storageBlockIndex >= INLINE_SUBCHAT_SELECTION_BASE_BLOCK_INDEX) {
+    const offset = storageBlockIndex - INLINE_SUBCHAT_SELECTION_BASE_BLOCK_INDEX;
+    return {
+      assistantIndex: Math.floor(offset / INLINE_SUBCHAT_SELECTION_BLOCK_STRIDE),
+      blockIndex: offset % INLINE_SUBCHAT_SELECTION_BLOCK_STRIDE,
+      storageBlockIndex,
+    };
+  }
+
+  if (storageBlockIndex >= INLINE_SUBCHAT_LEGACY_BASE_BLOCK_INDEX) {
+    return {
+      assistantIndex: storageBlockIndex - INLINE_SUBCHAT_LEGACY_BASE_BLOCK_INDEX,
+      blockIndex: null,
+      storageBlockIndex,
+    };
+  }
+
+  return null;
+}
 
 function getApiErrorMessage(
   data: { error?: string; message?: string },
@@ -83,7 +119,7 @@ function renderInline(text: string): string {
   return text;
 }
 
-function markdownToHtml(md: string): string {
+function markdownToHtmlBlocks(md: string): string[] {
   const lines = md.split('\n');
   const html: string[] = [];
   let inCodeBlock = false;
@@ -107,7 +143,7 @@ function markdownToHtml(md: string): string {
       } else {
         inCodeBlock = false;
         const langAttr = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
-        html.push(`<pre class="ic-code-block" data-chat-block="true"><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+        html.push(`<pre class="ic-code-block"><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
         codeLines = [];
         codeLang = '';
       }
@@ -118,13 +154,13 @@ function markdownToHtml(md: string): string {
     if (raw.trim() === '$$' || (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim().length > 4)) {
       closeParagraph();
       if (raw.trim().startsWith('$$') && raw.trim().endsWith('$$') && raw.trim() !== '$$') {
-        html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
+        html.push(`<div class="ic-math-display">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
         continue;
       }
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '$$') { mathLines.push(lines[i]); i++; }
-      html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      html.push(`<div class="ic-math-display">${renderKatex(mathLines.join('\n'), true)}</div>`);
       continue;
     }
 
@@ -132,13 +168,13 @@ function markdownToHtml(md: string): string {
     if (raw.trim() === '\\[' || (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim().length > 4)) {
       closeParagraph();
       if (raw.trim().startsWith('\\[') && raw.trim().endsWith('\\]') && raw.trim() !== '\\[') {
-        html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
+        html.push(`<div class="ic-math-display">${renderKatex(raw.trim().slice(2, -2), true)}</div>`);
         continue;
       }
       const mathLines: string[] = [];
       i++;
       while (i < lines.length && lines[i].trim() !== '\\]') { mathLines.push(lines[i]); i++; }
-      html.push(`<div class="ic-math-display" data-chat-block="true">${renderKatex(mathLines.join('\n'), true)}</div>`);
+      html.push(`<div class="ic-math-display">${renderKatex(mathLines.join('\n'), true)}</div>`);
       continue;
     }
 
@@ -151,25 +187,25 @@ function markdownToHtml(md: string): string {
       closeParagraph();
       const level = h1 ? 1 : h2 ? 2 : 3;
       const text = (h1 ?? h2 ?? h3)![1];
-      html.push(`<h${level} class="ic-md-h${level}" data-chat-block="true">${renderInline(renderInlineMath(text))}</h${level}>`);
+      html.push(`<h${level} class="ic-md-h${level}">${renderInline(renderInlineMath(text))}</h${level}>`);
       continue;
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(raw.trim())) { closeParagraph(); html.push('<hr class="ic-md-hr" />'); continue; }
 
     const ulMatch = raw.match(/^[\s]*[-*+•] (.+)/);
-    if (ulMatch) { closeParagraph(); html.push(`<li class="ic-md-li" data-chat-block="true">${renderInline(renderInlineMath(ulMatch[1]))}</li>`); continue; }
+    if (ulMatch) { closeParagraph(); html.push(`<li class="ic-md-li">${renderInline(renderInlineMath(ulMatch[1]))}</li>`); continue; }
 
     const olMatch = raw.match(/^[\s]*\d+\. (.+)/);
-    if (olMatch) { closeParagraph(); html.push(`<li class="ic-md-li ic-md-oli" data-chat-block="true">${renderInline(renderInlineMath(olMatch[1]))}</li>`); continue; }
+    if (olMatch) { closeParagraph(); html.push(`<li class="ic-md-li ic-md-oli">${renderInline(renderInlineMath(olMatch[1]))}</li>`); continue; }
 
     const processed = renderInline(renderInlineMath(raw));
     closeParagraph();
-    html.push(`<p class="ic-md-p" data-chat-block="true">${processed}</p>`);
+    html.push(`<p class="ic-md-p">${processed}</p>`);
   }
 
   closeParagraph();
-  return html.join('');
+  return html;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +265,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
     id: string;
     text: string;
     assistantIndex: number;
+    blockIndex: number;
   } | null>(null);
   const [inlineSubchatsMap, setInlineSubchatsMap] = useState<Map<number, InlineSubchatData>>(new Map());
   const [creatingInlineSubchatIndex, setCreatingInlineSubchatIndex] = useState<number | null>(null);
@@ -321,13 +358,14 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
 
         const next = new Map<number, InlineSubchatData>();
         for (const sc of data.subchats ?? []) {
-          if (sc.block_index < INLINE_SUBCHAT_BASE_BLOCK_INDEX) continue;
-          const assistantIndex = sc.block_index - INLINE_SUBCHAT_BASE_BLOCK_INDEX;
-          if (assistantIndex < 0) continue;
+          const decoded = decodeInlineSubchatStorageBlockIndex(sc.block_index);
+          if (!decoded || decoded.assistantIndex < 0) continue;
 
-          next.set(assistantIndex, {
+          next.set(decoded.storageBlockIndex, {
             id: sc.id,
-            assistantIndex,
+            assistantIndex: decoded.assistantIndex,
+            blockIndex: decoded.blockIndex,
+            storageBlockIndex: decoded.storageBlockIndex,
             contextText: sc.context_text,
             messages: (sc.messages ?? []).map((m) => ({
               ...m,
@@ -370,6 +408,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       ? (node as Element)
       : node.parentElement;
     if (!baseEl) return null;
+    if (baseEl.closest('[data-inline-subchat-anchor]')) return null;
     return baseEl.closest('[data-chat-assistant="true"]') as HTMLElement | null;
   }, []);
 
@@ -419,6 +458,11 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
     const blocks = getIntersectingBlocks(range, assistantContainer);
     const assistantIndexAttr = assistantContainer.getAttribute('data-chat-assistant-index');
     const assistantIndex = assistantIndexAttr ? Number.parseInt(assistantIndexAttr, 10) : -1;
+    const blockIndexes = blocks
+      .map((block) => Number.parseInt(block.getAttribute('data-chat-block-index') ?? '', 10))
+      .filter((blockIndex) => Number.isFinite(blockIndex))
+      .sort((a, b) => a - b);
+    const blockIndex = blockIndexes.length > 0 ? blockIndexes[blockIndexes.length - 1] : 0;
     let tooltipX: number | null = null;
     let tooltipY: number | null = null;
 
@@ -441,7 +485,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
     }
 
     setTooltipPos({ x: tooltipX, y: tooltipY });
-    setPendingSelection({ id: createSelectionId(), text: rawSelection, assistantIndex });
+    setPendingSelection({ id: createSelectionId(), text: rawSelection, assistantIndex, blockIndex });
   }, [
     createSelectionId,
     getAssistantContainerFromRange,
@@ -484,35 +528,38 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
     if (!pendingSelection || pendingSelection.assistantIndex < 0) return;
 
     const assistantIndex = pendingSelection.assistantIndex;
+    const selectedBlockIndex = pendingSelection.blockIndex;
+    const storageBlockIndex = getInlineSubchatStorageBlockIndex(assistantIndex, selectedBlockIndex);
     const contextText = pendingSelection.text;
-    const scrollToInlineSubchat = (targetAssistantIndex: number) => {
+    const scrollToInlineSubchat = (targetStorageBlockIndex: number) => {
       requestAnimationFrame(() => {
         const anchor = document.querySelector<HTMLElement>(
-          `[data-inline-subchat-anchor="${targetAssistantIndex}"]`,
+          `[data-inline-subchat-anchor="${targetStorageBlockIndex}"]`,
         );
         anchor?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
     };
 
-    if (inlineSubchatsMap.has(assistantIndex) || creatingInlineSubchatIndex === assistantIndex) {
+    if (
+      inlineSubchatsMap.has(storageBlockIndex)
+      || creatingInlineSubchatIndex === storageBlockIndex
+    ) {
       window.getSelection()?.removeAllRanges();
       hideSelectionTooltip();
-      scrollToInlineSubchat(assistantIndex);
+      scrollToInlineSubchat(storageBlockIndex);
       return;
     }
 
     setSubchatActionError(null);
-    setCreatingInlineSubchatIndex(assistantIndex);
-    scrollToInlineSubchat(assistantIndex);
+    setCreatingInlineSubchatIndex(storageBlockIndex);
+    scrollToInlineSubchat(storageBlockIndex);
 
     try {
-      const blockIndex = INLINE_SUBCHAT_BASE_BLOCK_INDEX + assistantIndex;
-
       const res = await fetch(`/api/documents/${documentId}/qa/subchats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          blockIndex,
+          blockIndex: storageBlockIndex,
           contextText,
         }),
       });
@@ -520,7 +567,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       const data = await res.json().catch(() => ({})) as {
         error?: string;
         message?: string;
-        subchat: {
+        subchat?: {
           id: string;
           block_index: number;
           context_text: string;
@@ -529,16 +576,47 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       };
 
       if (!res.ok) {
+        if (data.error === QA_PERSISTENCE_UNAVAILABLE_ERROR) {
+          setInlineSubchatsMap((prev) => {
+            const next = new Map(prev);
+            next.set(storageBlockIndex, {
+              id: `temp-document-qa-${storageBlockIndex}-${Date.now()}`,
+              assistantIndex,
+              blockIndex: selectedBlockIndex,
+              storageBlockIndex,
+              contextText,
+              messages: [],
+              isTemporary: true,
+            });
+            return next;
+          });
+          window.getSelection()?.removeAllRanges();
+          hideSelectionTooltip();
+          scrollToInlineSubchat(storageBlockIndex);
+          return;
+        }
         throw new Error(getApiErrorMessage(data, 'Failed to create section chat'));
       }
 
+      if (!data.subchat) {
+        throw new Error('Failed to create section chat');
+      }
+
+      const createdSubchat = data.subchat;
+      const decoded = decodeInlineSubchatStorageBlockIndex(createdSubchat.block_index) ?? {
+        assistantIndex,
+        blockIndex: selectedBlockIndex,
+        storageBlockIndex,
+      };
       setInlineSubchatsMap((prev) => {
         const next = new Map(prev);
-        next.set(assistantIndex, {
-          id: data.subchat.id,
-          assistantIndex,
-          contextText: data.subchat.context_text || contextText,
-          messages: (data.subchat.messages ?? []).map((m) => ({
+        next.set(decoded.storageBlockIndex, {
+          id: createdSubchat.id,
+          assistantIndex: decoded.assistantIndex,
+          blockIndex: decoded.blockIndex,
+          storageBlockIndex: decoded.storageBlockIndex,
+          contextText: createdSubchat.context_text || contextText,
+          messages: (createdSubchat.messages ?? []).map((m) => ({
             ...m,
             role: m.role as 'user' | 'assistant',
           })),
@@ -547,15 +625,17 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       });
       window.getSelection()?.removeAllRanges();
       hideSelectionTooltip();
-      scrollToInlineSubchat(assistantIndex);
+      scrollToInlineSubchat(decoded.storageBlockIndex);
     } catch (err: unknown) {
       setSubchatActionError(err instanceof Error ? err.message : 'Failed to create subchat');
     } finally {
-      setCreatingInlineSubchatIndex((current) => (current === assistantIndex ? null : current));
+      setCreatingInlineSubchatIndex((current) => (
+        current === storageBlockIndex ? null : current
+      ));
     }
   }
 
-  async function handleDeleteInlineSubchat(subchatId: string, assistantIndex: number) {
+  async function handleDeleteInlineSubchat(subchatId: string, storageBlockIndex: number) {
     try {
       await fetch(`/api/documents/${documentId}/qa/subchats/${subchatId}`, {
         method: 'DELETE',
@@ -566,7 +646,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
 
     setInlineSubchatsMap((prev) => {
       const next = new Map(prev);
-      next.delete(assistantIndex);
+      next.delete(storageBlockIndex);
       return next;
     });
   }
@@ -647,6 +727,10 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
     }
   }
 
+  const pendingInlineSubchatStorageBlockIndex = pendingSelection && pendingSelection.assistantIndex >= 0
+    ? getInlineSubchatStorageBlockIndex(pendingSelection.assistantIndex, pendingSelection.blockIndex)
+    : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Messages */}
@@ -689,39 +773,88 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
           }
 
           const assistantIndex = assistantIndexByMessageId.get(msg.id) ?? -1;
-          const inlineSubchat = assistantIndex >= 0 ? inlineSubchatsMap.get(assistantIndex) : undefined;
+          const assistantBlocks = markdownToHtmlBlocks(msg.content);
+          const legacyInlineSubchat = assistantIndex >= 0
+            ? Array.from(inlineSubchatsMap.values()).find((subchat) => (
+                subchat.assistantIndex === assistantIndex && subchat.blockIndex === null
+              ))
+            : undefined;
 
           return (
             <div key={msg.id} className="flex justify-start">
-              <div className="max-w-[90%]">
-                <div
-                  className="ic-message-md"
-                  data-chat-assistant="true"
-                  data-chat-message-id={msg.id}
-                  data-chat-assistant-index={assistantIndex >= 0 ? assistantIndex : undefined}
-                  onMouseUp={handleAssistantSelectionDeferred}
-                  onTouchEnd={handleAssistantSelectionDeferred}
-                  dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.content) }}
-                />
+              <div
+                className="max-w-[90%]"
+                data-chat-assistant="true"
+                data-chat-message-id={msg.id}
+                data-chat-assistant-index={assistantIndex >= 0 ? assistantIndex : undefined}
+                onMouseUp={handleAssistantSelectionDeferred}
+                onTouchEnd={handleAssistantSelectionDeferred}
+              >
+                {assistantBlocks.map((htmlBlock, blockIndex) => {
+                  const storageBlockIndex = assistantIndex >= 0
+                    ? getInlineSubchatStorageBlockIndex(assistantIndex, blockIndex)
+                    : -1;
+                  const inlineSubchat = storageBlockIndex >= 0
+                    ? inlineSubchatsMap.get(storageBlockIndex)
+                    : undefined;
+                  const isCreatingInlineSubchat = creatingInlineSubchatIndex === storageBlockIndex
+                    && !inlineSubchat;
+                  const isReferencedBlock = Boolean(inlineSubchat || isCreatingInlineSubchat);
 
-                <div data-inline-subchat-anchor={assistantIndex >= 0 ? assistantIndex : undefined}>
-                  {inlineSubchat && (
-                    <DocumentQaSubChat
-                      subchatId={inlineSubchat.id}
-                      documentId={documentId}
-                      contextText={inlineSubchat.contextText}
-                      initialMessages={inlineSubchat.messages}
-                      onDelete={() => handleDeleteInlineSubchat(inlineSubchat.id, assistantIndex)}
-                    />
-                  )}
+                  return (
+                    <div key={blockIndex} className="ic-chat-block-slot">
+                      <div className="ic-message-md">
+                        <div
+                          className={`ic-chat-block-content ${
+                            isReferencedBlock ? 'ic-chat-block-content-referenced' : ''
+                          }`}
+                          data-chat-block="true"
+                          data-chat-block-index={blockIndex}
+                          dangerouslySetInnerHTML={{ __html: htmlBlock }}
+                        />
+                      </div>
 
-                  {creatingInlineSubchatIndex === assistantIndex && !inlineSubchat && (
-                    <div className="inline-subchat-creating">
-                      <span className="inline-subchat-creating-dot" />
-                      Creating subchat...
+                      <div data-inline-subchat-anchor={storageBlockIndex >= 0 ? storageBlockIndex : undefined}>
+                        {inlineSubchat && (
+                          <DocumentQaSubChat
+                            subchatId={inlineSubchat.id}
+                            documentId={documentId}
+                            contextText={inlineSubchat.contextText}
+                            initialMessages={inlineSubchat.messages}
+                            isTemporary={inlineSubchat.isTemporary}
+                            onDelete={() => handleDeleteInlineSubchat(
+                              inlineSubchat.id,
+                              inlineSubchat.storageBlockIndex,
+                            )}
+                          />
+                        )}
+
+                        {isCreatingInlineSubchat && (
+                          <div className="inline-subchat-creating">
+                            <span className="inline-subchat-creating-dot" />
+                            Creating subchat...
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
+
+                {legacyInlineSubchat && (
+                  <div data-inline-subchat-anchor={legacyInlineSubchat.storageBlockIndex}>
+                    <DocumentQaSubChat
+                      subchatId={legacyInlineSubchat.id}
+                      documentId={documentId}
+                      contextText={legacyInlineSubchat.contextText}
+                      initialMessages={legacyInlineSubchat.messages}
+                      isTemporary={legacyInlineSubchat.isTemporary}
+                      onDelete={() => handleDeleteInlineSubchat(
+                        legacyInlineSubchat.id,
+                        legacyInlineSubchat.storageBlockIndex,
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -799,9 +932,9 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
                     e.stopPropagation();
                     handleCreateSubchatFromSelection();
                   }}
-                  disabled={creatingInlineSubchatIndex === pendingSelection.assistantIndex}
+                  disabled={creatingInlineSubchatIndex === pendingInlineSubchatStorageBlockIndex}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
-                    creatingInlineSubchatIndex === pendingSelection.assistantIndex
+                    creatingInlineSubchatIndex === pendingInlineSubchatStorageBlockIndex
                       ? 'bg-white/10 text-white/40 cursor-not-allowed'
                       : 'hover:bg-orange-500/15 text-white/70 hover:text-orange-300'
                   }`}
@@ -810,7 +943,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                   </svg>
-                  {creatingInlineSubchatIndex === pendingSelection.assistantIndex ? 'Creating...' : 'Subchat'}
+                  {creatingInlineSubchatIndex === pendingInlineSubchatStorageBlockIndex ? 'Creating...' : 'Subchat'}
                 </button>
               </>
             )}
@@ -923,6 +1056,33 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
         .ic-message-md *::selection {
           background: rgba(249, 115, 22, 0.35);
           color: #fff;
+        }
+        .ic-chat-block-slot {
+          margin: 0;
+        }
+        .ic-chat-block-content {
+          border: 1px solid transparent;
+          border-radius: 12px;
+          margin: 0;
+          transition:
+            background-color 160ms ease,
+            border-color 160ms ease,
+            box-shadow 160ms ease;
+        }
+        .ic-chat-block-content-referenced {
+          margin: 0.35rem -0.5rem;
+          padding: 0.35rem 0.5rem;
+          border-color: rgba(249, 115, 22, 0.42);
+          background: rgba(249, 115, 22, 0.07);
+          box-shadow:
+            inset 0 0 0 1px rgba(249, 115, 22, 0.07),
+            0 10px 24px rgba(0, 0, 0, 0.08);
+        }
+        .ic-chat-block-content-referenced > :first-child {
+          margin-top: 0;
+        }
+        .ic-chat-block-content-referenced > :last-child {
+          margin-bottom: 0;
         }
         .inline-subchat-creating {
           margin: 10px 0;

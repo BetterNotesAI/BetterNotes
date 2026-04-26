@@ -353,13 +353,43 @@ export function escapeAmpersandsInText(latex: string): string {
   return result.join("\n");
 }
 
+export function keepLandscapeFooterInsideColumns(latex: string): string {
+  const isLandscape3Col = /\\begin\s*\{multicols\*\}\s*\{3\}/.test(latex);
+  if (!isLandscape3Col || !latex.includes("made with BetterNotes-AI")) return latex;
+
+  const footerPattern =
+    /\s*(?:%[^\n]*BetterNotes-AI[^\n]*\n)?\\begin\s*\{flushright\}\s*\\(?:tiny|scriptsize|footnotesize|small)?\s*\\textit\s*\{made with BetterNotes-AI\}\s*\\end\s*\{flushright\}\s*/g;
+
+  let removedFooter = false;
+  const withoutFooter = latex.replace(footerPattern, () => {
+    removedFooter = true;
+    return "\n";
+  });
+
+  if (!removedFooter) return latex;
+
+  const footer = [
+    "",
+    "% made with BetterNotes-AI",
+    "\\begin{flushright}\\scriptsize \\textit{made with BetterNotes-AI}\\end{flushright}",
+    "",
+  ].join("\n");
+
+  return withoutFooter.replace(
+    /\\end\s*\{multicols\*\}/,
+    `${footer}\\end{multicols*}`
+  );
+}
+
 export function applyLatexFallbacks(latex: string): string {
-  return injectCommonMathFallbacks(
-    injectTheoremFallbacks(
-      stripDuplicateNewtheoremDefinitions(
-        fixUnclosedEnvironments(
-          fixUnclosedDisplayMath(
-            escapeAmpersandsInText(latex)
+  return keepLandscapeFooterInsideColumns(
+    injectCommonMathFallbacks(
+      injectTheoremFallbacks(
+        stripDuplicateNewtheoremDefinitions(
+          fixUnclosedEnvironments(
+            fixUnclosedDisplayMath(
+              escapeAmpersandsInText(latex)
+            )
           )
         )
       )

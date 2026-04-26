@@ -1224,6 +1224,8 @@ function BlockRegionRenderer({
             columnCount: colCount,
             columnGap,
             columnRule: showColumnRule ? `${columnRuleWidth} solid rgba(80, 80, 80, 0.75)` : 'none',
+            columnFill: templateId === 'landscape_3col_maths' ? 'auto' : undefined,
+            minHeight: templateId === 'landscape_3col_maths' ? '100%' : undefined,
           }}
           className="w-full"
         >
