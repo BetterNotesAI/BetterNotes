@@ -916,8 +916,8 @@ export default function DocumentWorkspacePage() {
 
           {/* Tab + controls bar */}
           <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
-            {/* Viewer tabs — Interactive shown only when LaTeX content exists */}
-            {viewerLatexContent && (
+            {/* Viewer tabs — Interactive shown only when LaTeX content exists and user is owner */}
+            {viewerLatexContent && isOwner && (
               <button
                 onClick={() => setViewerTab('interactive')}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
@@ -1197,7 +1197,12 @@ export default function DocumentWorkspacePage() {
                       return (
                         <button
                           key={v.id}
-                          onClick={() => switchVersion(v.id)}
+                          onClick={() => {
+                            // Clear local overrides so the PDF viewer picks up the new signed URL
+                            setCurrentPdfUrl(null);
+                            setPendingDocumentEdit(null);
+                            switchVersion(v.id);
+                          }}
                           className={`w-full text-left px-4 py-3 transition-colors border-b border-white/5 last:border-0 ${
                             isActive
                               ? 'bg-indigo-500/15 hover:bg-indigo-500/20'
