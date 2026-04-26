@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getUniqueCopyTitle(supabase: any, userId: string, originalTitle: string): Promise<string> {
   // Strip existing " (copy N)" suffix to get the base title
   const base = originalTitle.replace(/ \(copy(?: \d+)?\)$/, '');
@@ -40,7 +39,7 @@ export async function POST(
   // Fetch source document
   const { data: source, error: sourceError } = await supabase
     .from('documents')
-    .select('id, title, template_id, folder_id, current_version_id, status')
+    .select('id, title, template_id, folder_id, section_id, current_version_id, status')
     .eq('id', sourceId)
     .eq('user_id', user.id)
     .single();
@@ -74,6 +73,7 @@ export async function POST(
     status: hasContent ? 'ready' : 'draft',
   };
   if (source.folder_id) insertPayload.folder_id = source.folder_id;
+  if (source.section_id) insertPayload.section_id = source.section_id;
 
   const { data: newDoc, error: insertError } = await supabase
     .from('documents')

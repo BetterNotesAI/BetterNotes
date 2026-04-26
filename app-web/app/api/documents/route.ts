@@ -11,6 +11,7 @@ import { dedupeFolderInputsByStoragePath, dedupeUploadsByStoragePath } from '@/l
 //   starred    = true   → only starred documents
 //   archived   = true   → include archived documents (default excludes them)
 //   folder_id  = <uuid> → filter by folder
+//   section_id = <uuid> → filter by internal notebook folder
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
   const starred = searchParams.get('starred') === 'true';
   const archived = searchParams.get('archived') === 'true';
   const folderId = searchParams.get('folder_id');
+  const sectionId = searchParams.get('section_id');
 
   let query = supabase
     .from('documents')
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
       is_starred,
       archived_at,
       folder_id,
+      section_id,
       created_at,
       updated_at,
       current_version_id
@@ -54,6 +57,10 @@ export async function GET(req: NextRequest) {
 
   if (folderId) {
     query = query.eq('folder_id', folderId);
+  }
+
+  if (sectionId) {
+    query = query.eq('section_id', sectionId);
   }
 
   switch (sort) {
@@ -91,11 +98,12 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { template_id, title, prompt, attachments, folder_id } = body as {
+  const { template_id, title, prompt, attachments, folder_id, section_id } = body as {
     template_id?: string;
     title?: string;
     prompt?: string;
     folder_id?: string | null;
+    section_id?: string | null;
     attachments?: Array<{
       storagePath: string;
       name: string;
@@ -104,6 +112,7 @@ export async function POST(req: NextRequest) {
     }>;
   };
   const requestedFolderId = typeof folder_id === 'string' ? folder_id.trim() || null : folder_id ?? null;
+  const requestedSectionId = typeof section_id === 'string' ? section_id.trim() || null : section_id ?? null;
   const inferredFolderId = inferFolderIdFromRequest(req);
   const folderId = requestedFolderId ?? inferredFolderId;
 
@@ -182,6 +191,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (requestedSectionId) {
+    if (!folderId) {
+      return NextResponse.json({ error: 'section_id requires folder_id' }, { status: 400 });
+    }
+
+    const { data: section, error: sectionError } = await supabase
+      .from('folder_sections')
+      .select('id, folder_id')
+      .eq('id', requestedSectionId)
+      .eq('folder_id', folderId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (sectionError) {
+      return NextResponse.json({ error: sectionError.message }, { status: 500 });
+    }
+    if (!section) {
+      return NextResponse.json({ error: 'Section not found' }, { status: 404 });
+    }
+  }
+
   // Check guest limits before creating the document
   const { data: guestCheck } = await supabase.rpc('check_guest_limits', {
     p_user_id: user.id,
@@ -202,11 +232,12 @@ export async function POST(req: NextRequest) {
     status: 'draft',
   };
   if (folderId) insertPayload.folder_id = folderId;
+  if (requestedSectionId) insertPayload.section_id = requestedSectionId;
 
   const { data: doc, error } = await supabase
     .from('documents')
     .insert(insertPayload)
-    .select('id, title, template_id, status, folder_id, created_at')
+    .select('id, title, template_id, status, folder_id, section_id, created_at')
     .single();
 
   if (error) {

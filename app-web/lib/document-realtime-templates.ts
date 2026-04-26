@@ -1,4 +1,5 @@
 const REALTIME_GENERATION_TEMPLATE_IDS = new Set<string>([
+  'landscape_3col_maths',
   'clean_3cols_landscape',
   'lecture_notes',
   'classic_lecture_notes',
