@@ -777,12 +777,28 @@ export function Sidebar() {
           {/* ── Notebooks section ── */}
           <SectionDivider label="Notebooks" collapsed={collapsed} />
 
-          <PlaceholderNavItem
-            href="/search"
-            icon={<SearchIcon className="w-4 h-4 shrink-0" />}
-            label="Search"
-            collapsed={collapsed}
-          />
+          {/* Search — opens full-page or ⌘K palette */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-search-palette'))}
+            title={collapsed ? 'Search (⌘K)' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/search')
+                ? activeNavClass
+                : 'text-white/72 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <SearchIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-sm text-left">Search</span>
+                <kbd className="shrink-0 text-[10px] text-white/30 bg-white/8 px-1.5 py-0.5 rounded font-mono">
+                  ⌘K
+                </kbd>
+              </>
+            )}
+          </button>
 
           {/* All Notebooks */}
           {collapsed ? (
