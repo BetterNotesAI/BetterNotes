@@ -5,6 +5,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 import { buildDocumentProjectContext } from '@/lib/usage-project';
+import {
+  isMissingDocumentQaTableError,
+  qaPersistenceUnavailablePayload,
+} from '@/lib/document-qa-persistence';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -63,12 +67,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const ownedDoc: OwnedDocument = doc;
 
-  const { data: subchat } = await supabase
+  const { data: subchat, error: subchatError } = await supabase
     .from('document_qa_subchats')
     .select('id, context_text')
     .eq('id', subchatId)
     .eq('document_id', documentId)
     .single();
+
+  if (subchatError) {
+    if (isMissingDocumentQaTableError(subchatError)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
+    if (subchatError.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Subchat not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: subchatError.message }, { status: 500 });
+  }
 
   if (!subchat) {
     return NextResponse.json({ error: 'Subchat not found' }, { status: 404 });
@@ -91,6 +105,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     .limit(MAX_HISTORY_MESSAGES);
 
   if (historyError) {
+    if (isMissingDocumentQaTableError(historyError)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
     return NextResponse.json({ error: historyError.message }, { status: 500 });
   }
 
@@ -107,6 +124,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     .single();
 
   if (userMsgError || !userMsg) {
+    if (isMissingDocumentQaTableError(userMsgError)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
     return NextResponse.json(
       { error: userMsgError?.message ?? 'Failed to save message' },
       { status: 500 },
@@ -164,6 +184,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     .single();
 
   if (assistantMsgError || !assistantMsg) {
+    if (isMissingDocumentQaTableError(assistantMsgError)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
     return NextResponse.json(
       { error: assistantMsgError?.message ?? 'Failed to save assistant message' },
       { status: 500 },

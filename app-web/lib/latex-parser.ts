@@ -23,6 +23,7 @@ export type BlockType =
   | 'paragraph'
   | 'hr'
   | 'box'
+  | 'page-header'
   | 'col-start'
   | 'col-end';
 
@@ -38,7 +39,8 @@ export type BoxSubtype =
   | 'proof'
   | 'workedexample'
   | 'keypoint'
-  | 'warning';
+  | 'warning'
+  | 'summary';
 
 export interface Block {
   id: string;
@@ -56,6 +58,11 @@ export interface Block {
   date?: string;
   /** For type === 'chapter': auto-assigned sequential number (filled by viewer) */
   chapterNumber?: number;
+  /** Cornell-style margin cue shown in the wide left margin */
+  cue?: string;
+  /** For type === 'page-header': extracted fancyhdr left/right content */
+  headerLeft?: string;
+  headerRight?: string;
   /** Character offset in the original source where this block starts (after preamble strip) */
   sourceStart?: number;
   /** Character offset in the original source where this block ends (exclusive) */
@@ -198,6 +205,19 @@ function cleanMetadataValue(raw: string): string {
     .replace(/\\\\/g, ' ')
     .replace(/\\[a-zA-Z]+\*?\{([^}]*)\}/g, '$1')
     .replace(/\\[a-zA-Z]+\*?\b/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanPlainLatexText(raw: string): string {
+  return raw
+    .replace(/\\text(?:bf|it)\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\textcolor\{[^}]*\}\{([^}]*)\}/g, '$1')
+    .replace(/\\(?:footnotesize|scriptsize|small|large|Large|LARGE|huge|Huge|normalsize)\b/g, '')
+    .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^}]*)\}/g, '$1')
+    .replace(/\\([#$%&_{}])/g, '$1')
     .replace(/[{}]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -354,6 +374,89 @@ function extractBracedArg(text: string, pos: number): { content: string; end: nu
     i++;
   }
   return null;
+}
+
+function extractCommandAt(text: string, command: string, startIndex = 0): {
+  full: string;
+  content: string;
+  start: number;
+  end: number;
+} | null {
+  const idx = text.indexOf(command, startIndex);
+  if (idx === -1) return null;
+  const argStart = idx + command.length;
+  const arg = extractBracedArg(text, argStart);
+  if (!arg) return null;
+  return {
+    full: text.slice(idx, arg.end),
+    content: arg.content,
+    start: idx,
+    end: arg.end,
+  };
+}
+
+function stripAndCollectFancyheads(source: string): {
+  left: string | null;
+  right: string | null;
+  stripped: string;
+  latexSource: string;
+} {
+  let left: string | null = null;
+  let right: string | null = null;
+  let stripped = '';
+  let latexSource = '';
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const idx = source.indexOf('\\fancyhead[', cursor);
+    if (idx === -1) {
+      stripped += source.slice(cursor);
+      break;
+    }
+
+    stripped += source.slice(cursor, idx);
+    const sideStart = idx + '\\fancyhead['.length;
+    const sideEnd = source.indexOf(']', sideStart);
+    if (sideEnd === -1 || source[sideEnd + 1] !== '{') {
+      stripped += source[idx];
+      cursor = idx + 1;
+      continue;
+    }
+
+    const side = source.slice(sideStart, sideEnd).trim().toUpperCase();
+    const arg = extractBracedArg(source, sideEnd + 1);
+    if (!arg) {
+      stripped += source[idx];
+      cursor = idx + 1;
+      continue;
+    }
+
+    const full = source.slice(idx, arg.end);
+    latexSource += `${latexSource ? '\n' : ''}${full}`;
+    if (side === 'L') left = arg.content.trim();
+    if (side === 'R') right = arg.content.trim();
+    cursor = arg.end;
+  }
+
+  return { left, right, stripped, latexSource };
+}
+
+function extractLeadingCue(source: string): { cue: string | null; stripped: string } {
+  const found = extractCommandAt(source, '\\cue');
+  if (!found) return { cue: null, stripped: source };
+  return {
+    cue: cleanPlainLatexText(found.content),
+    stripped: `${source.slice(0, found.start)}${source.slice(found.end)}`.trim(),
+  };
+}
+
+function extractSummaryCommand(source: string): { content: string; full: string } | null {
+  const trimmed = source.trim();
+  const found = extractCommandAt(trimmed, '\\summary');
+  if (!found) return null;
+  const leftover = `${trimmed.slice(0, found.start)}${trimmed.slice(found.end)}`.trim();
+  if (leftover.length > 0) return null;
+  return { content: found.content.trim(), full: found.full };
 }
 
 /**
@@ -735,6 +838,68 @@ function annotateBlockOffsets(blocks: Block[], fullSource: string): void {
   }
 }
 
+function normalizeCornellBlocks(blocks: Block[]): Block[] {
+  const normalized: Block[] = [];
+  let pendingCue: string | null = null;
+
+  for (const originalBlock of blocks) {
+    let block: Block = { ...originalBlock };
+
+    const fancyheads = stripAndCollectFancyheads(block.latex_source);
+    if (fancyheads.left || fancyheads.right) {
+      normalized.push({
+        id: makeId('page-header'),
+        type: 'page-header',
+        latex_source: fancyheads.latexSource,
+        headerLeft: fancyheads.left ?? undefined,
+        headerRight: fancyheads.right ?? undefined,
+      });
+      block = { ...block, latex_source: fancyheads.stripped.trim() };
+      if (!block.latex_source && block.type === 'paragraph') continue;
+    }
+
+    const cue = extractLeadingCue(block.latex_source);
+    if (cue.cue) {
+      pendingCue = cue.cue;
+      block = { ...block, latex_source: cue.stripped };
+    }
+
+    if (!block.latex_source.trim() && block.type !== 'hr' && block.type !== 'col-end') {
+      continue;
+    }
+
+    const summary = extractSummaryCommand(block.latex_source);
+    if (summary) {
+      normalized.push({
+        ...block,
+        type: 'box',
+        boxSubtype: 'summary',
+        latex_source: summary.content,
+        cue: pendingCue ?? block.cue,
+      });
+      pendingCue = null;
+      continue;
+    }
+
+    if (
+      pendingCue &&
+      block.type !== 'page-header' &&
+      block.type !== 'section' &&
+      block.type !== 'chapter' &&
+      block.type !== 'hr' &&
+      block.type !== 'col-start' &&
+      block.type !== 'col-end'
+    ) {
+      block = { ...block, cue: pendingCue };
+      pendingCue = null;
+    }
+
+    normalized.push(block);
+  }
+
+  return normalized;
+}
+
 /** Templates that use a report-style cover page + chapter structure in the PDF. */
 const REPORT_STYLE_TEMPLATES = new Set(['lecture_notes']);
 
@@ -778,7 +943,10 @@ export function parseLatex(latex: string, options?: ParseOptions): Block[] {
     });
   }
 
-  const bodyBlocks = parseLatexInternal(sourceForParse, templateId);
+  let bodyBlocks = parseLatexInternal(sourceForParse, templateId);
+  if (templateId === 'cornell') {
+    bodyBlocks = normalizeCornellBlocks(bodyBlocks);
+  }
 
   // Auto-assign sequential chapter numbers for `chapter` blocks so the renderer
   // can display "Chapter N" prefixes identical to the PDF output.
@@ -839,6 +1007,8 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
     source
       .replace(/___HFILL___/g, '\\hfill')
       .replace(/___newline___/g, '\\\\');
+  const cueLine = (block: Block): string | null =>
+    block.cue?.trim() ? `\\cue{${block.cue.trim()}}` : null;
 
   // Extract preamble up to and including \begin{document}
   const beginDocTag = '\\begin{document}';
@@ -863,6 +1033,8 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       i++;
       while (i < blocks.length && blocks[i].type !== 'col-end') {
         const inner = blocks[i];
+        const cue = cueLine(inner);
+        if (cue) lines.push(cue);
         if (inner.latex_source.trim()) {
           lines.push(restoreParserMarkers(inner.latex_source));
         }
@@ -882,12 +1054,24 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       if (block.date) lines.push(`\\date{${block.date}}`);
       if (block.title || block.author || block.date) lines.push('\\maketitle');
       i++;
+    } else if (block.type === 'page-header') {
+      if (block.latex_source.trim()) {
+        lines.push(restoreParserMarkers(block.latex_source));
+      }
+      i++;
     } else if (block.type === 'chapter') {
       lines.push(`\\chapter{${block.latex_source}}`);
+      i++;
+    } else if (block.type === 'box' && block.boxSubtype === 'summary') {
+      const cue = cueLine(block);
+      if (cue) lines.push(cue);
+      lines.push(`\\summary{${restoreParserMarkers(block.latex_source)}}`);
       i++;
     } else if (block.type === 'box' && block.boxSubtype) {
       const env = block.boxSubtype;
       const labelPart = block.label ? `[${block.label}]` : '';
+      const cue = cueLine(block);
+      if (cue) lines.push(cue);
       lines.push(`\\begin{${env}}${labelPart}`);
       if (block.latex_source.trim()) {
         lines.push(restoreParserMarkers(block.latex_source));
@@ -896,6 +1080,8 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
       i++;
     } else {
       if (block.latex_source.trim()) {
+        const cue = cueLine(block);
+        if (cue) lines.push(cue);
         lines.push(restoreParserMarkers(block.latex_source));
       }
       i++;

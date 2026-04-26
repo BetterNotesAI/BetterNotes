@@ -130,7 +130,7 @@ export function ProjectAttachmentsPanel({
 
     const currentTotalBytes = attachments.reduce((acc, item) => acc + (item.sizeBytes ?? 0), 0);
     if (currentTotalBytes + file.size > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
-      setError(`Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.`);
+      setError(`Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.`);
       return;
     }
 
@@ -223,7 +223,7 @@ export function ProjectAttachmentsPanel({
               d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
           <span className="text-xs font-medium text-white/75 truncate">
-            Project attachments
+            Notebook attachments
             {isFetching ? (
               <span className="ml-1.5 text-white/35">...</span>
             ) : (
@@ -236,7 +236,7 @@ export function ProjectAttachmentsPanel({
             type="button"
             onClick={onClose}
             className="rounded-md p-1 text-white/45 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="Close project attachments"
+            aria-label="Close notebook attachments"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -247,7 +247,7 @@ export function ProjectAttachmentsPanel({
             type="button"
             onClick={() => setIsOpen((value) => !value)}
             className="rounded-md p-1 text-white/40 hover:text-white/75 hover:bg-white/10 transition-colors"
-            aria-label={bodyVisible ? 'Collapse project attachments' : 'Expand project attachments'}
+            aria-label={bodyVisible ? 'Collapse notebook attachments' : 'Expand notebook attachments'}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {bodyVisible ? (
@@ -312,7 +312,7 @@ export function ProjectAttachmentsPanel({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-white/28 py-0.5">No project attachments yet.</p>
+            <p className="text-xs text-white/28 py-0.5">No notebook attachments yet.</p>
           )}
 
           <div
@@ -359,7 +359,7 @@ export function ProjectAttachmentsPanel({
             onChange={handleFileInputChange}
           />
           <p className="text-[10px] text-white/30 px-0.5">
-            Total project files: {formatBytes(totalBytes)} / {formatBytes(MAX_PROJECT_TOTAL_UPLOAD_BYTES)} ({MAX_PROJECT_TOTAL_UPLOAD_MB} MB max)
+            Total notebook files: {formatBytes(totalBytes)} / {formatBytes(MAX_PROJECT_TOTAL_UPLOAD_BYTES)} ({MAX_PROJECT_TOTAL_UPLOAD_MB} MB max)
           </p>
         </div>
       )}

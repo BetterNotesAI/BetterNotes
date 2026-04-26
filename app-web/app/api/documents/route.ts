@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
   if (totalAttachmentBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
+      { error: `Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.` },
       { status: 400 }
     );
   }
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
 
       if (currentProjectBytes + totalAttachmentBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
         return NextResponse.json(
-          { error: `Project file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per project.` },
+          { error: `Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.` },
           { status: 400 }
         );
       }

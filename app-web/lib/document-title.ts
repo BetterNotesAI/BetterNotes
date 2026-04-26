@@ -29,12 +29,59 @@ function finalizeTitle(raw: string, maxLength: number): string | null {
 
 function cleanLatexCandidate(raw: string): string {
   return raw
+    .replace(/\\&/g, '&')
+    .replace(/---/g, ' - ')
+    .replace(/--/g, ' - ')
     .replace(/%[^\n]*/g, ' ')
     .replace(/\\hfill/g, ' ')
     .replace(/\\(?:begin|end)\{[^}]*\}/g, ' ')
     .replace(/\\[a-zA-Z]+\*?/g, ' ')
     .replace(/[{}[\]$]/g, ' ')
     .replace(/[_~`^]/g, ' ');
+}
+
+function normalizeTitleForComparison(value: string): string {
+  return compactWhitespace(value)
+    .replace(/\.\.\.$/, '')
+    .replace(/[.!?:;,]+$/g, '')
+    .toLowerCase();
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractLatexCommandArguments(source: string, command: string): string[] {
+  const args: string[] = [];
+  const pattern = new RegExp(`\\\\${escapeRegex(command)}(?![A-Za-z])\\*?(?:\\s*\\[[^\\]]*\\])?\\s*\\{`, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source)) !== null) {
+    const openingBraceIndex = pattern.lastIndex - 1;
+    let depth = 0;
+
+    for (let i = openingBraceIndex; i < source.length; i += 1) {
+      const char = source[i];
+      const previous = i > 0 ? source[i - 1] : '';
+
+      if (char === '{' && previous !== '\\') {
+        depth += 1;
+      } else if (char === '}' && previous !== '\\') {
+        depth -= 1;
+        if (depth === 0) {
+          args.push(source.slice(openingBraceIndex + 1, i));
+          pattern.lastIndex = i + 1;
+          break;
+        }
+      }
+
+      if (i - openingBraceIndex > 600) {
+        break;
+      }
+    }
+  }
+
+  return args;
 }
 
 export function isDefaultDocumentTitle(title?: string | null): boolean {
@@ -48,23 +95,45 @@ export function buildTitleFromPrompt(prompt?: string | null, maxLength = 90): st
   return finalizeTitle(prompt, maxLength);
 }
 
+export function isPromptDerivedDocumentTitle(title?: string | null, prompt?: string | null): boolean {
+  if (typeof title !== 'string' || typeof prompt !== 'string') return false;
+
+  const normalizedTitle = normalizeTitleForComparison(title);
+  const normalizedPrompt = normalizeTitleForComparison(prompt);
+  if (!normalizedTitle || !normalizedPrompt) return false;
+  if (normalizedTitle === normalizedPrompt) return true;
+
+  const promptTitleCandidates = [72, 80, 90, 120]
+    .map((maxLength) => buildTitleFromPrompt(prompt, maxLength))
+    .filter((candidate): candidate is string => Boolean(candidate));
+
+  return promptTitleCandidates.some((candidate) => {
+    const normalizedCandidate = normalizeTitleForComparison(candidate);
+    if (normalizedTitle === normalizedCandidate) return true;
+    return title.trim().endsWith('...') && normalizedCandidate.startsWith(normalizedTitle);
+  });
+}
+
 export function buildTitleFromLatex(latexSource?: string | null, maxLength = 90): string | null {
   if (typeof latexSource !== 'string' || !latexSource.trim()) return null;
 
-  const body = latexSource.includes('\\begin{document}')
-    ? latexSource.split('\\begin{document}')[1] ?? latexSource
-    : latexSource;
+  const sourceWithoutComments = latexSource.replace(/%[^\n]*/g, ' ');
+  const body = sourceWithoutComments.includes('\\begin{document}')
+    ? sourceWithoutComments.split('\\begin{document}')[1] ?? sourceWithoutComments
+    : sourceWithoutComments;
 
-  const commandPatterns = [
-    /\\title\*?\{([^{}]{3,220})\}/i,
-    /\\sectionbar\{([^{}]{3,220})\}/i,
-    /\\(?:section|subsection|subsubsection)\*?\{([^{}]{3,220})\}/i,
+  const prioritizedCandidates = [
+    ...extractLatexCommandArguments(sourceWithoutComments, 'title'),
+    ...extractLatexCommandArguments(body, 'fancyhead'),
+    ...extractLatexCommandArguments(body, 'sectionbar'),
+    ...extractLatexCommandArguments(body, 'section'),
+    ...extractLatexCommandArguments(body, 'subsection'),
+    ...extractLatexCommandArguments(body, 'subsubsection'),
+    ...extractLatexCommandArguments(body, 'cheatsection'),
   ];
 
-  for (const pattern of commandPatterns) {
-    const match = body.match(pattern);
-    if (!match?.[1]) continue;
-    const candidate = finalizeTitle(cleanLatexCandidate(match[1]), maxLength);
+  for (const rawCandidate of prioritizedCandidates) {
+    const candidate = finalizeTitle(cleanLatexCandidate(rawCandidate), maxLength);
     if (candidate) return candidate;
   }
 

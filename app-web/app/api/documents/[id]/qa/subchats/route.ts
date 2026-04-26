@@ -3,6 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  isMissingDocumentQaTableError,
+  qaPersistenceUnavailablePayload,
+} from '@/lib/document-qa-persistence';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -32,6 +36,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     .order('block_index', { ascending: true });
 
   if (error) {
+    if (isMissingDocumentQaTableError(error)) {
+      return NextResponse.json({ subchats: [], persistence: 'unavailable' });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -39,11 +46,15 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   const messagesMap: Record<string, Array<{ id: string; role: string; content: string; created_at: string }>> = {};
 
   if (subchatIds.length > 0) {
-    const { data: messages } = await supabase
+    const { data: messages, error: messagesError } = await supabase
       .from('document_qa_messages')
       .select('id, subchat_id, role, content, created_at')
       .in('subchat_id', subchatIds)
       .order('created_at', { ascending: true });
+
+    if (messagesError && !isMissingDocumentQaTableError(messagesError)) {
+      return NextResponse.json({ error: messagesError.message }, { status: 500 });
+    }
 
     for (const msg of messages ?? []) {
       if (!messagesMap[msg.subchat_id]) messagesMap[msg.subchat_id] = [];
@@ -90,19 +101,30 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: 'Invalid blockIndex' }, { status: 400 });
   }
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('document_qa_subchats')
     .select('id, block_index, context_text, created_at')
     .eq('document_id', documentId)
     .eq('block_index', blockIndex)
     .maybeSingle();
 
+  if (existingError) {
+    if (isMissingDocumentQaTableError(existingError)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
+    return NextResponse.json({ error: existingError.message }, { status: 500 });
+  }
+
   if (existing) {
-    const { data: existingMessages } = await supabase
+    const { data: existingMessages, error: existingMessagesError } = await supabase
       .from('document_qa_messages')
       .select('id, role, content, created_at')
       .eq('subchat_id', existing.id)
       .order('created_at', { ascending: true });
+
+    if (existingMessagesError && !isMissingDocumentQaTableError(existingMessagesError)) {
+      return NextResponse.json({ error: existingMessagesError.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       subchat: {
@@ -123,20 +145,35 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     .single();
 
   if (error) {
+    if (isMissingDocumentQaTableError(error)) {
+      return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+    }
+
     if (error.code === '23505') {
-      const { data: raceExisting } = await supabase
+      const { data: raceExisting, error: raceExistingError } = await supabase
         .from('document_qa_subchats')
         .select('id, block_index, context_text, created_at')
         .eq('document_id', documentId)
         .eq('block_index', blockIndex)
         .maybeSingle();
 
+      if (raceExistingError) {
+        if (isMissingDocumentQaTableError(raceExistingError)) {
+          return NextResponse.json(qaPersistenceUnavailablePayload(), { status: 503 });
+        }
+        return NextResponse.json({ error: raceExistingError.message }, { status: 500 });
+      }
+
       if (raceExisting) {
-        const { data: raceMessages } = await supabase
+        const { data: raceMessages, error: raceMessagesError } = await supabase
           .from('document_qa_messages')
           .select('id, role, content, created_at')
           .eq('subchat_id', raceExisting.id)
           .order('created_at', { ascending: true });
+
+        if (raceMessagesError && !isMissingDocumentQaTableError(raceMessagesError)) {
+          return NextResponse.json({ error: raceMessagesError.message }, { status: 500 });
+        }
 
         return NextResponse.json({
           subchat: {

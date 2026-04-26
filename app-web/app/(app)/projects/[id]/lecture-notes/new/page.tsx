@@ -1,17 +1,21 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCreationBar, type CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
+import {
+  REPORT_TEMPLATE_OPTIONS,
+  type ReportTemplateId,
+} from '@/app/(app)/projects/new/_components/LectureNotesPanel';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
 import { useProjectName } from '@/lib/use-project-name';
 
-const TEMPLATE_ID = 'lecture_notes';
+const DEFAULT_REPORT_TEMPLATE_ID: ReportTemplateId = 'lecture_notes';
 
-function buildLectureNotesTitle(prompt: string): string {
+function buildReportTitle(prompt: string): string {
   const compact = prompt.replace(/\s+/g, ' ').trim();
-  if (!compact) return 'Untitled Extended Lecture Notes';
+  if (!compact) return 'Untitled Report';
   const clipped = compact.length > 80 ? `${compact.slice(0, 80).trimEnd()}...` : compact;
   return clipped;
 }
@@ -23,14 +27,14 @@ export default function NewProjectLectureNotesPage() {
   const projectId = params?.id ?? '';
   const initialPrompt = searchParams?.get('prompt')?.trim() || '';
   const projectName = useProjectName(projectId || null);
-  const barRef = useRef<HTMLDivElement>(null);
 
+  const [reportTemplateId, setReportTemplateId] = useState<ReportTemplateId>(DEFAULT_REPORT_TEMPLATE_ID);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   async function handleCreate(data: CreateDocumentInput) {
     if (!projectId) {
-      setCreateError('Project not found.');
+      setCreateError('Notebook not found.');
       return;
     }
 
@@ -38,7 +42,7 @@ export default function NewProjectLectureNotesPage() {
     setCreateError(null);
 
     try {
-      const title = buildLectureNotesTitle(data.prompt);
+      const title = buildReportTitle(data.prompt);
       const uploadedAttachments: {
         name: string;
         mimeType: string;
@@ -77,7 +81,7 @@ export default function NewProjectLectureNotesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template_id: TEMPLATE_ID,
+          template_id: reportTemplateId,
           title,
           prompt: data.prompt,
           folder_id: projectId,
@@ -91,7 +95,7 @@ export default function NewProjectLectureNotesPage() {
       };
 
       if (!resp.ok) {
-        setCreateError(respData.error ?? 'Failed to create extended lecture notes.');
+        setCreateError(respData.error ?? 'Failed to create report.');
         return;
       }
 
@@ -120,7 +124,7 @@ export default function NewProjectLectureNotesPage() {
           <button
             onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}`)}
             className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
-            title="Back to project"
+            title="Back to notebook"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -132,14 +136,14 @@ export default function NewProjectLectureNotesPage() {
                 <button
                   onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}`)}
                   className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
-                  title={`Go to project "${projectName}"`}
+                  title={`Go to notebook "${projectName}"`}
                 >
                   {projectName}
                 </button>
                 <span className="text-white/25 shrink-0">/</span>
               </>
             )}
-            <span className="truncate">New Extended Lecture Notes</span>
+            <span className="truncate">New Report</span>
           </h1>
         </div>
         <button
@@ -153,55 +157,81 @@ export default function NewProjectLectureNotesPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-14">
           <h2 className="text-3xl font-semibold tracking-tight mb-2">
-            Build project{' '}
+            Build notebook{' '}
             <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-              extended lecture notes
+              report
             </span>
           </h2>
           <p className="text-white/50 text-sm mb-8">
-            This flow uses the Extended Lecture Notes template and saves everything inside this project.
+            Choose a report template and save the generated document inside this notebook.
           </p>
 
-          <div ref={barRef}>
+          <div className="mb-8">
+            <h3 className="text-sm font-medium text-white/60 mb-4">Report template</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {REPORT_TEMPLATE_OPTIONS.map((template) => {
+                const isSelected = reportTemplateId === template.id;
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    disabled={isCreating}
+                    onClick={() => {
+                      setReportTemplateId(template.id);
+                      setCreateError(null);
+                    }}
+                    aria-pressed={isSelected}
+                    className={`group text-left rounded-2xl border p-3 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isSelected
+                        ? 'border-indigo-400/75 bg-indigo-500/15 shadow-[0_0_0_1px_rgba(129,140,248,0.5),0_12px_28px_rgba(0,0,0,0.28)]'
+                        : 'border-white/15 bg-white/[0.07] hover:border-white/30 hover:bg-white/[0.10]'
+                    }`}
+                  >
+                    <div className="relative aspect-[4/3] rounded-xl mb-2.5 overflow-hidden border border-white/15 bg-white/5">
+                      <Image
+                        src={getTemplateThumbnailSrc(template.id)}
+                        alt={template.title}
+                        fill
+                        sizes="(min-width: 1024px) 230px, (min-width: 640px) 320px, 100vw"
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                        onError={(e) => {
+                          e.currentTarget.classList.add('hidden');
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white/88 leading-snug">{template.title}</p>
+                        <p className="mt-1 min-h-[30px] text-[10px] leading-snug text-white/45">
+                          {template.description}
+                        </p>
+                      </div>
+                      <span
+                        className={`mt-0.5 h-4 w-4 rounded-full border transition-colors ${
+                          isSelected
+                            ? 'border-indigo-300 bg-indigo-400'
+                            : 'border-white/25 bg-white/5 group-hover:border-white/45'
+                        }`}
+                        aria-hidden
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
             <DocumentCreationBar
               onSubmit={handleCreate}
               isLoading={isCreating}
               error={createError}
-              placeholder="Describe the lecture notes you want to create..."
+              placeholder="Describe the report you want to create..."
               autoFocus
               initialPrompt={initialPrompt}
-              selectedTemplateId={TEMPLATE_ID}
+              selectedTemplateId={reportTemplateId}
               lockTemplateSelection
             />
-          </div>
-
-          <div className="mt-12">
-            <h3 className="text-sm font-medium text-white/60 mb-4">Template</h3>
-            <button
-              type="button"
-              onClick={() => barRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-              className="group w-full sm:w-[320px] text-left rounded-2xl border bg-white/[0.10] border-white/30 backdrop-blur p-3 transition-all
-                hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
-            >
-              <div className="relative aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border border-white/20 bg-white/5">
-                <Image
-                  src={getTemplateThumbnailSrc(TEMPLATE_ID)}
-                  alt="Extended Lecture Notes"
-                  fill
-                  className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).classList.add('hidden');
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <p className="text-xs font-semibold text-white/85 leading-snug">Extended Lecture Notes</p>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-400/30 text-indigo-200">
-                  Locked
-                </span>
-              </div>
-              <p className="text-[10px] text-indigo-300">Selected</p>
-            </button>
           </div>
         </div>
       </div>

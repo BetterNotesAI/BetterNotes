@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
@@ -56,16 +56,36 @@ const ONBOARDING_STEPS = [
   },
 ];
 
-function NewDocumentWatcher({ onTrigger }: { onTrigger: (folderId: string | null) => void }) {
+function readFolderParam(rawFolder: string | null): string | null {
+  const folder = rawFolder?.trim();
+  return folder && folder.length > 0 ? folder : null;
+}
+
+function NewDocumentWatcher({
+  onTrigger,
+  onOpenFolder,
+}: {
+  onTrigger: (folderId: string | null) => void;
+  onOpenFolder: (folderId: string) => void;
+}) {
   const searchParams = useSearchParams();
   const router = useRouter();
+
   useEffect(() => {
+    const folderId = readFolderParam(searchParams?.get('folder') ?? null);
+
     if (searchParams?.get('new') === '1') {
-      const rawFolder = searchParams.get('folder');
-      onTrigger(rawFolder && rawFolder.trim().length > 0 ? rawFolder.trim() : null);
-      router.replace('/documents', { scroll: false });
+      if (folderId) onOpenFolder(folderId);
+      onTrigger(folderId);
+      router.replace(folderId ? `/documents?folder=${encodeURIComponent(folderId)}` : '/documents', { scroll: false });
+      return;
     }
-  }, [searchParams, router, onTrigger]);
+
+    if (folderId) {
+      onOpenFolder(folderId);
+    }
+  }, [searchParams, router, onTrigger, onOpenFolder]);
+
   return null;
 }
 
@@ -76,6 +96,7 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const silentNextLoad = useRef(false);
+  const documentLoadSeqRef = useRef(0);
   const documentsRef = useRef<DocumentItem[]>([]);
   documentsRef.current = documents;
 
@@ -86,6 +107,11 @@ export default function DocumentsPage() {
   // Initialize from localStorage so there's only one loadDocuments call on mount
   const [activeFolderId, setActiveFolderId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
+    const queryFolder = readFolderParam(new URLSearchParams(window.location.search).get('folder'));
+    if (queryFolder) {
+      localStorage.removeItem('bn_active_folder');
+      return queryFolder;
+    }
     const pending = localStorage.getItem('bn_active_folder');
     if (pending) { localStorage.removeItem('bn_active_folder'); return pending; }
     return null;
@@ -102,12 +128,45 @@ export default function DocumentsPage() {
   const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
   const [projectAttachmentsOpen, setProjectAttachmentsOpen] = useState(false);
 
+  const handleOpenFolderFromQuery = useCallback((folderId: string) => {
+    setActiveFolderId((current) => {
+      if (current === folderId) return current;
+      setIsLoadingDocs(true);
+      return folderId;
+    });
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bn_active_folder');
+    }
+  }, []);
+
+  const handleNewDocumentTrigger = useCallback((folderId: string | null) => {
+    setPendingFolderId(folderId);
+    setShowNewDocModal(true);
+  }, []);
+
   // Initial load: load folders for card menu + register sidebar events
   useEffect(() => {
-    fetch('/api/folders')
-      .then((r) => r.ok ? r.json() : { folders: [] })
-      .then((data) => setFolders(data.folders ?? []))
-      .catch(() => {});
+    function loadFolders(e?: Event) {
+      const detail = (e as CustomEvent<{
+        folderId?: string;
+        updates?: Partial<ProjectFolder>;
+      }> | undefined)?.detail;
+
+      if (detail?.folderId && detail.updates) {
+        setFolders((prev) => prev.map((folder) => (
+          folder.id === detail.folderId
+            ? { ...folder, ...detail.updates }
+            : folder
+        )));
+      }
+
+      fetch('/api/folders', { cache: 'no-store' })
+        .then((r) => r.ok ? r.json() : { folders: [] })
+        .then((data) => setFolders(data.folders ?? []))
+        .catch(() => {});
+    }
+
+    loadFolders();
 
     // Handle sidebar folder click when already on /documents (no remount)
     function handleFolderActivate(e: Event) {
@@ -131,10 +190,12 @@ export default function DocumentsPage() {
       if (folderId) setPendingFolderId(folderId);
       setShowNewDocModal(true);
     }
+    window.addEventListener('folders:updated', loadFolders);
     window.addEventListener('folder:activate', handleFolderActivate);
     window.addEventListener('folder:reset', handleFolderReset);
     window.addEventListener('folder:create-document', handleCreateDocumentInFolder);
     return () => {
+      window.removeEventListener('folders:updated', loadFolders);
       window.removeEventListener('folder:activate', handleFolderActivate);
       window.removeEventListener('folder:reset', handleFolderReset);
       window.removeEventListener('folder:create-document', handleCreateDocumentInFolder);
@@ -205,6 +266,13 @@ export default function DocumentsPage() {
     return { starred, folderGroups: filteredFolderGroups, looseDocs, visibleDocs, starredFolders, archivedFolders };
   }, [activeFolderId, filterStarred, showArchived, documents, folders]);
 
+  const visibleFolderDocuments = useMemo(
+    () => activeFolderId
+      ? documents.filter((doc) => doc.folder_id === activeFolderId)
+      : documents,
+    [activeFolderId, documents]
+  );
+
   function formatFolderCounts(folder: Pick<ProjectFolder, 'document_count' | 'input_count'>, docsFallback = 0) {
     const documentCount = folder.document_count ?? docsFallback;
     const inputCount = folder.input_count ?? 0;
@@ -220,7 +288,9 @@ export default function DocumentsPage() {
     setFolders((prev) => prev.map((folder) => (
       folder.id === folderId ? { ...folder, input_count: count } : folder
     )));
-    window.dispatchEvent(new Event('folders:updated'));
+    window.dispatchEvent(new CustomEvent('folders:updated', {
+      detail: { folderId, updates: { input_count: count } },
+    }));
   }
 
   function documentHref(doc: DocumentItem): string {
@@ -230,6 +300,8 @@ export default function DocumentsPage() {
   }
 
   async function loadDocuments() {
+    const requestId = ++documentLoadSeqRef.current;
+    const folderIdForRequest = activeFolderId;
     const silent = silentNextLoad.current;
     silentNextLoad.current = false;
     if (!silent) setIsLoadingDocs(true);
@@ -238,15 +310,23 @@ export default function DocumentsPage() {
       params.set('sort', sortBy);
       if (filterStarred) params.set('starred', 'true');
       if (showArchived) params.set('archived', 'true');
-      if (activeFolderId) params.set('folder_id', activeFolderId);
+      if (folderIdForRequest) params.set('folder_id', folderIdForRequest);
 
-      const resp = await fetch(`/api/documents?${params}`);
+      const resp = await fetch(`/api/documents?${params}`, { cache: 'no-store' });
       if (resp.ok) {
         const data = await resp.json();
-        setDocuments(data.documents ?? []);
+        if (requestId !== documentLoadSeqRef.current) return;
+        const nextDocuments = (data.documents ?? []) as DocumentItem[];
+        setDocuments(
+          folderIdForRequest
+            ? nextDocuments.filter((doc) => doc.folder_id === folderIdForRequest)
+            : nextDocuments
+        );
       }
     } finally {
-      setIsLoadingDocs(false);
+      if (requestId === documentLoadSeqRef.current) {
+        setIsLoadingDocs(false);
+      }
     }
   }
 
@@ -348,7 +428,9 @@ export default function DocumentsPage() {
     if (!res.ok) {
       setFolders(previousFolders);
     } else {
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId, updates: { name: newName } },
+      }));
     }
   }
 
@@ -381,7 +463,9 @@ export default function DocumentsPage() {
     if (!res.ok) {
       setFolders(previousFolders);
     } else {
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId, updates: { is_starred: isStarred } },
+      }));
     }
   }
 
@@ -403,7 +487,9 @@ export default function DocumentsPage() {
     if (!res.ok) {
       setFolders(previousFolders);
     } else {
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId, updates: { color: newColor } },
+      }));
     }
   }
 
@@ -439,7 +525,9 @@ export default function DocumentsPage() {
     if (!res.ok) {
       setFolders(previousFolders);
     } else {
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId, updates: { archived_at: archivedAt } },
+      }));
       // If archiving the currently active folder, navigate back to All Documents
       if (!currentlyArchived && activeFolderId === folderId) {
         setActiveFolderId(null);
@@ -519,10 +607,8 @@ export default function DocumentsPage() {
     <div className="h-full flex flex-col overflow-hidden bg-transparent text-white">
       <Suspense fallback={null}>
         <NewDocumentWatcher
-          onTrigger={(folderId) => {
-            setPendingFolderId(folderId);
-            setShowNewDocModal(true);
-          }}
+          onTrigger={handleNewDocumentTrigger}
+          onOpenFolder={handleOpenFolderFromQuery}
         />
       </Suspense>
 
@@ -533,7 +619,11 @@ export default function DocumentsPage() {
           <div className="w-full min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <button
-                onClick={() => { setIsLoadingDocs(true); setActiveFolderId(null); }}
+                onClick={() => {
+                  setIsLoadingDocs(true);
+                  setActiveFolderId(null);
+                  router.replace('/documents', { scroll: false });
+                }}
                 className="text-white/50 hover:text-white/80 transition-colors text-sm font-medium shrink-0"
               >
                 My Documents
@@ -607,7 +697,7 @@ export default function DocumentsPage() {
                 : 'bg-white/5 border-white/10 text-white/70 hover:bg-indigo-500/10 hover:border-indigo-500/25 hover:text-white'
             }`}
             aria-pressed={projectAttachmentsOpen}
-            title="Project attachments"
+            title="Notebook attachments"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -631,7 +721,7 @@ export default function DocumentsPage() {
             <div className="flex items-center justify-center py-20">
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
-          ) : documents.length === 0 && !groupedView ? (
+          ) : visibleFolderDocuments.length === 0 && !groupedView ? (
             /* Empty states */
             activeFolderId ? (
               /* Folder-filtered view — empty: show header + empty state */
@@ -1073,7 +1163,7 @@ export default function DocumentsPage() {
                       {activeFolder?.name ?? 'Folder'}
                     </h2>
                     <span className="text-xs text-white/30 font-medium shrink-0">
-                      {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+                      {visibleFolderDocuments.length} {visibleFolderDocuments.length === 1 ? 'document' : 'documents'}
                     </span>
                     {activeFolder && (
                       <FolderSectionMenu
@@ -1094,7 +1184,9 @@ export default function DocumentsPage() {
 
                   {/* Documents grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {documents.map((doc) => (
+                    {visibleFolderDocuments.map((doc) => {
+                      const parentFolder = doc.folder_id ? folders.find((f) => f.id === doc.folder_id) : null;
+                      return (
                       <DocumentCard
                         key={doc.id}
                         doc={doc}
@@ -1108,9 +1200,10 @@ export default function DocumentsPage() {
                         onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
                         onDuplicate={() => handleDuplicate(doc)}
                         onDownload={() => handleDownload(doc)}
-                        folderBadge={activeFolder ? { name: activeFolder.name, color: activeFolder.color } : undefined}
+                        folderBadge={parentFolder ? { name: parentFolder.name, color: parentFolder.color } : undefined}
                       />
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );

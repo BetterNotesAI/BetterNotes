@@ -169,7 +169,7 @@ export default function NewCheatSheetPage() {
             <button
               onClick={() => router.push(backHref)}
               className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
-              title={projectId ? 'Back to project' : 'Back to Cheat Sheets'}
+              title={projectId ? 'Back to notebook' : 'Back to Cheat Sheets'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -181,7 +181,7 @@ export default function NewCheatSheetPage() {
                   <button
                     onClick={() => router.push(`/projects/${encodeURIComponent(projectId!)}`)}
                     className="text-white/55 hover:text-white transition-colors truncate max-w-[40ch]"
-                    title={`Go to project "${projectName}"`}
+                    title={`Go to notebook "${projectName}"`}
                   >
                     {projectName}
                   </button>

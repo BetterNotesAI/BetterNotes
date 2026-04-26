@@ -35,11 +35,11 @@ export default function ProjectHubPage() {
         const res = await fetch(`/api/folders/${projectId}`);
         const data = (await res.json().catch(() => ({}))) as { error?: string; folder?: FolderMeta };
         if (!res.ok) {
-          throw new Error(data.error ?? 'Project not found');
+          throw new Error(data.error ?? 'Notebook not found');
         }
         if (!cancelled) setFolder(data.folder ?? null);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load project');
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load notebook');
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -58,8 +58,8 @@ export default function ProjectHubPage() {
     },
     {
       id: 'lecture-notes',
-      title: 'Extended Lecture Notes',
-      description: 'Create long-form notes (Extended Lecture Notes template).',
+      title: 'Report',
+      description: 'Create Cornell notes, lecture notes, papers, lab reports or data analysis documents.',
       accent: 'from-blue-500/25 to-cyan-500/20',
       href: `/projects/${encodeURIComponent(projectId)}/lecture-notes/new`,
     },
@@ -73,7 +73,7 @@ export default function ProjectHubPage() {
     {
       id: 'exams',
       title: 'Exams',
-      description: 'Generate and take exams in the same project.',
+      description: 'Generate and take exams in the same notebook.',
       accent: 'from-emerald-500/25 to-teal-500/20',
       href: `/exams?projectId=${encodeURIComponent(projectId)}`,
     },
@@ -95,7 +95,7 @@ export default function ProjectHubPage() {
   if (error || !folder) {
     return (
       <div className="h-full flex flex-col bg-transparent text-white items-center justify-center gap-4">
-        <p className="text-sm text-red-400">{error ?? 'Project not found'}</p>
+        <p className="text-sm text-red-400">{error ?? 'Notebook not found'}</p>
         <button
           onClick={() => router.push('/documents')}
           className="text-xs text-white/50 hover:text-white underline"
@@ -135,7 +135,7 @@ export default function ProjectHubPage() {
             </span>
           </h2>
           <p className="text-white/50 text-sm mb-8">
-            Choose one workflow. Everything will be saved inside this project.
+            Choose one workflow. Everything will be saved inside this notebook.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
