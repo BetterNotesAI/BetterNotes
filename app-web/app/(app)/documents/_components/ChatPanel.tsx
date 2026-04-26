@@ -104,8 +104,49 @@ function renderKatexSafe(latex: string, displayMode: boolean): string {
       trust: false,
     });
   } catch {
-    return `<code class="text-xs text-red-400 font-mono">${latex}</code>`;
+    return `<code class="text-xs text-cyan-100/75 font-mono">${escapeHtml(latex)}</code>`;
   }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function normalizeDisplayFormula(source: string): { formula: string; displayMode: boolean } {
+  let formula = source.trim();
+
+  if (formula.startsWith('$$') && formula.endsWith('$$')) {
+    formula = formula.slice(2, -2).trim();
+  } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
+    formula = formula.slice(2, -2).trim();
+  }
+
+  const envMatch = formula.match(/^\\begin\{([^}]+)\}([\s\S]*)\\end\{\1\}$/);
+  if (!envMatch) return { formula, displayMode: true };
+
+  const env = envMatch[1];
+  const inner = envMatch[2].trim();
+
+  if (/^equation\*?$/.test(env)) {
+    return { formula: inner, displayMode: true };
+  }
+
+  if (/^(align|alignat|flalign|eqnarray)\*?$/.test(env)) {
+    return { formula: `\\begin{aligned}${inner}\\end{aligned}`, displayMode: true };
+  }
+
+  if (/^gather\*?$/.test(env)) {
+    return { formula: `\\begin{gathered}${inner}\\end{gathered}`, displayMode: true };
+  }
+
+  if (/^multline\*?$/.test(env)) {
+    return { formula: `\\begin{aligned}${inner}\\end{aligned}`, displayMode: true };
+  }
+
+  return { formula, displayMode: false };
 }
 
 /**
@@ -120,15 +161,8 @@ function renderLatexPreview(latex: string, blockType: string): string {
     latex.trim().startsWith('\\begin{');
 
   if (isDisplayMath) {
-    // Strip display math delimiters and render
-    let inner = latex.trim();
-    inner = inner.replace(/^\\\[|\\\]$/g, '').trim();
-    inner = inner.replace(/^\$\$|\$\$$/g, '').trim();
-    // If it's a \begin{env}...\end{env}, render as-is
-    if (inner.startsWith('\\begin{')) {
-      return renderKatexSafe(inner, true);
-    }
-    return renderKatexSafe(inner, true);
+    const { formula, displayMode } = normalizeDisplayFormula(latex);
+    return renderKatexSafe(formula, displayMode);
   }
 
   // Paragraph / mixed: render inline math fragments
@@ -180,13 +214,9 @@ function renderChipPreview(latex: string, blockType: string): string {
     latex.trim().startsWith('\\begin{');
 
   if (isFormula) {
-    // Strip outer display delimiters
-    let inner = latex.trim();
-    inner = inner.replace(/^\\\[|\\\]$/g, '').trim();
-    inner = inner.replace(/^\$\$|\$\$$/g, '').trim();
-    inner = inner.replace(/^\\begin\{[^}]+\}|\\end\{[^}]+\}$/g, '').trim();
+    const { formula } = normalizeDisplayFormula(latex);
     // Truncate very long formulas to avoid layout explosion
-    const truncated = inner.length > 200 ? inner.slice(0, 200) + '\\ldots' : inner;
+    const truncated = formula.length > 200 ? formula.slice(0, 200) + '\\ldots' : formula;
     try {
       return katex.renderToString(truncated, {
         displayMode: false,
@@ -195,7 +225,8 @@ function renderChipPreview(latex: string, blockType: string): string {
         trust: false,
       });
     } catch {
-      return `<code class="text-xs font-mono">${inner.slice(0, 80)}</code>`;
+      const preview = formula.length > 90 ? `${formula.slice(0, 90)}...` : formula;
+      return `<span class="text-cyan-50/80 font-mono">${escapeHtml(preview)}</span>`;
     }
   }
 

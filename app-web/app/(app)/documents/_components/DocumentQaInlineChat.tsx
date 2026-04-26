@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { QA_PERSISTENCE_UNAVAILABLE_ERROR } from '@/lib/document-qa-persistence';
 import { DocumentQaSubChat } from './DocumentQaSubChat';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,18 @@ interface InlineSubchatData {
 }
 
 const INLINE_SUBCHAT_BASE_BLOCK_INDEX = 1_000_000;
+const QA_SECTION_CHAT_UNAVAILABLE_COPY =
+  'Section chats need the latest database migration before they can be saved.';
+
+function getApiErrorMessage(
+  data: { error?: string; message?: string },
+  fallback: string,
+): string {
+  if (data.error === QA_PERSISTENCE_UNAVAILABLE_ERROR) {
+    return QA_SECTION_CHAT_UNAVAILABLE_COPY;
+  }
+  return data.message ?? data.error ?? fallback;
+}
 
 // ---------------------------------------------------------------------------
 // Markdown + KaTeX renderer (same approach as SolutionPanel)
@@ -506,6 +519,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
 
       const data = await res.json().catch(() => ({})) as {
         error?: string;
+        message?: string;
         subchat: {
           id: string;
           block_index: number;
@@ -515,7 +529,7 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       };
 
       if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to create subchat');
+        throw new Error(getApiErrorMessage(data, 'Failed to create section chat'));
       }
 
       setInlineSubchatsMap((prev) => {
@@ -601,8 +615,8 @@ export function DocumentQaInlineChat({ documentId, queuedContextSelection }: Doc
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error ?? 'Failed to send message');
+        const data = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        throw new Error(getApiErrorMessage(data, 'Failed to send message'));
       }
 
       const data = await res.json() as {

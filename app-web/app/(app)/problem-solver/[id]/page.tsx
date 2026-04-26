@@ -684,7 +684,7 @@ export default function ProblemSessionPage() {
           onClick={() => router.push(fallbackBackHref)}
           className="text-xs text-white/50 hover:text-white underline"
         >
-          {projectIdFromQuery ? 'Back to Project' : 'Back to Problem Solver'}
+          {projectIdFromQuery ? 'Back to Notebook' : 'Back to Problem Solver'}
         </button>
       </div>
     );
@@ -694,7 +694,7 @@ export default function ProblemSessionPage() {
   const backHref = resolvedProjectId
     ? `/projects/${encodeURIComponent(resolvedProjectId)}`
     : '/problem-solver';
-  const backLabel = resolvedProjectId ? 'Back to Project' : 'Back to Problem Solver';
+  const backLabel = resolvedProjectId ? 'Back to Notebook' : 'Back to Problem Solver';
 
   const activeStatus = session.status;
   const displayMd = streamedMd ?? session.solution_md ?? null;

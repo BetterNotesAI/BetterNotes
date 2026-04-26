@@ -12,6 +12,7 @@ import { CheatsheetPanel } from './_components/CheatsheetPanel';
 import {
   LectureNotesPanel,
   type LectureNotesDensity,
+  type ReportTemplateId,
 } from './_components/LectureNotesPanel';
 import { ProblemSolverPanel } from './_components/ProblemSolverPanel';
 import { ExamsPanel } from './_components/ExamsPanel';
@@ -62,8 +63,8 @@ const WORKFLOWS: WorkflowOption[] = [
   },
   {
     id: 'lecture-notes',
-    title: 'Lecture Notes',
-    description: 'Create long-form notes using the lecture notes template.',
+    title: 'Report',
+    description: 'Create notes, papers, lab reports or data analysis documents.',
     accent: 'from-blue-500/25 to-cyan-500/20',
   },
   {
@@ -75,7 +76,7 @@ const WORKFLOWS: WorkflowOption[] = [
   {
     id: 'exams',
     title: 'Exams',
-    description: 'Generate and take exams in the same project.',
+    description: 'Generate and take exams in the same notebook.',
     accent: 'from-emerald-500/25 to-teal-500/20',
   },
 ];
@@ -87,8 +88,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
-
-const LECTURE_NOTES_TEMPLATE_ID = 'lecture_notes';
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -122,7 +121,7 @@ function promptPlaceholderFor(workflow: WorkflowId | null): string {
     case 'exams':
       return 'Extra context (optional) — exam subject and level are set below.';
     case 'lecture-notes':
-      return 'e.g. Full lecture notes on Kirchhoff\'s laws with examples';
+      return 'e.g. Create a report about Kirchhoff\'s laws with examples';
     case 'cheat-sheets':
     default:
       return 'e.g. Summarize thermodynamics laws for final exam revision';
@@ -147,6 +146,7 @@ export default function NewProjectPage() {
 
   // Per-resource configuration state
   const [cheatsheetTemplateId, setCheatsheetTemplateId] = useState<CheatSheetTemplateId | null>(null);
+  const [reportTemplateId, setReportTemplateId] = useState<ReportTemplateId | null>(null);
   const [lectureNotesPages, setLectureNotesPages] = useState<number | null>(null);
   const [lectureNotesDensity, setLectureNotesDensity] = useState<LectureNotesDensity | null>(null);
   const [lectureNotesLanguage, setLectureNotesLanguage] = useState<string | null>(null);
@@ -167,7 +167,8 @@ export default function NewProjectPage() {
     if (selected === 'cheat-sheets') return cheatsheetTemplateId !== null;
     if (selected === 'lecture-notes') {
       return (
-        lectureNotesPages !== null
+        reportTemplateId !== null
+        && lectureNotesPages !== null
         && lectureNotesDensity !== null
         && lectureNotesLanguage !== null
       );
@@ -178,6 +179,7 @@ export default function NewProjectPage() {
   }, [
     selected,
     cheatsheetTemplateId,
+    reportTemplateId,
     lectureNotesPages,
     lectureNotesDensity,
     lectureNotesLanguage,
@@ -210,6 +212,7 @@ export default function NewProjectPage() {
     resetError();
     // Reset all resource-specific configs when switching resources
     setCheatsheetTemplateId(null);
+    setReportTemplateId(null);
     setLectureNotesPages(null);
     setLectureNotesDensity(null);
     setLectureNotesLanguage(null);
@@ -227,11 +230,11 @@ export default function NewProjectPage() {
 
   function handleGoToWorkflowStep() {
     if (!title.trim()) {
-      setError('Add a project title to continue.');
+      setError('Add a notebook title to continue.');
       return;
     }
     if (totalInputBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
-      setError(`Project input file limit exceeded (${MAX_PROJECT_TOTAL_UPLOAD_MB} MB max).`);
+      setError(`Notebook input file limit exceeded (${MAX_PROJECT_TOTAL_UPLOAD_MB} MB max).`);
       return;
     }
     setStep('workflow');
@@ -253,7 +256,7 @@ export default function NewProjectPage() {
 
     const nextTotal = totalInputBytes + incoming.reduce((acc, file) => acc + file.size, 0);
     if (nextTotal > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
-      setError(`Project input file limit exceeded (${MAX_PROJECT_TOTAL_UPLOAD_MB} MB max total).`);
+      setError(`Notebook input file limit exceeded (${MAX_PROJECT_TOTAL_UPLOAD_MB} MB max total).`);
       return;
     }
 
@@ -355,7 +358,7 @@ export default function NewProjectPage() {
     };
 
     if (!res.ok || !data.folder?.id) {
-      throw new Error(data.error ?? 'Failed to create project');
+      throw new Error(data.error ?? 'Failed to create notebook');
     }
 
     window.dispatchEvent(new Event('folders:updated'));
@@ -388,11 +391,13 @@ export default function NewProjectPage() {
   }
 
   async function runLectureNotesFlow(folderId: string, uploadedInputs: UploadedInputMeta[]) {
+    if (!reportTemplateId) throw new Error('Pick a report template to continue.');
+
     const res = await fetch('/api/documents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        template_id: LECTURE_NOTES_TEMPLATE_ID,
+        template_id: reportTemplateId,
         prompt: prompt.trim(),
         folder_id: folderId,
         attachments: uploadedInputs,
@@ -403,7 +408,7 @@ export default function NewProjectPage() {
       error?: string;
     };
     if (!res.ok || !data.document?.id) {
-      throw new Error(data.error ?? 'Failed to create lecture notes.');
+      throw new Error(data.error ?? 'Failed to create report.');
     }
 
     const query = new URLSearchParams({ prompt: prompt.trim(), projectId: folderId });
@@ -476,7 +481,7 @@ export default function NewProjectPage() {
           break;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project.');
+      setError(err instanceof Error ? err.message : 'Failed to create notebook.');
       setIsSubmitting(false);
     }
   }
@@ -508,6 +513,7 @@ export default function NewProjectPage() {
       return 'Pick a cheatsheet template to continue.';
     }
     if (selected === 'lecture-notes') {
+      if (reportTemplateId === null) return 'Pick a report template to continue.';
       if (lectureNotesPages === null) return 'Pick a length (pages) to continue.';
       if (lectureNotesDensity === null) return 'Pick a density to continue.';
       if (lectureNotesLanguage === null) return 'Pick a language to continue.';
@@ -525,14 +531,14 @@ export default function NewProjectPage() {
           <button
             onClick={handleBackOrClose}
             className="shrink-0 p-1.5 rounded-lg hover:bg-white/8 text-white/45 hover:text-white transition-colors"
-            title={step === 'workflow' ? 'Back to project details' : 'Back to documents'}
-            aria-label={step === 'workflow' ? 'Back to project details' : 'Back to documents'}
+            title={step === 'workflow' ? 'Back to notebook details' : 'Back to documents'}
+            aria-label={step === 'workflow' ? 'Back to notebook details' : 'Back to documents'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold truncate">New Project</h1>
+          <h1 className="text-lg font-semibold truncate">New Notebook</h1>
         </div>
         <span className="text-[11px] uppercase tracking-wide text-white/40">
           {step === 'details' ? 'Step 1 / 2' : 'Step 2 / 2'}
@@ -546,11 +552,11 @@ export default function NewProjectPage() {
               <h2 className="text-3xl font-semibold tracking-tight mb-2">
                 Create a new{' '}
                 <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent">
-                  project
+                  notebook
                 </span>
               </h2>
               <p className="text-white/50 text-sm mb-10">
-                Add the project details and your global input documents.
+                Add the notebook details and your global input documents.
               </p>
 
               <div className="mb-6">
@@ -639,10 +645,10 @@ export default function NewProjectPage() {
 
               <div className="mb-8">
                 <label className="block text-xs font-medium text-white/70 mb-2 uppercase tracking-wide">
-                  Project input documents <span className="text-white/35 normal-case font-normal tracking-normal">— optional, global for this project</span>
+                  Notebook input documents <span className="text-white/35 normal-case font-normal tracking-normal">— optional, global for this notebook</span>
                 </label>
                 <p className="text-xs text-white/45 mb-3">
-                  Add PDFs, DOCX or images. They stay attached to this project as reusable context.
+                  Add PDFs, DOCX or images. They stay attached to this notebook as reusable context.
                 </p>
 
                 <div className="rounded-2xl border border-white/15 bg-white/[0.04] p-4">
@@ -692,7 +698,7 @@ export default function NewProjectPage() {
 
                       <div className="min-w-0 text-left">
                         <p className="text-white/92 font-medium text-sm leading-tight">
-                          Drop your project files here
+                          Drop your notebook files here
                         </p>
                         <p className="text-white/45 text-sm leading-tight mt-1">or click to browse</p>
                         <p className="text-white/30 text-xs mt-2">
@@ -831,10 +837,12 @@ export default function NewProjectPage() {
 
               {selected === 'lecture-notes' && (
                 <LectureNotesPanel
+                  templateId={reportTemplateId}
                   pages={lectureNotesPages}
                   density={lectureNotesDensity}
                   language={lectureNotesLanguage}
                   onChange={(next) => {
+                    if (next.templateId !== undefined) setReportTemplateId(next.templateId);
                     if (next.pages !== undefined) setLectureNotesPages(next.pages);
                     if (next.density !== undefined) setLectureNotesDensity(next.density);
                     if (next.language !== undefined) setLectureNotesLanguage(next.language);

@@ -48,6 +48,15 @@ const TEMPLATES = [
   { id: 'study_form',           displayName: '3-Col Portrait',    isPro: false },
 ];
 
+const TEMPLATE_DISPLAY_NAME_FALLBACKS: Record<string, string> = {
+  cornell: 'Cornell Review Notes',
+  academic_paper: 'Academic Paper',
+  lab_report: 'Lab Report',
+  data_analysis: 'Data Analysis',
+  problem_solving: 'Problem Solving',
+  zettelkasten: 'Zettelkasten',
+};
+
 type GenerationEligibilityState = 'loading' | 'allowed' | 'guest' | 'unauthenticated';
 
 interface PendingDocumentCreationPayload {
@@ -102,7 +111,11 @@ export function DocumentCreationBar({
   const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
 
   const selectedTemplate = templateId ? (TEMPLATES.find((t) => t.id === templateId)
-    ?? { id: templateId, displayName: templateId.replace(/_/g, ' '), isPro: false }) : null;
+    ?? {
+      id: templateId,
+      displayName: TEMPLATE_DISPLAY_NAME_FALLBACKS[templateId] ?? templateId.replace(/_/g, ' '),
+      isPro: false,
+    }) : null;
   const label = submitLabel ?? 'Build now';
 
   useEffect(() => {

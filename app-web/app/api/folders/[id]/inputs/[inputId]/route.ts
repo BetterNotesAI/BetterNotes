@@ -21,7 +21,7 @@ export async function DELETE(
     .maybeSingle();
 
   if (folderError) return NextResponse.json({ error: folderError.message }, { status: 500 });
-  if (!folder) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!folder) return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
 
   const { data: input, error: lookupError } = await supabase
     .from('folder_inputs')

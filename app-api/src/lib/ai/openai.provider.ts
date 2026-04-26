@@ -62,6 +62,47 @@ function applyLatexFallbacks(latex: string): string {
   return trimmed;
 }
 
+function escapeLatexText(text: string): string {
+  const replacements: Record<string, string> = {
+    '\\': '\\textbackslash{}',
+    '&': '\\&',
+    '%': '\\%',
+    '$': '\\$',
+    '#': '\\#',
+    '_': '\\_',
+    '{': '\\{',
+    '}': '\\}',
+    '^': '\\textasciicircum{}',
+    '~': '\\textasciitilde{}',
+  };
+  return text.replace(/[\\&%$#_{}^~]/g, (char) => replacements[char] ?? char);
+}
+
+function buildFallbackLatexFromPlainText(args: GenerateLatexArgs, plainText: string): string {
+  const title = args.prompt
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s"']+|[\s"']+$/g, '')
+    .slice(0, 90)
+    || 'Generated Notes';
+  const paragraphs = plainText
+    .split(/\n{2,}/)
+    .map((paragraph) => escapeLatexText(paragraph.replace(/\s+/g, ' ').trim()))
+    .filter(Boolean);
+
+  const body = [
+    '\\begin{document}',
+    `\\title{${escapeLatexText(title)}}`,
+    '\\author{BetterNotes AI}',
+    '\\date{\\today}',
+    '\\maketitle',
+    '\\section*{Summary}',
+    paragraphs.length > 0 ? paragraphs.join('\n\n') : escapeLatexText(plainText.trim()),
+    '\\end{document}',
+  ].join('\n\n');
+
+  return applyLatexFallbacks(`${args.preamble}\n\n${body}`);
+}
+
 function contentToText(content: unknown): string {
   if (typeof content === 'string') return content;
 
@@ -272,7 +313,12 @@ export class OpenAIProvider implements AIProvider {
       'Your ONLY output is either a complete, compilable LaTeX document OR a short plain-text message (never both).',
       'RULES:',
       '- If the request implies a document topic, output a COMPLETE .tex file — no explanations, no markdown, no triple backticks.',
+      '- Requests like "summarize this", "do a summary about this", "make notes from this", "explain this", or references to attached material imply a document topic.',
+      '- If the request refers to uploaded/attached files or source material, generate a document from that material. Do not answer with a chat summary.',
       '- If the user is just chatting (e.g. \'hi\', \'thanks\'), reply with a short plain-text message only.',
+      ...(args.forceDocument ? [
+        '- DOCUMENT GENERATION MODE IS FORCED: you MUST output a complete LaTeX document. Never output a plain-text chat message.',
+      ] : []),
       '- CRITICAL: NEVER redefine \\newtheorem, \\newcommand, \\usepackage for anything already in the provided preamble.',
       '- CRITICAL: The preamble is FINAL. Work within its constraints — do NOT add \\usepackage commands.',
       '- CRITICAL: NEVER nest display math environments: do not put \\begin{equation*} inside \\[ ... \\].',
@@ -304,8 +350,10 @@ export class OpenAIProvider implements AIProvider {
       textPrompt = [
         `User request: "${args.prompt}"`,
         '',
-        'Decision: if this is casual conversation, reply with ONLY a short plain-text message.',
-        'Otherwise, generate a COMPLETE LaTeX document.',
+        args.forceDocument
+          ? 'Decision: generate a COMPLETE LaTeX document. Do not reply with a chat message.'
+          : 'Decision: if this is casual conversation, reply with ONLY a short plain-text message. Otherwise, generate a COMPLETE LaTeX document.',
+        'If the request is short but says to summarize/explain/turn this into notes, use the attached/source material and generate the selected document template.',
         '',
         '=== REQUIRED PREAMBLE (copy VERBATIM before \\begin{document}) ===',
         args.preamble,
@@ -364,12 +412,25 @@ export class OpenAIProvider implements AIProvider {
 
     // Short conversational reply
     if (!outWithoutSummary.includes('\\') && outWithoutSummary.length < 600) {
+      if (args.forceDocument) {
+        return {
+          latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
+          summary: summary ?? 'Generated a document from the requested material.',
+        };
+      }
       return { message: outWithoutSummary };
     }
 
     // Fallback: treat as LaTeX if it contains backslashes
     if (outWithoutSummary.includes('\\')) {
       return { latex: applyLatexFallbacks(outWithoutSummary), summary };
+    }
+
+    if (args.forceDocument) {
+      return {
+        latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
+        summary: summary ?? 'Generated a document from the requested material.',
+      };
     }
 
     return { message: outWithoutSummary };

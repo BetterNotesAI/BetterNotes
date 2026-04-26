@@ -394,12 +394,12 @@ export default function DocumentWorkspacePage() {
   const isDraft = docData?.status === 'draft';
   const effectiveProjectId = projectId ?? docData?.folder_id ?? null;
   const backListHref = effectiveProjectId
-    ? `/projects/${encodeURIComponent(effectiveProjectId)}`
+    ? `/documents?folder=${encodeURIComponent(effectiveProjectId)}`
     : pathname.startsWith('/cheat-sheets/')
       ? '/cheat-sheets'
       : '/documents';
   const backListLabel = effectiveProjectId
-    ? 'Back to project'
+    ? 'Back to notebook'
     : backListHref === '/cheat-sheets'
       ? 'Back to cheat sheets'
       : 'Back to documents';
@@ -1015,7 +1015,7 @@ export default function DocumentWorkspacePage() {
 
             {/* Interactive viewer (F3-M2.6) */}
             {viewerTab === 'interactive' && latexContent && (
-              <div className={`relative flex-1 flex flex-col min-h-0 min-w-0 overflow-auto transition-opacity duration-200 ${transparentInteractiveBackground ? 'bg-transparent' : 'bg-white'}`}>
+              <div className="relative flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-transparent transition-opacity duration-200">
                 {isBlockMutating && (
                   <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
                     <span className="animate-spin inline-block">⟳</span> Saving…

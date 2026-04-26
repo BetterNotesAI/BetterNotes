@@ -3,7 +3,6 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "predev": "rm -rf .next-dev",
     "prebuild": "rm -rf .next",
     "postbuild": "node scripts/ensure-fallback-build-manifest.js",
     "prestart": "node scripts/ensure-fallback-build-manifest.js",

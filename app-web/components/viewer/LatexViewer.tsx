@@ -43,12 +43,15 @@ const MAX_HISTORY = 20;
 // ─── zoom presets ─────────────────────────────────────────────────────────────
 
 const ZOOM_PRESETS = [75, 100, 125, 150] as const;
-type ZoomPreset = typeof ZOOM_PRESETS[number];
 
 /** Determine the appropriate initial zoom based on viewport width. */
-function getInitialZoom(): ZoomPreset {
+function getInitialZoom(): number {
   if (typeof window !== 'undefined' && window.innerWidth < 900) return 75;
   return 100;
+}
+
+function clampZoom(value: number): number {
+  return Math.min(200, Math.max(50, value));
 }
 
 // ─── M3.7: block-type label for toolbar context ───────────────────────────────
@@ -65,6 +68,7 @@ function getBlockTypeLabel(type: BlockType | null): string {
     case 'list': return 'List';
     case 'table': return 'Table';
     case 'box': return 'Box';
+    case 'page-header': return 'Header';
     default: return '';
   }
 }
@@ -93,19 +97,19 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
     focusedBlockType === 'formula-block' || focusedBlockType === 'formula-inline';
 
   const btnBase =
-    'px-2 py-1 text-xs rounded-md transition-colors duration-150 disabled:opacity-30 disabled:cursor-not-allowed';
+    'px-2 py-1 text-xs rounded-md transition-colors duration-150 text-white/55 disabled:opacity-35 disabled:cursor-not-allowed';
   const btnActive = 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/40 hover:bg-indigo-500/35';
   const btnInactive = 'text-white/60 hover:text-white hover:bg-white/10 border border-transparent';
 
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/10 bg-white/[0.02] shrink-0 flex-wrap">
+    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/10 bg-[linear-gradient(90deg,rgba(40,39,86,0.96),rgba(35,30,62,0.94),rgba(26,21,34,0.92))] backdrop-blur-xl shrink-0 flex-wrap">
       {/* M3.7: block type label */}
       {focusedBlockType && (
         <>
           <span className="text-[10px] text-indigo-200 font-medium bg-indigo-500/20 border border-indigo-400/30 rounded px-1.5 py-0.5 mr-1">
             {getBlockTypeLabel(focusedBlockType)}
           </span>
-          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <div className="w-px h-4 bg-white/12 mx-0.5" />
         </>
       )}
 
@@ -129,7 +133,7 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
         H2
       </button>
 
-      <div className="w-px h-4 bg-white/10 mx-0.5" />
+      <div className="w-px h-4 bg-white/12 mx-0.5" />
 
       {/* Bold */}
       <button
@@ -161,7 +165,7 @@ function FormatToolbar({ focusedBlockType, onApplyFormat }: FormatToolbarProps) 
         U
       </button>
 
-      <div className="w-px h-4 bg-white/10 mx-0.5" />
+      <div className="w-px h-4 bg-white/12 mx-0.5" />
 
       {/* Math toggle */}
       <button
@@ -439,7 +443,7 @@ export default function LatexViewer({
   const profile = useMemo(() => getTemplateProfile(templateId), [templateId]);
 
   // ── Zoom (persisted across source changes) ────────────────────────────────
-  const [zoom, setZoom] = useState<ZoomPreset>(() => getInitialZoom());
+  const [zoom, setZoom] = useState<number>(() => getInitialZoom());
 
   // All blocks are rendered on a single scrollable A4 sheet (no pagination)
   // The page indicator in the toolbar is removed; all blocks visible at once.
@@ -447,6 +451,20 @@ export default function LatexViewer({
   // Scroll-to-block ref (Mejora D)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastEditedBlockIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((current) => clampZoom(current + (e.deltaY < 0 ? 10 : -10)));
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
   // ── M3.1/M3.2/M3.3: interaction state ────────────────────────────────────
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
@@ -549,7 +567,7 @@ export default function LatexViewer({
     (id: string) => {
       setBlocks((prev) => {
         const target = prev.find((b) => b.id === id);
-        if (!target || target.type === 'col-start' || target.type === 'col-end') return prev;
+        if (!target || target.type === 'col-start' || target.type === 'col-end' || target.type === 'page-header') return prev;
         pushHistory(prev);
         const next = prev.filter((b) => b.id !== id);
         setTimeout(() => commitBlockMutation(next), 0);
@@ -872,6 +890,17 @@ export default function LatexViewer({
     [blocks]
   );
 
+  const handleAddBlockToEditChat = useCallback((blockId: string) => {
+    const ref = buildBlockReference(blockId);
+    if (ref) onReferenceInChat?.(ref);
+  }, [buildBlockReference, onReferenceInChat]);
+
+  const handleAddBlockToAskChat = useCallback((blockId: string) => {
+    const ref = buildBlockReference(blockId);
+    const context = ref?.latex_source.trim();
+    if (context) onAddSelectionToAskChat?.(context);
+  }, [buildBlockReference, onAddSelectionToAskChat]);
+
   if (!latexSource.trim()) {
     return (
       <div className="text-gray-400 italic text-sm p-4">
@@ -935,7 +964,7 @@ export default function LatexViewer({
     <div className={`flex flex-col h-full ${className ?? ''}`}>
       {/* ── Zoom + undo toolbar ── */}
       {!hideToolbar && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0 bg-white/[0.03] backdrop-blur-sm">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0 bg-[linear-gradient(90deg,rgba(41,40,88,0.96),rgba(37,32,64,0.94),rgba(25,21,34,0.92))] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           {/* Zoom presets */}
           <div className="flex items-center gap-1">
             {ZOOM_PRESETS.map((z) => (
@@ -954,7 +983,7 @@ export default function LatexViewer({
           </div>
 
           {/* Separator */}
-          <div className="w-px h-4 bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-white/[0.14] mx-1" />
 
           {/* Mejora C: undo step indicator */}
           <div className="flex items-center gap-1">
@@ -1060,6 +1089,8 @@ export default function LatexViewer({
               onEdit={setEditingBlockId}
               onConfirm={handleConfirm}
               onCancel={handleCancelEdit}
+              onAddBlockToEditChat={handleAddBlockToEditChat}
+              onAddBlockToAskChat={handleAddBlockToAskChat}
               columnGap={profile.layout.columnGap}
               showColumnRule={profile.layout.showColumnRule}
               columnRuleWidth={profile.layout.columnRuleWidth}
@@ -1111,6 +1142,8 @@ interface BlockRegionRendererProps {
   onEdit: (id: string) => void;
   onConfirm: (id: string, newSource: string) => void;
   onCancel: (id: string) => void;
+  onAddBlockToEditChat?: (id: string) => void;
+  onAddBlockToAskChat?: (id: string) => void;
   columnGap?: string;
   showColumnRule?: boolean;
   columnRuleWidth?: string;
@@ -1131,6 +1164,8 @@ function BlockRegionRenderer({
   onEdit,
   onConfirm,
   onCancel,
+  onAddBlockToEditChat,
+  onAddBlockToAskChat,
   columnGap = '1.5rem',
   showColumnRule = false,
   columnRuleWidth = '0',
@@ -1141,7 +1176,7 @@ function BlockRegionRenderer({
   // IA-M2: precompute which indices are first/last non-structural blocks for move buttons
   const interactiveIndices = blocks
     .map((b, idx) => ({ b, idx }))
-    .filter(({ b }) => b.type !== 'col-start' && b.type !== 'col-end' && b.type !== 'hr');
+    .filter(({ b }) => b.type !== 'col-start' && b.type !== 'col-end' && b.type !== 'hr' && b.type !== 'page-header');
   const firstInteractiveIdx = interactiveIndices[0]?.idx ?? -1;
   const lastInteractiveIdx = interactiveIndices[interactiveIndices.length - 1]?.idx ?? -1;
 
@@ -1170,6 +1205,8 @@ function BlockRegionRenderer({
             onEdit={onEdit}
             onConfirm={onConfirm}
             onCancel={onCancel}
+            onAddBlockToEditChat={onAddBlockToEditChat}
+            onAddBlockToAskChat={onAddBlockToAskChat}
             onAddBlock={onAddBlock}
             onDeleteBlock={onDeleteBlock}
             onMoveBlock={onMoveBlock}
@@ -1207,6 +1244,8 @@ function BlockRegionRenderer({
           onEdit={onEdit}
           onConfirm={onConfirm}
           onCancel={onCancel}
+          onAddBlockToEditChat={onAddBlockToEditChat}
+          onAddBlockToAskChat={onAddBlockToAskChat}
           onAddBlock={onAddBlock}
           onDeleteBlock={onDeleteBlock}
           onMoveBlock={onMoveBlock}

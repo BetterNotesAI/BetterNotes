@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
 import { buildDocumentProjectContext } from '@/lib/usage-project';
-import { buildTitleFromLatex, buildTitleFromPrompt, isDefaultDocumentTitle } from '@/lib/document-title';
+import {
+  buildTitleFromLatex,
+  buildTitleFromPrompt,
+  isDefaultDocumentTitle,
+  isPromptDerivedDocumentTitle,
+} from '@/lib/document-title';
 import { decideDocumentGenerationIntent } from '@/lib/document-generation-intent';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -188,6 +193,7 @@ export async function POST(
         prompt: userPrompt,
         templateId: doc.template_id,
         files: validAttachments,
+        forceDocument: true,
       }),
     });
 
@@ -298,7 +304,9 @@ export async function POST(
     return NextResponse.json({ error: `Failed to save version: ${versionError?.message}` }, { status: 500 });
   }
 
-  const autoTitle = isDefaultDocumentTitle(doc.title)
+  const shouldReplaceAutoTitle =
+    isDefaultDocumentTitle(doc.title) || isPromptDerivedDocumentTitle(doc.title, userPrompt);
+  const autoTitle = shouldReplaceAutoTitle
     ? buildTitleFromLatex(latexSource) ?? buildTitleFromPrompt(userPrompt)
     : null;
 

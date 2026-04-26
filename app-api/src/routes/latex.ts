@@ -89,11 +89,12 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
   // On compile failure: attempts one AI fix + recompile.
   router.post('/generate-and-compile', async (req: Request, res: Response) => {
     try {
-      const { prompt, templateId, baseLatex, files } = req.body as {
+      const { prompt, templateId, baseLatex, files, forceDocument } = req.body as {
         prompt?: string;
         templateId?: string;
         baseLatex?: string;
         files?: AttachmentInput[];
+        forceDocument?: boolean;
       };
 
       if (!prompt || typeof prompt !== 'string') {
@@ -133,6 +134,7 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
         structureExample: template.structureExample,
         baseLatex: baseLatex ?? undefined,
         files: processedFiles,
+        forceDocument: Boolean(forceDocument),
       });
 
       // If AI responded with a chat message (not a document), return it immediately

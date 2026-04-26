@@ -252,7 +252,7 @@ export function Sidebar() {
   }, []);
 
   function loadFolders() {
-    fetch('/api/folders')
+    fetch('/api/folders', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : { folders: [] })
       .then(data => {
         const sorted: SidebarFolder[] = (data.folders ?? [])
@@ -266,9 +266,26 @@ export function Sidebar() {
   }
 
   useEffect(() => {
+    function handleFoldersUpdated(e: Event) {
+      const detail = (e as CustomEvent<{
+        folderId?: string;
+        updates?: Partial<SidebarFolder>;
+      }>).detail;
+
+      if (detail?.folderId && detail.updates) {
+        setFolders(prev => prev.map(folder => (
+          folder.id === detail.folderId
+            ? { ...folder, ...detail.updates }
+            : folder
+        )));
+      }
+
+      loadFolders();
+    }
+
     loadFolders();
-    window.addEventListener('folders:updated', loadFolders);
-    return () => window.removeEventListener('folders:updated', loadFolders);
+    window.addEventListener('folders:updated', handleFoldersUpdated);
+    return () => window.removeEventListener('folders:updated', handleFoldersUpdated);
   }, []);
 
   useEffect(() => {
@@ -419,7 +436,9 @@ export function Sidebar() {
     if (!res.ok) {
       setFolders(prev => prev.map(f => f.id === id ? { ...f, name: previous } : f));
     } else {
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId: id, updates: { name } },
+      }));
     }
   }
 
@@ -436,6 +455,10 @@ export function Sidebar() {
     });
     if (!res.ok) {
       setFolders(prev => prev.map(f => f.id === id ? { ...f, color: previous } : f));
+    } else {
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId: id, updates: { color } },
+      }));
     }
   }
 
@@ -498,7 +521,9 @@ export function Sidebar() {
       )));
     } else {
       loadFolders();
-      window.dispatchEvent(new Event('folders:updated'));
+      window.dispatchEvent(new CustomEvent('folders:updated', {
+        detail: { folderId: folder.id, updates: { is_starred: nextPinned } },
+      }));
     }
   }
 
@@ -663,10 +688,10 @@ export function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
 
-          {/* New Project CTA */}
+          {/* New Notebook CTA */}
           <button
             onClick={handleCreateProject}
-            title={collapsed ? 'New Project' : undefined}
+            title={collapsed ? 'New Notebook' : undefined}
             className={`w-full flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
               bg-gradient-to-r from-[#b04cff] via-[#7d5cff] to-[#3d7dff] hover:from-[#c06bff] hover:via-[#8a6fff] hover:to-[#5290ff]
               text-white shadow-[0_4px_14px_rgba(96,82,255,0.45)] hover:shadow-[0_6px_18px_rgba(85,116,255,0.52)] ${
@@ -674,7 +699,7 @@ export function Sidebar() {
             }`}
           >
             <PlusIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">New Project</span>}
+            {!collapsed && <span className="text-sm truncate">New Notebook</span>}
           </button>
 
           {/* Home */}
@@ -741,8 +766,8 @@ export function Sidebar() {
             </Link>
           </div>
 
-          {/* ── Projects section ── */}
-          <SectionDivider label="Projects" collapsed={collapsed} />
+          {/* ── Notebooks section ── */}
+          <SectionDivider label="Notebooks" collapsed={collapsed} />
 
           <PlaceholderNavItem
             href="/search"
@@ -751,11 +776,11 @@ export function Sidebar() {
             collapsed={collapsed}
           />
 
-          {/* All Projects */}
+          {/* All Notebooks */}
           {collapsed ? (
             <Link
               href="/documents"
-              title="All Projects"
+              title="All Notebooks"
               className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
                   ? activeNavClass
@@ -791,7 +816,7 @@ export function Sidebar() {
                   className="flex items-center gap-3 flex-1 min-w-0 text-left"
                 >
                   <DocumentsIcon className="w-4 h-4 shrink-0" />
-                  <span className="text-sm truncate">All Projects</span>
+                  <span className="text-sm truncate">All Notebooks</span>
                 </button>
                 <button
                   onClick={() => setDocsExpanded(e => !e)}

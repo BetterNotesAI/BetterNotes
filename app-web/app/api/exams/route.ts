@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: folderError.message }, { status: 500 });
     }
     if (!folder) {
-      return NextResponse.json({ error: 'Project folder not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
     }
 
     query = query.eq('folder_id', folderId);
