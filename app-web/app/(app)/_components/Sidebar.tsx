@@ -106,6 +106,8 @@ export function Sidebar() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [universityName, setUniversityName] = useState<string | null>(null);
+  const [profileYear, setProfileYear] = useState<number | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [recentsVisible, setRecentsVisible] = useState(true);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
@@ -185,6 +187,8 @@ export function Sidebar() {
           display_name?: string | null;
           username?: string | null;
           avatar_url?: string | null;
+          university?: string | null;
+          profile_year?: number | null;
         };
       } | null) => {
         if (ignore || !data?.profile) return;
@@ -192,6 +196,8 @@ export function Sidebar() {
         if (data.profile.display_name) setDisplayName(data.profile.display_name);
         if (data.profile.username) setUsername(data.profile.username);
         if (data.profile.avatar_url) setAvatarUrl(data.profile.avatar_url);
+        if (data.profile.university) setUniversityName(data.profile.university);
+        if (data.profile.profile_year) setProfileYear(data.profile.profile_year);
       })
       .catch(() => {});
 
@@ -996,7 +1002,16 @@ export function Sidebar() {
             }`}
           >
             <MyStudiesIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">My Studies</span>}
+            {!collapsed && (
+              <span className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm truncate">My Studies</span>
+                {universityName && (
+                  <span className="text-[10px] text-white/40 truncate max-w-[120px]">
+                    {universityName}{profileYear ? ` · Y${profileYear}` : ''}
+                  </span>
+                )}
+              </span>
+            )}
           </Link>
 
           {/* Templates */}
