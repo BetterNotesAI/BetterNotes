@@ -10,6 +10,7 @@ import {
 } from '@/lib/document-title';
 import { decideDocumentGenerationIntent } from '@/lib/document-generation-intent';
 import { dedupeFolderInputsByStoragePath } from '@/lib/folder-inputs';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -111,12 +112,13 @@ async function readSseEvents(
 async function compileWithRepair(
   latex: string,
   attachments: Array<Record<string, unknown>>,
+  templateId: string,
 ): Promise<{ pdfBuffer: ArrayBuffer; latex: string }> {
   async function compile(source: string) {
     const resp = await fetch(`${API_URL}/latex/compile-only`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latex: source, files: attachments }),
+      body: JSON.stringify({ latex: source, files: attachments, templateId }),
     });
 
     if (!resp.ok) {
@@ -171,7 +173,7 @@ export async function POST(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  if (doc.template_id !== 'clean_3cols_landscape') {
+  if (!supportsRealtimeGeneration(doc.template_id)) {
     return NextResponse.json({ error: 'streaming_generation_not_supported_for_template' }, { status: 400 });
   }
 
@@ -341,7 +343,7 @@ export async function POST(
         }
 
         send({ phase: 'compiling' });
-        const compiled = await compileWithRepair(finalLatex, validAttachments);
+        const compiled = await compileWithRepair(finalLatex, validAttachments, doc.template_id);
 
         const { data: lastVersion } = await supabase
           .from('document_versions')

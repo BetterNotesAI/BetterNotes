@@ -27,7 +27,7 @@ export async function POST(
   // Verify ownership
   const { data: doc } = await supabase
     .from('documents')
-    .select('id, folder_id')
+    .select('id, folder_id, template_id')
     .eq('id', documentId)
     .eq('user_id', user.id)
     .single();
@@ -74,7 +74,7 @@ export async function POST(
   const response = await fetch(`${apiUrl}/latex/compile-only`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latex, files: validAttachments }),
+    body: JSON.stringify({ latex, files: validAttachments, templateId: doc.template_id }),
   });
 
   if (!response.ok) {

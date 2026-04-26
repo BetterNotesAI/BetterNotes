@@ -17,6 +17,7 @@ import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
 import { buildExtendedLectureNotesProjectFiles } from '@/lib/extended-lecture-notes-project';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 import {
   consumePendingGenerationIntent,
   savePendingGenerationIntent,
@@ -521,7 +522,7 @@ export default function DocumentWorkspacePage() {
 
     if (isDraft) {
       // First generation
-      if (docData.template_id === 'clean_3cols_landscape') {
+      if (supportsRealtimeGeneration(docData.template_id)) {
         setViewerTab('interactive');
         setMobileTab('pdf');
       }
@@ -1215,7 +1216,6 @@ export default function DocumentWorkspacePage() {
                         <button
                           key={v.id}
                           onClick={() => {
-                            // Clear local overrides so the PDF viewer picks up the new signed URL
                             setCurrentPdfUrl(null);
                             setPendingApplyLatex(null);
                             setStreamingDocumentEditLatex(null);

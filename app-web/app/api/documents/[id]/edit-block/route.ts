@@ -148,7 +148,7 @@ export async function POST(
           'Content-Type': 'application/json',
           ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
         },
-        body: JSON.stringify({ latex: newFullLatex }),
+        body: JSON.stringify({ latex: newFullLatex, templateId: doc.template_id }),
       });
 
       if (!compileResp.ok) {
