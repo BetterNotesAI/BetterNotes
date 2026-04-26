@@ -220,13 +220,19 @@ export default function SupportPage() {
               href="/support/privacy-policy"
               className="px-3 py-2 text-sm rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/35 transition-colors"
             >
-              Política de privacidad
+              Privacy Policy
             </Link>
             <Link
               href="/support/terms-of-use"
               className="px-3 py-2 text-sm rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/35 transition-colors"
             >
-              Términos de uso
+              Terms of Use
+            </Link>
+            <Link
+              href="/support/cookie-policy"
+              className="px-3 py-2 text-sm rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/35 transition-colors"
+            >
+              Cookie Policy
             </Link>
           </div>
         </section>

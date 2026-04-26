@@ -1,7 +1,46 @@
 # Tasks — BetterNotes
 
-_Última actualización: 2026-04-15 — Roadmap ampliado con visión estratégica de producto. Fase 5 expandida (catálogo de cursos, búsqueda semántica, reputación, fork/remix). Fases 8-10 añadidas (retención, colaboración, institucional). Ver STATUS.md para contexto estratégico completo._
-_Reestructuración completa del plan de producto tras revisión del nuevo documento de visión._
+_Última actualización: 2026-04-26 — Legal pages (Terms of Use, Privacy Policy, Cookie Policy) publicadas con contenido completo. Pendientes legales identificados y añadidos abajo._
+_Roadmap ampliado con visión estratégica de producto. Fase 5 expandida (catálogo de cursos, búsqueda semántica, reputación, fork/remix). Fases 8-10 añadidas (retención, colaboración, institucional). Ver STATUS.md para contexto estratégico completo._
+
+---
+
+## Legal — Pendientes a completar
+
+> Todos los `[PENDING TO COMPLETE]` identificados en los PDFs legales (Terms of Use, Privacy Policy, Cookie Policy). Bloqueados hasta que se tenga la información societaria definitiva (CIF, domicilio) o se tome la decisión de producto correspondiente.
+
+### Información societaria (bloquea los 3 documentos)
+
+- [ ] **Last updated** — fecha de las tres políticas (Terms, Privacy, Cookie)
+- [ ] **Tax ID / CIF** — CIF de BETTERNOTES SL (aparece en los 3 docs)
+- [ ] **Registered address** — domicilio social registrado (aparece en los 3 docs)
+- [ ] **Contact email** — email general de contacto (aparece en los 3 docs)
+- [ ] **Privacy email** — email específico de privacidad/DPO (aparece en los 3 docs)
+
+### Terms of Use — pendientes específicos
+
+- [ ] **Section 3 — Minimum user age** — decidir y confirmar la edad mínima (Privacy Policy dice 14 per LOPDGDD; confirmar consistencia)
+- [ ] **Section 12 — Default publication setting** — documentar si el contenido se crea privado o público por defecto
+- [ ] **Section 15 — Current plan/pricing page URL** — añadir URL de la página de precios una vez publicada
+- [ ] **Section 17 — Right of Withdrawal** — completar con texto definitivo una vez diseñado el checkout/subscription flow (actualmente placeholder)
+
+### Privacy Policy — pendientes específicos
+
+- [ ] **Section 12 — Specific retention periods** — definir periodos de retención concretos por tipo de dato (ej. logs: 90 días, billing: 7 años por Hacienda, etc.)
+- [ ] **Section 18 — Default privacy setting for user content** — confirmar y documentar si el contenido de usuario es privado por defecto
+
+### Cookie Policy — pendientes específicos
+
+- [ ] **Section 7.1 — Cookie Settings tool** — implementar el banner/herramienta de gestión de cookies y añadir el link aquí
+- [ ] **Section 9 — Real cookie inventory** — auditar las cookies reales del sitio en producción y actualizar la tabla (actualmente hay 4 cookies de plantilla: sb-access-token, _vercel_jwt, __stripe_mid, _ga)
+- [ ] **Section 10 — Current third-party providers list** — listar los proveedores de cookies de terceros reales que se usen
+
+### Infraestructura legal pendiente
+
+- [ ] **Cookie banner / consent layer** — implementar el componente de consentimiento de cookies (requisito LSSI Art. 22.2) antes de activar cualquier cookie no esencial (analytics, etc.)
+- [ ] **AEPD registration** — evaluar si BETTERNOTES SL debe inscribirse en el Registro de Actividades de Tratamiento (RAT) según RGPD Art. 30
+
+---
 
 ---
 
