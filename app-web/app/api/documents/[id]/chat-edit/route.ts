@@ -5,7 +5,7 @@
  * Calls app-api /latex/edit-document and handles both response types:
  *
  * - type === 'edit':
- *     Does NOT compile (user may discard).
+ *     Validates the generated LaTeX and attempts one repair if compilation fails.
  *     Saves an assistant message in chat_messages with the summary.
  *     Returns { type: 'edit', modifiedLatex, summary }.
  *
@@ -23,6 +23,86 @@ import { buildDocumentProjectContext } from '@/lib/usage-project';
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
+
+function decodeLatexHeader(response: Response, fallback: string): string {
+  const latexB64 = response.headers.get('x-betternotes-latex') ?? '';
+  return latexB64 ? Buffer.from(latexB64, 'base64').toString('utf8') : fallback;
+}
+
+async function compileLatexForPreview(latex: string): Promise<
+  | { ok: true; latex: string }
+  | { ok: false; error: string; compileLog?: string }
+> {
+  const validateResp = await fetch(`${API_URL}/latex/compile-only`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
+    },
+    body: JSON.stringify({ latex }),
+  });
+
+  if (validateResp.ok) {
+    return { ok: true, latex: decodeLatexHeader(validateResp, latex) };
+  }
+
+  const errBody = await validateResp.json().catch(() => ({}));
+  return {
+    ok: false,
+    error: typeof errBody?.error === 'string' ? errBody.error : 'Compilation failed',
+    compileLog: typeof errBody?.compileLog === 'string' ? errBody.compileLog : undefined,
+  };
+}
+
+async function validateLatexWithRepair(latex: string): Promise<
+  | { ok: true; latex: string; repaired: boolean }
+  | { ok: false; error: string; compileLog?: string }
+> {
+  const firstAttempt = await compileLatexForPreview(latex);
+  if (firstAttempt.ok) {
+    return { ok: true, latex: firstAttempt.latex, repaired: false };
+  }
+
+  const fixResp = await fetch(`${API_URL}/latex/fix-latex`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
+    },
+    body: JSON.stringify({ latex, log: firstAttempt.compileLog ?? firstAttempt.error }),
+  });
+
+  if (!fixResp.ok) {
+    return firstAttempt;
+  }
+
+  const fixBody = await fixResp.json().catch(() => ({}));
+  const fixedLatex = typeof fixBody?.fixedLatex === 'string' ? fixBody.fixedLatex : '';
+  if (!fixedLatex.trim()) {
+    return firstAttempt;
+  }
+
+  const repairAttempt = await compileLatexForPreview(fixedLatex);
+  if (repairAttempt.ok) {
+    return { ok: true, latex: repairAttempt.latex, repaired: true };
+  }
+
+  return repairAttempt;
+}
+
+async function saveAssistantMessage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  documentId: string,
+  userId: string,
+  content: string
+): Promise<void> {
+  await supabase.from('chat_messages').insert({
+    document_id: documentId,
+    user_id: userId,
+    role: 'assistant',
+    content,
+  });
+}
 
 export async function POST(
   req: NextRequest,
@@ -89,12 +169,15 @@ export async function POST(
   }
 
   // Save user message first (both paths need this)
-  await supabase.from('chat_messages').insert({
+  const { error: userMessageError } = await supabase.from('chat_messages').insert({
     document_id: documentId,
     user_id: user.id,
     role: 'user',
     content: prompt,
   });
+  if (userMessageError) {
+    return NextResponse.json({ error: userMessageError.message }, { status: 500 });
+  }
 
   // Call app-api /latex/edit-document
   let apiResult: { type: string; latex?: string; summary?: string; content?: string };
@@ -111,16 +194,28 @@ export async function POST(
 
     if (!apiResp.ok) {
       const errBody = await apiResp.json().catch(() => ({ error: 'API error' }));
+      await saveAssistantMessage(
+        supabase,
+        documentId,
+        user.id,
+        `I couldn't edit the document: ${errBody?.error ?? 'AI edit failed'}`
+      );
       return NextResponse.json(
-        { error: errBody?.error ?? 'AI edit failed' },
+        { error: errBody?.error ?? 'AI edit failed', userMessageSaved: true },
         { status: apiResp.status >= 500 ? 502 : apiResp.status }
       );
     }
 
     apiResult = await apiResp.json();
   } catch (fetchErr: any) {
+    await saveAssistantMessage(
+      supabase,
+      documentId,
+      user.id,
+      `I couldn't reach the AI service: ${fetchErr.message}`
+    );
     return NextResponse.json(
-      { error: `Failed to reach app-api: ${fetchErr.message}` },
+      { error: `Failed to reach app-api: ${fetchErr.message}`, userMessageSaved: true },
       { status: 502 }
     );
   }
@@ -131,36 +226,32 @@ export async function POST(
       ? apiResult.summary
       : 'Document updated';
 
-    // IA-M1: Pre-validate the AI-generated LaTeX by attempting a compile before showing
-    // the preview to the user. If compilation fails, return an error instead of presenting
-    // broken LaTeX. This prevents the "Apply" step from failing with a bad document.
+    // Pre-validate the AI-generated LaTeX before showing the preview. If the first
+    // compile fails, ask app-api to repair the document once and validate again.
+    let modifiedLatex = apiResult.latex;
+    let repairedLatex = false;
     try {
-      const validateResp = await fetch(`${API_URL}/latex/compile-only`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
-        },
-        body: JSON.stringify({ latex: apiResult.latex }),
-      });
+      const validation = await validateLatexWithRepair(apiResult.latex);
 
-      if (!validateResp.ok) {
-        const errBody = await validateResp.json().catch(() => ({}));
-        // Save user message was already saved above; save a system error note
-        await supabase.from('chat_messages').insert({
-          document_id: documentId,
-          user_id: user.id,
-          role: 'assistant',
-          content: `[AI edit rejected — LaTeX failed to compile: ${errBody?.error ?? 'compile error'}]`,
-        });
+      if (!validation.ok) {
+        await saveAssistantMessage(
+          supabase,
+          documentId,
+          user.id,
+          'I could not apply that edit because the generated LaTeX failed to compile, and the automatic repair also failed.'
+        );
         return NextResponse.json(
           {
-            error: `AI generated invalid LaTeX that failed to compile. Try rephrasing your request.`,
-            compileLog: errBody?.compileLog,
+            error: 'AI generated invalid LaTeX that failed to compile, and automatic repair failed. Try a smaller or more specific edit.',
+            compileLog: validation.compileLog,
+            userMessageSaved: true,
           },
           { status: 422 }
         );
       }
+
+      modifiedLatex = validation.latex;
+      repairedLatex = validation.repaired;
     } catch (validateErr: any) {
       // Validation unreachable — skip validation and allow the preview (best-effort)
       console.warn('[chat-edit] LaTeX pre-validation unavailable:', validateErr.message);
@@ -171,12 +262,12 @@ export async function POST(
       document_id: documentId,
       user_id: user.id,
       role: 'assistant',
-      content: summary,
+      content: repairedLatex ? `${summary} The LaTeX was repaired automatically before preview.` : summary,
     });
 
     return NextResponse.json({
       type: 'edit',
-      modifiedLatex: apiResult.latex,
+      modifiedLatex,
       summary,
     });
   }

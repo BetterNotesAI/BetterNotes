@@ -5,6 +5,7 @@ import {
   MAX_PROJECT_TOTAL_UPLOAD_BYTES,
   MAX_PROJECT_TOTAL_UPLOAD_MB,
 } from '@/lib/upload-limits';
+import { dedupeFolderInputsByStoragePath } from '@/lib/folder-inputs';
 
 function isMissingRelationError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -54,7 +55,7 @@ export async function GET(
 
   const { data: inputs, error } = await supabase
     .from('folder_inputs')
-    .select('id, name, mime_type, size_bytes, created_at')
+    .select('id, folder_id, name, storage_path, mime_type, size_bytes, created_at')
     .eq('folder_id', folderId)
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
@@ -67,7 +68,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    inputs: (inputs ?? []).map((input) => ({
+    inputs: dedupeFolderInputsByStoragePath(inputs ?? []).map((input) => ({
       id: input.id,
       name: input.name,
       mimeType: input.mime_type,
@@ -126,7 +127,7 @@ export async function POST(
 
   const { data: existingSizes, error: sizesError } = await supabase
     .from('folder_inputs')
-    .select('size_bytes')
+    .select('id, folder_id, name, storage_path, mime_type, size_bytes, created_at')
     .eq('folder_id', folderId)
     .eq('user_id', user.id);
 
@@ -137,7 +138,24 @@ export async function POST(
     return NextResponse.json({ error: sizesError.message }, { status: 500 });
   }
 
-  const currentTotalBytes = (existingSizes ?? []).reduce(
+  const uniqueExistingInputs = dedupeFolderInputsByStoragePath(existingSizes ?? []);
+  const existingInput = uniqueExistingInputs.find((input) => input.storage_path?.trim() === storagePath.trim());
+  if (existingInput) {
+    return NextResponse.json(
+      {
+        input: {
+          id: existingInput.id,
+          name: existingInput.name,
+          mimeType: existingInput.mime_type,
+          sizeBytes: existingInput.size_bytes,
+          createdAt: existingInput.created_at,
+        },
+      },
+      { status: 200 }
+    );
+  }
+
+  const currentTotalBytes = uniqueExistingInputs.reduce(
     (acc, row) => acc + (typeof row.size_bytes === 'number' ? row.size_bytes : 0),
     0
   );
@@ -163,6 +181,31 @@ export async function POST(
     .single();
 
   if (insertError || !input) {
+    if (insertError?.code === '23505') {
+      const { data: existingInputAfterConflict } = await supabase
+        .from('folder_inputs')
+        .select('id, name, mime_type, size_bytes, created_at')
+        .eq('folder_id', folderId)
+        .eq('user_id', user.id)
+        .eq('storage_path', storagePath.trim())
+        .maybeSingle();
+
+      if (existingInputAfterConflict) {
+        return NextResponse.json(
+          {
+            input: {
+              id: existingInputAfterConflict.id,
+              name: existingInputAfterConflict.name,
+              mimeType: existingInputAfterConflict.mime_type,
+              sizeBytes: existingInputAfterConflict.size_bytes,
+              createdAt: existingInputAfterConflict.created_at,
+            },
+          },
+          { status: 200 }
+        );
+      }
+    }
+
     return NextResponse.json(
       { error: insertError?.message ?? 'Insert failed' },
       { status: 500 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type Ref } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -17,14 +17,69 @@ interface PdfViewerProps {
   currentPage: number;
   onTotalPages: (total: number) => void;
   viewportRef?: Ref<HTMLDivElement>;
+  onAddSelectionToEditChat?: (selectedText: string) => void;
+  onAddSelectionToAskChat?: (selectedText: string) => void;
 }
 
 const PHASES = ['Generating LaTeX', 'Compiling PDF'] as const;
+const TEXT_LAYER_CANCELLED = 'AbortException: TextLayer task cancelled';
+
+let textLayerWarningFilterInstallCount = 0;
+let restoreConsoleErrorForTextLayer: (() => void) | null = null;
+
+interface PdfSelectionMenuState {
+  x: number;
+  y: number;
+  selectedText: string;
+}
 
 function getActivePhase(label: string | undefined): number {
   if (!label) return 0;
   if (label.includes('Compiling') || label.includes('Finalizing')) return 1;
   return 0;
+}
+
+function normalizeSelectedPdfText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function isTextLayerCancellation(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value.includes(TEXT_LAYER_CANCELLED);
+  }
+  if (value && typeof value === 'object') {
+    const maybe = value as { name?: unknown; message?: unknown; toString?: () => string };
+    const name = typeof maybe.name === 'string' ? maybe.name : '';
+    const message = typeof maybe.message === 'string' ? maybe.message : '';
+    const stringValue = typeof maybe.toString === 'function' ? maybe.toString() : '';
+    return (
+      (name === 'AbortException' && message.includes('TextLayer task cancelled')) ||
+      stringValue.includes(TEXT_LAYER_CANCELLED)
+    );
+  }
+  return false;
+}
+
+function installTextLayerWarningFilter(): () => void {
+  textLayerWarningFilterInstallCount += 1;
+  if (textLayerWarningFilterInstallCount === 1) {
+    const originalConsoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      if (args.some(isTextLayerCancellation)) return;
+      originalConsoleError(...args);
+    };
+    restoreConsoleErrorForTextLayer = () => {
+      console.error = originalConsoleError;
+    };
+  }
+
+  return () => {
+    textLayerWarningFilterInstallCount = Math.max(0, textLayerWarningFilterInstallCount - 1);
+    if (textLayerWarningFilterInstallCount === 0) {
+      restoreConsoleErrorForTextLayer?.();
+      restoreConsoleErrorForTextLayer = null;
+    }
+  };
 }
 
 export function PdfViewer({
@@ -37,10 +92,24 @@ export function PdfViewer({
   currentPage,
   onTotalPages,
   viewportRef,
+  onAddSelectionToEditChat,
+  onAddSelectionToAskChat,
 }: PdfViewerProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
+  const [selectionMenu, setSelectionMenu] = useState<PdfSelectionMenuState | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const setViewportNode = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    if (!viewportRef) return;
+    if (typeof viewportRef === 'function') {
+      viewportRef(node);
+    } else {
+      (viewportRef as MutableRefObject<HTMLDivElement | null>).current = node;
+    }
+  }, [viewportRef]);
 
   // Fetch PDF and create object URL to avoid CORS/redirect issues with signed URLs
   useEffect(() => {
@@ -100,6 +169,89 @@ export function PdfViewer({
     onTotalPages(n);
   }
 
+  const selectionHasChatActions = Boolean(onAddSelectionToEditChat || onAddSelectionToAskChat);
+
+  useEffect(() => installTextLayerWarningFilter(), []);
+
+  const isSelectionInsideViewer = useCallback((range: Range) => {
+    const container = containerRef.current;
+    if (!container) return false;
+
+    const startEl = range.startContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.startContainer as Element)
+      : range.startContainer.parentElement;
+    const endEl = range.endContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.endContainer as Element)
+      : range.endContainer.parentElement;
+
+    return Boolean(startEl && endEl && container.contains(startEl) && container.contains(endEl));
+  }, []);
+
+  const showSelectionActions = useCallback(() => {
+    if (!selectionHasChatActions) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      setSelectionMenu(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!isSelectionInsideViewer(range)) {
+      setSelectionMenu(null);
+      return;
+    }
+
+    const selectedText = normalizeSelectedPdfText(selection.toString());
+    if (!selectedText) {
+      setSelectionMenu(null);
+      return;
+    }
+
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      setSelectionMenu(null);
+      return;
+    }
+
+    setSelectionMenu({
+      x: Math.min(rect.right + 8, window.innerWidth - 12),
+      y: Math.max(rect.top - 8, 12),
+      selectedText,
+    });
+  }, [isSelectionInsideViewer, selectionHasChatActions]);
+
+  const handleSelectionEnd = useCallback(() => {
+    requestAnimationFrame(showSelectionActions);
+  }, [showSelectionActions]);
+
+  useEffect(() => {
+    if (!selectionHasChatActions) return;
+
+    function handleSelectionChange() {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) setSelectionMenu(null);
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSelectionMenu(null);
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectionHasChatActions]);
+
+  function handleMenuMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+  }
+
+  const ignoreExpectedTextLayerCancellation = useCallback((error: Error) => {
+    if (isTextLayerCancellation(error)) return;
+  }, []);
+
   const visualScale = Math.max(0.1, (visualZoom ?? zoom) / zoom);
 
   // Loading state
@@ -153,7 +305,13 @@ export function PdfViewer({
   }
 
   return (
-    <div ref={viewportRef} className="flex-1 min-h-0 overflow-auto overscroll-contain bg-transparent">
+    <div
+      ref={setViewportNode}
+      onMouseUp={handleSelectionEnd}
+      onTouchEnd={handleSelectionEnd}
+      onScroll={() => setSelectionMenu(null)}
+      className="flex-1 min-h-0 overflow-auto overscroll-contain bg-transparent"
+    >
       {objectUrl && (
         <div
           className="w-max min-w-full mx-auto px-4 py-6"
@@ -191,7 +349,9 @@ export function PdfViewer({
                   scale={zoom / 100}
                   className="shadow-[0_4px_32px_rgba(0,0,0,0.6)]"
                   renderAnnotationLayer={false}
-                  renderTextLayer={false}
+                  renderTextLayer
+                  onGetTextError={ignoreExpectedTextLayerCancellation}
+                  onRenderTextLayerError={ignoreExpectedTextLayerCancellation}
                 />
               </div>
             ))}
@@ -203,6 +363,43 @@ export function PdfViewer({
       {url && !objectUrl && (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-6 h-6 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {selectionMenu && selectionHasChatActions && (
+        <div
+          style={{ position: 'fixed', left: selectionMenu.x, top: selectionMenu.y, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[160px]"
+          onMouseDown={handleMenuMouseDown}
+        >
+          {onAddSelectionToEditChat && (
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+              onClick={() => {
+                onAddSelectionToEditChat(selectionMenu.selectedText);
+                setSelectionMenu(null);
+              }}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h2M5 19h14a2 2 0 002-2V9.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 0015.586 4H5a2 2 0 00-2 2v11a2 2 0 002 2zm8-9l-5 5m0 0H8m0 0v-3" />
+              </svg>
+              Add to Edit chat
+            </button>
+          )}
+          {onAddSelectionToAskChat && (
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 flex items-center gap-2 transition-colors"
+              onClick={() => {
+                onAddSelectionToAskChat(selectionMenu.selectedText);
+                setSelectionMenu(null);
+              }}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              Add to Ask chat
+            </button>
+          )}
         </div>
       )}
     </div>

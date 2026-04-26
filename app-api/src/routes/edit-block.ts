@@ -13,6 +13,7 @@
 
 import { Router, Request, Response } from 'express';
 import { AIProvider, ConversationTurn } from '../lib/ai/types';
+import { normalizeMarkdownInlineMarkup } from '../lib/latex';
 
 export interface EditBlockRouterOptions {
   aiProvider: AIProvider;
@@ -71,7 +72,7 @@ export function createEditBlockRouter(opts: EditBlockRouterOptions): Router {
         conversationHistory,
       });
 
-      res.json({ ok: true, modifiedLatex });
+      res.json({ ok: true, modifiedLatex: normalizeMarkdownInlineMarkup(modifiedLatex) });
     } catch (err: any) {
       const status = err?.statusCode ?? err?.status ?? 500;
       res.status(status).json({

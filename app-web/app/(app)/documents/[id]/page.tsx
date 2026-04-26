@@ -22,7 +22,7 @@ import {
   savePendingGenerationIntent,
 } from '@/lib/pending-generation-intent';
 import LatexViewer, { type BlockReference } from '@/components/viewer/LatexViewer';
-import { PublishModal } from '../_components/PublishModal';
+import { PublishModal, type PublishModalData } from '../_components/PublishModal';
 
 type ViewerTab = 'interactive' | 'pdf' | 'latex' | 'split';
 
@@ -149,24 +149,12 @@ export default function DocumentWorkspacePage() {
   // F3-M5.3: "Saved X ago" — timestamp set after onApplyPersisted fires
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [savedAgoLabel, setSavedAgoLabel] = useState<string | null>(null);
-  // Document-level AI edit preview (Flujo C)
-  const [pendingDocumentEdit, setPendingDocumentEdit] = useState<string | null>(null);
   // IA-M2: block mutation in progress (compile + persist)
   const [isBlockMutating, setIsBlockMutating] = useState(false);
 
   // F3-M5.2: Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [publishData, setPublishData] = useState<{
-    is_published: boolean;
-    university?: string | null;
-    degree?: string | null;
-    subject?: string | null;
-    visibility?: string;
-    keywords?: string[];
-    university_id?: string | null;
-    program_id?: string | null;
-    course_id?: string | null;
-  } | undefined>(undefined);
+  const [publishData, setPublishData] = useState<PublishModalData | undefined>(undefined);
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc?.get('history') === '1');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -211,6 +199,7 @@ export default function DocumentWorkspacePage() {
 
   // --- Task 6: editable LaTeX state ---
   const [editedLatex, setEditedLatex] = useState<string>('');
+  const [streamingDocumentEditLatex, setStreamingDocumentEditLatex] = useState<string | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
 
@@ -230,6 +219,7 @@ export default function DocumentWorkspacePage() {
     currentTemplateId === 'classic_lecture_notes';
   const chatLeftLayout = isCheatSheetWorkspace || isCheatSheetTemplate || isLectureNotesTemplate;
   const transparentInteractiveBackground = isCheatSheetWorkspace || isCheatSheetTemplate;
+  const viewerLatexContent = streamingDocumentEditLatex ?? latexContent;
 
   // --- Task 5: resizable split ---
   const [splitRatio, setSplitRatio] = useState(0.5);
@@ -372,6 +362,7 @@ export default function DocumentWorkspacePage() {
 
   // Use the PDF URL from workspace or the one updated by chat
   const activePdfUrl = currentPdfUrl ?? pdfSignedUrl;
+  const hasCompilableLatex = editedLatex.trim().length > 0;
 
   const handleNewVersion = useCallback((data: {
     versionId: string;
@@ -513,6 +504,10 @@ export default function DocumentWorkspacePage() {
 
     if (isDraft) {
       // First generation
+      if (docData.template_id === 'clean_3cols_landscape') {
+        setViewerTab('interactive');
+        setMobileTab('pdf');
+      }
       const optimisticId = `draft-temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setOptimisticDraftMessages((prev) => [
         ...prev,
@@ -588,31 +583,53 @@ export default function DocumentWorkspacePage() {
 
   // ── Document-level edit handlers (Flujo C) ──────────────────────────────
 
-  const handleDocumentEditPreview = useCallback((modifiedLatex: string) => {
-    setPendingDocumentEdit(modifiedLatex);
-  }, []);
-
-  const handleDiscardDocumentEdit = useCallback(() => {
-    setPendingDocumentEdit(null);
-  }, []);
-
   const handleApplyDocumentEdit = useCallback(async (modifiedLatex: string) => {
-    const res = await fetch(`/api/documents/${documentId}/compile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latex: modifiedLatex }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data?.error ?? 'Compilation failed');
+    setStreamingDocumentEditLatex(modifiedLatex);
+    let applied = false;
+    try {
+      const res = await fetch(`/api/documents/${documentId}/compile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latex: modifiedLatex }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? 'Compilation failed');
+      }
+      const { pdfUrl } = await res.json();
+      await reloadDocument();
+      if (pdfUrl) setCurrentPdfUrl(pdfUrl);
+      setCurrentPage(1);
+      setLastSavedAt(new Date());
+      applied = true;
+    } finally {
+      if (applied) {
+        setStreamingDocumentEditLatex(null);
+      }
     }
-    const { pdfUrl } = await res.json();
-    await reloadDocument();
-    if (pdfUrl) setCurrentPdfUrl(pdfUrl);
-    setCurrentPage(1);
-    setPendingDocumentEdit(null);
-    setLastSavedAt(new Date());
   }, [documentId, reloadDocument]);
+
+  const handleAddSelectionToEditChat = useCallback((selectedText: string) => {
+    const trimmed = selectedText.trim();
+    if (!trimmed) return;
+    contextSelectionCounterRef.current += 1;
+    setChatTab('edit');
+    setBlockReference(null);
+    setChatPrefill(`__ref${contextSelectionCounterRef.current}__${trimmed.slice(0, 220)}`);
+    setMobileTab('chat');
+  }, []);
+
+  const handleAddSelectionToAskChat = useCallback((selectedText: string) => {
+    const trimmed = selectedText.trim();
+    if (!trimmed) return;
+    contextSelectionCounterRef.current += 1;
+    setChatTab('qa');
+    setQaQueuedContextSelection({
+      token: contextSelectionCounterRef.current,
+      text: trimmed,
+    });
+    setMobileTab('chat');
+  }, []);
 
   /**
    * IA-M2: handle structural block mutations (add, delete, reorder).
@@ -682,7 +699,7 @@ export default function DocumentWorkspacePage() {
   const templateLabel = TEMPLATE_LABELS[docData.template_id] ?? docData.template_id;
   const showInteractiveBuildPreview =
     viewerTab === 'interactive' &&
-    !latexContent &&
+    !viewerLatexContent &&
     showGenerating;
   const loadingLabel = DOCUMENT_LOADING_PHASES[loadingPhaseIndex] ?? DOCUMENT_LOADING_PHASES[0];
   const previewGenerationPhase = generationPhase ?? (loadingPhaseIndex > 0 ? 'compiling' : 'calling_ai');
@@ -899,8 +916,8 @@ export default function DocumentWorkspacePage() {
 
           {/* Tab + controls bar */}
           <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10 shrink-0">
-            {/* Viewer tabs — Interactive shown only when latexContent exists */}
-            {latexContent && (
+            {/* Viewer tabs — Interactive shown only when LaTeX content exists */}
+            {viewerLatexContent && (
               <button
                 onClick={() => setViewerTab('interactive')}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
@@ -987,11 +1004,11 @@ export default function DocumentWorkspacePage() {
               </>
             )}
 
-            {/* Compile button — visible when LaTeX pane is visible */}
-            {viewerTab !== 'pdf' && (
+            {/* Compile button */}
+            {hasCompilableLatex && (
               <button
                 onClick={handleCompile}
-                disabled={isCompiling}
+                disabled={isCompiling || showGenerating || !hasCompilableLatex}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 hover:bg-indigo-500/30 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 {isCompiling ? (
@@ -1015,7 +1032,7 @@ export default function DocumentWorkspacePage() {
           <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden relative transition-opacity duration-150">
 
             {/* F3-M5.3: Skeleton loader — shown while document is loading in interactive tab */}
-            {viewerTab === 'interactive' && isLoading && !latexContent && !showInteractiveBuildPreview && (
+            {viewerTab === 'interactive' && isLoading && !viewerLatexContent && !showInteractiveBuildPreview && (
               <div className={`flex-1 flex flex-col min-h-0 min-w-0 overflow-auto p-6 space-y-4 animate-pulse ${transparentInteractiveBackground ? 'bg-transparent' : 'bg-white'}`}>
                 <div className="h-6 bg-gray-200 rounded w-2/3" />
                 <div className="h-4 bg-gray-100 rounded w-full" />
@@ -1038,7 +1055,7 @@ export default function DocumentWorkspacePage() {
             )}
 
             {/* Interactive viewer (F3-M2.6) */}
-            {viewerTab === 'interactive' && latexContent && (
+            {viewerTab === 'interactive' && viewerLatexContent && (
               <div className="relative flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-transparent transition-opacity duration-200">
                 {isBlockMutating && (
                   <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
@@ -1046,7 +1063,7 @@ export default function DocumentWorkspacePage() {
                   </div>
                 )}
                 <LatexViewer
-                  latexSource={latexContent}
+                  latexSource={viewerLatexContent}
                   templateId={docData.template_id}
                   onReferenceInChat={(ref) => {
                     setChatTab('edit');
@@ -1056,31 +1073,12 @@ export default function DocumentWorkspacePage() {
                     setChatPrefill(`__ref${chatPrefillCounterRef.current}__${ref.latex_source.slice(0, 120)}`);
                     setMobileTab('chat');
                   }}
-                  onAddSelectionToEditChat={(selectedText) => {
-                    const trimmed = selectedText.trim();
-                    if (!trimmed) return;
-                    contextSelectionCounterRef.current += 1;
-                    setChatTab('edit');
-                    setBlockReference(null);
-                    setChatPrefill(`__ref${contextSelectionCounterRef.current}__${trimmed.slice(0, 220)}`);
-                    setMobileTab('chat');
-                  }}
-                  onAddSelectionToAskChat={(selectedText) => {
-                    const trimmed = selectedText.trim();
-                    if (!trimmed) return;
-                    contextSelectionCounterRef.current += 1;
-                    setChatTab('qa');
-                    setQaQueuedContextSelection({
-                      token: contextSelectionCounterRef.current,
-                      text: trimmed,
-                    });
-                    setMobileTab('chat');
-                  }}
+                  onAddSelectionToEditChat={handleAddSelectionToEditChat}
+                  onAddSelectionToAskChat={handleAddSelectionToAskChat}
                   applyBlockEdit={applyBlockEdit}
                   onLatexChange={(newLatex) => {
                     setPendingApplyLatex(newLatex);
                   }}
-                  pendingDocumentEdit={pendingDocumentEdit}
                   onBlockMutation={handleBlockMutation}
                 />
               </div>
@@ -1101,6 +1099,8 @@ export default function DocumentWorkspacePage() {
                   zoom={zoom}
                   currentPage={currentPage}
                   onTotalPages={setTotalPages}
+                  onAddSelectionToEditChat={handleAddSelectionToEditChat}
+                  onAddSelectionToAskChat={handleAddSelectionToAskChat}
                 />
               </div>
             )}
@@ -1138,7 +1138,7 @@ export default function DocumentWorkspacePage() {
             )}
 
             {/* Fallback: draft with no content yet */}
-            {viewerTab === 'interactive' && !latexContent && !showInteractiveBuildPreview && (
+            {viewerTab === 'interactive' && !viewerLatexContent && !showInteractiveBuildPreview && (
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 <PdfViewer
                   url={activePdfUrl}
@@ -1148,6 +1148,8 @@ export default function DocumentWorkspacePage() {
                   zoom={zoom}
                   currentPage={currentPage}
                   onTotalPages={setTotalPages}
+                  onAddSelectionToEditChat={handleAddSelectionToEditChat}
+                  onAddSelectionToAskChat={handleAddSelectionToAskChat}
                 />
               </div>
             )}
@@ -1283,7 +1285,8 @@ export default function DocumentWorkspacePage() {
                     blockReference={blockReference}
                     onClearBlockReference={() => setBlockReference(null)}
                     documentId={documentId}
-                    latexSource={latexContent ?? ''}
+                    latexSource={viewerLatexContent ?? ''}
+                    templateId={currentTemplateId}
                     onApplyBlockEdit={(blockId, newBlockLatex) => {
                       chatPrefillCounterRef.current += 1;
                       setApplyBlockEdit({ blockId, newBlockLatex, token: chatPrefillCounterRef.current });
@@ -1293,9 +1296,10 @@ export default function DocumentWorkspacePage() {
                       setLastSavedAt(new Date());
                     }}
                     pendingApplyLatex={pendingApplyLatex}
-                    onDocumentEditPreview={handleDocumentEditPreview}
+                    onReloadMessages={reloadMessages}
                     onApplyDocumentEdit={handleApplyDocumentEdit}
-                    onDiscardDocumentEdit={handleDiscardDocumentEdit}
+                    onPreviewDocumentEdit={setStreamingDocumentEditLatex}
+                    onClearDocumentEditPreview={() => setStreamingDocumentEditLatex(null)}
                   />
                 ) : (
                   <DocumentQaInlineChat
@@ -1371,8 +1375,12 @@ export default function DocumentWorkspacePage() {
           isOpen={showPublishModal}
           initialData={publishData}
           onClose={() => setShowPublishModal(false)}
-          onSuccess={(published) => {
-            setPublishData((prev) => (prev ? { ...prev, is_published: published } : prev));
+          onSuccess={(published, nextPublishData) => {
+            setPublishData((prev) => ({
+              ...(prev ?? { is_published: published }),
+              ...(nextPublishData ?? {}),
+              is_published: published,
+            }));
             reloadDocument();
           }}
         />

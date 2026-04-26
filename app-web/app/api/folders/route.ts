@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
+import { dedupeUploadsByStoragePath } from '@/lib/folder-inputs';
 
 interface FolderInputPayload {
   name?: string;
@@ -62,7 +63,7 @@ export async function GET() {
 
   const { data: inputCountRows, error: inputCountError } = await supabase
     .from('folder_inputs')
-    .select('folder_id')
+    .select('folder_id, storage_path')
     .eq('user_id', user.id)
     .in('folder_id', folderIds);
 
@@ -78,17 +79,18 @@ export async function GET() {
     }
   }
 
-  const inputCountMap: Record<string, number> = {};
+  const inputPathMap: Record<string, Set<string>> = {};
   for (const row of inputCountRows ?? []) {
-    if (row.folder_id) {
-      inputCountMap[row.folder_id] = (inputCountMap[row.folder_id] ?? 0) + 1;
+    if (row.folder_id && row.storage_path) {
+      inputPathMap[row.folder_id] ??= new Set<string>();
+      inputPathMap[row.folder_id].add(row.storage_path);
     }
   }
 
   const result = folders.map((folder) => ({
     ...folder,
     document_count: countMap[folder.id] ?? 0,
-    input_count: inputCountMap[folder.id] ?? 0,
+    input_count: inputPathMap[folder.id]?.size ?? 0,
   }));
 
   return NextResponse.json({ folders: result });
@@ -124,7 +126,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'inputs must be an array' }, { status: 400 });
   }
 
-  const cleanedInputs = (inputs ?? []).map((input) => {
+  const cleanedInputs = dedupeUploadsByStoragePath((inputs ?? []).map((input) => {
     const cleanedName = typeof input?.name === 'string' ? input.name.trim() : '';
     const cleanedPath = typeof input?.storagePath === 'string' ? input.storagePath.trim() : '';
     const cleanedMimeType = typeof input?.mimeType === 'string' && input.mimeType.trim().length > 0
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
       mimeType: cleanedMimeType,
       sizeBytes: cleanedSize,
     };
-  });
+  }));
 
   for (const input of cleanedInputs) {
     if (!input.name || !input.storagePath || input.sizeBytes === null) {

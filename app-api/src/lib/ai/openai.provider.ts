@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AIProvider, GenerateLatexArgs, GenerateLatexResult, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, AttachmentInput, ConversationTurn, GenerateExamArgs, GenerateExamResult, GenerateExamQuestion, GradeFillInArgs, GradeFillInResult, SolveMathArgs, SolveMathResult, SolveMathBatchArgs, SolveMathBatchResult } from './types';
+import { AIProvider, GenerateLatexArgs, GenerateLatexResult, GenerateLatexChunkHandler, FixLatexArgs, EditBlockArgs, EditDocumentArgs, EditDocumentResult, EditDocumentChunkHandler, AttachmentInput, ConversationTurn, GenerateExamArgs, GenerateExamResult, GenerateExamQuestion, GradeFillInArgs, GradeFillInResult, SolveMathArgs, SolveMathResult, SolveMathBatchArgs, SolveMathBatchResult } from './types';
 import type { ProcessedAttachment } from '../attachments';
 import { recordModelUsage } from '../usage/tracker';
 
@@ -101,6 +101,72 @@ function buildFallbackLatexFromPlainText(args: GenerateLatexArgs, plainText: str
   ].join('\n\n');
 
   return applyLatexFallbacks(`${args.preamble}\n\n${body}`);
+}
+
+function finalizeGenerateLatexOutput(args: GenerateLatexArgs, raw: string): GenerateLatexResult {
+  const out = stripMarkdownFences(raw);
+
+  // Extract optional [SUMMARY: ...] prefix
+  const summaryMatch = out.match(/^\[SUMMARY:\s*(.+?)\]\s*\r?\n?/);
+  const summary = summaryMatch?.[1]?.trim();
+  const outWithoutSummary = summaryMatch ? out.slice(summaryMatch[0].length) : out;
+
+  if (isLatex(outWithoutSummary)) {
+    let latex = outWithoutSummary;
+    // If there's no preamble (AI only output body), prepend it
+    if (!args.baseLatex && !latex.includes('\\documentclass')) {
+      latex = `${args.preamble}\n\n${latex}`;
+    }
+    return { latex: applyLatexFallbacks(latex), summary };
+  }
+
+  // Short conversational reply
+  if (!outWithoutSummary.includes('\\') && outWithoutSummary.length < 600) {
+    if (args.forceDocument) {
+      return {
+        latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
+        summary: summary ?? 'Generated a document from the requested material.',
+      };
+    }
+    return { message: outWithoutSummary };
+  }
+
+  // Fallback: treat as LaTeX if it contains backslashes
+  if (outWithoutSummary.includes('\\')) {
+    return { latex: applyLatexFallbacks(outWithoutSummary), summary };
+  }
+
+  if (args.forceDocument) {
+    return {
+      latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
+      summary: summary ?? 'Generated a document from the requested material.',
+    };
+  }
+
+  return { message: outWithoutSummary };
+}
+
+function finalizeEditDocumentStreamOutput(raw: string): EditDocumentResult {
+  const out = stripMarkdownFences(raw).trim();
+
+  const messageMatch = out.match(/^\[MESSAGE:\s*([\s\S]*?)\]\s*$/i);
+  if (messageMatch) {
+    return { type: 'message', content: messageMatch[1].trim() };
+  }
+
+  const summaryMatch = out.match(/^\[SUMMARY:\s*(.+?)\]\s*\r?\n?/i);
+  const summary = summaryMatch?.[1]?.trim() || 'Document updated';
+  const latex = (summaryMatch ? out.slice(summaryMatch[0].length) : out).trim();
+
+  if (isLatex(latex) || latex.includes('\\')) {
+    return {
+      type: 'edit',
+      latex: applyLatexFallbacks(latex),
+      summary,
+    };
+  }
+
+  return { type: 'message', content: out.slice(0, 500) };
 }
 
 function contentToText(content: unknown): string {
@@ -325,6 +391,7 @@ export class OpenAIProvider implements AIProvider {
       '- CRITICAL: Always close every \\begin{env} with \\end{env} before closing the enclosing environment.',
       '- CRITICAL: Use the STRUCTURE TEMPLATE as your blueprint — replace % FILL: comments with real content.',
       '- CRITICAL: The STRUCTURE EXAMPLE shows formatting style only — DO NOT copy its content.',
+      '- CRITICAL: Use LaTeX formatting commands, not Markdown. For bold text write \\textbf{term}; never write **term**.',
       '- NEVER output triple backticks.',
       '- In titles/headings, use \\& for ampersand, not bare &.',
       '- When generating or modifying a document, add ONE line at the very start of your output: [SUMMARY: <what you created or changed, plain English, max 30 words>]',
@@ -394,46 +461,118 @@ export class OpenAIProvider implements AIProvider {
     }, 'generate_latex');
 
     const raw = resp.choices?.[0]?.message?.content ?? '';
-    const out = stripMarkdownFences(raw);
+    return finalizeGenerateLatexOutput(args, raw);
+  }
 
-    // Extract optional [SUMMARY: ...] prefix
-    const summaryMatch = out.match(/^\[SUMMARY:\s*(.+?)\]\s*\r?\n?/);
-    const summary = summaryMatch?.[1]?.trim();
-    const outWithoutSummary = summaryMatch ? out.slice(summaryMatch[0].length) : out;
+  async generateLatexStream(args: GenerateLatexArgs, onChunk: GenerateLatexChunkHandler): Promise<GenerateLatexResult> {
+    const system = [
+      'You are BetterNotes AI, an expert academic assistant specialised in generating LaTeX documents.',
+      'Your ONLY output is either a complete, compilable LaTeX document OR a short plain-text message (never both).',
+      'RULES:',
+      '- If the request implies a document topic, output a COMPLETE .tex file — no explanations, no markdown, no triple backticks.',
+      '- Requests like "summarize this", "do a summary about this", "make notes from this", "explain this", or references to attached material imply a document topic.',
+      '- If the request refers to uploaded/attached files or source material, generate a document from that material. Do not answer with a chat summary.',
+      '- If the user is just chatting (e.g. \'hi\', \'thanks\'), reply with a short plain-text message only.',
+      ...(args.forceDocument ? [
+        '- DOCUMENT GENERATION MODE IS FORCED: you MUST output a complete LaTeX document. Never output a plain-text chat message.',
+      ] : []),
+      '- CRITICAL: NEVER redefine \\newtheorem, \\newcommand, \\usepackage for anything already in the provided preamble.',
+      '- CRITICAL: The preamble is FINAL. Work within its constraints — do NOT add \\usepackage commands.',
+      '- CRITICAL: NEVER nest display math environments: do not put \\begin{equation*} inside \\[ ... \\].',
+      '- CRITICAL: Always close every \\begin{env} with \\end{env} before closing the enclosing environment.',
+      '- CRITICAL: Use the STRUCTURE TEMPLATE as your blueprint — replace % FILL: comments with real content.',
+      '- CRITICAL: The STRUCTURE EXAMPLE shows formatting style only — DO NOT copy its content.',
+      '- CRITICAL: Use LaTeX formatting commands, not Markdown. For bold text write \\textbf{term}; never write **term**.',
+      '- NEVER output triple backticks.',
+      '- In titles/headings, use \\& for ampersand, not bare &.',
+      '- When generating or modifying a document, add ONE line at the very start of your output: [SUMMARY: <what you created or changed, plain English, max 30 words>]',
+      '- This [SUMMARY: ...] line must be the absolute first line, before \\documentclass.',
+    ].join(' ');
 
-    if (isLatex(outWithoutSummary)) {
-      let latex = outWithoutSummary;
-      // If there's no preamble (AI only output body), prepend it
-      if (!args.baseLatex && !latex.includes('\\documentclass')) {
-        latex = `${args.preamble}\n\n${latex}`;
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: any }> = [
+      { role: 'system', content: system },
+    ];
+
+    let textPrompt: string;
+
+    if (args.baseLatex?.trim()) {
+      messages.push({ role: 'assistant', content: args.baseLatex });
+      textPrompt = [
+        `Revise the LaTeX document above according to this request: "${args.prompt}"`,
+        'Return the FULL updated document (same preamble and structure).',
+        'Apply the change explicitly — do NOT return the document unchanged.',
+        'Preserve the style, preamble, and layout unless explicitly asked to change them.',
+      ].join(' ');
+    } else {
+      textPrompt = [
+        `User request: "${args.prompt}"`,
+        '',
+        args.forceDocument
+          ? 'Decision: generate a COMPLETE LaTeX document. Do not reply with a chat message.'
+          : 'Decision: if this is casual conversation, reply with ONLY a short plain-text message. Otherwise, generate a COMPLETE LaTeX document.',
+        'If the request is short but says to summarize/explain/turn this into notes, use the attached/source material and generate the selected document template.',
+        '',
+        '=== REQUIRED PREAMBLE (copy VERBATIM before \\begin{document}) ===',
+        args.preamble,
+        '',
+        '=== STYLE GUIDE (follow exactly) ===',
+        args.styleGuide,
+        '',
+        '=== STRUCTURE TEMPLATE (use this skeleton — replace % FILL: comments with real content) ===',
+        args.structureTemplate,
+        '',
+        '=== STRUCTURE EXAMPLE (reference for formatting style ONLY — DO NOT copy this content) ===',
+        args.structureExample,
+        '',
+        'Generate the complete .tex document with REAL, DETAILED, HIGH-QUALITY academic content.',
+        'Do NOT copy or paraphrase the example content — create original content for the requested topic.',
+      ].join('\n');
+    }
+
+    const userContent: any[] = [{ type: 'text', text: textPrompt }];
+
+    if (args.files && args.files.length > 0) {
+      const { textContext, imageItems } = buildAttachmentContent(args.files);
+      if (textContext) {
+        userContent[0].text += `\n\n${textContext}`;
       }
-      return { latex: applyLatexFallbacks(latex), summary };
-    }
-
-    // Short conversational reply
-    if (!outWithoutSummary.includes('\\') && outWithoutSummary.length < 600) {
-      if (args.forceDocument) {
-        return {
-          latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
-          summary: summary ?? 'Generated a document from the requested material.',
-        };
+      for (const img of imageItems) {
+        userContent.push(img);
       }
-      return { message: outWithoutSummary };
     }
 
-    // Fallback: treat as LaTeX if it contains backslashes
-    if (outWithoutSummary.includes('\\')) {
-      return { latex: applyLatexFallbacks(outWithoutSummary), summary };
+    messages.push({ role: 'user', content: userContent });
+
+    const stream = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0.2,
+      messages,
+      stream: true,
+    });
+
+    let raw = '';
+    for await (const part of stream) {
+      const text = part.choices?.[0]?.delta?.content ?? '';
+      if (!text) continue;
+      raw += text;
+      await onChunk(text);
     }
 
-    if (args.forceDocument) {
-      return {
-        latex: buildFallbackLatexFromPlainText(args, outWithoutSummary),
-        summary: summary ?? 'Generated a document from the requested material.',
-      };
-    }
+    await recordModelUsage({
+      provider: this.providerName,
+      model: this.model,
+      usage: {
+        prompt_tokens: Array.isArray(messages)
+          ? messages.reduce((acc, message) => acc + estimateTokensFromText(contentToText(message.content)), 0)
+          : 0,
+        completion_tokens: estimateTokensFromText(raw),
+        prompt_tokens_details: { cached_tokens: 0 },
+      },
+      feature: 'generate_latex_stream',
+      metadata: { usage_estimated: true, stream: true },
+    });
 
-    return { message: outWithoutSummary };
+    return finalizeGenerateLatexOutput(args, raw);
   }
 
   async fixLatex(args: FixLatexArgs): Promise<string> {
@@ -481,6 +620,7 @@ export class OpenAIProvider implements AIProvider {
       '- Preserve the preamble, \\documentclass, and overall structure unless the instruction explicitly asks to change them.',
       '- Apply the change precisely and minimally.',
       '- "summary" must be a short plain-English sentence (max 20 words) describing what changed.',
+      '- Use LaTeX formatting commands, not Markdown. For bold text write \\textbf{term}; never write **term**.',
       '- COLOR RULE: To color equations or text in the interactive viewer (KaTeX renderer), always use \\textcolor{colorname}{content} — e.g. \\textcolor{red}{E=mc^2}. NEVER write colorname{content} without the backslash and \\textcolor command.',
       '',
       'OUTPUT: Valid JSON only. No markdown fences. No explanation outside the JSON.',
@@ -536,6 +676,78 @@ export class OpenAIProvider implements AIProvider {
     return { type: 'message', content: 'I could not process that request. Please try again.' };
   }
 
+  async editDocumentStream(args: EditDocumentArgs, onChunk: EditDocumentChunkHandler): Promise<EditDocumentResult> {
+    const system = [
+      'You are BetterNotes AI, an expert LaTeX document editor.',
+      'You receive the FULL LaTeX source of a document and a user instruction.',
+      'Classify the instruction and use exactly one of these output protocols.',
+      '',
+      'IF THE USER ASKS TO MODIFY THE DOCUMENT:',
+      '- First line must be: [SUMMARY: <one sentence describing what changed, max 20 words>]',
+      '- Then output the COMPLETE modified .tex document.',
+      '- Do not output JSON.',
+      '',
+      'IF THE USER ASKS A QUESTION OR IS CHATTING:',
+      '- Output exactly: [MESSAGE: <your concise answer>]',
+      '- Do not output LaTeX.',
+      '',
+      'EDIT RULES:',
+      '- The LaTeX must be the COMPLETE .tex document — not a fragment.',
+      '- Preserve the preamble, \\documentclass, and overall structure unless the instruction explicitly asks to change them.',
+      '- Apply the change precisely and minimally.',
+      '- Use LaTeX formatting commands, not Markdown. For bold text write \\textbf{term}; never write **term**.',
+      '- COLOR RULE: To color equations or text in the interactive viewer (KaTeX renderer), always use \\textcolor{colorname}{content} — e.g. \\textcolor{red}{E=mc^2}. NEVER write colorname{content} without the backslash and \\textcolor command.',
+      '- NEVER output triple backticks.',
+    ].join('\n');
+
+    const MAX_LATEX_CHARS = 80_000;
+    const truncatedLatex = args.fullLatex.length > MAX_LATEX_CHARS
+      ? args.fullLatex.slice(0, MAX_LATEX_CHARS) + '\n% [truncated]'
+      : args.fullLatex;
+
+    const userContent = [
+      `=== CURRENT DOCUMENT LaTeX ===`,
+      truncatedLatex,
+      '',
+      `=== USER INSTRUCTION ===`,
+      args.prompt,
+    ].join('\n');
+
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [
+      { role: 'system', content: system },
+      { role: 'user', content: userContent },
+    ];
+
+    const stream = await this.client.chat.completions.create({
+      model: this.model,
+      temperature: 0.2,
+      messages,
+      stream: true,
+    });
+
+    let raw = '';
+    for await (const part of stream) {
+      const text = part.choices?.[0]?.delta?.content ?? '';
+      if (!text) continue;
+      raw += text;
+      await onChunk(text);
+    }
+
+    await recordModelUsage({
+      provider: this.providerName,
+      model: this.model,
+      usage: {
+        prompt_tokens: messages.reduce((acc, message) => acc + estimateTokensFromText(contentToText(message.content)), 0),
+        completion_tokens: estimateTokensFromText(raw),
+        prompt_tokens_details: { cached_tokens: 0 },
+      },
+      feature: 'edit_document_stream',
+      metadata: { usage_estimated: true, stream: true },
+    });
+
+    return finalizeEditDocumentStreamOutput(raw);
+  }
+
   // ─── F3-M4.3: editBlock ───────────────────────────────────────────────────
 
   async editBlock(args: EditBlockArgs): Promise<string> {
@@ -552,6 +764,7 @@ export class OpenAIProvider implements AIProvider {
       '- When there is conversation history, the most recent assistant turn represents the current state of the block; apply the new instruction on top of it.',
       '- If the instruction is unclear or impossible, return the original block unchanged.',
       '- NEVER output explanations, only LaTeX source.',
+      '- Use LaTeX formatting commands, not Markdown. For bold text write \\textbf{term}; never write **term**.',
       'COLOR RULES (for the interactive viewer — uses KaTeX):',
       '- To color a formula or part of it, use \\textcolor{colorname}{content} — e.g. \\textcolor{red}{E=mc^2}.',
       '- Valid color names: red, blue, green, orange, purple, cyan, magenta, brown, gray, black, white, or any CSS/HTML color name.',

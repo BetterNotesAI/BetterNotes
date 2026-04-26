@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { dedupeFolderInputsByStoragePath } from '@/lib/folder-inputs';
 
 function isMissingRelationError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -43,9 +44,9 @@ export async function GET(
     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   }
 
-  const { count: inputCount, error: inputCountError } = await supabase
+  const { data: inputRows, error: inputCountError } = await supabase
     .from('folder_inputs')
-    .select('id', { count: 'exact', head: true })
+    .select('id, folder_id, storage_path')
     .eq('folder_id', folderId)
     .eq('user_id', user.id);
 
@@ -56,7 +57,7 @@ export async function GET(
   return NextResponse.json({
     folder: {
       ...folder,
-      input_count: inputCount ?? 0,
+      input_count: dedupeFolderInputsByStoragePath(inputRows ?? []).length,
     },
   });
 }

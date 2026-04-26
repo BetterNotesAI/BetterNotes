@@ -381,6 +381,28 @@ export function keepLandscapeFooterInsideColumns(latex: string): string {
   );
 }
 
+export function normalizeMarkdownInlineMarkup(latex: string): string {
+  const verbatimEnv = /\\begin\s*\{(?:lstlisting|verbatim|Verbatim|minted|alltt)\}/;
+  const endVerbatimEnv = /\\end\s*\{(?:lstlisting|verbatim|Verbatim|minted|alltt)\}/;
+  let inVerbatim = false;
+
+  return latex
+    .split("\n")
+    .map((line) => {
+      if (inVerbatim || verbatimEnv.test(line)) {
+        if (endVerbatimEnv.test(line)) inVerbatim = false;
+        else inVerbatim = true;
+        return line;
+      }
+
+      return line.replace(
+        /(^|[^\\])\*\*([^*\n]+?)\*\*/g,
+        (_match, prefix: string, inner: string) => `${prefix}\\textbf{${inner}}`
+      );
+    })
+    .join("\n");
+}
+
 export function applyLatexFallbacks(latex: string): string {
   return keepLandscapeFooterInsideColumns(
     injectCommonMathFallbacks(
@@ -388,7 +410,9 @@ export function applyLatexFallbacks(latex: string): string {
         stripDuplicateNewtheoremDefinitions(
           fixUnclosedEnvironments(
             fixUnclosedDisplayMath(
-              escapeAmpersandsInText(latex)
+              escapeAmpersandsInText(
+                normalizeMarkdownInlineMarkup(latex)
+              )
             )
           )
         )

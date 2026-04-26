@@ -365,7 +365,7 @@ export default function NewProjectPage() {
     return data.folder.id;
   }
 
-  async function runCheatsheetFlow(folderId: string, uploadedInputs: UploadedInputMeta[]) {
+  async function runCheatsheetFlow(folderId: string) {
     if (!cheatsheetTemplateId) throw new Error('Pick a template to continue.');
 
     const res = await fetch('/api/documents', {
@@ -375,7 +375,6 @@ export default function NewProjectPage() {
         template_id: cheatsheetTemplateId,
         prompt: prompt.trim(),
         folder_id: folderId,
-        attachments: uploadedInputs,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {
@@ -390,7 +389,7 @@ export default function NewProjectPage() {
     router.push(`/cheat-sheets/${data.document.id}?${query.toString()}`);
   }
 
-  async function runLectureNotesFlow(folderId: string, uploadedInputs: UploadedInputMeta[]) {
+  async function runLectureNotesFlow(folderId: string) {
     if (!reportTemplateId) throw new Error('Pick a report template to continue.');
 
     const res = await fetch('/api/documents', {
@@ -400,7 +399,6 @@ export default function NewProjectPage() {
         template_id: reportTemplateId,
         prompt: prompt.trim(),
         folder_id: folderId,
-        attachments: uploadedInputs,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {
@@ -467,10 +465,10 @@ export default function NewProjectPage() {
 
       switch (selected) {
         case 'cheat-sheets':
-          await runCheatsheetFlow(folderId, uploadedInputs);
+          await runCheatsheetFlow(folderId);
           break;
         case 'lecture-notes':
-          await runLectureNotesFlow(folderId, uploadedInputs);
+          await runLectureNotesFlow(folderId);
           break;
         case 'problem-solver':
           await runProblemSolverFlow(folderId);

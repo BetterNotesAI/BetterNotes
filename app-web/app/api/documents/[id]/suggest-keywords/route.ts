@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkCreditQuota, recordAiUsage } from '@/lib/ai-usage';
+import { parseKeywordSuggestions, suggestKeywordsWithAi } from '@/lib/keyword-suggestions';
 import { inferDocumentProjectType } from '@/lib/usage-project';
 
 /**
  * POST /api/documents/[id]/suggest-keywords
  *
- * Calls OpenAI GPT-4o directly from the Next.js route (no hop to app-api)
- * to suggest 5-8 relevant keywords for a document based on its title and
- * a short excerpt of its LaTeX content.
+ * Suggests 5-8 relevant keywords for a document based on its title and a
+ * short excerpt of its LaTeX content.
  *
  * Returns: { keywords: string[] }
  */
@@ -51,12 +51,6 @@ export async function POST(
     }
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL ?? 'gpt-5.4-nano';
-  if (!apiKey) {
-    return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
-  }
-
   const usageCheck = await checkCreditQuota(supabase, user.id);
   if (!usageCheck.allowed) {
     return NextResponse.json(
@@ -72,77 +66,28 @@ Template: ${doc.template_id ?? 'unknown'}
 LaTeX excerpt:
 ${latexExcerpt || '(no content yet)'}
 
-Return format: ["keyword1", "keyword2", ...]`;
+  Return format: ["keyword1", "keyword2", ...]`;
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[suggest-keywords] OpenAI error:', errText);
-      return NextResponse.json({ error: 'AI request failed' }, { status: 502 });
-    }
-
-    const data = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: {
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        prompt_tokens_details?: { cached_tokens?: number };
-      };
-    };
-    const raw = data.choices?.[0]?.message?.content ?? '[]';
+    const suggestion = await suggestKeywordsWithAi(prompt);
 
     await recordAiUsage({
       supabase,
       userId: user.id,
-      provider: 'openai',
-      model,
-      usage: data.usage,
+      provider: suggestion.provider,
+      model: suggestion.model,
+      usage: suggestion.usage,
       feature: 'document_suggest_keywords',
       projectType: inferDocumentProjectType(doc.template_id ?? null),
       projectId: documentId,
       metadata: { document_id: documentId },
     });
 
-    // Parse the JSON array from the response
-    let keywords: string[] = [];
-    try {
-      // Strip markdown code fences if present
-      const cleaned = raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed)) {
-        keywords = parsed
-          .map((k: unknown) => (typeof k === 'string' ? k.trim() : ''))
-          .filter(Boolean)
-          .slice(0, 10);
-      }
-    } catch {
-      // If parsing fails, extract quoted strings as fallback
-      const matches = raw.match(/"([^"]+)"/g);
-      if (matches) {
-        keywords = matches
-          .map((m: string) => m.replace(/"/g, '').trim())
-          .filter(Boolean)
-          .slice(0, 10);
-      }
-    }
+    const keywords = parseKeywordSuggestions(suggestion.raw);
 
     return NextResponse.json({ keywords });
   } catch (err) {
-    console.error('[suggest-keywords] Unexpected error:', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    console.error('[suggest-keywords] AI error:', err);
+    return NextResponse.json({ error: 'AI request failed' }, { status: 502 });
   }
 }
