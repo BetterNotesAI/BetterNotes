@@ -45,15 +45,17 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot fork your own document' }, { status: 403 });
   }
 
-  // 2. Load latest version's LaTeX source
+  // 2. Load latest version's LaTeX source + PDF path
   let latexContent: string | null = null;
+  let sourcePdfPath: string | null = null;
   if (source.current_version_id) {
     const { data: version } = await supabase
       .from('document_versions')
-      .select('latex_content')
+      .select('latex_content, pdf_storage_path')
       .eq('id', source.current_version_id)
       .maybeSingle();
-    latexContent = version?.latex_content ?? null;
+    latexContent  = version?.latex_content    ?? null;
+    sourcePdfPath = version?.pdf_storage_path ?? null;
   }
 
   // 3. Create forked document (current_version_id set after version creation)
@@ -79,16 +81,36 @@ export async function POST(
     return NextResponse.json({ error: insertDocError?.message ?? 'Failed to create fork' }, { status: 500 });
   }
 
-  // 4. Create first version with the forked LaTeX content (if any)
+  // 4. Copy the source PDF into this user's storage namespace (so they can
+  //    view it immediately without recompiling). If anything fails, we still
+  //    create the version with latex only and mark it pending.
+  let newPdfPath: string | null = null;
+  if (sourcePdfPath) {
+    const { data: pdfBlob, error: dlError } = await supabase.storage
+      .from('documents-output')
+      .download(sourcePdfPath);
+    if (!dlError && pdfBlob) {
+      const candidatePath = `${user.id}/${newDoc.id}/v_fork_${Date.now()}.pdf`;
+      const { error: upError } = await supabase.storage
+        .from('documents-output')
+        .upload(candidatePath, pdfBlob, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+      if (!upError) newPdfPath = candidatePath;
+    }
+  }
+
+  // 5. Create first version with the forked LaTeX content (if any)
   if (latexContent) {
     const { data: newVersion, error: insertVersionError } = await supabase
       .from('document_versions')
       .insert({
         document_id: newDoc.id,
         latex_content: latexContent,
-        pdf_storage_path: null,
+        pdf_storage_path: newPdfPath,
         version_number: 1,
-        compile_status: 'pending',
+        compile_status: newPdfPath ? 'success' : 'pending',
         prompt_used: `Forked from "${source.title}"`,
       })
       .select('id')
@@ -100,7 +122,7 @@ export async function POST(
       return NextResponse.json({ error: insertVersionError?.message ?? 'Failed to create version' }, { status: 500 });
     }
 
-    // 5. Point document to its first version
+    // 6. Point document to its first version
     await supabase
       .from('documents')
       .update({ current_version_id: newVersion.id })

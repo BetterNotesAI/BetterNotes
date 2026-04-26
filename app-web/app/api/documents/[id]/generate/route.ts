@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildInternalApiHeaders, checkCreditQuota } from '@/lib/ai-usage';
+import { buildInternalApiHeaders, checkCreditQuota, recordAiUsage } from '@/lib/ai-usage';
 import { buildDocumentProjectContext } from '@/lib/usage-project';
 import {
   buildTitleFromLatex,
@@ -236,6 +236,33 @@ export async function POST(
     }
 
     pdfBuffer = await apiResp.arrayBuffer();
+
+    // Record token usage from app-api in Supabase (authoritative — app-web always
+    // has credentials; app-api may not in some deployments).
+    const usageB64 = apiResp.headers.get('x-betternotes-usage');
+    if (usageB64) {
+      try {
+        const usageRaw = JSON.parse(Buffer.from(usageB64, 'base64').toString('utf8'));
+        await recordAiUsage({
+          supabase,
+          userId: user.id,
+          provider: usageRaw.provider ?? 'unknown',
+          model: usageRaw.model ?? 'unknown',
+          usage: {
+            prompt_tokens: (usageRaw.inputTokens ?? 0) + (usageRaw.cachedInputTokens ?? 0),
+            completion_tokens: usageRaw.outputTokens ?? 0,
+            prompt_tokens_details: { cached_tokens: usageRaw.cachedInputTokens ?? 0 },
+          },
+          feature: 'document_generate',
+          projectType: projectContext.projectType ?? null,
+          projectId: projectContext.projectId ?? null,
+          metadata: { source: 'app-web-relay' },
+        });
+      } catch (usageErr) {
+        // Non-fatal — log but never fail the generation over a usage accounting error
+        console.warn('[documents/generate] Usage recording failed:', usageErr);
+      }
+    }
 
     // Decode latex from header
     const latexB64 = apiResp.headers.get('x-betternotes-latex') ?? '';

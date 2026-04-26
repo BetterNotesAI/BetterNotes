@@ -16,9 +16,7 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const requestedVersionId = searchParams.get('versionId');
 
-  const { data: doc, error: docError } = await supabase
-    .from('documents')
-    .select(`
+  const docFields = `
       id,
       user_id,
       title,
@@ -29,13 +27,40 @@ export async function GET(
       current_version_id,
       created_at,
       updated_at,
-      forked_from_id
-    `)
+      forked_from_id,
+      university_id,
+      program_id,
+      course_id,
+      is_published,
+      university,
+      degree,
+      subject,
+      visibility,
+      keywords
+    `;
+
+  // Try owner-access first
+  let { data: doc } = await supabase
+    .from('documents')
+    .select(docFields)
     .eq('id', documentId)
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (docError || !doc) {
+  // Fall back to public read (any published-public doc is readable by anyone)
+  if (!doc) {
+    const { data: publicDoc } = await supabase
+      .from('documents')
+      .select(docFields)
+      .eq('id', documentId)
+      .eq('is_published', true)
+      .eq('visibility', 'public')
+      .is('archived_at', null)
+      .maybeSingle();
+    doc = publicDoc;
+  }
+
+  if (!doc) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 

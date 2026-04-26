@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { getUsageContext } from './context';
+import { getUsageContext, accumulateRequestUsage } from './context';
 import { resolveModelPricing } from './pricing';
 
 interface UsageDetails {
@@ -136,10 +136,23 @@ export async function recordModelUsage(args: RecordModelUsageArgs): Promise<void
   const userId = (args.userId ?? context.userId)?.trim() || '';
   if (!userId) return;
 
+  const pricing = resolveModelPricing(args.provider, args.model);
+
+  // Always accumulate in the request context so the route handler can return
+  // usage to app-web for authoritative recording (works even without Supabase).
+  accumulateRequestUsage(
+    args.provider,
+    args.model,
+    inputTokens,
+    cachedTokens,
+    outputTokens,
+    pricing.inputUsdPer1m,
+    pricing.cachedInputUsdPer1m,
+    pricing.outputUsdPer1m,
+  );
+
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
-
-  const pricing = resolveModelPricing(args.provider, args.model);
   const feature = mergeFeature(args.feature, context.feature);
   const projectType = normalizeProjectType(args.projectType ?? context.projectType);
   const projectId = normalizeProjectId(args.projectId ?? context.projectId);

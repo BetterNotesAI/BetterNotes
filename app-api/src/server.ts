@@ -62,6 +62,7 @@ app.use((req, _res, next) => {
       projectType,
       projectId,
       path: req.path ?? null,
+      accumulatedUsage: null,
     },
     () => next(),
   );
