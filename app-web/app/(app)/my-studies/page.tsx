@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,34 @@ type SelectedNode =
   | { type: 'program'; id: string }
   | { type: 'course'; id: string }
   | { type: 'independent' };
+
+interface MyCourse {
+  id: string;
+  name: string;
+  semester: number | null;
+  semester_label: string | null;
+  ects: number | null;
+  tipo: string | null;
+  document_count: number;
+}
+
+interface MyYear {
+  year: number;
+  courses: MyCourse[];
+}
+
+interface MyProgram {
+  id: string;
+  title: string;
+  tipo: string;
+  university: { name: string; slug: string } | null;
+}
+
+interface MyUniversityData {
+  program: MyProgram | null;
+  profile_year: number | null;
+  years: MyYear[];
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -100,7 +129,7 @@ function ChevronIcon({ className, open }: { className?: string; open: boolean })
   );
 }
 
-// ── Document card (unchanged from before) ────────────────────────────────────
+// ── Document card (Community tab) ─────────────────────────────────────────────
 
 function DocumentCard({
   doc, onOpen, onLikeToggle, onFork, onAuthorClick,
@@ -231,7 +260,7 @@ function DocumentCard({
   );
 }
 
-// ── Tree sidebar ──────────────────────────────────────────────────────────────
+// ── Tree sidebar (Community tab) ──────────────────────────────────────────────
 
 interface TreeNode {
   id: string;
@@ -459,15 +488,278 @@ function TreeSidebar({
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── My University tab ─────────────────────────────────────────────────────────
 
-export default function MyStudiesPage() {
+function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void }) {
+  const [data, setData] = useState<MyUniversityData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openYears, setOpenYears] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await fetch('/api/my-university');
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to load');
+        const json = await res.json() as MyUniversityData;
+        setData(json);
+
+        // Auto-expand the user's current year, or year 1 if not set
+        if (json.program && json.years.length > 0) {
+          const defaultYear = json.profile_year ?? json.years[0].year;
+          setOpenYears(new Set([defaultYear]));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  function toggleYear(year: number) {
+    setOpenYears((s) => {
+      const n = new Set(s);
+      n.has(year) ? n.delete(year) : n.add(year);
+      return n;
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-8 space-y-4">
+        <div className="h-8 w-72 bg-white/6 rounded-xl animate-pulse" />
+        <div className="h-4 w-48 bg-white/4 rounded animate-pulse" />
+        <div className="mt-6 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-white/4 rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-20 text-center px-6">
+        <div className="space-y-3">
+          <p className="text-red-400 text-sm">{error}</p>
+          <button onClick={() => window.location.reload()} className="text-xs text-white/50 hover:text-white underline">
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No program set — show prompt
+  if (!data?.program) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-indigo-500/15 border border-indigo-500/25 mb-6">
+          <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Set your university</h2>
+        <p className="text-white/50 text-sm mb-8 max-w-sm">
+          Personalise My Studies with your curriculum. See every course in your degree and find notes from your peers.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onNavigate('/settings')}
+            className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors"
+          >
+            Go to Settings
+          </button>
+          <button
+            onClick={() => onNavigate('/onboarding?step=university')}
+            className="px-4 py-2 rounded-lg bg-white/8 hover:bg-white/12 text-white text-sm font-medium border border-white/15 hover:border-white/25 transition-colors"
+          >
+            Set it now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { program, profile_year, years } = data;
+  const uniName = program.university?.name ?? 'University';
+  const uniSlug = program.university?.slug ?? '';
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
+            </svg>
+            <span className="text-xs text-indigo-400 font-medium">{uniName}</span>
+            {program.tipo && (
+              <>
+                <span className="text-white/20">·</span>
+                <span className="text-xs text-white/40">{program.tipo}</span>
+              </>
+            )}
+          </div>
+          <h2 className="text-lg font-semibold text-white">{program.title}</h2>
+          {profile_year && (
+            <p className="text-xs text-white/40 mt-0.5">Year {profile_year}</p>
+          )}
+        </div>
+        <button
+          onClick={() => onNavigate('/settings')}
+          className="shrink-0 text-[11px] text-white/40 hover:text-white/70 transition-colors underline"
+        >
+          Change degree
+        </button>
+      </div>
+
+      {/* Year sections */}
+      <div className="space-y-3">
+        {years.map(({ year, courses }) => {
+          const isOpen = openYears.has(year);
+          const isCurrentYear = year === profile_year;
+          const totalDocs = courses.reduce((sum, c) => sum + c.document_count, 0);
+
+          return (
+            <div
+              key={year}
+              className="bg-black/25 backdrop-blur-sm border border-white/15 rounded-2xl overflow-hidden"
+            >
+              {/* Year header */}
+              <button
+                onClick={() => toggleYear(year)}
+                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-white">Year {year}</span>
+                  {isCurrentYear && (
+                    <span className="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 border border-indigo-400/25 rounded-full px-2 py-0.5">
+                      Current
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-white/30">
+                    {courses.length} course{courses.length !== 1 ? 's' : ''}
+                    {totalDocs > 0 && ` · ${totalDocs} note${totalDocs !== 1 ? 's' : ''}`}
+                  </span>
+                  <ChevronIcon className="w-4 h-4 text-white/40" open={isOpen} />
+                </div>
+              </button>
+
+              {/* Courses list */}
+              {isOpen && (
+                <div className="border-t border-white/8">
+                  {courses.map((course, idx) => {
+                    const hasNotes = course.document_count > 0;
+                    const semesterLabel = course.semester_label ?? (course.semester ? `S${course.semester}` : null);
+
+                    return (
+                      <div
+                        key={course.id}
+                        className={`flex items-center gap-4 px-5 py-3.5 transition-colors
+                          ${idx < courses.length - 1 ? 'border-b border-white/6' : ''}
+                          ${hasNotes ? 'cursor-pointer hover:bg-white/5 group' : 'opacity-70'}`}
+                        onClick={() => {
+                          if (hasNotes && uniSlug) {
+                            onNavigate(`/explore/${uniSlug}/${course.id}`);
+                          }
+                        }}
+                        role={hasNotes ? 'button' : undefined}
+                        tabIndex={hasNotes ? 0 : undefined}
+                        onKeyDown={(e) => {
+                          if (hasNotes && (e.key === 'Enter' || e.key === ' ') && uniSlug) {
+                            onNavigate(`/explore/${uniSlug}/${course.id}`);
+                          }
+                        }}
+                      >
+                        {/* Course name */}
+                        <span className={`flex-1 text-sm min-w-0 truncate transition-colors
+                          ${hasNotes ? 'text-white group-hover:text-indigo-300' : 'text-white/60'}`}>
+                          {course.name}
+                        </span>
+
+                        {/* Badges */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {semesterLabel && (
+                            <span className="text-[10px] text-white/40 bg-white/6 border border-white/10 rounded-full px-2 py-0.5">
+                              {semesterLabel}
+                            </span>
+                          )}
+                          {course.ects && (
+                            <span className="text-[10px] text-white/40 bg-white/6 border border-white/10 rounded-full px-2 py-0.5">
+                              {course.ects} ECTS
+                            </span>
+                          )}
+                          {course.tipo && (
+                            <span className="text-[10px] text-white/30 hidden sm:inline">
+                              {course.tipo}
+                            </span>
+                          )}
+                          {/* Document count pill */}
+                          {hasNotes ? (
+                            <span className="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 border border-indigo-400/25 rounded-full px-2.5 py-0.5">
+                              {course.document_count} note{course.document_count !== 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-white/25 bg-white/4 border border-white/8 rounded-full px-2.5 py-0.5">
+                              No notes yet
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+
+type ActiveTab = 'mine' | 'community';
+
+function TabSwitcher({ active, onChange }: { active: ActiveTab; onChange: (tab: ActiveTab) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-white/6 border border-white/10 rounded-xl p-1">
+      {(['mine', 'community'] as ActiveTab[]).map((tab) => (
+        <button
+          key={tab}
+          onClick={() => onChange(tab)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-150
+            ${active === tab
+              ? 'bg-white/10 text-white shadow-sm'
+              : 'text-white/50 hover:text-white/80'
+            }`}
+        >
+          {tab === 'mine' ? 'My University' : 'Community'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Community tab (original My Studies content) ───────────────────────────────
+
+function CommunityTab() {
   const router = useRouter();
   const [documents, setDocuments] = useState<PublishedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedNode>({ type: 'all' });
-  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -487,7 +779,6 @@ export default function MyStudiesPage() {
     load();
   }, []);
 
-  // Filter documents based on selected tree node
   const filteredDocs = useMemo(() => {
     if (selected.type === 'all') return documents;
     if (selected.type === 'university') return documents.filter((d) => d.university_id === selected.id);
@@ -497,7 +788,6 @@ export default function MyStudiesPage() {
     return documents;
   }, [documents, selected]);
 
-  // Section label for the content area header
   const sectionLabel = useMemo(() => {
     if (selected.type === 'all') return 'All documents';
     if (selected.type === 'independent') return 'Independent';
@@ -563,176 +853,219 @@ export default function MyStudiesPage() {
   const hasSidebar = !isLoading && !error && documents.length > 0;
 
   return (
-    <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      {/* Tree sidebar */}
+      {hasSidebar && (
+        <>
+          {/* Desktop sidebar */}
+          <div className="hidden md:flex flex-col w-64 shrink-0 border-r border-white/10 overflow-y-auto">
+            <TreeSidebar documents={documents} selected={selected} onSelect={setSelected} />
+          </div>
 
+          {/* Mobile sidebar overlay */}
+          {sidebarOpen && (
+            <div className="md:hidden fixed inset-0 z-40 flex">
+              <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
+              <div className="relative w-72 bg-neutral-950 border-r border-white/15 overflow-y-auto z-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                  <span className="text-sm font-medium text-white">Filter</span>
+                  <button onClick={() => setSidebarOpen(false)} className="text-white/40 hover:text-white">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <TreeSidebar
+                  documents={documents}
+                  selected={selected}
+                  onSelect={(node) => { setSelected(node); setSidebarOpen(false); }}
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto min-w-0">
+        {/* Mobile filter button */}
+        {hasSidebar && (
+          <div className="md:hidden px-6 pt-4">
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/15 hover:border-white/30 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+              </svg>
+              Filter
+            </button>
+          </div>
+        )}
+
+        <div className="max-w-5xl mx-auto px-6 py-8">
+          {/* Loading */}
+          {isLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white/4 border border-white/8 rounded-2xl p-5 h-44" />
+              ))}
+            </div>
+          )}
+
+          {/* Error */}
+          {!isLoading && error && (
+            <div className="flex items-center justify-center py-20 text-center">
+              <div className="space-y-3">
+                <p className="text-red-400 text-sm">{error}</p>
+                <button onClick={() => window.location.reload()} className="text-xs text-white/50 hover:text-white underline">Try again</button>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state — no published docs at all */}
+          {!isLoading && !error && documents.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-pink-500/15 border border-pink-500/25 mb-6">
+                <svg className="w-7 h-7 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">No public notes yet</h2>
+              <p className="text-white/50 text-sm mb-6 max-w-sm">
+                Be the first — open any document, click <span className="text-indigo-400 font-medium">Publish</span>, and set visibility to <span className="text-indigo-400 font-medium">Public</span>.
+              </p>
+              <button
+                onClick={() => router.push('/documents')}
+                className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors"
+              >
+                Browse my documents
+              </button>
+            </div>
+          )}
+
+          {/* Section header + grid */}
+          {!isLoading && !error && documents.length > 0 && (
+            <>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">{sectionLabel}</h2>
+                  <p className="text-xs text-white/35 mt-0.5">
+                    {filteredDocs.length} document{filteredDocs.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                {/* Community button — visible when a course is selected */}
+                {selected.type === 'course' && (() => {
+                  const ref = documents.find((d) => d.course_id === selected.id);
+                  if (!ref?.university_slug || !ref?.program_slug) return null;
+                  const href = `/explore/${ref.university_slug}/${ref.program_slug}/${selected.id}`;
+                  return (
+                    <button
+                      onClick={() => router.push(href)}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg
+                        bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-400/25
+                        hover:border-indigo-400/40 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                      </svg>
+                      Community notes
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Empty filtered state */}
+              {filteredDocs.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <p className="text-white/30 text-sm">No documents in this section yet.</p>
+                  <button
+                    onClick={() => router.push('/documents')}
+                    className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline"
+                  >
+                    Go publish a document
+                  </button>
+                </div>
+              )}
+
+              {/* Grid */}
+              {filteredDocs.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredDocs.map((doc) => (
+                    <DocumentCard
+                      key={doc.id}
+                      doc={doc}
+                      onOpen={() => handleOpen(doc)}
+                      onLikeToggle={handleLikeToggle}
+                      onFork={handleFork}
+                      onAuthorClick={handleAuthorClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Inner page (reads URL params, must be inside Suspense) ────────────────────
+
+function MyStudiesInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get('tab');
+  const activeTab: ActiveTab = tabParam === 'community' ? 'community' : 'mine';
+
+  function handleTabChange(tab: ActiveTab) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('tab', tab);
+    router.push(`/my-studies?${params.toString()}`);
+  }
+
+  function handleNavigate(href: string) {
+    router.push(href);
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
       {/* Top bar */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">My Studies</h1>
-          {!isLoading && documents.length > 0 && (
-            <p className="text-xs text-white/40 mt-0.5">
-              {documents.length} published document{documents.length !== 1 ? 's' : ''}
-            </p>
-          )}
         </div>
-        {/* Mobile sidebar toggle */}
-        {hasSidebar && (
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="md:hidden flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/15 hover:border-white/30 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-            </svg>
-            Filter
-          </button>
-        )}
+        <TabSwitcher active={activeTab} onChange={handleTabChange} />
       </div>
 
-      {/* Body */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-
-        {/* Sidebar — hidden on mobile unless toggled */}
-        {hasSidebar && (
-          <>
-            {/* Desktop sidebar */}
-            <div className="hidden md:flex flex-col w-64 shrink-0 border-r border-white/10 overflow-y-auto">
-              <TreeSidebar documents={documents} selected={selected} onSelect={setSelected} />
-            </div>
-
-            {/* Mobile sidebar overlay */}
-            {sidebarOpen && (
-              <div className="md:hidden fixed inset-0 z-40 flex">
-                <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
-                <div className="relative w-72 bg-neutral-950 border-r border-white/15 overflow-y-auto z-50">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <span className="text-sm font-medium text-white">Filter</span>
-                    <button onClick={() => setSidebarOpen(false)} className="text-white/40 hover:text-white">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <TreeSidebar
-                    documents={documents}
-                    selected={selected}
-                    onSelect={(node) => { setSelected(node); setSidebarOpen(false); }}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto min-w-0">
-          <div className="max-w-5xl mx-auto px-6 py-8">
-
-            {/* Loading */}
-            {isLoading && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white/4 border border-white/8 rounded-2xl p-5 h-44" />
-                ))}
-              </div>
-            )}
-
-            {/* Error */}
-            {!isLoading && error && (
-              <div className="flex items-center justify-center py-20 text-center">
-                <div className="space-y-3">
-                  <p className="text-red-400 text-sm">{error}</p>
-                  <button onClick={() => window.location.reload()} className="text-xs text-white/50 hover:text-white underline">Try again</button>
-                </div>
-              </div>
-            )}
-
-            {/* Empty state — no published docs at all */}
-            {!isLoading && !error && documents.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-pink-500/15 border border-pink-500/25 mb-6">
-                  <svg className="w-7 h-7 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold text-white mb-2">No public notes yet</h2>
-                <p className="text-white/50 text-sm mb-6 max-w-sm">
-                  Be the first — open any document, click <span className="text-indigo-400 font-medium">Publish</span>, and set visibility to <span className="text-indigo-400 font-medium">Public</span>.
-                </p>
-                <button
-                  onClick={() => router.push('/documents')}
-                  className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors"
-                >
-                  Browse my documents
-                </button>
-              </div>
-            )}
-
-            {/* Section header + grid */}
-            {!isLoading && !error && documents.length > 0 && (
-              <>
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 className="text-sm font-semibold text-white">{sectionLabel}</h2>
-                    <p className="text-xs text-white/35 mt-0.5">
-                      {filteredDocs.length} document{filteredDocs.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  {/* Community button — visible when a course is selected */}
-                  {selected.type === 'course' && (() => {
-                    const ref = documents.find((d) => d.course_id === selected.id);
-                    if (!ref?.university_slug || !ref?.program_slug) return null;
-                    const href = `/explore/${ref.university_slug}/${ref.program_slug}/${selected.id}`;
-                    return (
-                      <button
-                        onClick={() => router.push(href)}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg
-                          bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-400/25
-                          hover:border-indigo-400/40 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                        </svg>
-                        Community notes
-                      </button>
-                    );
-                  })()}
-                </div>
-
-                {/* Empty filtered state */}
-                {filteredDocs.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <p className="text-white/30 text-sm">No documents in this section yet.</p>
-                    <button
-                      onClick={() => router.push('/documents')}
-                      className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline"
-                    >
-                      Go publish a document
-                    </button>
-                  </div>
-                )}
-
-                {/* Grid */}
-                {filteredDocs.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocs.map((doc) => (
-                      <DocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        onOpen={() => handleOpen(doc)}
-                        onLikeToggle={handleLikeToggle}
-                        onFork={handleFork}
-                        onAuthorClick={handleAuthorClick}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-          </div>
+      {/* Tab panels */}
+      {activeTab === 'mine' ? (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <MyUniversityTab onNavigate={handleNavigate} />
         </div>
-      </div>
+      ) : (
+        <CommunityTab />
+      )}
     </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function MyStudiesPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
+        <div className="border-b border-white/10 px-6 py-4 shrink-0">
+          <h1 className="text-xl font-semibold">My Studies</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+        </div>
+      </div>
+    }>
+      <MyStudiesInner />
+    </Suspense>
   );
 }

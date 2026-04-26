@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { USER_ACADEMIC_UPDATED_EVENT } from '../_lib/preferences';
 
 interface RecentDoc { id: string; title: string }
 
@@ -106,6 +107,8 @@ export function Sidebar() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [universityName, setUniversityName] = useState<string | null>(null);
+  const [profileYear, setProfileYear] = useState<number | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [recentsVisible, setRecentsVisible] = useState(true);
   const [folders, setFolders] = useState<SidebarFolder[]>([]);
@@ -185,6 +188,8 @@ export function Sidebar() {
           display_name?: string | null;
           username?: string | null;
           avatar_url?: string | null;
+          university?: string | null;
+          profile_year?: number | null;
         };
       } | null) => {
         if (ignore || !data?.profile) return;
@@ -192,12 +197,25 @@ export function Sidebar() {
         if (data.profile.display_name) setDisplayName(data.profile.display_name);
         if (data.profile.username) setUsername(data.profile.username);
         if (data.profile.avatar_url) setAvatarUrl(data.profile.avatar_url);
+        if (data.profile.university) setUniversityName(data.profile.university);
+        if (data.profile.profile_year) setProfileYear(data.profile.profile_year);
       })
       .catch(() => {});
 
     return () => {
       ignore = true;
     };
+  }, []);
+
+  // Listen for academic profile updates from the Settings page
+  useEffect(() => {
+    function onAcademicUpdated(e: Event) {
+      const detail = (e as CustomEvent<{ university: string | null; profile_year: number | null }>).detail;
+      if (detail.university !== undefined) setUniversityName(detail.university);
+      if (detail.profile_year !== undefined) setProfileYear(detail.profile_year);
+    }
+    window.addEventListener(USER_ACADEMIC_UPDATED_EVENT, onAcademicUpdated);
+    return () => window.removeEventListener(USER_ACADEMIC_UPDATED_EVENT, onAcademicUpdated);
   }, []);
 
   useEffect(() => {
@@ -771,12 +789,28 @@ export function Sidebar() {
           {/* ── Notebooks section ── */}
           <SectionDivider label="Notebooks" collapsed={collapsed} />
 
-          <PlaceholderNavItem
-            href="/search"
-            icon={<SearchIcon className="w-4 h-4 shrink-0" />}
-            label="Search"
-            collapsed={collapsed}
-          />
+          {/* Search — opens full-page or ⌘K palette */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-search-palette'))}
+            title={collapsed ? 'Search (⌘K)' : undefined}
+            className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+            } ${
+              isActive('/search')
+                ? activeNavClass
+                : 'text-white/72 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <SearchIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-sm text-left">Search</span>
+                <kbd className="shrink-0 text-[10px] text-white/30 bg-white/8 px-1.5 py-0.5 rounded font-mono">
+                  ⌘K
+                </kbd>
+              </>
+            )}
+          </button>
 
           {/* All Notebooks */}
           {collapsed ? (
@@ -996,7 +1030,16 @@ export function Sidebar() {
             }`}
           >
             <MyStudiesIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">My Studies</span>}
+            {!collapsed && (
+              <span className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm truncate">My Studies</span>
+                {universityName && (
+                  <span className="text-[10px] text-white/40 truncate max-w-[120px]">
+                    {universityName}{profileYear ? ` · Y${profileYear}` : ''}
+                  </span>
+                )}
+              </span>
+            )}
           </Link>
 
           {/* Templates */}

@@ -9,10 +9,11 @@ import {
   isThemePreference,
   LanguagePreference,
   ThemePreference,
+  USER_ACADEMIC_UPDATED_EVENT,
   USER_PREFERENCES_EVENT,
 } from '../../_lib/preferences';
 
-type SettingsSection = 'account' | 'profile' | 'preferences';
+type SettingsSection = 'account' | 'profile' | 'preferences' | 'academic';
 
 type ProfileVisibility = 'public' | 'private';
 
@@ -36,6 +37,9 @@ interface SettingsProfile {
   language: LanguagePreference;
   plan: 'free' | 'pro';
   is_anonymous: boolean;
+  profile_university_id: string | null;
+  profile_program_id: string | null;
+  profile_year: number | null;
 }
 
 interface SettingsResponse {
@@ -70,6 +74,26 @@ interface PreferencesFormState {
   language: LanguagePreference;
 }
 
+interface AcademicFormState {
+  universityId: string;
+  programId: string;
+  year: number;
+}
+
+interface CatalogueUniversity {
+  id: string;
+  name: string;
+  slug: string;
+  country: string | null;
+}
+
+interface CatalogueProgram {
+  id: string;
+  tipo: string;
+  title: string;
+  slug: string;
+}
+
 const DEFAULT_PROFILE: SettingsProfile = {
   email: null,
   display_name: null,
@@ -84,11 +108,15 @@ const DEFAULT_PROFILE: SettingsProfile = {
   language: 'en',
   plan: 'free',
   is_anonymous: false,
+  profile_university_id: null,
+  profile_program_id: null,
+  profile_year: null,
 };
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   account: 'Account',
   profile: 'Profile Details',
+  academic: 'Academic',
   preferences: 'App Preferences',
 };
 
@@ -118,7 +146,7 @@ function parseErrorMessage(respBody: unknown, fallback: string): string {
   return fallback;
 }
 
-function normalizeProfile(payload: Partial<SettingsProfile> | null | undefined): SettingsProfile {
+function normalizeProfile(payload: Partial<SettingsProfile & { profile_university_id?: string | null; profile_program_id?: string | null; profile_year?: number | null }> | null | undefined): SettingsProfile {
   if (!payload) return DEFAULT_PROFILE;
   return {
     ...DEFAULT_PROFILE,
@@ -128,6 +156,9 @@ function normalizeProfile(payload: Partial<SettingsProfile> | null | undefined):
     language: isLanguagePreference(payload.language) ? payload.language : 'en',
     plan: payload.plan === 'pro' ? 'pro' : 'free',
     is_anonymous: Boolean(payload.is_anonymous),
+    profile_university_id: payload.profile_university_id ?? null,
+    profile_program_id: payload.profile_program_id ?? null,
+    profile_year: payload.profile_year ?? null,
   };
 }
 
@@ -153,6 +184,14 @@ function toPreferencesForm(profile: SettingsProfile): PreferencesFormState {
   return {
     theme: profile.theme,
     language: profile.language,
+  };
+}
+
+function toAcademicForm(profile: SettingsProfile): AcademicFormState {
+  return {
+    universityId: profile.profile_university_id ?? '',
+    programId: profile.profile_program_id ?? '',
+    year: profile.profile_year ?? 1,
   };
 }
 
@@ -196,6 +235,14 @@ export default function SettingsClient({
   const [preferencesForm, setPreferencesForm] = useState<PreferencesFormState>(
     toPreferencesForm(DEFAULT_PROFILE)
   );
+
+  const [academicForm, setAcademicForm] = useState<AcademicFormState>(
+    toAcademicForm(DEFAULT_PROFILE)
+  );
+  const [universities, setUniversities] = useState<CatalogueUniversity[]>([]);
+  const [programs, setPrograms] = useState<CatalogueProgram[]>([]);
+  const [programsLoading, setProgramsLoading] = useState(false);
+  const [universitySearch, setUniversitySearch] = useState('');
 
   const [emailDraft, setEmailDraft] = useState('');
   const [passwordDraft, setPasswordDraft] = useState('');
@@ -244,6 +291,7 @@ export default function SettingsClient({
           setAccountForm(toAccountForm(nextProfile));
           setProfileForm(toProfileForm(nextProfile));
           setPreferencesForm(toPreferencesForm(nextProfile));
+          setAcademicForm(toAcademicForm(nextProfile));
           setEmailDraft(nextProfile.email ?? '');
         }
       } catch (error) {
@@ -292,6 +340,45 @@ export default function SettingsClient({
     );
   }
 
+  function dispatchAcademicUpdated(universityText: string | null, year: number | null) {
+    window.dispatchEvent(
+      new CustomEvent(USER_ACADEMIC_UPDATED_EVENT, {
+        detail: { university: universityText, profile_year: year },
+      })
+    );
+  }
+
+  // Load universities once when academic section becomes active
+  useEffect(() => {
+    if (activeSection !== 'academic' || universities.length > 0) return;
+    let ignore = false;
+    fetch('/api/catalogue?resource=universities')
+      .then((r) => r.ok ? r.json() : { universities: [] })
+      .then((data: { universities?: CatalogueUniversity[] }) => {
+        if (!ignore) setUniversities(data.universities ?? []);
+      })
+      .catch(() => {});
+    return () => { ignore = true; };
+  }, [activeSection, universities.length]);
+
+  // Load programmes when university selection changes inside the academic form
+  useEffect(() => {
+    if (!academicForm.universityId) {
+      setPrograms([]);
+      return;
+    }
+    let ignore = false;
+    setProgramsLoading(true);
+    fetch(`/api/catalogue?resource=programs&university_id=${academicForm.universityId}`)
+      .then((r) => r.ok ? r.json() : { programs: [] })
+      .then((data: { programs?: CatalogueProgram[] }) => {
+        if (!ignore) setPrograms(data.programs ?? []);
+      })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setProgramsLoading(false); });
+    return () => { ignore = true; };
+  }, [academicForm.universityId]);
+
   async function handleSaveAccount(e: React.FormEvent) {
     e.preventDefault();
     setBusyAction('save-account');
@@ -336,6 +423,38 @@ export default function SettingsClient({
       setNotice({
         type: 'error',
         text: error instanceof Error ? error.message : 'Could not save profile details.',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSaveAcademic(e: React.FormEvent) {
+    e.preventDefault();
+    setBusyAction('save-academic');
+    setNotice(null);
+
+    try {
+      // Derive the denormalised university text from catalogue data
+      const selectedUni = universities.find((u) => u.id === academicForm.universityId);
+      const selectedProg = programs.find((p) => p.id === academicForm.programId);
+
+      const updated = await patchSettings({
+        profile_university_id: academicForm.universityId || null,
+        profile_program_id: academicForm.programId || null,
+        profile_year: academicForm.year,
+        // Keep the denormalised `university` text field in sync for sidebar + public profile
+        university: selectedUni?.name ?? null,
+        degree: selectedProg?.title ?? null,
+      });
+
+      setAcademicForm(toAcademicForm(updated));
+      dispatchAcademicUpdated(updated.university, updated.profile_year);
+      setNotice({ type: 'success', text: 'Academic details updated. My Studies will reflect the new curriculum.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Could not save academic details.',
       });
     } finally {
       setBusyAction(null);
@@ -1034,6 +1153,144 @@ export default function SettingsClient({
               className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium disabled:opacity-60 transition-colors"
             >
               {busyAction === 'save-profile' ? 'Saving...' : 'Save profile details'}
+            </button>
+          </form>
+        )}
+
+        {!isLoading && activeSection === 'academic' && (
+          <form
+            onSubmit={handleSaveAcademic}
+            className="rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm p-5 space-y-5"
+          >
+            <div>
+              <h2 className="text-lg font-medium text-white">Academic Details</h2>
+              <p className="text-sm text-white/55 mt-1">
+                Set your university and degree programme. My Studies will use this to show your curriculum.
+              </p>
+            </div>
+
+            {/* University searchable select */}
+            <div className="space-y-1.5">
+              <label className="block">
+                <span className="text-xs text-white/60">University</span>
+                {universities.length === 0 ? (
+                  <div className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white/40">
+                    Loading universities...
+                  </div>
+                ) : (
+                  <div className="mt-1 relative">
+                    <input
+                      type="text"
+                      value={universitySearch || (universities.find((u) => u.id === academicForm.universityId)?.name ?? '')}
+                      onChange={(e) => {
+                        setUniversitySearch(e.target.value);
+                        // If user clears the input, reset selection
+                        if (!e.target.value) {
+                          setAcademicForm((prev) => ({ ...prev, universityId: '', programId: '' }));
+                        }
+                      }}
+                      onFocus={() => {
+                        // Show search by clearing the display value so the placeholder shows
+                        setUniversitySearch('');
+                      }}
+                      onBlur={() => {
+                        // On blur, restore the selected university name (or keep search if nothing selected)
+                        setTimeout(() => setUniversitySearch(''), 200);
+                      }}
+                      placeholder="Search university..."
+                      className="w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
+                    />
+                    {/* Dropdown list */}
+                    {universitySearch.trim().length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded-xl bg-neutral-900 border border-white/20 shadow-xl">
+                        {universities
+                          .filter((u) =>
+                            u.name.toLowerCase().includes(universitySearch.toLowerCase())
+                          )
+                          .slice(0, 20)
+                          .map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setAcademicForm((prev) => ({ ...prev, universityId: u.id, programId: '' }));
+                                setUniversitySearch('');
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-white/8
+                                ${academicForm.universityId === u.id ? 'text-indigo-300 bg-indigo-500/10' : 'text-white/80'}`}
+                            >
+                              {u.name}
+                              {u.country && (
+                                <span className="ml-2 text-[11px] text-white/35">{u.country}</span>
+                              )}
+                            </button>
+                          ))}
+                        {universities.filter((u) =>
+                          u.name.toLowerCase().includes(universitySearch.toLowerCase())
+                        ).length === 0 && (
+                          <p className="px-3 py-2 text-sm text-white/40">No universities found.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </label>
+            </div>
+
+            {/* Degree programme */}
+            <label className="block">
+              <span className="text-xs text-white/60">Degree programme</span>
+              <select
+                value={academicForm.programId}
+                onChange={(e) => setAcademicForm((prev) => ({ ...prev, programId: e.target.value }))}
+                disabled={!academicForm.universityId || programsLoading}
+                className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white focus:outline-none focus:border-indigo-400/60 transition-colors disabled:opacity-50"
+              >
+                <option value="" className="text-black">
+                  {programsLoading ? 'Loading...' : academicForm.universityId ? 'Select a programme' : 'Select a university first'}
+                </option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id} className="text-black">
+                    {p.tipo ? `[${p.tipo}] ` : ''}{p.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Year selector */}
+            <div>
+              <p className="text-xs text-white/60 mb-2">Current year</p>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4].map((yr) => {
+                  // For Master programmes (tipo contains 'Máster' or 'Master'), only show 1–2
+                  const selectedProg = programs.find((p) => p.id === academicForm.programId);
+                  const isMaster = selectedProg?.tipo?.toLowerCase().includes('máster') ||
+                    selectedProg?.tipo?.toLowerCase().includes('master');
+                  if (isMaster && yr > 2) return null;
+                  return (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => setAcademicForm((prev) => ({ ...prev, year: yr }))}
+                      className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                        academicForm.year === yr
+                          ? 'bg-white text-neutral-950 border-white'
+                          : 'border-white/20 text-white/75 hover:text-white hover:border-white/35'
+                      }`}
+                    >
+                      Year {yr}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={busyAction === 'save-academic'}
+              className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium disabled:opacity-60 transition-colors"
+            >
+              {busyAction === 'save-academic' ? 'Saving...' : 'Save academic details'}
             </button>
           </form>
         )}
