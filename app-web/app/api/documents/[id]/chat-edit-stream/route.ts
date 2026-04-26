@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildInternalApiHeaders, checkCreditQuota, recordAiUsage } from '@/lib/ai-usage';
 import { buildDocumentProjectContext, type UsageProjectContext } from '@/lib/usage-project';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const API_INTERNAL_TOKEN = process.env.API_INTERNAL_TOKEN ?? '';
@@ -86,7 +87,7 @@ async function readSseEvents(
   }
 }
 
-async function compileLatexForPreview(latex: string): Promise<
+async function compileLatexForPreview(latex: string, templateId: string): Promise<
   | { ok: true; latex: string }
   | { ok: false; error: string; compileLog?: string }
 > {
@@ -96,7 +97,7 @@ async function compileLatexForPreview(latex: string): Promise<
       'Content-Type': 'application/json',
       ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
     },
-    body: JSON.stringify({ latex }),
+    body: JSON.stringify({ latex, templateId }),
   });
 
   if (validateResp.ok) {
@@ -111,11 +112,11 @@ async function compileLatexForPreview(latex: string): Promise<
   };
 }
 
-async function validateLatexWithRepair(latex: string): Promise<
+async function validateLatexWithRepair(latex: string, templateId: string): Promise<
   | { ok: true; latex: string; repaired: boolean }
   | { ok: false; error: string; compileLog?: string }
 > {
-  const firstAttempt = await compileLatexForPreview(latex);
+  const firstAttempt = await compileLatexForPreview(latex, templateId);
   if (firstAttempt.ok) {
     return { ok: true, latex: firstAttempt.latex, repaired: false };
   }
@@ -139,7 +140,7 @@ async function validateLatexWithRepair(latex: string): Promise<
     return firstAttempt;
   }
 
-  const repairAttempt = await compileLatexForPreview(fixedLatex);
+  const repairAttempt = await compileLatexForPreview(fixedLatex, templateId);
   if (repairAttempt.ok) {
     return { ok: true, latex: repairAttempt.latex, repaired: true };
   }
@@ -219,7 +220,7 @@ export async function POST(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  if (doc.template_id !== 'clean_3cols_landscape') {
+  if (!supportsRealtimeGeneration(doc.template_id)) {
     return NextResponse.json({ error: 'streaming_edit_not_supported_for_template' }, { status: 400 });
   }
 
@@ -298,7 +299,7 @@ export async function POST(
           const finalSummary = typeof result.summary === 'string' && result.summary.trim()
             ? result.summary
             : 'Document updated';
-          const validation = await validateLatexWithRepair(result.latex);
+          const validation = await validateLatexWithRepair(result.latex, doc.template_id ?? '');
           if (!validation.ok) {
             await saveAssistantMessage(
               supabase,

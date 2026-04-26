@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 
 export interface DocumentData {
   id: string;
@@ -160,7 +161,7 @@ export function useDocumentWorkspace(documentId: string) {
   const generate = useCallback(async (prompt: string, files?: unknown[]) => {
     setState((s) => ({ ...s, isGenerating: true, generationPhase: 'calling_ai', error: null }));
     try {
-      if (state.document?.template_id === 'clean_3cols_landscape') {
+      if (supportsRealtimeGeneration(state.document?.template_id)) {
         const resp = await fetch(`/api/documents/${documentId}/generate-stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

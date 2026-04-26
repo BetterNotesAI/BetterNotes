@@ -29,7 +29,7 @@ function decodeLatexHeader(response: Response, fallback: string): string {
   return latexB64 ? Buffer.from(latexB64, 'base64').toString('utf8') : fallback;
 }
 
-async function compileLatexForPreview(latex: string): Promise<
+async function compileLatexForPreview(latex: string, templateId: string): Promise<
   | { ok: true; latex: string }
   | { ok: false; error: string; compileLog?: string }
 > {
@@ -39,7 +39,7 @@ async function compileLatexForPreview(latex: string): Promise<
       'Content-Type': 'application/json',
       ...(API_INTERNAL_TOKEN ? { Authorization: `Bearer ${API_INTERNAL_TOKEN}` } : {}),
     },
-    body: JSON.stringify({ latex }),
+    body: JSON.stringify({ latex, templateId }),
   });
 
   if (validateResp.ok) {
@@ -54,11 +54,11 @@ async function compileLatexForPreview(latex: string): Promise<
   };
 }
 
-async function validateLatexWithRepair(latex: string): Promise<
+async function validateLatexWithRepair(latex: string, templateId: string): Promise<
   | { ok: true; latex: string; repaired: boolean }
   | { ok: false; error: string; compileLog?: string }
 > {
-  const firstAttempt = await compileLatexForPreview(latex);
+  const firstAttempt = await compileLatexForPreview(latex, templateId);
   if (firstAttempt.ok) {
     return { ok: true, latex: firstAttempt.latex, repaired: false };
   }
@@ -82,7 +82,7 @@ async function validateLatexWithRepair(latex: string): Promise<
     return firstAttempt;
   }
 
-  const repairAttempt = await compileLatexForPreview(fixedLatex);
+  const repairAttempt = await compileLatexForPreview(fixedLatex, templateId);
   if (repairAttempt.ok) {
     return { ok: true, latex: repairAttempt.latex, repaired: true };
   }
@@ -231,7 +231,7 @@ export async function POST(
     let modifiedLatex = apiResult.latex;
     let repairedLatex = false;
     try {
-      const validation = await validateLatexWithRepair(apiResult.latex);
+      const validation = await validateLatexWithRepair(apiResult.latex, doc.template_id ?? '');
 
       if (!validation.ok) {
         await saveAssistantMessage(

@@ -17,6 +17,7 @@ import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
 import { buildExtendedLectureNotesProjectFiles } from '@/lib/extended-lecture-notes-project';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 import {
   consumePendingGenerationIntent,
   savePendingGenerationIntent,
@@ -504,7 +505,7 @@ export default function DocumentWorkspacePage() {
 
     if (isDraft) {
       // First generation
-      if (docData.template_id === 'clean_3cols_landscape') {
+      if (supportsRealtimeGeneration(docData.template_id)) {
         setViewerTab('interactive');
         setMobileTab('pdf');
       }
@@ -1197,7 +1198,11 @@ export default function DocumentWorkspacePage() {
                       return (
                         <button
                           key={v.id}
-                          onClick={() => switchVersion(v.id)}
+                          onClick={() => {
+                            setCurrentPdfUrl(null);
+                            setStreamingDocumentEditLatex(null);
+                            switchVersion(v.id);
+                          }}
                           className={`w-full text-left px-4 py-3 transition-colors border-b border-white/5 last:border-0 ${
                             isActive
                               ? 'bg-indigo-500/15 hover:bg-indigo-500/20'

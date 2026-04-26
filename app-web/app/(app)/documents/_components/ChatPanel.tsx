@@ -18,6 +18,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { BlockReference } from '@/components/viewer/LatexViewer';
 import { KATEX_MACROS } from '@/lib/katex-macros';
+import { supportsRealtimeGeneration } from '@/lib/document-realtime-templates';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -677,7 +678,7 @@ export function ChatPanel({
 
     try {
       const shouldStreamDocumentEdit =
-        templateId === 'clean_3cols_landscape' && typeof onPreviewDocumentEdit === 'function';
+        supportsRealtimeGeneration(templateId) && typeof onPreviewDocumentEdit === 'function';
 
       if (shouldStreamDocumentEdit) {
         const resp = await fetch(`/api/documents/${documentId}/chat-edit-stream`, {
@@ -993,7 +994,7 @@ export function ChatPanel({
                 <span className="text-xs text-cyan-100/85 font-medium">
                   {isApplyingDocumentEdit
                     ? 'Applying and compiling document edit...'
-                    : templateId === 'clean_3cols_landscape'
+                    : supportsRealtimeGeneration(templateId)
                     ? 'Editing document in real time...'
                     : 'Asking AI to edit document...'}
                 </span>

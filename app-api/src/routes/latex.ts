@@ -354,7 +354,11 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
   // Compiles provided LaTeX source, returns PDF binary or error JSON.
   router.post('/compile-only', async (req: Request, res: Response) => {
     try {
-      const { latex, files } = req.body as { latex?: string; files?: AttachmentInput[] };
+      const { latex, files, templateId } = req.body as {
+        latex?: string;
+        files?: AttachmentInput[];
+        templateId?: string;
+      };
 
       if (!latex || typeof latex !== 'string') {
         res.status(400).json({ ok: false, error: 'latex is required' });
@@ -370,7 +374,21 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
           return { filename: `attachment_${i}.${ext}`, buffer: a.imageBuffer! };
         });
 
-      const { pdf, log, latexPatched } = await compileLatexToPdf(latex, { timeoutMs: latexTimeoutMs }, imageFiles);
+      const useExtendedLectureProject = templateId === 'lecture_notes';
+      let pdf: Buffer;
+      let latexPatched: string;
+
+      if (useExtendedLectureProject) {
+        const latexSource = applyLatexFallbacks(latex);
+        const projectFiles = buildExtendedLectureProjectWithImages(latexSource, imageFiles);
+        const result = await compileMultiFileProject(projectFiles, 'main.tex', { timeoutMs: latexTimeoutMs });
+        pdf = result.pdf;
+        latexPatched = latexSource;
+      } else {
+        const result = await compileLatexToPdf(latex, { timeoutMs: latexTimeoutMs }, imageFiles);
+        pdf = result.pdf;
+        latexPatched = result.latexPatched;
+      }
 
       res.set({
         'Content-Type': 'application/pdf',
