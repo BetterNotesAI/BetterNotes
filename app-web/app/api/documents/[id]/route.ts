@@ -24,6 +24,7 @@ export async function GET(
       status,
       is_starred,
       folder_id,
+      section_id,
       current_version_id,
       created_at,
       updated_at,
@@ -132,11 +133,12 @@ export async function PATCH(
 
   const { id: documentId } = await params;
   const body = await req.json().catch(() => ({}));
-  const { title, is_starred, archived_at, folder_id } = body as {
+  const { title, is_starred, archived_at, folder_id, section_id } = body as {
     title?: string;
     is_starred?: boolean;
     archived_at?: string | null;
     folder_id?: string | null;
+    section_id?: string | null;
   };
 
   // Validate folder_id ownership before updating (prevents cross-user folder assignment)
@@ -152,11 +154,53 @@ export async function PATCH(
     }
   }
 
+  let targetFolderId = folder_id;
+  if (section_id !== undefined && targetFolderId === undefined) {
+    const { data: currentDoc, error: docError } = await supabase
+      .from('documents')
+      .select('folder_id')
+      .eq('id', documentId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (docError) {
+      return NextResponse.json({ error: docError.message }, { status: 500 });
+    }
+    if (!currentDoc) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    targetFolderId = currentDoc.folder_id;
+  }
+
+  if (section_id !== undefined && section_id !== null) {
+    if (!targetFolderId) {
+      return NextResponse.json({ error: 'section_id requires folder_id' }, { status: 400 });
+    }
+
+    const { data: section, error: sectionErr } = await supabase
+      .from('folder_sections')
+      .select('id')
+      .eq('id', section_id)
+      .eq('folder_id', targetFolderId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (sectionErr) {
+      return NextResponse.json({ error: sectionErr.message }, { status: 500 });
+    }
+    if (!section) {
+      return NextResponse.json({ error: 'Section not found' }, { status: 404 });
+    }
+  }
+
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (title !== undefined) updates.title = title.trim();
   if (is_starred !== undefined) updates.is_starred = is_starred;
   if (archived_at !== undefined) updates.archived_at = archived_at;
   if (folder_id !== undefined) updates.folder_id = folder_id;
+  if (section_id !== undefined) updates.section_id = section_id;
+  if (folder_id !== undefined && section_id === undefined) updates.section_id = null;
 
   const { error } = await supabase
     .from('documents')

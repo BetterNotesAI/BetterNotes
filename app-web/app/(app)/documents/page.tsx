@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCard, type DocumentItem } from './_components/DocumentCard';
 import { DocumentFilters } from './_components/DocumentFilters';
@@ -9,6 +9,7 @@ import { ProjectAttachmentsPanel } from './_components/ProjectAttachmentsPanel';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
+const UNFILED_DROP_TARGET_ID = '__unfiled__';
 
 interface ProjectFolder {
   id: string;
@@ -18,6 +19,15 @@ interface ProjectFolder {
   archived_at?: string | null;
   document_count?: number;
   input_count?: number;
+}
+
+interface NotebookSection {
+  id: string;
+  folder_id: string;
+  name: string;
+  color: string | null;
+  sort_order: number;
+  document_count?: number;
 }
 
 const ONBOARDING_STEPS = [
@@ -89,6 +99,100 @@ function NewDocumentWatcher({
   return null;
 }
 
+function SectionNameModal({
+  title,
+  submitLabel,
+  initialName = '',
+  isSubmitting,
+  error,
+  onSubmit,
+  onClose,
+}: {
+  title: string;
+  submitLabel: string;
+  initialName?: string;
+  isSubmitting: boolean;
+  error: string | null;
+  onSubmit: (name: string) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setName(initialName);
+  }, [initialName]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const trimmed = name.trim();
+          if (trimmed) onSubmit(trimmed);
+        }}
+        className="w-full max-w-sm rounded-2xl border border-white/15 bg-neutral-950/95 shadow-2xl overflow-hidden"
+      >
+        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-white/45 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          <label className="block text-xs font-medium text-white/50 mb-2" htmlFor="notebook-section-name">
+            Folder name
+          </label>
+          <input
+            ref={inputRef}
+            id="notebook-section-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            className="w-full h-11 rounded-xl border border-white/15 bg-white/8 px-3 text-sm text-white outline-none
+              placeholder:text-white/25 focus:border-indigo-400/70 focus:bg-white/10"
+            placeholder="e.g. Week 1"
+          />
+          {error && (
+            <p className="mt-3 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-white/10 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-10 rounded-xl border border-white/10 text-sm font-medium text-white/55 hover:bg-white/8 hover:text-white/80 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || name.trim().length === 0}
+            className="flex-1 h-10 rounded-xl bg-indigo-500 text-sm font-semibold text-white hover:bg-indigo-400
+              disabled:opacity-50 disabled:hover:bg-indigo-500 transition-colors"
+          >
+            {isSubmitting ? 'Saving...' : submitLabel}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const router = useRouter();
 
@@ -119,6 +223,9 @@ export default function DocumentsPage() {
 
   // Folders for DocumentCard "move to folder" menu
   const [folders, setFolders] = useState<ProjectFolder[]>([]);
+  const [sections, setSections] = useState<NotebookSection[]>([]);
+  const [isLoadingSections, setIsLoadingSections] = useState(false);
+  const sectionLoadSeqRef = useRef(0);
 
   // Create modal state
   const [showNewDocModal, setShowNewDocModal] = useState(false);
@@ -126,7 +233,13 @@ export default function DocumentsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   // Folder pre-selected when opening modal via "New document here"
   const [pendingFolderId, setPendingFolderId] = useState<string | null>(null);
+  const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
   const [projectAttachmentsOpen, setProjectAttachmentsOpen] = useState(false);
+  const [sectionModalMode, setSectionModalMode] = useState<'create' | 'rename' | null>(null);
+  const [sectionModalTarget, setSectionModalTarget] = useState<NotebookSection | null>(null);
+  const [sectionModalError, setSectionModalError] = useState<string | null>(null);
+  const [isSavingSection, setIsSavingSection] = useState(false);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
 
   const handleOpenFolderFromQuery = useCallback((folderId: string) => {
     setActiveFolderId((current) => {
@@ -141,8 +254,31 @@ export default function DocumentsPage() {
 
   const handleNewDocumentTrigger = useCallback((folderId: string | null) => {
     setPendingFolderId(folderId);
+    setPendingSectionId(null);
     setShowNewDocModal(true);
   }, []);
+
+  const loadSections = useCallback(async (folderId = activeFolderId) => {
+    const requestId = ++sectionLoadSeqRef.current;
+
+    if (!folderId) {
+      setSections([]);
+      setIsLoadingSections(false);
+      return;
+    }
+
+    setIsLoadingSections(true);
+    try {
+      const resp = await fetch(`/api/folders/${encodeURIComponent(folderId)}/sections`, { cache: 'no-store' });
+      const data = await resp.json().catch(() => ({}));
+      if (requestId !== sectionLoadSeqRef.current) return;
+      setSections(resp.ok ? data.sections ?? [] : []);
+    } finally {
+      if (requestId === sectionLoadSeqRef.current) {
+        setIsLoadingSections(false);
+      }
+    }
+  }, [activeFolderId]);
 
   // Initial load: load folders for card menu + register sidebar events
   useEffect(() => {
@@ -188,6 +324,7 @@ export default function DocumentsPage() {
     function handleCreateDocumentInFolder(e: Event) {
       const folderId = (e as CustomEvent<{ folderId: string }>).detail.folderId;
       if (folderId) setPendingFolderId(folderId);
+      setPendingSectionId(null);
       setShowNewDocModal(true);
     }
     window.addEventListener('folders:updated', loadFolders);
@@ -207,6 +344,10 @@ export default function DocumentsPage() {
     loadDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy, filterStarred, showArchived, activeFolderId]);
+
+  useEffect(() => {
+    loadSections();
+  }, [loadSections]);
 
   useEffect(() => {
     if (!activeFolderId) setProjectAttachmentsOpen(false);
@@ -272,6 +413,19 @@ export default function DocumentsPage() {
       : documents,
     [activeFolderId, documents]
   );
+
+  const folderSectionView = useMemo(() => {
+    if (!activeFolderId) return null;
+    const sectionIds = new Set(sections.map((section) => section.id));
+    const sectionGroups = sections.map((section) => ({
+      section,
+      docs: visibleFolderDocuments.filter((doc) => doc.section_id === section.id),
+    }));
+    const unfiledDocs = visibleFolderDocuments.filter((doc) => (
+      !doc.section_id || !sectionIds.has(doc.section_id)
+    ));
+    return { sectionGroups, unfiledDocs };
+  }, [activeFolderId, sections, visibleFolderDocuments]);
 
   function formatFolderCounts(folder: Pick<ProjectFolder, 'document_count' | 'input_count'>, docsFallback = 0) {
     const documentCount = folder.document_count ?? docsFallback;
@@ -381,6 +535,51 @@ export default function DocumentsPage() {
       body: JSON.stringify({ folder_id: folderId }),
     });
     loadDocuments();
+    if (activeFolderId) loadSections(activeFolderId);
+  }
+
+  async function handleMoveToSection(docId: string, sectionId: string | null) {
+    const previousDocs = documents;
+    setDocuments((prev) => prev.map((doc) => (
+      doc.id === docId ? { ...doc, section_id: sectionId } : doc
+    )));
+
+    const res = await fetch(`/api/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section_id: sectionId }),
+    });
+
+    if (!res.ok) {
+      setDocuments(previousDocs);
+      return;
+    }
+
+    loadSections(activeFolderId ?? undefined);
+  }
+
+  function handleSectionDragOver(e: DragEvent<HTMLElement>, targetId: string) {
+    if (!e.dataTransfer.types.includes('text/plain')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverSectionId(targetId);
+  }
+
+  function handleSectionDragLeave(e: DragEvent<HTMLElement>, targetId: string) {
+    const nextTarget = e.relatedTarget as Node | null;
+    if (nextTarget && e.currentTarget.contains(nextTarget)) return;
+    setDragOverSectionId((current) => current === targetId ? null : current);
+  }
+
+  function handleSectionDrop(e: DragEvent<HTMLElement>, sectionId: string | null) {
+    e.preventDefault();
+    const docId = e.dataTransfer.getData('text/plain').trim();
+    setDragOverSectionId(null);
+    if (!docId) return;
+
+    const doc = documentsRef.current.find((item) => item.id === docId);
+    if (!doc || doc.section_id === sectionId) return;
+    handleMoveToSection(docId, sectionId);
   }
 
   async function handleDuplicate(doc: DocumentItem) {
@@ -471,7 +670,94 @@ export default function DocumentsPage() {
 
   function handleCreateDocInFolder(folderId: string) {
     setPendingFolderId(folderId);
+    setPendingSectionId(null);
     setShowNewDocModal(true);
+  }
+
+  function handleCreateDocInSection(sectionId: string) {
+    if (!activeFolderId) return;
+    setPendingFolderId(activeFolderId);
+    setPendingSectionId(sectionId);
+    setShowNewDocModal(true);
+  }
+
+  function openCreateSectionModal() {
+    setSectionModalMode('create');
+    setSectionModalTarget(null);
+    setSectionModalError(null);
+  }
+
+  function openRenameSectionModal(section: NotebookSection) {
+    setSectionModalMode('rename');
+    setSectionModalTarget(section);
+    setSectionModalError(null);
+  }
+
+  function closeSectionModal() {
+    if (isSavingSection) return;
+    setSectionModalMode(null);
+    setSectionModalTarget(null);
+    setSectionModalError(null);
+  }
+
+  async function handleSubmitSection(name: string) {
+    if (!activeFolderId || !sectionModalMode) return;
+
+    setIsSavingSection(true);
+    setSectionModalError(null);
+
+    try {
+      const endpoint = sectionModalMode === 'create'
+        ? `/api/folders/${encodeURIComponent(activeFolderId)}/sections`
+        : `/api/folders/${encodeURIComponent(activeFolderId)}/sections/${encodeURIComponent(sectionModalTarget!.id)}`;
+      const res = await fetch(endpoint, {
+        method: sectionModalMode === 'create' ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setSectionModalError(data?.error ?? 'Failed to save folder');
+        return;
+      }
+
+      if (sectionModalMode === 'create') {
+        setSections((prev) => [...prev, data.section]);
+      } else {
+        setSections((prev) => prev.map((section) => (
+          section.id === data.section.id
+            ? { ...section, ...data.section }
+            : section
+        )));
+      }
+
+      setSectionModalMode(null);
+      setSectionModalTarget(null);
+    } finally {
+      setIsSavingSection(false);
+    }
+  }
+
+  async function handleDeleteSection(section: NotebookSection) {
+    const confirmed = window.confirm(`Delete "${section.name}"? Documents inside it will move to Unfiled.`);
+    if (!confirmed || !activeFolderId) return;
+
+    const previousSections = sections;
+    const previousDocs = documents;
+    setSections((prev) => prev.filter((item) => item.id !== section.id));
+    setDocuments((prev) => prev.map((doc) => (
+      doc.section_id === section.id ? { ...doc, section_id: null } : doc
+    )));
+
+    const res = await fetch(`/api/folders/${encodeURIComponent(activeFolderId)}/sections/${encodeURIComponent(section.id)}`, {
+      method: 'DELETE',
+    });
+
+    if (!res.ok) {
+      setSections(previousSections);
+      setDocuments(previousDocs);
+    }
   }
 
   async function handleChangeFolderColor(folderId: string, newColor: string) {
@@ -541,6 +827,7 @@ export default function DocumentsPage() {
     setShowNewDocModal(false);
     setCreateError(null);
     setPendingFolderId(null);
+    setPendingSectionId(null);
   }
 
   async function handleCreate(data: CreateDocumentInput) {
@@ -582,6 +869,7 @@ export default function DocumentsPage() {
           prompt: data.prompt,
           attachments: uploadedAttachments,
           ...(pendingFolderId ? { folder_id: pendingFolderId } : {}),
+          ...(pendingSectionId ? { section_id: pendingSectionId } : {}),
         }),
       });
       const docData = await resp.json().catch(() => ({}));
@@ -721,7 +1009,7 @@ export default function DocumentsPage() {
             <div className="flex items-center justify-center py-20">
               <div className="w-6 h-6 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
             </div>
-          ) : visibleFolderDocuments.length === 0 && !groupedView ? (
+          ) : visibleFolderDocuments.length === 0 && !groupedView && (!activeFolderId || (!isLoadingSections && sections.length === 0)) ? (
             /* Empty states */
             activeFolderId ? (
               /* Folder-filtered view — empty: show header + empty state */
@@ -756,6 +1044,16 @@ export default function DocumentsPage() {
                           onArchive={() => handleArchiveFolder(activeFolderId!, !!activeFolder.archived_at)}
                         />
                       )}
+                      <button
+                        onClick={openCreateSectionModal}
+                        className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 border border-white/10
+                          text-xs font-medium text-white/60 hover:bg-white/12 hover:text-white transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        New folder
+                      </button>
                     </div>
                     {/* Empty state */}
                     <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1149,6 +1447,26 @@ export default function DocumentsPage() {
             /* ── Folder-filtered view ── */
             (() => {
               const activeFolder = folders.find((f) => f.id === activeFolderId);
+              const sectionView = folderSectionView ?? { sectionGroups: [], unfiledDocs: visibleFolderDocuments };
+              const renderActiveDocCard = (doc: DocumentItem) => (
+                <DocumentCard
+                  key={doc.id}
+                  doc={doc}
+                  onRename={(newTitle) => handleRename(doc.id, newTitle)}
+                  onStar={(isStarred) => handleStar(doc.id, isStarred)}
+                  onArchive={(archive) => handleArchive(doc.id, archive)}
+                  onDelete={() => handleDelete(doc.id)}
+                  onNavigate={() => router.push(documentHref(doc))}
+                  onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
+                  folders={folders}
+                  onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
+                  sections={sections}
+                  onMoveToSection={(sectionId) => handleMoveToSection(doc.id, sectionId)}
+                  onDuplicate={() => handleDuplicate(doc)}
+                  onDownload={() => handleDownload(doc)}
+                />
+              );
+
               return (
                 <div className="space-y-6">
                   {/* Folder header row */}
@@ -1180,31 +1498,125 @@ export default function DocumentsPage() {
                         onArchive={() => handleArchiveFolder(activeFolderId!, !!activeFolder.archived_at)}
                       />
                     )}
+                    <button
+                      onClick={openCreateSectionModal}
+                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 border border-white/10
+                        text-xs font-medium text-white/60 hover:bg-white/12 hover:text-white transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      New folder
+                    </button>
                   </div>
 
-                  {/* Documents grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {visibleFolderDocuments.map((doc) => {
-                      const parentFolder = doc.folder_id ? folders.find((f) => f.id === doc.folder_id) : null;
-                      return (
-                      <DocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        onRename={(newTitle) => handleRename(doc.id, newTitle)}
-                        onStar={(isStarred) => handleStar(doc.id, isStarred)}
-                        onArchive={(archive) => handleArchive(doc.id, archive)}
-                        onDelete={() => handleDelete(doc.id)}
-                        onNavigate={() => router.push(documentHref(doc))}
-                        onOpenHistory={() => router.push(`/documents/${doc.id}?history=1`)}
-                        folders={folders}
-                        onMoveToFolder={(folderId) => handleMoveToFolder(doc.id, folderId)}
-                        onDuplicate={() => handleDuplicate(doc)}
-                        onDownload={() => handleDownload(doc)}
-                        folderBadge={parentFolder ? { name: parentFolder.name, color: parentFolder.color } : undefined}
-                      />
-                      );
-                    })}
-                  </div>
+                  {isLoadingSections ? (
+                    <div className="flex items-center gap-2 py-4 text-xs text-white/35">
+                      <span className="w-4 h-4 border-2 border-white/10 border-t-indigo-400 rounded-full animate-spin" />
+                      Loading folders...
+                    </div>
+                  ) : (
+                    <div className="space-y-7">
+                      {sectionView.sectionGroups.map(({ section, docs }) => (
+                        <section
+                          key={section.id}
+                          onDragOver={(e) => handleSectionDragOver(e, section.id)}
+                          onDragLeave={(e) => handleSectionDragLeave(e, section.id)}
+                          onDrop={(e) => handleSectionDrop(e, section.id)}
+                          className={`space-y-3 rounded-2xl border border-dashed p-2 -m-2 transition-colors ${
+                            dragOverSectionId === section.id
+                              ? 'border-indigo-300/60 bg-indigo-500/10'
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: section.color ?? '#8b5cf6' }}
+                            />
+                            <h3 className="text-sm font-semibold text-white/85 truncate">{section.name}</h3>
+                            <span className="text-[11px] text-white/30 shrink-0">
+                              {docs.length} {docs.length === 1 ? 'document' : 'documents'}
+                            </span>
+                            <button
+                              onClick={() => handleCreateDocInSection(section.id)}
+                              className="ml-auto p-1.5 rounded-lg text-white/35 hover:text-white/80 hover:bg-white/10 transition-colors"
+                              title="New document in this folder"
+                              aria-label="New document in this folder"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => openRenameSectionModal(section)}
+                              className="p-1.5 rounded-lg text-white/30 hover:text-white/75 hover:bg-white/10 transition-colors"
+                              title="Rename folder"
+                              aria-label="Rename folder"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSection(section)}
+                              className="p-1.5 rounded-lg text-white/30 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                              title="Delete folder"
+                              aria-label="Delete folder"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {docs.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {docs.map(renderActiveDocCard)}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleCreateDocInSection(section.id)}
+                              className="w-full rounded-xl border border-dashed border-white/12 bg-white/[0.03] py-6 text-center text-xs text-white/35
+                                hover:border-indigo-400/35 hover:bg-indigo-500/5 hover:text-white/60 transition-colors"
+                            >
+                              Add first document
+                            </button>
+                          )}
+                        </section>
+                      ))}
+
+                      <section
+                        onDragOver={(e) => handleSectionDragOver(e, UNFILED_DROP_TARGET_ID)}
+                        onDragLeave={(e) => handleSectionDragLeave(e, UNFILED_DROP_TARGET_ID)}
+                        onDrop={(e) => handleSectionDrop(e, null)}
+                        className={`space-y-3 rounded-2xl border border-dashed p-2 -m-2 transition-colors ${
+                          dragOverSectionId === UNFILED_DROP_TARGET_ID
+                            ? 'border-white/45 bg-white/8'
+                            : 'border-transparent'
+                        }`}
+                      >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-white/25" />
+                            <h3 className="text-sm font-semibold text-white/85 truncate">
+                              {sectionView.sectionGroups.length > 0 ? 'Unfiled' : 'Documents'}
+                            </h3>
+                            <span className="text-[11px] text-white/30 shrink-0">
+                              {sectionView.unfiledDocs.length} {sectionView.unfiledDocs.length === 1 ? 'document' : 'documents'}
+                            </span>
+                          </div>
+                          {sectionView.unfiledDocs.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {sectionView.unfiledDocs.map(renderActiveDocCard)}
+                            </div>
+                          ) : sectionView.sectionGroups.length > 0 ? (
+                            <div className="w-full rounded-xl border border-dashed border-white/12 bg-white/[0.03] py-6 text-center text-xs text-white/35">
+                              Drop documents here to remove them from a folder
+                            </div>
+                          ) : null}
+                      </section>
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -1247,6 +1659,18 @@ export default function DocumentsPage() {
             />
           </div>
         </div>
+      )}
+
+      {sectionModalMode && (
+        <SectionNameModal
+          title={sectionModalMode === 'create' ? 'New notebook folder' : 'Rename notebook folder'}
+          submitLabel={sectionModalMode === 'create' ? 'Create' : 'Save'}
+          initialName={sectionModalTarget?.name ?? ''}
+          isSubmitting={isSavingSection}
+          error={sectionModalError}
+          onSubmit={handleSubmitSection}
+          onClose={closeSectionModal}
+        />
       )}
     </div>
   );

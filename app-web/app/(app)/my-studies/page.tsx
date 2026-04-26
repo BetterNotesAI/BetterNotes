@@ -114,6 +114,8 @@ function DocumentCard({
   const templateLabel = TEMPLATE_LABELS[doc.template_id] ?? doc.template_id;
   const [isLiking, setIsLiking] = useState(false);
   const [isForking, setIsForking] = useState(false);
+  const visibleKeywords = doc.keywords.slice(0, 2);
+  const hiddenKeywordCount = Math.max(0, doc.keywords.length - visibleKeywords.length);
 
   async function handleLike(e: React.MouseEvent) {
     e.stopPropagation();
@@ -153,33 +155,37 @@ function DocumentCard({
         )}
       </div>
 
-      {/* Author chip */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onAuthorClick(doc.user_id); }}
-        className="flex items-center gap-1.5 group/author w-fit"
-      >
-        <div
-          className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40
-            border border-white/15 flex items-center justify-center shrink-0 bg-cover bg-center"
-          style={doc.author_avatar ? { backgroundImage: `url(${doc.author_avatar})` } : undefined}
+      {/* Author + compact keywords */}
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); onAuthorClick(doc.user_id); }}
+          className="flex items-center gap-1.5 group/author min-w-0 shrink"
         >
-          {!doc.author_avatar && <span className="text-[9px] font-semibold text-white/70">{authorInitial}</span>}
-        </div>
-        <span className="text-[11px] text-white/40 group-hover/author:text-white/70 transition-colors truncate max-w-[140px]">
-          {doc.is_own ? 'You' : (doc.author_name ?? 'Anonymous')}
-        </span>
-      </button>
+          <div
+            className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40
+              border border-white/15 flex items-center justify-center shrink-0 bg-cover bg-center"
+            style={doc.author_avatar ? { backgroundImage: `url(${doc.author_avatar})` } : undefined}
+          >
+            {!doc.author_avatar && <span className="text-[9px] font-semibold text-white/70">{authorInitial}</span>}
+          </div>
+          <span className="text-[11px] text-white/40 group-hover/author:text-white/70 transition-colors truncate max-w-[120px]">
+            {doc.is_own ? 'You' : (doc.author_name ?? 'Anonymous')}
+          </span>
+        </button>
 
-      {doc.keywords.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {doc.keywords.slice(0, 4).map((kw) => (
-            <span key={kw} className="text-[10px] text-indigo-300/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-2 py-0.5">
-              {kw}
-            </span>
-          ))}
-          {doc.keywords.length > 4 && <span className="text-[10px] text-white/30">+{doc.keywords.length - 4}</span>}
-        </div>
-      )}
+        {visibleKeywords.length > 0 && (
+          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 overflow-hidden whitespace-nowrap">
+            {visibleKeywords.map((kw) => (
+              <span key={kw} className="min-w-0 max-w-[112px] truncate text-[10px] text-indigo-300/70 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-2 py-0.5">
+                {kw}
+              </span>
+            ))}
+            {hiddenKeywordCount > 0 && (
+              <span className="shrink-0 text-[10px] text-white/35">+{hiddenKeywordCount}</span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/6">
         <div className="flex items-center gap-3">
@@ -328,10 +334,20 @@ function TreeSidebar({
   }, [selected, universities]);
 
   function toggleUni(id: string) {
-    setOpenUniversities((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setOpenUniversities((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   }
   function toggleProg(id: string) {
-    setOpenPrograms((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setOpenPrograms((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   }
 
   function isActive(node: SelectedNode): boolean {

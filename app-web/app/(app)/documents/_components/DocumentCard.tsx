@@ -13,6 +13,7 @@ export interface DocumentItem {
   is_starred: boolean;
   archived_at: string | null;
   folder_id: string | null;
+  section_id?: string | null;
   created_at: string;
   updated_at: string;
   forked_from_id?: string | null;
@@ -325,6 +326,12 @@ interface FolderOption {
   color: string | null;
 }
 
+interface SectionOption {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface DocumentCardProps {
   doc: DocumentItem;
   onRename: (newTitle: string) => void;
@@ -335,6 +342,8 @@ interface DocumentCardProps {
   onOpenHistory?: () => void;
   folders: FolderOption[];
   onMoveToFolder: (folderId: string | null) => void;
+  sections?: SectionOption[];
+  onMoveToSection?: (sectionId: string | null) => void;
   onDuplicate?: () => void | Promise<void>;
   onDownload?: () => void;
   folderBadge?: { name: string; color: string | null };
@@ -350,6 +359,8 @@ export function DocumentCard({
   onOpenHistory,
   folders,
   onMoveToFolder,
+  sections,
+  onMoveToSection,
   onDuplicate,
   onDownload,
   folderBadge,
@@ -359,6 +370,7 @@ export function DocumentCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
+  const [showSectionSubmenu, setShowSectionSubmenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const titleClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -393,12 +405,14 @@ export function DocumentCard({
         setMenuOpen(false);
         setMenuPos(null);
         setShowFolderSubmenu(false);
+        setShowSectionSubmenu(false);
       }
     }
     function handleScroll() {
       setMenuOpen(false);
       setMenuPos(null);
       setShowFolderSubmenu(false);
+      setShowSectionSubmenu(false);
     }
     document.addEventListener('mousedown', handleClick);
     window.addEventListener('scroll', handleScroll, true);
@@ -416,7 +430,6 @@ export function DocumentCard({
     if (overflow > 0) {
       setMenuPos((prev) => prev ? { ...prev, top: Math.max(prev.top - overflow, 8) } : prev);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
 
   function handleTitleClick(e: React.MouseEvent) {
@@ -464,6 +477,7 @@ export function DocumentCard({
       setMenuOpen(false);
       setMenuPos(null);
       setShowFolderSubmenu(false);
+      setShowSectionSubmenu(false);
       return;
     }
     const rect = menuButtonRef.current?.getBoundingClientRect();
@@ -487,7 +501,16 @@ export function DocumentCard({
   function handleMoveToFolder(folderId: string | null) {
     setMenuOpen(false);
     setShowFolderSubmenu(false);
+    setShowSectionSubmenu(false);
     onMoveToFolder(folderId);
+  }
+
+  function handleMoveToSection(sectionId: string | null) {
+    if (!onMoveToSection) return;
+    setMenuOpen(false);
+    setShowFolderSubmenu(false);
+    setShowSectionSubmenu(false);
+    onMoveToSection(sectionId);
   }
 
   function handleArchive(e: React.MouseEvent) {
@@ -675,7 +698,10 @@ export function DocumentCard({
 
                 {/* Move to folder */}
                 <button
-                  onClick={() => setShowFolderSubmenu(s => !s)}
+                  onClick={() => {
+                    setShowFolderSubmenu(s => !s);
+                    setShowSectionSubmenu(false);
+                  }}
                   className="flex items-center justify-between gap-2 w-full px-3 py-2 text-xs
                     text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left"
                 >
@@ -726,6 +752,65 @@ export function DocumentCard({
                       </>
                     )}
                   </div>
+                )}
+
+                {sections && onMoveToSection && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowSectionSubmenu(s => !s);
+                        setShowFolderSubmenu(false);
+                      }}
+                      className="flex items-center justify-between gap-2 w-full px-3 py-2 text-xs
+                        text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h6.75l1.5 1.5h8.25v9a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6.75z" />
+                        </svg>
+                        Move inside notebook
+                      </span>
+                      <svg
+                        className={`w-3 h-3 shrink-0 text-white/30 transition-transform duration-150 ${showSectionSubmenu ? 'rotate-180' : ''}`}
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {showSectionSubmenu && (
+                      <div className="border-t border-white/10 pt-0.5 pb-0.5">
+                        {sections.length === 0 ? (
+                          <p className="px-4 py-2 text-xs text-white/30 italic">No internal folders yet</p>
+                        ) : (
+                          sections.map(section => (
+                            <button
+                              key={section.id}
+                              onClick={() => handleMoveToSection(section.id)}
+                              className={`flex items-center gap-2 w-full px-4 py-1.5 text-xs
+                                text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left
+                                ${doc.section_id === section.id ? 'opacity-40 pointer-events-none' : ''}`}
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: section.color ?? '#8b5cf6' }}
+                              />
+                              <span className="truncate">{section.name}</span>
+                            </button>
+                          ))
+                        )}
+                        {doc.section_id && (
+                          <button
+                            onClick={() => handleMoveToSection(null)}
+                            className="flex items-center gap-2 w-full px-4 py-1.5 text-xs
+                              text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors text-left"
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0 border border-white/30" />
+                            <span>Unfiled</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Star / Unstar */}
