@@ -1195,7 +1195,12 @@ export default function DocumentWorkspacePage() {
                       return (
                         <button
                           key={v.id}
-                          onClick={() => switchVersion(v.id)}
+                          onClick={() => {
+                            // Clear local overrides so the PDF viewer picks up the new signed URL
+                            setCurrentPdfUrl(null);
+                            setPendingDocumentEdit(null);
+                            switchVersion(v.id);
+                          }}
                           className={`w-full text-left px-4 py-3 transition-colors border-b border-white/5 last:border-0 ${
                             isActive
                               ? 'bg-indigo-500/15 hover:bg-indigo-500/20'
