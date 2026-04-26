@@ -182,9 +182,11 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
 function UniversityStep({
   onSelect,
   onSkip,
+  onIndependent,
 }: {
   onSelect: (university: University) => void
   onSkip: () => void
+  onIndependent?: () => void
 }) {
   const [universities, setUniversities] = useState<University[]>([])
   const [query, setQuery] = useState('')
@@ -256,6 +258,23 @@ function UniversityStep({
         </div>
       ) : (
         <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+          {/* Independent option — always at the top, visually distinct */}
+          {onIndependent && (
+            <>
+              <button
+                onClick={onIndependent}
+                className="w-full text-left px-4 py-3 bg-indigo-500/10 border border-indigo-400/25 hover:bg-indigo-500/20 hover:border-indigo-400/40 rounded-xl transition-colors group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-indigo-300 group-hover:text-indigo-200 truncate">
+                    Independent
+                  </span>
+                  <span className="text-xs text-indigo-400/60 flex-shrink-0">no university</span>
+                </div>
+              </button>
+              <div className="border-t border-white/10 my-1" />
+            </>
+          )}
           {filtered.length === 0 ? (
             <p className="text-center text-white/40 text-sm py-4">No universities found</p>
           ) : (
@@ -546,6 +565,27 @@ function OnboardingContent() {
     router.push('/home')
   }, [router])
 
+  async function handleIndependentSelected() {
+    try {
+      await fetch('/api/settings', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_university_id: null,
+          profile_program_id: null,
+          profile_year: null,
+          university: 'Independent',
+          degree: null,
+          onboarding_completed_at: new Date().toISOString(),
+        }),
+      })
+    } catch {
+      // non-blocking
+    }
+    router.push('/home')
+  }
+
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4">
       <Background />
@@ -572,6 +612,7 @@ function OnboardingContent() {
                 goToStep('degree')
               }}
               onSkip={goHome}
+              onIndependent={handleIndependentSelected}
             />
           )}
           {step === 'degree' && (
@@ -591,6 +632,7 @@ function OnboardingContent() {
                     goToStep('degree')
                   }}
                   onSkip={goHome}
+                  onIndependent={handleIndependentSelected}
                 />
               )}
             </>

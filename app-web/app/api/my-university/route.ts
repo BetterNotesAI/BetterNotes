@@ -39,10 +39,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Fetch user profile to get program_id and profile_year
+  // Fetch user profile to get program_id, profile_year and university text
   const { data: profileRaw, error: profileError } = await supabase
     .from('profiles')
-    .select('profile_program_id, profile_year')
+    .select('profile_program_id, profile_year, university')
     .eq('id', user.id)
     .single();
 
@@ -50,7 +50,27 @@ export async function GET() {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
 
-  const profile = profileRaw as { profile_program_id: string | null; profile_year: number | null };
+  const profile = profileRaw as { profile_program_id: string | null; profile_year: number | null; university: string | null };
+
+  // Independent user: no university affiliation — fetch unaffiliated public documents
+  const isIndependent = profile.university === 'Independent' && !profile.profile_program_id;
+  if (isIndependent) {
+    const { data: docsRaw, error: docsError } = await supabase
+      .from('documents')
+      .select('id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, user_id, university_id, program_id, course_id, university_slug, program_slug')
+      .eq('is_published', true)
+      .eq('visibility', 'public')
+      .is('archived_at', null)
+      .or('university.is.null,university.eq.')
+      .order('published_at', { ascending: false })
+      .limit(60);
+
+    if (docsError) {
+      return NextResponse.json({ error: docsError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ independent: true, documents: docsRaw ?? [] });
+  }
 
   if (!profile.profile_program_id) {
     return NextResponse.json({ program: null });

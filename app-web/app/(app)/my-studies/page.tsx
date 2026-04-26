@@ -63,6 +63,9 @@ interface MyUniversityData {
   program: MyProgram | null;
   profile_year: number | null;
   years: MyYear[];
+  // Independent user: no curriculum, just a flat list of unaffiliated docs
+  independent?: boolean;
+  documents?: PublishedDocument[];
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -491,6 +494,7 @@ function TreeSidebar({
 // ── My University tab ─────────────────────────────────────────────────────────
 
 function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void }) {
+  const router = useRouter();
   const [data, setData] = useState<MyUniversityData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -551,6 +555,56 @@ function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void })
             Try again
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Independent user — show flat grid of unaffiliated public documents
+  if (data?.independent) {
+    const docs = data.documents ?? [];
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+              </svg>
+              <span className="text-xs text-indigo-400 font-medium">Independent</span>
+            </div>
+            <h2 className="text-lg font-semibold text-white">Public notes</h2>
+            <p className="text-xs text-white/40 mt-0.5">Documents not affiliated with a specific university</p>
+          </div>
+          <button
+            onClick={() => onNavigate('/settings?section=academic')}
+            className="shrink-0 text-[11px] text-white/40 hover:text-white/70 transition-colors underline"
+          >
+            Change affiliation
+          </button>
+        </div>
+
+        {docs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-white/30 text-sm">No independent public notes yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {docs.map((doc) => (
+              <DocumentCard
+                key={doc.id}
+                doc={doc}
+                onOpen={() => { router.push(`/documents/${doc.id}`); fetch(`/api/documents/${doc.id}/view`, { method: 'POST' }).catch(() => {}); }}
+                onLikeToggle={async () => {}}
+                onFork={async (id) => {
+                  const res = await fetch(`/api/documents/${id}/fork`, { method: 'POST' });
+                  const d = await res.json();
+                  if (res.ok) router.push(`/documents/${d.document_id}`);
+                }}
+                onAuthorClick={(userId) => router.push(`/profile/${userId}`)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

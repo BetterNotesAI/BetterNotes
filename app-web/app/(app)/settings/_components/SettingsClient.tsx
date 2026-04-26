@@ -64,8 +64,6 @@ interface ProfileFormState {
   avatarUrl: string;
   bannerUrl: string;
   shortBio: string;
-  university: string;
-  degree: string;
   profileVisibility: ProfileVisibility;
 }
 
@@ -174,8 +172,6 @@ function toProfileForm(profile: SettingsProfile): ProfileFormState {
     avatarUrl: profile.avatar_url ?? '',
     bannerUrl: profile.banner_url ?? '',
     shortBio: profile.short_bio ?? '',
-    university: profile.university ?? '',
-    degree: profile.degree ?? '',
     profileVisibility: profile.profile_visibility,
   };
 }
@@ -188,8 +184,11 @@ function toPreferencesForm(profile: SettingsProfile): PreferencesFormState {
 }
 
 function toAcademicForm(profile: SettingsProfile): AcademicFormState {
+  // If university is 'Independent' (or both IDs are null and university text is 'Independent'),
+  // map to the sentinel value so the dropdown renders correctly.
+  const isIndependent = profile.university === 'Independent' && !profile.profile_university_id;
   return {
-    universityId: profile.profile_university_id ?? '',
+    universityId: isIndependent ? '__independent__' : (profile.profile_university_id ?? ''),
     programId: profile.profile_program_id ?? '',
     year: profile.profile_year ?? 1,
   };
@@ -412,8 +411,6 @@ export default function SettingsClient({
         avatarUrl: profileForm.avatarUrl,
         bannerUrl: profileForm.bannerUrl,
         shortBio: profileForm.shortBio,
-        university: profileForm.university,
-        degree: profileForm.degree,
         profileVisibility: profileForm.profileVisibility,
       });
 
@@ -435,6 +432,22 @@ export default function SettingsClient({
     setNotice(null);
 
     try {
+      const isIndependent = academicForm.universityId === '__independent__';
+
+      if (isIndependent) {
+        const updated = await patchSettings({
+          profile_university_id: null,
+          profile_program_id: null,
+          profile_year: null,
+          university: 'Independent',
+          degree: null,
+        });
+        setAcademicForm(toAcademicForm(updated));
+        dispatchAcademicUpdated('Independent', null);
+        setNotice({ type: 'success', text: 'Academic details updated.' });
+        return;
+      }
+
       // Derive the denormalised university text from catalogue data
       const selectedUni = universities.find((u) => u.id === academicForm.universityId);
       const selectedProg = programs.find((p) => p.id === academicForm.programId);
@@ -1093,32 +1106,6 @@ export default function SettingsClient({
               <span className="mt-1 block text-[11px] text-white/45">{profileForm.shortBio.length}/280</span>
             </label>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="block">
-                <span className="text-xs text-white/60">University</span>
-                <input
-                  type="text"
-                  value={profileForm.university}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, university: e.target.value }))}
-                  maxLength={120}
-                  className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
-                  placeholder="University name"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs text-white/60">Degree</span>
-                <input
-                  type="text"
-                  value={profileForm.degree}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, degree: e.target.value }))}
-                  maxLength={120}
-                  className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-400/60 transition-colors"
-                  placeholder="Degree or program"
-                />
-              </label>
-            </div>
-
             <div>
               <p className="text-xs text-white/60 mb-2">Public profile visibility</p>
               <div className="flex flex-wrap gap-2">
@@ -1181,7 +1168,11 @@ export default function SettingsClient({
                   <div className="mt-1 relative">
                     <input
                       type="text"
-                      value={universitySearch || (universities.find((u) => u.id === academicForm.universityId)?.name ?? '')}
+                      value={
+                        academicForm.universityId === '__independent__'
+                          ? 'Independent'
+                          : (universitySearch || (universities.find((u) => u.id === academicForm.universityId)?.name ?? ''))
+                      }
                       onChange={(e) => {
                         setUniversitySearch(e.target.value);
                         // If user clears the input, reset selection
@@ -1191,7 +1182,9 @@ export default function SettingsClient({
                       }}
                       onFocus={() => {
                         // Show search by clearing the display value so the placeholder shows
-                        setUniversitySearch('');
+                        if (academicForm.universityId !== '__independent__') {
+                          setUniversitySearch('');
+                        }
                       }}
                       onBlur={() => {
                         // On blur, restore the selected university name (or keep search if nothing selected)
@@ -1203,6 +1196,24 @@ export default function SettingsClient({
                     {/* Dropdown list */}
                     {universitySearch.trim().length > 0 && (
                       <div className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded-xl bg-neutral-900 border border-white/20 shadow-xl">
+                        {/* Independent option always shown at the top */}
+                        {'independent'.includes(universitySearch.toLowerCase()) && (
+                          <>
+                            <button
+                              type="button"
+                              onMouseDown={() => {
+                                setAcademicForm((prev) => ({ ...prev, universityId: '__independent__', programId: '' }));
+                                setUniversitySearch('');
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-white/8
+                                ${academicForm.universityId === '__independent__' ? 'text-indigo-300 bg-indigo-500/10' : 'text-white/80'}`}
+                            >
+                              Independent
+                              <span className="ml-2 text-[11px] text-white/35">no university affiliation</span>
+                            </button>
+                            <div className="mx-2 border-t border-white/10" />
+                          </>
+                        )}
                         {universities
                           .filter((u) =>
                             u.name.toLowerCase().includes(universitySearch.toLowerCase())
@@ -1225,7 +1236,7 @@ export default function SettingsClient({
                               )}
                             </button>
                           ))}
-                        {universities.filter((u) =>
+                        {!('independent'.includes(universitySearch.toLowerCase())) && universities.filter((u) =>
                           u.name.toLowerCase().includes(universitySearch.toLowerCase())
                         ).length === 0 && (
                           <p className="px-3 py-2 text-sm text-white/40">No universities found.</p>
@@ -1237,53 +1248,57 @@ export default function SettingsClient({
               </label>
             </div>
 
-            {/* Degree programme */}
-            <label className="block">
-              <span className="text-xs text-white/60">Degree programme</span>
-              <select
-                value={academicForm.programId}
-                onChange={(e) => setAcademicForm((prev) => ({ ...prev, programId: e.target.value }))}
-                disabled={!academicForm.universityId || programsLoading}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white focus:outline-none focus:border-indigo-400/60 transition-colors disabled:opacity-50"
-              >
-                <option value="" className="text-black">
-                  {programsLoading ? 'Loading...' : academicForm.universityId ? 'Select a programme' : 'Select a university first'}
-                </option>
-                {programs.map((p) => (
-                  <option key={p.id} value={p.id} className="text-black">
-                    {p.tipo ? `[${p.tipo}] ` : ''}{p.title}
+            {/* Degree programme — hidden when Independent is selected */}
+            {academicForm.universityId !== '__independent__' && (
+              <label className="block">
+                <span className="text-xs text-white/60">Degree programme</span>
+                <select
+                  value={academicForm.programId}
+                  onChange={(e) => setAcademicForm((prev) => ({ ...prev, programId: e.target.value }))}
+                  disabled={!academicForm.universityId || programsLoading}
+                  className="mt-1 w-full px-3 py-2 rounded-xl bg-black/25 border border-white/20 text-sm text-white focus:outline-none focus:border-indigo-400/60 transition-colors disabled:opacity-50"
+                >
+                  <option value="" className="text-black">
+                    {programsLoading ? 'Loading...' : academicForm.universityId ? 'Select a programme' : 'Select a university first'}
                   </option>
-                ))}
-              </select>
-            </label>
+                  {programs.map((p) => (
+                    <option key={p.id} value={p.id} className="text-black">
+                      {p.tipo ? `[${p.tipo}] ` : ''}{p.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
-            {/* Year selector */}
-            <div>
-              <p className="text-xs text-white/60 mb-2">Current year</p>
-              <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4].map((yr) => {
-                  // For Master programmes (tipo contains 'Máster' or 'Master'), only show 1–2
-                  const selectedProg = programs.find((p) => p.id === academicForm.programId);
-                  const isMaster = selectedProg?.tipo?.toLowerCase().includes('máster') ||
-                    selectedProg?.tipo?.toLowerCase().includes('master');
-                  if (isMaster && yr > 2) return null;
-                  return (
-                    <button
-                      key={yr}
-                      type="button"
-                      onClick={() => setAcademicForm((prev) => ({ ...prev, year: yr }))}
-                      className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
-                        academicForm.year === yr
-                          ? 'bg-white text-neutral-950 border-white'
-                          : 'border-white/20 text-white/75 hover:text-white hover:border-white/35'
-                      }`}
-                    >
-                      Year {yr}
-                    </button>
-                  );
-                })}
+            {/* Year selector — hidden when Independent is selected */}
+            {academicForm.universityId !== '__independent__' && (
+              <div>
+                <p className="text-xs text-white/60 mb-2">Current year</p>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3, 4].map((yr) => {
+                    // For Master programmes (tipo contains 'Máster' or 'Master'), only show 1–2
+                    const selectedProg = programs.find((p) => p.id === academicForm.programId);
+                    const isMaster = selectedProg?.tipo?.toLowerCase().includes('máster') ||
+                      selectedProg?.tipo?.toLowerCase().includes('master');
+                    if (isMaster && yr > 2) return null;
+                    return (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => setAcademicForm((prev) => ({ ...prev, year: yr }))}
+                        className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                          academicForm.year === yr
+                            ? 'bg-white text-neutral-950 border-white'
+                            : 'border-white/20 text-white/75 hover:text-white hover:border-white/35'
+                        }`}
+                      >
+                        Year {yr}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
