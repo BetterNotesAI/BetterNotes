@@ -992,7 +992,7 @@ export function Sidebar() {
             } ${
               isActive('/my-studies')
                 ? activeNavClass
-                : 'text-white/60 hover:bg-white/10 hover:text-white'
+                : 'text-white hover:bg-white/10 hover:text-white'
             }`}
           >
             <MyStudiesIcon className="w-4 h-4 shrink-0" />
