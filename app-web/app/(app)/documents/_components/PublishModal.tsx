@@ -23,6 +23,10 @@ interface PublishModalProps {
   documentTitle: string;
   isOpen: boolean;
   initialData?: PublishModalData;
+  /** Profile-level university text — used as pre-fill when the document has no university set yet */
+  profileUniversity?: string | null;
+  /** Profile-level degree/programme text — used as pre-fill when the document has no degree set yet */
+  profileDegree?: string | null;
   onClose: () => void;
   onSuccess: (published: boolean, data?: PublishModalData) => void;
 }
@@ -56,6 +60,8 @@ export function PublishModal({
   documentTitle,
   isOpen,
   initialData,
+  profileUniversity,
+  profileDegree,
   onClose,
   onSuccess,
 }: PublishModalProps) {
@@ -117,14 +123,15 @@ export function PublishModal({
     setIsProgramSearchOpen(false);
     setCourseSearch(initialData?.course_id ? initialData?.subject ?? '' : '');
     setIsCourseSearchOpen(false);
-    setUniversity(initialData?.university ?? '');
-    setDegree(initialData?.degree ?? '');
+    // Pre-fill university/degree from profile when the document has not had them set yet
+    setUniversity(initialData?.university ?? profileUniversity ?? '');
+    setDegree(initialData?.degree ?? profileDegree ?? '');
     setSubject(initialData?.subject ?? '');
     setVisibility((initialData?.visibility as 'private' | 'public') ?? 'private');
     setKeywords(initialData?.keywords ?? []);
     setKeywordInput('');
     setError(null);
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, profileUniversity, profileDegree]);
 
   // ── Cascade: university → programs ───────────────────────
   useEffect(() => {

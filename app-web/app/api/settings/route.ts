@@ -16,6 +16,12 @@ const PROFILE_SELECT = [
   'language',
   'plan',
   'is_anonymous',
+  'terms_accepted_at',
+  'terms_version',
+  'profile_university_id',
+  'profile_program_id',
+  'profile_year',
+  'onboarding_completed_at',
 ].join(',');
 
 const ALLOWED_THEMES = new Set(['light', 'dark', 'system']);
@@ -33,6 +39,12 @@ interface SettingsPatchBody {
   profileVisibility?: unknown;
   theme?: unknown;
   language?: unknown;
+  terms_accepted_at?: unknown;
+  terms_version?: unknown;
+  profile_university_id?: unknown;
+  profile_program_id?: unknown;
+  profile_year?: unknown;
+  onboarding_completed_at?: unknown;
 }
 
 interface ProfileRow {
@@ -49,6 +61,12 @@ interface ProfileRow {
   language: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | null;
   plan: 'free' | 'pro' | null;
   is_anonymous: boolean | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  profile_university_id: string | null;
+  profile_program_id: string | null;
+  profile_year: number | null;
+  onboarding_completed_at: string | null;
 }
 
 function sanitizeOptionalString(input: unknown, maxLen: number): string | null {
@@ -115,6 +133,12 @@ export async function GET() {
       language: profile.language ?? 'en',
       plan: profile.plan ?? 'free',
       is_anonymous: profile.is_anonymous ?? false,
+      terms_accepted_at: profile.terms_accepted_at ?? null,
+      terms_version: profile.terms_version ?? null,
+      profile_university_id: profile.profile_university_id ?? null,
+      profile_program_id: profile.profile_program_id ?? null,
+      profile_year: profile.profile_year ?? null,
+      onboarding_completed_at: profile.onboarding_completed_at ?? null,
     },
     auth: {
       providers,
@@ -133,7 +157,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({})) as SettingsPatchBody;
-  const updates: Record<string, string | null> = {};
+  const updates: Record<string, string | number | null> = {};
 
   try {
     if ('displayName' in body) {
@@ -192,6 +216,48 @@ export async function PATCH(req: NextRequest) {
       }
       updates.language = body.language;
     }
+
+    if ('terms_accepted_at' in body) {
+      if (typeof body.terms_accepted_at !== 'string') {
+        return NextResponse.json({ error: 'Invalid terms_accepted_at.' }, { status: 400 });
+      }
+      updates.terms_accepted_at = body.terms_accepted_at;
+    }
+
+    if ('terms_version' in body) {
+      if (typeof body.terms_version !== 'string') {
+        return NextResponse.json({ error: 'Invalid terms_version.' }, { status: 400 });
+      }
+      updates.terms_version = body.terms_version.slice(0, 32);
+    }
+
+    if ('profile_university_id' in body) {
+      if (body.profile_university_id !== null && typeof body.profile_university_id !== 'string') {
+        return NextResponse.json({ error: 'Invalid profile_university_id.' }, { status: 400 });
+      }
+      updates.profile_university_id = body.profile_university_id as string | null;
+    }
+
+    if ('profile_program_id' in body) {
+      if (body.profile_program_id !== null && typeof body.profile_program_id !== 'string') {
+        return NextResponse.json({ error: 'Invalid profile_program_id.' }, { status: 400 });
+      }
+      updates.profile_program_id = body.profile_program_id as string | null;
+    }
+
+    if ('profile_year' in body) {
+      if (body.profile_year !== null && typeof body.profile_year !== 'number') {
+        return NextResponse.json({ error: 'Invalid profile_year.' }, { status: 400 });
+      }
+      updates.profile_year = body.profile_year as number | null;
+    }
+
+    if ('onboarding_completed_at' in body) {
+      if (typeof body.onboarding_completed_at !== 'string') {
+        return NextResponse.json({ error: 'Invalid onboarding_completed_at.' }, { status: 400 });
+      }
+      updates.onboarding_completed_at = body.onboarding_completed_at;
+    }
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
@@ -236,6 +302,12 @@ export async function PATCH(req: NextRequest) {
       language: updatedProfile.language ?? 'en',
       plan: updatedProfile.plan ?? 'free',
       is_anonymous: updatedProfile.is_anonymous ?? false,
+      terms_accepted_at: updatedProfile.terms_accepted_at ?? null,
+      terms_version: updatedProfile.terms_version ?? null,
+      profile_university_id: updatedProfile.profile_university_id ?? null,
+      profile_program_id: updatedProfile.profile_program_id ?? null,
+      profile_year: updatedProfile.profile_year ?? null,
+      onboarding_completed_at: updatedProfile.onboarding_completed_at ?? null,
     },
   });
 }

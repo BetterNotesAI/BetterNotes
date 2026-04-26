@@ -33,15 +33,25 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   let isAnonymous = false
+  let termsAcceptedAt: string | null = null
+  let onboardingCompletedAt: string | null = null
+
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_anonymous')
+      .select('is_anonymous, terms_accepted_at, onboarding_completed_at')
       .eq('id', user.id)
       .maybeSingle()
 
-    isAnonymous = Boolean(profile?.is_anonymous)
+    const p = profile as {
+      is_anonymous?: boolean | null
+      terms_accepted_at?: string | null
+      onboarding_completed_at?: string | null
+    } | null
+    isAnonymous = Boolean(p?.is_anonymous)
+    termsAcceptedAt = p?.terms_accepted_at ?? null
+    onboardingCompletedAt = p?.onboarding_completed_at ?? null
   }
 
-  return { response: supabaseResponse, user, isAnonymous }
+  return { response: supabaseResponse, user, isAnonymous, termsAcceptedAt, onboardingCompletedAt }
 }

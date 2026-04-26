@@ -2,6 +2,7 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type LanguagePreference = 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt';
 
 export const USER_PREFERENCES_EVENT = 'bn:user-preferences-updated';
+export const USER_ACADEMIC_UPDATED_EVENT = 'bn:user-academic-updated';
 
 export const STORAGE_THEME_KEY = 'bn_theme_preference';
 export const STORAGE_LANGUAGE_KEY = 'bn_language_preference';
