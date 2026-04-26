@@ -155,6 +155,8 @@ export default function DocumentWorkspacePage() {
   // F3-M5.2: Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishData, setPublishData] = useState<PublishModalData | undefined>(undefined);
+  const [profileUniversity, setProfileUniversity] = useState<string | null>(null);
+  const [profileDegree, setProfileDegree] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(() => searchParamsDoc?.get('history') === '1');
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,6 +180,21 @@ export default function DocumentWorkspacePage() {
       course_id:     (d.course_id     as string | null)   ?? null,
     });
   }, [docData]);
+
+  // Pre-load profile university/degree once for the publish modal pre-fill (owner only)
+  useEffect(() => {
+    if (!isOwner) return;
+    let ignore = false;
+    fetch('/api/settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { profile?: { university?: string | null; degree?: string | null } } | null) => {
+        if (ignore || !data?.profile) return;
+        setProfileUniversity(data.profile.university ?? null);
+        setProfileDegree(data.profile.degree ?? null);
+      })
+      .catch(() => {});
+    return () => { ignore = true; };
+  }, [isOwner]);
 
   // F3-M5.3: keep "Saved X ago" label fresh every 30s
   useEffect(() => {
@@ -1380,6 +1397,8 @@ export default function DocumentWorkspacePage() {
           documentTitle={docData.title}
           isOpen={showPublishModal}
           initialData={publishData}
+          profileUniversity={profileUniversity}
+          profileDegree={profileDegree}
           onClose={() => setShowPublishModal(false)}
           onSuccess={(published, nextPublishData) => {
             setPublishData((prev) => ({
