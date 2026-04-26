@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { USER_ACADEMIC_UPDATED_EVENT } from '../_lib/preferences';
 
 interface RecentDoc { id: string; title: string }
 
@@ -204,6 +205,17 @@ export function Sidebar() {
     return () => {
       ignore = true;
     };
+  }, []);
+
+  // Listen for academic profile updates from the Settings page
+  useEffect(() => {
+    function onAcademicUpdated(e: Event) {
+      const detail = (e as CustomEvent<{ university: string | null; profile_year: number | null }>).detail;
+      if (detail.university !== undefined) setUniversityName(detail.university);
+      if (detail.profile_year !== undefined) setProfileYear(detail.profile_year);
+    }
+    window.addEventListener(USER_ACADEMIC_UPDATED_EVENT, onAcademicUpdated);
+    return () => window.removeEventListener(USER_ACADEMIC_UPDATED_EVENT, onAcademicUpdated);
   }, []);
 
   useEffect(() => {
