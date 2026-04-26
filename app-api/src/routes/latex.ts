@@ -85,6 +85,101 @@ export function createLatexRouter(opts: LatexRouterOptions): Router {
   const router = Router();
   const { aiProvider, latexTimeoutMs } = opts;
 
+  // ─── POST /latex/generate-stream ─────────────────────────────────────────
+  // Streams generated LaTeX as SSE, without compiling. The web layer can show
+  // the interactive preview immediately, then compile/persist after `done`.
+  router.post('/generate-stream', async (req: Request, res: Response) => {
+    const sendEvent = (payload: Record<string, unknown>): void => {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    try {
+      const { prompt, templateId, baseLatex, files, forceDocument } = req.body as {
+        prompt?: string;
+        templateId?: string;
+        baseLatex?: string;
+        files?: AttachmentInput[];
+        forceDocument?: boolean;
+      };
+
+      if (!prompt || typeof prompt !== 'string') {
+        res.status(400).json({ ok: false, error: 'prompt is required' });
+        return;
+      }
+      if (!templateId || typeof templateId !== 'string') {
+        res.status(400).json({ ok: false, error: 'templateId is required' });
+        return;
+      }
+
+      res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.flushHeaders();
+
+      const resolvedTemplateId = templateId === 'auto'
+        ? await pickTemplate(prompt)
+        : templateId;
+
+      const template = getTemplateOrThrow(resolvedTemplateId);
+      const processedFiles = await processAttachments(files ?? []);
+
+      sendEvent({ phase: 'calling_ai', templateId: resolvedTemplateId });
+
+      const generated = await aiProvider.generateLatexStream({
+        prompt,
+        templateId: resolvedTemplateId,
+        preamble: template.preamble,
+        styleGuide: template.styleGuide,
+        structureTemplate: template.structureTemplate,
+        structureExample: template.structureExample,
+        baseLatex: baseLatex ?? undefined,
+        files: processedFiles,
+        forceDocument: Boolean(forceDocument),
+      }, (chunk) => {
+        sendEvent({ chunk });
+      });
+
+      if (generated.message && !generated.latex) {
+        sendEvent({ done: true, message: generated.message, templateId: resolvedTemplateId });
+        return;
+      }
+
+      if (!generated.latex) {
+        sendEvent({ error: 'AI did not produce LaTeX output' });
+        return;
+      }
+
+      const latexSource = applyLatexFallbacks(generated.latex);
+      const { accumulatedUsage } = getUsageContext();
+
+      sendEvent({
+        done: true,
+        latex: latexSource,
+        summary: generated.summary,
+        templateId: resolvedTemplateId,
+        usage: accumulatedUsage ?? null,
+      });
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(err?.statusCode ?? err?.status ?? 500).json({
+          ok: false,
+          error: err?.message ?? 'Internal server error',
+          code: err?.code,
+        });
+        return;
+      }
+      sendEvent({
+        error: err?.message ?? 'Internal server error',
+        code: err?.code,
+      });
+    } finally {
+      if (res.headersSent) res.end();
+    }
+  });
+
   // ─── POST /latex/generate-and-compile ───────────────────────────────────────
   // Generates LaTeX via AI, compiles it, returns PDF as binary.
   // On compile failure: attempts one AI fix + recompile.

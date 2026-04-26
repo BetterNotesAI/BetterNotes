@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { buildTitleFromPrompt } from '@/lib/document-title';
 import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
 import { inferFolderIdFromRequest } from '@/lib/request-project-context';
+import { dedupeFolderInputsByStoragePath, dedupeUploadsByStoragePath } from '@/lib/folder-inputs';
 
 // GET /api/documents — list user's documents
 // Query params:
@@ -114,7 +115,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'attachments must be an array' }, { status: 400 });
   }
 
-  const totalAttachmentBytes = (attachments ?? []).reduce((acc, a) => {
+  const cleanedAttachments = dedupeUploadsByStoragePath(attachments ?? []);
+  let projectAttachmentsToInsert = cleanedAttachments;
+
+  const totalAttachmentBytes = cleanedAttachments.reduce((acc, a) => {
     const size = typeof a?.sizeBytes === 'number' && Number.isFinite(a.sizeBytes) ? a.sizeBytes : 0;
     return acc + Math.max(0, size);
   }, 0);
@@ -141,10 +145,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    if (attachments && attachments.length > 0) {
+    if (cleanedAttachments.length > 0) {
       const { data: existingProjectInputs, error: projectInputsError } = await supabase
         .from('folder_inputs')
-        .select('size_bytes')
+        .select('folder_id, storage_path, size_bytes')
         .eq('folder_id', folderId)
         .eq('user_id', user.id);
 
@@ -152,12 +156,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: projectInputsError.message }, { status: 500 });
       }
 
-      const currentProjectBytes = (existingProjectInputs ?? []).reduce(
+      const uniqueExistingProjectInputs = dedupeFolderInputsByStoragePath(existingProjectInputs ?? []);
+      const existingStoragePaths = new Set(
+        uniqueExistingProjectInputs
+          .map((row) => row.storage_path?.trim())
+          .filter((path): path is string => Boolean(path))
+      );
+
+      projectAttachmentsToInsert = cleanedAttachments.filter(
+        (attachment) => !existingStoragePaths.has(attachment.storagePath.trim())
+      );
+
+      const currentProjectBytes = uniqueExistingProjectInputs.reduce(
         (acc, row) => acc + (typeof row.size_bytes === 'number' ? row.size_bytes : 0),
         0
       );
+      const newProjectBytes = projectAttachmentsToInsert.reduce((acc, attachment) => acc + attachment.sizeBytes, 0);
 
-      if (currentProjectBytes + totalAttachmentBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
+      if (currentProjectBytes + newProjectBytes > MAX_PROJECT_TOTAL_UPLOAD_BYTES) {
         return NextResponse.json(
           { error: `Notebook file limit exceeded. Maximum total upload size is ${MAX_PROJECT_TOTAL_UPLOAD_MB} MB per notebook.` },
           { status: 400 }
@@ -197,21 +213,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (attachments && attachments.length > 0) {
+  if (cleanedAttachments.length > 0) {
     if (folderId) {
-      await supabase.from('folder_inputs').insert(
-        attachments.map((a) => ({
-          folder_id: folderId,
-          user_id: user.id,
-          name: a.name,
-          storage_path: a.storagePath,
-          mime_type: a.mimeType,
-          size_bytes: a.sizeBytes,
-        }))
-      );
+      if (projectAttachmentsToInsert.length > 0) {
+        const { error: inputsInsertError } = await supabase.from('folder_inputs').insert(
+          projectAttachmentsToInsert.map((a) => ({
+            folder_id: folderId,
+            user_id: user.id,
+            name: a.name,
+            storage_path: a.storagePath,
+            mime_type: a.mimeType,
+            size_bytes: a.sizeBytes,
+          }))
+        );
+
+        if (inputsInsertError && inputsInsertError.code !== '23505') {
+          return NextResponse.json({ error: inputsInsertError.message }, { status: 500 });
+        }
+      }
     } else {
       await supabase.from('document_attachments').insert(
-        attachments.map((a) => ({
+        cleanedAttachments.map((a) => ({
           document_id: doc.id,
           user_id: user.id,
           name: a.name,

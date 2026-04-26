@@ -1,31 +1,42 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 interface University { id: string; name: string; slug: string; }
 interface Program    { id: string; tipo: string; title: string; }
 interface Course     { id: string; name: string; year: number; semester: number | null; semester_label: string | null; ects: number | null; }
 
+export interface PublishModalData {
+  is_published: boolean;
+  university?: string | null;
+  degree?: string | null;
+  subject?: string | null;
+  visibility?: string;
+  keywords?: string[];
+  university_id?: string | null;
+  program_id?: string | null;
+  course_id?: string | null;
+}
+
 interface PublishModalProps {
   documentId: string;
   documentTitle: string;
   isOpen: boolean;
-  initialData?: {
-    is_published: boolean;
-    university?: string | null;
-    degree?: string | null;
-    subject?: string | null;
-    visibility?: string;
-    keywords?: string[];
-    university_id?: string | null;
-    program_id?: string | null;
-    course_id?: string | null;
-  };
+  initialData?: PublishModalData;
   onClose: () => void;
-  onSuccess: (published: boolean) => void;
+  onSuccess: (published: boolean, data?: PublishModalData) => void;
 }
 
 type Mode = 'university' | 'independent';
+
+const PROGRAM_TYPE_ORDER = ['Grado', 'Máster', 'PCEO (Doble Grado)', 'PCEO (Doble Máster)'];
+
+function normalizeSearch(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
 
 // Group courses by year → semester/label for display
 function groupCourses(courses: Course[]) {
@@ -65,6 +76,10 @@ export function PublishModal({
   const [universityId, setUniversityId] = useState<string>(initialData?.university_id ?? '');
   const [programId, setProgramId]       = useState<string>(initialData?.program_id   ?? '');
   const [courseId, setCourseId]         = useState<string>(initialData?.course_id    ?? '');
+  const [programSearch, setProgramSearch] = useState('');
+  const [isProgramSearchOpen, setIsProgramSearchOpen] = useState(false);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [isCourseSearchOpen, setIsCourseSearchOpen] = useState(false);
 
   // ── Independent free-text ─────────────────────────────────
   const [university, setUniversity] = useState(initialData?.university ?? '');
@@ -98,6 +113,10 @@ export function PublishModal({
     setUniversityId(initialData?.university_id ?? '');
     setProgramId(initialData?.program_id ?? '');
     setCourseId(initialData?.course_id ?? '');
+    setProgramSearch(initialData?.program_id ? initialData?.degree ?? '' : '');
+    setIsProgramSearchOpen(false);
+    setCourseSearch(initialData?.course_id ? initialData?.subject ?? '' : '');
+    setIsCourseSearchOpen(false);
     setUniversity(initialData?.university ?? '');
     setDegree(initialData?.degree ?? '');
     setSubject(initialData?.subject ?? '');
@@ -109,7 +128,17 @@ export function PublishModal({
 
   // ── Cascade: university → programs ───────────────────────
   useEffect(() => {
-    if (!universityId) { setPrograms([]); setProgramId(''); setCourses([]); setCourseId(''); return; }
+    if (!universityId) {
+      setPrograms([]);
+      setProgramId('');
+      setProgramSearch('');
+      setIsProgramSearchOpen(false);
+      setCourses([]);
+      setCourseId('');
+      setCourseSearch('');
+      setIsCourseSearchOpen(false);
+      return;
+    }
     setLoadingPrograms(true);
     fetch(`/api/catalogue?resource=programs&university_id=${universityId}`)
       .then((r) => r.json())
@@ -117,15 +146,33 @@ export function PublishModal({
       .catch(() => setLoadingPrograms(false));
   }, [universityId]);
 
+  useEffect(() => {
+    if (!programId) return;
+    const selectedProgram = programs.find((p) => p.id === programId);
+    if (selectedProgram) setProgramSearch(selectedProgram.title);
+  }, [programId, programs]);
+
   // ── Cascade: program → courses ────────────────────────────
   useEffect(() => {
-    if (!programId) { setCourses([]); setCourseId(''); return; }
+    if (!programId) {
+      setCourses([]);
+      setCourseId('');
+      setCourseSearch('');
+      setIsCourseSearchOpen(false);
+      return;
+    }
     setLoadingCourses(true);
     fetch(`/api/catalogue?resource=courses&program_id=${programId}`)
       .then((r) => r.json())
       .then((d) => { setCourses(d.courses ?? []); setLoadingCourses(false); })
       .catch(() => setLoadingCourses(false));
   }, [programId]);
+
+  useEffect(() => {
+    if (!courseId) return;
+    const selectedCourse = courses.find((course) => course.id === courseId);
+    if (selectedCourse) setCourseSearch(selectedCourse.name);
+  }, [courseId, courses]);
 
   // ── Keywords helpers ──────────────────────────────────────
   const addKeyword = useCallback((raw: string) => {
@@ -173,15 +220,43 @@ export function PublishModal({
     setError(null);
     try {
       const body: Record<string, unknown> = { action: 'publish', visibility, keywords };
+      const selectedUniversity = universities.find((u) => u.id === universityId);
+      const selectedProgram = programs.find((p) => p.id === programId);
+      const selectedCourse = courses.find((c) => c.id === courseId);
+      const fallbackProgramTitle = programSearch.trim() || initialData?.degree || null;
+      const fallbackCourseName = courseSearch.trim() || initialData?.subject || null;
+      const nextPublishData: PublishModalData = {
+        is_published: true,
+        visibility,
+        keywords,
+      };
 
       if (mode === 'university') {
         body.university_id = universityId || null;
         body.program_id    = programId    || null;
         body.course_id     = courseId     || null;
+        nextPublishData.university_id = universityId || null;
+        nextPublishData.program_id = programId || null;
+        nextPublishData.course_id = courseId || null;
+        nextPublishData.university = universityId
+          ? selectedUniversity?.name ?? initialData?.university ?? null
+          : null;
+        nextPublishData.degree = programId
+          ? selectedProgram?.title ?? fallbackProgramTitle
+          : null;
+        nextPublishData.subject = courseId
+          ? selectedCourse?.name ?? fallbackCourseName
+          : null;
       } else {
         body.university = university;
         body.degree     = degree;
         body.subject    = subject;
+        nextPublishData.university_id = null;
+        nextPublishData.program_id = null;
+        nextPublishData.course_id = null;
+        nextPublishData.university = university.trim() || null;
+        nextPublishData.degree = degree.trim() || null;
+        nextPublishData.subject = subject.trim() || null;
       }
 
       const res = await fetch(`/api/documents/${documentId}/publish`, {
@@ -190,7 +265,7 @@ export function PublishModal({
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Publish failed');
-      onSuccess(true);
+      onSuccess(true, nextPublishData);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to publish');
@@ -218,10 +293,39 @@ export function PublishModal({
     }
   };
 
+  const filteredProgramGroups = useMemo(() => {
+    const query = normalizeSearch(programSearch);
+    const matchingPrograms = query
+      ? programs.filter((program) => normalizeSearch(`${program.tipo} ${program.title}`).includes(query))
+      : programs;
+    const extraTypes = Array.from(new Set(
+      matchingPrograms
+        .map((program) => program.tipo)
+        .filter((tipo) => !PROGRAM_TYPE_ORDER.includes(tipo))
+    ));
+
+    return [...PROGRAM_TYPE_ORDER, ...extraTypes]
+      .map((tipo) => ({
+        tipo,
+        programs: matchingPrograms.filter((program) => program.tipo === tipo),
+      }))
+      .filter((group) => group.programs.length > 0);
+  }, [programSearch, programs]);
+
+  const filteredGroupedCourses = useMemo(() => {
+    const query = normalizeSearch(courseSearch);
+    const matchingCourses = query
+      ? courses.filter((course) => normalizeSearch(`${course.name} ${course.year} ${course.semester_label ?? ''}`).includes(query))
+      : courses;
+    return groupCourses(matchingCourses);
+  }, [courseSearch, courses]);
+
   if (!isOpen) return null;
 
   const isAlreadyPublished = initialData?.is_published ?? false;
-  const groupedCourses = groupCourses(courses);
+  const hasFilteredCourses = Object.values(filteredGroupedCourses).some((groups) =>
+    groups.some((group) => group.courses.length > 0)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
@@ -285,7 +389,15 @@ export function PublishModal({
                 <label className="block text-xs font-medium text-white/60 mb-1.5">University</label>
                 <select
                   value={universityId}
-                  onChange={(e) => { setUniversityId(e.target.value); setProgramId(''); setCourseId(''); }}
+                  onChange={(e) => {
+                    setUniversityId(e.target.value);
+                    setProgramId('');
+                    setProgramSearch('');
+                    setIsProgramSearchOpen(false);
+                    setCourseId('');
+                    setCourseSearch('');
+                    setIsCourseSearchOpen(false);
+                  }}
                   className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
                     outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/30 transition-colors
                     appearance-none"
@@ -304,28 +416,92 @@ export function PublishModal({
                   {loadingPrograms ? (
                     <div className="h-9 bg-white/6 border border-white/12 rounded-lg animate-pulse" />
                   ) : (
-                    <select
-                      value={programId}
-                      onChange={(e) => { setProgramId(e.target.value); setCourseId(''); }}
-                      className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
-                        outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/30 transition-colors
-                        appearance-none"
-                    >
-                      <option value="" className="bg-neutral-900 text-white/50">Select degree…</option>
-                      {['Grado', 'Máster', 'PCEO (Doble Grado)', 'PCEO (Doble Máster)'].map((tipo) => {
-                        const group = programs.filter((p) => p.tipo === tipo);
-                        if (!group.length) return null;
-                        return (
-                          <optgroup key={tipo} label={tipo} className="bg-neutral-900">
-                            {group.map((p) => (
-                              <option key={p.id} value={p.id} className="bg-neutral-900 text-white">
-                                {p.title}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={programSearch}
+                        onChange={(e) => {
+                          setProgramSearch(e.target.value);
+                          setProgramId('');
+                          setCourseId('');
+                          setCourseSearch('');
+                          setIsCourseSearchOpen(false);
+                          setIsProgramSearchOpen(true);
+                        }}
+                        onFocus={() => setIsProgramSearchOpen(true)}
+                        onBlur={() => setTimeout(() => setIsProgramSearchOpen(false), 120)}
+                        placeholder="Search degree..."
+                        role="combobox"
+                        aria-expanded={isProgramSearchOpen}
+                        aria-autocomplete="list"
+                        aria-controls="publish-program-options"
+                        className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 pr-9 text-sm text-white
+                          placeholder:text-white/35 outline-none focus:border-indigo-400/60 focus:ring-1
+                          focus:ring-indigo-400/30 transition-colors"
+                      />
+                      {programSearch && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                          setProgramId('');
+                          setCourseId('');
+                          setCourseSearch('');
+                          setIsCourseSearchOpen(false);
+                          setProgramSearch('');
+                          setIsProgramSearchOpen(true);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 hover:text-white/70 hover:bg-white/8 transition-colors"
+                          aria-label="Clear degree"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {isProgramSearchOpen && (
+                        <div
+                          id="publish-program-options"
+                          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/12 bg-neutral-950/95 py-1 shadow-2xl backdrop-blur"
+                        >
+                          {filteredProgramGroups.length > 0 ? (
+                            filteredProgramGroups.map((group) => (
+                              <div key={group.tipo} className="py-1">
+                                <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+                                  {group.tipo}
+                                </div>
+                                {group.programs.map((program) => (
+                                  <button
+                                    key={program.id}
+                                    type="button"
+                                    title={program.title}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      setProgramId(program.id);
+                                      setCourseId('');
+                                      setCourseSearch('');
+                                      setIsCourseSearchOpen(false);
+                                      setProgramSearch(program.title);
+                                      setIsProgramSearchOpen(false);
+                                    }}
+                                    className={`block w-full px-3 py-2 text-left text-sm transition-colors ${
+                                      programId === program.id
+                                        ? 'bg-indigo-500/30 text-white'
+                                        : 'text-white/80 hover:bg-white/8 hover:text-white'
+                                    }`}
+                                  >
+                                    <span className="block truncate">{program.title}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-sm text-white/45">No degrees found</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -337,26 +513,87 @@ export function PublishModal({
                   {loadingCourses ? (
                     <div className="h-9 bg-white/6 border border-white/12 rounded-lg animate-pulse" />
                   ) : (
-                    <select
-                      value={courseId}
-                      onChange={(e) => setCourseId(e.target.value)}
-                      className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
-                        outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/30 transition-colors
-                        appearance-none"
-                    >
-                      <option value="" className="bg-neutral-900 text-white/50">Select course…</option>
-                      {Object.entries(groupedCourses).map(([year, groups]) => (
-                        groups.map((group) => (
-                          <optgroup key={`${year}-${group.label}`} label={`Year ${year} — ${group.label}`} className="bg-neutral-900">
-                            {group.courses.map((c) => (
-                              <option key={c.id} value={c.id} className="bg-neutral-900 text-white">
-                                {c.name}{c.ects ? ` (${c.ects} ECTS)` : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={courseSearch}
+                        onChange={(e) => {
+                          setCourseSearch(e.target.value);
+                          setCourseId('');
+                          setIsCourseSearchOpen(true);
+                        }}
+                        onFocus={() => setIsCourseSearchOpen(true)}
+                        onBlur={() => setTimeout(() => setIsCourseSearchOpen(false), 120)}
+                        placeholder="Search course..."
+                        role="combobox"
+                        aria-expanded={isCourseSearchOpen}
+                        aria-autocomplete="list"
+                        aria-controls="publish-course-options"
+                        className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 pr-9 text-sm text-white
+                          placeholder:text-white/35 outline-none focus:border-indigo-400/60 focus:ring-1
+                          focus:ring-indigo-400/30 transition-colors"
+                      />
+                      {courseSearch && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setCourseId('');
+                            setCourseSearch('');
+                            setIsCourseSearchOpen(true);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 hover:text-white/70 hover:bg-white/8 transition-colors"
+                          aria-label="Clear course"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {isCourseSearchOpen && (
+                        <div
+                          id="publish-course-options"
+                          className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/12 bg-neutral-950/95 py-1 shadow-2xl backdrop-blur"
+                        >
+                          {hasFilteredCourses ? (
+                            Object.entries(filteredGroupedCourses).map(([year, groups]) => (
+                              groups.map((group) => (
+                                <div key={`${year}-${group.label}`} className="py-1">
+                                  <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+                                    Year {year} — {group.label}
+                                  </div>
+                                  {group.courses.map((course) => (
+                                    <button
+                                      key={course.id}
+                                      type="button"
+                                      title={course.name}
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        setCourseId(course.id);
+                                        setCourseSearch(course.name);
+                                        setIsCourseSearchOpen(false);
+                                      }}
+                                      className={`block w-full px-3 py-2 text-left text-sm transition-colors ${
+                                        courseId === course.id
+                                          ? 'bg-indigo-500/30 text-white'
+                                          : 'text-white/80 hover:bg-white/8 hover:text-white'
+                                      }`}
+                                    >
+                                      <span className="block truncate">
+                                        {course.name}{course.ects ? ` (${course.ects} ECTS)` : ''}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-sm text-white/45">No courses found</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { dedupeFolderInputsByStoragePath } from '@/lib/folder-inputs';
 
 export async function POST(
   request: NextRequest,
@@ -48,8 +49,12 @@ export async function POST(
 
   const { data: attachmentRows } = await attachmentQuery;
 
+  const uniqueAttachmentRows = doc.folder_id
+    ? dedupeFolderInputsByStoragePath(attachmentRows ?? [])
+    : attachmentRows ?? [];
+
   const attachmentFiles = await Promise.all(
-    (attachmentRows ?? []).map(async (row) => {
+    uniqueAttachmentRows.map(async (row) => {
       const { data: urlData } = await supabase.storage
         .from('document-attachments')
         .createSignedUrl(row.storage_path, 60);

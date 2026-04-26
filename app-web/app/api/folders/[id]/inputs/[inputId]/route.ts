@@ -34,12 +34,17 @@ export async function DELETE(
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
   if (!input) return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
 
-  const { error: deleteError } = await supabase
+  let deleteQuery = supabase
     .from('folder_inputs')
     .delete()
-    .eq('id', inputId)
     .eq('folder_id', folderId)
     .eq('user_id', user.id);
+
+  deleteQuery = input.storage_path
+    ? deleteQuery.eq('storage_path', input.storage_path)
+    : deleteQuery.eq('id', inputId);
+
+  const { error: deleteError } = await deleteQuery;
 
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
 

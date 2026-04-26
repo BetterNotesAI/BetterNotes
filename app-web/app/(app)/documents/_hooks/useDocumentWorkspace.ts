@@ -58,6 +58,60 @@ function humanizeError(msg: string): string {
   return 'Something went wrong. Please try again.';
 }
 
+interface GenerationStreamEvent {
+  chunk?: string;
+  latex?: string;
+  done?: boolean;
+  error?: string;
+  message?: string;
+  phase?: GenerationPhase;
+  versionId?: string;
+  pdfSignedUrl?: string | null;
+}
+
+function extractStreamingPreviewLatex(raw: string): string {
+  const withoutFences = raw
+    .replace(/^```(?:latex|tex)?\s*/i, '')
+    .replace(/```\s*$/i, '');
+  const withoutSummary = withoutFences.replace(/^\[SUMMARY:\s*[\s\S]+?\]\s*\r?\n?/, '');
+  const begin = withoutSummary.indexOf('\\begin{document}');
+  const body = begin === -1
+    ? ''
+    : withoutSummary.slice(begin + '\\begin{document}'.length);
+  return body.replace(/\\end\{document\}[\s\S]*$/g, '').trimStart();
+}
+
+async function readGenerationStream(
+  response: Response,
+  onEvent: (event: GenerationStreamEvent) => Promise<void> | void,
+): Promise<void> {
+  if (!response.body) throw new Error('Streaming response had no body');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+
+    for (const frame of frames) {
+      const dataLines = frame
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice('data:'.length).trim());
+      if (dataLines.length === 0) continue;
+      const payload = dataLines.join('\n');
+      if (!payload) continue;
+      await onEvent(JSON.parse(payload) as GenerationStreamEvent);
+    }
+  }
+}
+
 export function useDocumentWorkspace(documentId: string) {
   const [state, setState] = useState<WorkspaceState>({
     document: null,
@@ -106,6 +160,70 @@ export function useDocumentWorkspace(documentId: string) {
   const generate = useCallback(async (prompt: string, files?: unknown[]) => {
     setState((s) => ({ ...s, isGenerating: true, generationPhase: 'calling_ai', error: null }));
     try {
+      if (state.document?.template_id === 'clean_3cols_landscape') {
+        const resp = await fetch(`/api/documents/${documentId}/generate-stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, files: files ?? [] }),
+        });
+
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data?.error ?? 'Generation failed');
+        }
+
+        let streamedRaw = '';
+        let finalResult: { versionId?: string; pdfSignedUrl?: string | null; message?: string } = {};
+
+        await readGenerationStream(resp, async (event) => {
+          if (event.error) throw new Error(event.error);
+
+          if (event.phase) {
+            setState((s) => ({ ...s, generationPhase: event.phase ?? s.generationPhase }));
+          }
+
+          if (event.chunk) {
+            streamedRaw += event.chunk;
+            const previewLatex = extractStreamingPreviewLatex(streamedRaw);
+            if (previewLatex) {
+              setState((s) => ({ ...s, latexContent: previewLatex }));
+            }
+          }
+
+          const eventLatex = event.latex;
+          if (typeof eventLatex === 'string') {
+            setState((s) => ({ ...s, latexContent: eventLatex }));
+          }
+
+          if (event.done) {
+            finalResult = {
+              versionId: event.versionId,
+              pdfSignedUrl: event.pdfSignedUrl ?? null,
+              message: event.message,
+            };
+          }
+        });
+
+        if (finalResult.message) {
+          setState((s) => ({ ...s, isGenerating: false, generationPhase: null }));
+          return { message: finalResult.message };
+        }
+
+        setState((s) => ({ ...s, generationPhase: 'uploading' }));
+        await load();
+        setState((s) => ({
+          ...s,
+          pdfSignedUrl: finalResult.pdfSignedUrl ?? s.pdfSignedUrl,
+          isGenerating: false,
+          generationPhase: null,
+        }));
+
+        return {
+          versionId: finalResult.versionId as string,
+          pdfSignedUrl: finalResult.pdfSignedUrl ?? null,
+        };
+      }
+
       const resp = await fetch(`/api/documents/${documentId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +262,7 @@ export function useDocumentWorkspace(documentId: string) {
       setState((s) => ({ ...s, isGenerating: false, generationPhase: null, error: message || null }));
       throw err;
     }
-  }, [documentId, load]);
+  }, [documentId, load, state.document?.template_id]);
 
   const switchVersion = useCallback(async (versionId: string) => {
     setState((s) => ({ ...s, isLoading: true }));

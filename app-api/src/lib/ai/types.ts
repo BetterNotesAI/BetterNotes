@@ -27,6 +27,8 @@ export interface GenerateLatexResult {
   summary?: string;  // breve descripción de lo que fue generado/modificado
 }
 
+export type GenerateLatexChunkHandler = (chunk: string) => void | Promise<void>;
+
 export interface FixLatexArgs {
   latex: string;
   log: string;
@@ -151,13 +153,18 @@ export type EditDocumentResult =
   | { type: 'edit'; latex: string; summary: string }
   | { type: 'message'; content: string };
 
+export type EditDocumentChunkHandler = (chunk: string) => void | Promise<void>;
+
 export interface AIProvider {
   generateLatex(args: GenerateLatexArgs): Promise<GenerateLatexResult>;
+  generateLatexStream(args: GenerateLatexArgs, onChunk: GenerateLatexChunkHandler): Promise<GenerateLatexResult>;
   fixLatex(args: FixLatexArgs): Promise<string>;
   /** F3-M4.3: Edit a single block. Returns the modified LaTeX fragment (not compiled). */
   editBlock(args: EditBlockArgs): Promise<string>;
   /** Document-level AI edit. Returns either a full modified LaTeX or a conversational message. */
   editDocument(args: EditDocumentArgs): Promise<EditDocumentResult>;
+  /** Streaming document-level AI edit. Emits the raw protocol chunks as they arrive. */
+  editDocumentStream(args: EditDocumentArgs, onChunk: EditDocumentChunkHandler): Promise<EditDocumentResult>;
   generateExam(args: GenerateExamArgs): Promise<GenerateExamResult>;
   gradeFillIn(args: GradeFillInArgs): Promise<GradeFillInResult>;
   /** Dedicated math solver — resolves a single question using a reasoning-focused model. */

@@ -151,6 +151,8 @@ function renderLatexCommands(text: string): string {
   const out = protectedText
     .replace(/(^|[^\\])%[^\n]*/g, '$1')
     .replace(/&/g, '&amp;')
+    // Residual Markdown bold from older/generated LaTeX.
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
     // Step 2 — LaTeX text commands (applied on escaped string; args use {} so safe)
     // \textbf{...}
     .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
@@ -794,6 +796,16 @@ export default function LatexBlock({
 
   const cueLabel = templateId === 'cornell' ? block.cue?.trim() : '';
   const isLandscape3Col = templateId === 'landscape_3col_maths';
+  const isCompactLandscape =
+    templateId === 'landscape_3col_maths' ||
+    templateId === 'clean_3cols_landscape' ||
+    templateId === 'compact_3cols_landscape' ||
+    templateId === 'compact-3cols-landscape';
+  const editorFontSize = isCompactLandscape
+    ? '0.78em'
+    : templateId === 'cornell'
+    ? '0.9em'
+    : '0.95em';
   const isBetterNotesFooter =
     block.type === 'paragraph' &&
     /(?:made with BetterNotes-AI|Generated with BetterNotes)/i.test(block.latex_source);
@@ -825,14 +837,19 @@ export default function LatexBlock({
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => onConfirm?.(block.id, editValue)}
-          className="w-full resize-none rounded border border-indigo-300 bg-white/90 px-2 py-1
-            font-mono text-xs text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400
-            shadow-sm leading-relaxed"
+          className="w-full resize-none rounded border border-indigo-300 bg-white/90
+            font-mono text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400
+            shadow-sm"
+          style={{
+            fontSize: editorFontSize,
+            lineHeight: isCompactLandscape ? 1.14 : 1.24,
+            padding: isCompactLandscape ? '0.14em 0.24em' : '0.2em 0.34em',
+          }}
           rows={3}
           spellCheck={false}
           aria-label="Edit LaTeX source"
         />
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2" style={{ marginTop: '0.12em' }}>
           <span className="text-[10px] text-gray-400">Enter to confirm · Esc to cancel</span>
         </div>
       </div>
