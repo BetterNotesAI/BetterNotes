@@ -55,6 +55,7 @@ interface ChatPanelProps {
   onSend: (content: string) => void;
   placeholder?: string;
   loadingLabel?: string;
+  loadingPhaseIndex?: number;
   /**
    * Legacy: plain text prefill from "Reference in chat".
    * The parent must provide a stable reference with counter prefix (__refN__).
@@ -450,9 +451,8 @@ export function ChatPanel({
   isDraft,
   onSend,
   placeholder,
-  // loadingLabel is accepted for API compatibility but ChatPanel manages its own loading phases
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  loadingLabel: _loadingLabel,
+  loadingLabel,
+  loadingPhaseIndex = 0,
   prefillText,
   blockReference,
   onClearBlockReference,
@@ -466,7 +466,7 @@ export function ChatPanel({
   onDiscardDocumentEdit,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
+  const activeLoadingPhaseIndex = Math.max(0, Math.min(LOADING_PHASES.length - 1, loadingPhaseIndex));
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -533,17 +533,6 @@ export function ChatPanel({
       textareaRef.current?.focus();
     }, 50);
   }, [blockReference]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingPhaseIndex(0);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setLoadingPhaseIndex(1);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [isLoading]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -867,7 +856,7 @@ export function ChatPanel({
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.4s' }} />
                 </div>
                 <span className="text-xs text-white/60 font-medium">
-                  {LOADING_PHASES[loadingPhaseIndex].label}
+                  {loadingLabel ?? LOADING_PHASES[activeLoadingPhaseIndex].label}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-2">
@@ -875,7 +864,7 @@ export function ChatPanel({
                   <div
                     key={i}
                     className={`h-0.5 rounded-full transition-all duration-500 ${
-                      i <= loadingPhaseIndex
+                      i <= activeLoadingPhaseIndex
                         ? 'bg-cyan-300/70 w-6'
                         : 'bg-white/15 w-4'
                     }`}

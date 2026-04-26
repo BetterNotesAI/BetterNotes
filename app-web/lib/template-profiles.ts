@@ -103,7 +103,7 @@ export const PROFILE_landscape_3col_maths: TemplateProfile = {
     margins: { top: 1.18, right: 1.18, bottom: 1.18, left: 1.18 },
   },
   typography: {
-    baseFontSize: '9.6px',
+    baseFontSize: '13.2px',
     fontFamily: '"KaTeX_Main", "Times New Roman", serif',
     lineSpread: 0.925,
   },

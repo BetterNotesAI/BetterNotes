@@ -82,6 +82,8 @@ export async function POST(
 
   // Response is the PDF binary
   const pdfBuffer = await response.arrayBuffer();
+  const latexB64 = response.headers.get('x-betternotes-latex') ?? '';
+  const compiledLatex = latexB64 ? Buffer.from(latexB64, 'base64').toString('utf8') : latex;
 
   // Save new version to Supabase Storage
   const versionPath = `${user.id}/${documentId}/v_manual_${Date.now()}.pdf`;
@@ -109,7 +111,7 @@ export async function POST(
     .insert({
       document_id: documentId,
       version_number: nextVersionNumber,
-      latex_content: latex,
+      latex_content: compiledLatex,
       pdf_storage_path: versionPath,
       compile_status: 'success',
     })

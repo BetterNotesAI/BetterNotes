@@ -11,6 +11,7 @@ interface PdfViewerProps {
   url: string | null;
   isLoading?: boolean;
   loadingLabel?: string;
+  loadingPhaseIndex?: number;
   zoom: number;
   visualZoom?: number;
   currentPage: number;
@@ -18,13 +19,11 @@ interface PdfViewerProps {
   viewportRef?: Ref<HTMLDivElement>;
 }
 
-const PHASES = ['Asking AI', 'Compiling', 'Finalizing'] as const;
+const PHASES = ['Generating LaTeX', 'Compiling PDF'] as const;
 
 function getActivePhase(label: string | undefined): number {
   if (!label) return 0;
-  if (label.includes('AI')) return 0;
-  if (label.includes('Compiling')) return 1;
-  if (label.includes('Finalizing')) return 2;
+  if (label.includes('Compiling') || label.includes('Finalizing')) return 1;
   return 0;
 }
 
@@ -32,6 +31,7 @@ export function PdfViewer({
   url,
   isLoading,
   loadingLabel,
+  loadingPhaseIndex,
   zoom,
   visualZoom,
   currentPage,
@@ -104,20 +104,30 @@ export function PdfViewer({
 
   // Loading state
   if (isLoading) {
-    const activePhase = getActivePhase(loadingLabel);
+    const activePhase = Math.max(
+      0,
+      Math.min(PHASES.length - 1, loadingPhaseIndex ?? getActivePhase(loadingLabel)),
+    );
     return (
-      <div className="flex-1 flex items-center justify-center bg-black/40 text-gray-500">
-        <div className="text-center space-y-3 w-56">
-          <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          <p className="text-sm">{loadingLabel ?? 'Generating your document...'}</p>
-          <div className="flex gap-1 mt-3">
+      <div className="flex-1 flex items-center justify-center bg-transparent px-6 text-white/65">
+        <div className="w-full max-w-[340px] rounded-2xl border border-white/12 bg-[linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.045))] px-5 py-4 shadow-[0_14px_42px_rgba(0,0,0,0.30)] backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.2s' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-300/75 animate-pulse" style={{ animationDuration: '1s', animationDelay: '0.4s' }} />
+            </div>
+            <p className="text-sm font-medium text-white/65">{loadingLabel ?? 'Generating LaTeX...'}</p>
+          </div>
+
+          <div className="mt-3 flex items-start gap-2">
             {PHASES.map((phase, i) => (
-              <div key={phase} className="flex-1 flex flex-col items-center gap-1">
-                <div className={`h-1 w-full rounded-full transition-colors ${
-                  i <= activePhase ? 'bg-blue-500' : 'bg-gray-800'
+              <div key={phase} className="flex-1 min-w-0">
+                <div className={`h-0.5 w-full rounded-full transition-colors duration-500 ${
+                  i <= activePhase ? 'bg-cyan-300/70' : 'bg-white/15'
                 }`} />
-                <span className={`text-xs ${
-                  i === activePhase ? 'text-gray-400' : 'text-gray-700'
+                <span className={`mt-1 block truncate text-[11px] transition-colors duration-500 ${
+                  i === activePhase ? 'text-white/60' : 'text-white/28'
                 }`}>{phase}</span>
               </div>
             ))}

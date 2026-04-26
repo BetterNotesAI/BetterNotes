@@ -53,6 +53,7 @@ LAYOUT RULES:
 - Use \\subsection*{Subtopic} for subsections
 - No page numbers (pagenumbering{gobble} is set)
 - Very compact: minimal vertical space, no blank lines between items
+- Keep the BetterNotes footer INSIDE multicols*, immediately before \\end{multicols*}. Never place it after \\end{multicols*}
 
 CONTENT RULES:
 - Use the theorem environments defined in the preamble: definition, proposition, theorem, obs, example*, exercise*
@@ -60,7 +61,7 @@ CONTENT RULES:
 - Use amsmath for equations: align*, equation*, etc.
 - Keep each entry brief — this is a reference sheet, not an explanation
 - Pack as much useful content as possible
-- End with: \\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}`,
+- End with this line before \\end{multicols*}: \\begin{flushright}\\scriptsize \\textit{made with BetterNotes-AI}\\end{flushright}`,
 
   structureTemplate: `\\begin{document}
 \\begin{multicols*}{3}
@@ -80,8 +81,8 @@ CONTENT RULES:
 % FILL: Continue with 3-6 more sections covering the requested topic thoroughly
 % FILL: Pack content densely — every line should convey information
 
+\\begin{flushright}\\scriptsize \\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{multicols*}
-\\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{document}`,
 
   structureExample: `\\begin{document}
@@ -108,7 +109,7 @@ Product rule: $(fg)' = f'g + fg'$
   \\item $(e^x)' = e^x$
 \\end{itemize}
 
+\\begin{flushright}\\scriptsize \\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{multicols*}
-\\begin{flushright}\\footnotesize \\textit{made with BetterNotes-AI}\\end{flushright}
 \\end{document}`,
 };

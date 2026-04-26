@@ -242,10 +242,23 @@ const CORNELL_BOX_LABELS: Record<string, string> = {
   proof: 'Proof.',
 };
 
+const LANDSCAPE_3COL_BOX_LABELS: Record<string, string> = {
+  definition: 'Def.',
+  theorem: 'Thm.',
+  proposition: 'Prop.',
+  observation: 'Obs.',
+  example: 'Ex.',
+  lemma: 'Lemma.',
+  corollary: 'Cor.',
+  remark: 'Rmk.',
+  proof: 'Proof.',
+};
+
 // ─── list renderer ────────────────────────────────────────────────────────────
 
 function renderList(latex: string, templateId?: string): React.ReactElement {
   const isClean3 = templateId === 'clean_3cols_landscape';
+  const isLandscape3Col = templateId === 'landscape_3col_maths';
   const isEnumerate = latex.includes('\\begin{enumerate}');
   // Extract \item entries
   const inner = latex
@@ -260,9 +273,9 @@ function renderList(latex: string, templateId?: string): React.ReactElement {
     <Tag
       className={isEnumerate ? 'list-decimal' : 'list-disc'}
       style={{
-        margin: '0.15em 0 0.22em 1.18em',
+        margin: isLandscape3Col ? '0.04em 0 0.06em 1.1em' : '0.15em 0 0.22em 1.18em',
         padding: 0,
-        lineHeight: 1.2,
+        lineHeight: isLandscape3Col ? 1.04 : 1.2,
         fontSize: '1em',
       }}
     >
@@ -272,7 +285,7 @@ function renderList(latex: string, templateId?: string): React.ReactElement {
           <li
             key={idx}
             style={{
-              margin: '0.1em 0',
+              margin: isLandscape3Col ? 0 : '0.1em 0',
               color: isClean3 ? 'var(--accent, #1E4C7C)' : undefined,
             }}
           >
@@ -780,6 +793,10 @@ export default function LatexBlock({
   );
 
   const cueLabel = templateId === 'cornell' ? block.cue?.trim() : '';
+  const isLandscape3Col = templateId === 'landscape_3col_maths';
+  const isBetterNotesFooter =
+    block.type === 'paragraph' &&
+    /(?:made with BetterNotes-AI|Generated with BetterNotes)/i.test(block.latex_source);
   const cueElement = cueLabel ? (
     <aside
       aria-hidden="true"
@@ -860,6 +877,36 @@ export default function LatexBlock({
       const clean3HeaderMatch = block.latex_source
         .trim()
         .match(new RegExp(`^${CLEAN3_TITLE_MARKER}([\\s\\S]*?)${CLEAN3_SUB_MARKER}([\\s\\S]*)$`));
+
+      if (isLandscape3Col) {
+        const HeadingTag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
+        return (
+          <div
+            className={interactiveClass}
+            style={{
+              overflow: 'visible',
+              margin: block.level === 1 ? '0.08em 0 0.02em' : '0.06em 0 0.01em',
+              breakAfter: 'avoid',
+            }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <HeadingTag
+              style={{
+                color: '#111111',
+                fontSize: block.level === 1 ? '1.22em' : block.level === 2 ? '1.02em' : '0.98em',
+                fontWeight: 700,
+                lineHeight: 1.02,
+                margin: 0,
+              }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMath(block.latex_source) }}
+            />
+            {actionBar}
+          </div>
+        );
+      }
+
       if (isClean3 && clean3HeaderMatch) {
         const title = clean3HeaderMatch[1].trim();
         const subtitle = clean3HeaderMatch[2].trim();
@@ -1015,7 +1062,15 @@ export default function LatexBlock({
       return (
         <div
           className={`text-center ${interactiveClass}`}
-          style={{ overflow: 'visible', margin: templateId === 'cornell' ? '0.1em 0 0.22em' : '0.16em 0 0.24em', breakInside: 'avoid' }}
+          style={{
+            overflow: 'visible',
+            margin: isLandscape3Col
+              ? '0.04em 0 0.06em'
+              : templateId === 'cornell'
+              ? '0.1em 0 0.22em'
+              : '0.16em 0 0.24em',
+            breakInside: 'avoid',
+          }}
           data-block-id={block.id}
           {...a11yProps}
           {...interactiveHandlers}
@@ -1023,7 +1078,10 @@ export default function LatexBlock({
           {cueElement}
           <div
             className="overflow-x-auto"
-            style={{ fontSize: templateId === 'cornell' ? '0.98em' : '1em', lineHeight: 1.12 }}
+            style={{
+              fontSize: isLandscape3Col ? '0.92em' : templateId === 'cornell' ? '0.98em' : '1em',
+              lineHeight: isLandscape3Col ? 1.02 : 1.12,
+            }}
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
           {actionBar}
@@ -1032,11 +1090,37 @@ export default function LatexBlock({
 
     case 'formula-inline':
     case 'paragraph':
+      if (isBetterNotesFooter) {
+        return (
+          <div
+            className={interactiveClass}
+            style={{
+              overflow: 'visible',
+              margin: isLandscape3Col ? '0.08em 0 0' : '0.4em 0 0',
+              textAlign: 'right',
+              fontSize: isLandscape3Col ? '0.74em' : '0.82em',
+              fontStyle: 'italic',
+              lineHeight: 1,
+              color: '#333333',
+            }}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            <span dangerouslySetInnerHTML={{ __html: rendered! }} />
+            {actionBar}
+          </div>
+        );
+      }
       return (
         <div className={interactiveClass} style={{ overflow: 'visible' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
           {cueElement}
           <p
-            style={{ margin: templateId === 'cornell' ? '0.1em 0' : '0.12em 0', fontSize: '1em', lineHeight: templateId === 'cornell' ? 1.2 : 1.22 }}
+            style={{
+              margin: isLandscape3Col ? '0.015em 0' : templateId === 'cornell' ? '0.1em 0' : '0.12em 0',
+              fontSize: '1em',
+              lineHeight: isLandscape3Col ? 1.05 : templateId === 'cornell' ? 1.2 : 1.22,
+            }}
             dangerouslySetInnerHTML={{ __html: rendered! }}
           />
           {actionBar}
@@ -1045,7 +1129,13 @@ export default function LatexBlock({
 
     case 'list':
       return (
-        <div className={interactiveClass} style={{ overflow: 'visible', margin: '0.1em 0' }} data-block-id={block.id} {...a11yProps} {...interactiveHandlers}>
+        <div
+          className={interactiveClass}
+          style={{ overflow: 'visible', margin: isLandscape3Col ? '0.02em 0' : '0.1em 0' }}
+          data-block-id={block.id}
+          {...a11yProps}
+          {...interactiveHandlers}
+        >
           {cueElement}
           {renderList(block.latex_source, templateId)}
           {actionBar}
@@ -1065,6 +1155,42 @@ export default function LatexBlock({
       return <hr style={{ margin: '0.2em 0 0.26em', borderTop: '1px solid #8f8f8f', breakBefore: 'avoid' }} />;
 
     case 'box': {
+      if (isLandscape3Col && block.boxSubtype) {
+        const labelColor =
+          block.boxSubtype === 'definition'
+            ? 'var(--def-color, #3db000)'
+            : block.boxSubtype === 'theorem'
+            ? 'var(--thm-color, #cc0000)'
+            : block.boxSubtype === 'proposition'
+            ? 'var(--prop-color, #0000cc)'
+            : block.boxSubtype === 'observation'
+            ? '#00a9d6'
+            : '#111111';
+        const label = LANDSCAPE_3COL_BOX_LABELS[block.boxSubtype] ?? BOX_SUBTYPE_LABELS[block.boxSubtype] ?? '';
+        return (
+          <div
+            style={{
+              margin: '0.015em 0',
+              overflow: 'visible',
+              fontSize: '1em',
+              lineHeight: 1.05,
+            }}
+            className={interactiveClass}
+            data-block-id={block.id}
+            {...a11yProps}
+            {...interactiveHandlers}
+          >
+            {cueElement}
+            {label && <span style={{ color: labelColor, fontWeight: 700 }}>{label}</span>}
+            {block.label ? (
+              <span style={{ color: '#111111' }}> ({block.label}) </span>
+            ) : label ? ' ' : null}
+            <span dangerouslySetInnerHTML={{ __html: renderBoxContentHtml(block.latex_source) }} />
+            {actionBar}
+          </div>
+        );
+      }
+
       if (templateId === 'cornell' && block.boxSubtype === 'summary') {
         return (
           <div

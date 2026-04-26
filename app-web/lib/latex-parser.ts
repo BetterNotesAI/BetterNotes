@@ -736,9 +736,10 @@ function parseLatexInternal(latex: string, templateId?: string): Block[] {
       // Strip optional {N} column-count argument and capture column count
       const colMatch = extracted.inner.match(/^\s*\{(\d+)\}/);
       const colCount = colMatch ? colMatch[1] : '2';
+      const colSource = env === 'multicols*' ? `${colCount}*` : colCount;
       const innerContent = extracted.inner.replace(/^\s*\{[^}]*\}/, '');
       // Emit col-start marker, recurse using internal parser (no counter reset), emit col-end marker
-      blocks.push({ id: makeId('col-start'), type: 'col-start', latex_source: colCount });
+      blocks.push({ id: makeId('col-start'), type: 'col-start', latex_source: colSource });
       const innerBlocks = parseLatexInternal(innerContent, templateId);
       blocks.push(...innerBlocks);
       blocks.push({ id: makeId('col-end'), type: 'col-end', latex_source: '' });
@@ -1026,10 +1027,12 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
     const block = blocks[i];
 
     if (block.type === 'col-start') {
-      // The col-start block's latex_source is the column count as a string (from parser).
-      // We re-wrap the enclosed blocks in \begin{multicols}{N}...\end{multicols}.
-      const colCount = parseInt(block.latex_source) || 2;
-      lines.push(`\\begin{multicols}{${colCount}}`);
+      // The col-start block's latex_source stores the column count and whether
+      // the source used multicols*.
+      const colSpec = block.latex_source.trim();
+      const colCount = parseInt(colSpec) || 2;
+      const envName = colSpec.includes('*') ? 'multicols*' : 'multicols';
+      lines.push(`\\begin{${envName}}{${colCount}}`);
       i++;
       while (i < blocks.length && blocks[i].type !== 'col-end') {
         const inner = blocks[i];
@@ -1040,7 +1043,7 @@ export function reconstructLatexFromBlocks(blocks: Block[], originalSource: stri
         }
         i++;
       }
-      lines.push('\\end{multicols}');
+      lines.push(`\\end{${envName}}`);
       i++; // skip col-end
     } else if (block.type === 'col-end' || block.type === 'hr') {
       // hr → emit the rule; col-end is handled above

@@ -12,7 +12,7 @@ import { ProjectAttachmentsPanel } from '../_components/ProjectAttachmentsPanel'
 import { WorkspaceAttachmentsPanel } from '../_components/WorkspaceAttachmentsPanel';
 import InteractiveBuildPreview from '../_components/InteractiveBuildPreview';
 import { DocumentQaInlineChat } from '../_components/DocumentQaInlineChat';
-import { useDocumentWorkspace, GenerationPhase } from '../_hooks/useDocumentWorkspace';
+import { useDocumentWorkspace } from '../_hooks/useDocumentWorkspace';
 import { useChatMessages } from '../_hooks/useChatMessages';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import { createClient } from '@/lib/supabase/client';
@@ -46,12 +46,10 @@ interface PendingDocumentWorkspaceSendPayload {
   content: string;
 }
 
-function getLoadingLabel(phase: GenerationPhase): string | undefined {
-  if (phase === 'calling_ai') return 'Asking the AI...';
-  if (phase === 'compiling') return 'Compiling LaTeX...';
-  if (phase === 'uploading') return 'Finalizing PDF...';
-  return undefined;
-}
+const DOCUMENT_LOADING_PHASES = [
+  'Generating LaTeX...',
+  'Compiling PDF...',
+] as const;
 
 function InitialPromptSender({
   isDraft,
@@ -410,6 +408,26 @@ export default function DocumentWorkspacePage() {
       ? 'Back to cheat sheets'
       : 'Back to documents';
   const isDocumentGenerating = isGenerating || docData?.status === 'generating';
+  const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
+  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
+
+  useEffect(() => {
+    if (!showGenerating) {
+      setLoadingPhaseIndex(0);
+      return;
+    }
+
+    if (generationPhase === 'compiling' || generationPhase === 'uploading') {
+      setLoadingPhaseIndex(1);
+      return;
+    }
+
+    setLoadingPhaseIndex(0);
+    const timer = setTimeout(() => {
+      setLoadingPhaseIndex(1);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [showGenerating, generationPhase]);
 
   function isLimitReachedError(err: unknown): boolean {
     if (!(err instanceof Error)) return false;
@@ -662,12 +680,12 @@ export default function DocumentWorkspacePage() {
   }
 
   const templateLabel = TEMPLATE_LABELS[docData.template_id] ?? docData.template_id;
-  const showGenerating = isDocumentGenerating || isChatGenerating || isSending;
   const showInteractiveBuildPreview =
     viewerTab === 'interactive' &&
     !latexContent &&
     showGenerating;
-  const loadingLabel = getLoadingLabel(generationPhase);
+  const loadingLabel = DOCUMENT_LOADING_PHASES[loadingPhaseIndex] ?? DOCUMENT_LOADING_PHASES[0];
+  const previewGenerationPhase = generationPhase ?? (loadingPhaseIndex > 0 ? 'compiling' : 'calling_ai');
 
   return (
     <div className="h-full flex flex-col bg-transparent overflow-hidden">
@@ -1015,7 +1033,7 @@ export default function DocumentWorkspacePage() {
             {showInteractiveBuildPreview && (
               <InteractiveBuildPreview
                 templateId={docData.template_id}
-                phase={generationPhase}
+                phase={previewGenerationPhase}
               />
             )}
 
@@ -1079,6 +1097,7 @@ export default function DocumentWorkspacePage() {
                   url={activePdfUrl}
                   isLoading={showGenerating && !activePdfUrl}
                   loadingLabel={loadingLabel}
+                  loadingPhaseIndex={loadingPhaseIndex}
                   zoom={zoom}
                   currentPage={currentPage}
                   onTotalPages={setTotalPages}
@@ -1125,6 +1144,7 @@ export default function DocumentWorkspacePage() {
                   url={activePdfUrl}
                   isLoading={showGenerating && !activePdfUrl}
                   loadingLabel={loadingLabel}
+                  loadingPhaseIndex={loadingPhaseIndex}
                   zoom={zoom}
                   currentPage={currentPage}
                   onTotalPages={setTotalPages}
@@ -1258,6 +1278,7 @@ export default function DocumentWorkspacePage() {
                     isDraft={isDraft}
                     onSend={handleSend}
                     loadingLabel={loadingLabel}
+                    loadingPhaseIndex={loadingPhaseIndex}
                     prefillText={chatPrefill}
                     blockReference={blockReference}
                     onClearBlockReference={() => setBlockReference(null)}

@@ -196,7 +196,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { content, selectedTexts } = body as { content?: string; selectedTexts?: string[] };
+  const { content, selectedTexts, transientHistory } = body as {
+    content?: string;
+    selectedTexts?: string[];
+    transientHistory?: Array<{ role?: string; content?: string }>;
+  };
 
   if (!content || typeof content !== 'string' || !content.trim()) {
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
@@ -204,6 +208,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const contexts = Array.isArray(selectedTexts)
     ? selectedTexts.map((t) => t.trim()).filter(Boolean)
+    : [];
+  const transientHistoryMessages: QaHistoryMessage[] = Array.isArray(transientHistory)
+    ? transientHistory
+        .filter((m): m is { role: 'user' | 'assistant'; content: string } =>
+          (m.role === 'user' || m.role === 'assistant') &&
+          typeof m.content === 'string' &&
+          m.content.trim().length > 0,
+        )
+        .map((m) => ({ role: m.role, content: m.content.trim() }))
+        .slice(-12)
     : [];
 
   const quoteBlocks = contexts.map((ctx) => toQuoteBlock(ctx));
@@ -282,7 +296,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   if (persistenceUnavailable) {
     userMsg = createTransientMessage('user', userMessageForLLM);
-    history = [];
+    history = transientHistoryMessages;
   }
 
   const fullDocumentContext = await getDocumentContextLatex(supabase, doc.current_version_id);
