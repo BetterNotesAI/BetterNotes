@@ -129,5 +129,10 @@ export async function POST(
       .eq('id', newDoc.id);
   }
 
+  // Increment fork_count on the source document.
+  // Uses a SECURITY DEFINER function so the forking user (who doesn't own the
+  // source document) can still update that column atomically.
+  await supabase.rpc('increment_document_fork_count', { p_document_id: sourceId });
+
   return NextResponse.json({ ok: true, document_id: newDoc.id });
 }

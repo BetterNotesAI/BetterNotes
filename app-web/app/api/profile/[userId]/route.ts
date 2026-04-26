@@ -40,7 +40,7 @@ export async function GET(
   // ── Published documents ───────────────────────────────────────────────────
   const { data: docs } = await supabase
     .from('documents')
-    .select('id, title, template_id, published_at, subject, degree, university, keywords, view_count, like_count, visibility')
+    .select('id, title, template_id, published_at, subject, degree, university, keywords, view_count, like_count, fork_count, visibility')
     .eq('user_id', userId)
     .eq('is_published', true)
     .eq('visibility', 'public')
@@ -61,15 +61,11 @@ export async function GET(
   const totalViews = documents.reduce((s, d) => s + (d.view_count ?? 0), 0);
   const totalLikes = documents.reduce((s, d) => s + (d.like_count ?? 0), 0);
 
-  // Forks received: count docs whose forked_from_id points to this user's docs
-  const { count: forksReceived } = await supabase
-    .from('documents')
-    .select('id', { count: 'exact', head: true })
-    .not('forked_from_id', 'is', null)
-    .in(
-      'forked_from_id',
-      documents.map((d) => d.id)
-    );
+  // Forks received: sum the denormalized fork_count column from the already-fetched
+  // documents array. The previous subquery counted rows in documents WHERE
+  // forked_from_id IN (...), but forked documents are private, so Supabase RLS
+  // blocked that cross-user SELECT and always returned 0.
+  const forksReceived = documents.reduce((sum, d) => sum + (d.fork_count ?? 0), 0);
 
   // ── User-specific enrichment (liked) ─────────────────────────────────────
   let likedSet = new Set<string>();
@@ -104,7 +100,7 @@ export async function GET(
       published_count:  publishedCount ?? 0,
       total_views:      totalViews,
       total_likes:      totalLikes,
-      forks_received:   forksReceived ?? 0,
+      forks_received:   forksReceived,
     },
     documents: enrichedDocs,
     is_own: isOwn,
