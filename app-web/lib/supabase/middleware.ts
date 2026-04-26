@@ -43,9 +43,14 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle()
 
-    isAnonymous = Boolean(profile?.is_anonymous)
-    termsAcceptedAt = (profile as { terms_accepted_at?: string | null } | null)?.terms_accepted_at ?? null
-    onboardingCompletedAt = (profile as { onboarding_completed_at?: string | null } | null)?.onboarding_completed_at ?? null
+    const p = profile as {
+      is_anonymous?: boolean | null
+      terms_accepted_at?: string | null
+      onboarding_completed_at?: string | null
+    } | null
+    isAnonymous = Boolean(p?.is_anonymous)
+    termsAcceptedAt = p?.terms_accepted_at ?? null
+    onboardingCompletedAt = p?.onboarding_completed_at ?? null
   }
 
   return { response: supabaseResponse, user, isAnonymous, termsAcceptedAt, onboardingCompletedAt }
