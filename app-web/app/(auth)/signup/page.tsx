@@ -26,12 +26,14 @@ function SignupContent() {
   const safeReturnUrl = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/home'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
+    if (!termsAccepted) return
     setLoading(true)
     setError(null)
 
@@ -40,7 +42,7 @@ function SignupContent() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
       },
     })
 
@@ -48,6 +50,21 @@ function SignupContent() {
       setError(humanizeAuthError(error.message))
       setLoading(false)
       return
+    }
+
+    // Record terms acceptance — best-effort, don't block signup on failure
+    try {
+      await fetch('/api/settings', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: '2026-04-26',
+        }),
+      })
+    } catch {
+      // non-blocking
     }
 
     setSuccess(true)
@@ -186,10 +203,60 @@ function SignupContent() {
               </p>
             )}
 
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <div className="relative flex-shrink-0 mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  disabled={loading}
+                  className="sr-only"
+                />
+                <div
+                  className={`w-4 h-4 rounded border transition-colors ${
+                    termsAccepted
+                      ? 'bg-indigo-500 border-indigo-500'
+                      : 'bg-black/20 border-white/30 group-hover:border-white/50'
+                  }`}
+                >
+                  {termsAccepted && (
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <span className="text-xs text-white/60 leading-relaxed">
+                I have read and agree to the{' '}
+                <a
+                  href="/support/terms-of-use"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms of Use
+                </a>
+                {' '}and{' '}
+                <a
+                  href="/support/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+                . I understand I am solely responsible for any content I upload or generate through BetterNotes.
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-2 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-neutral-950 font-semibold rounded-xl transition-colors"
+              disabled={loading || !termsAccepted}
+              className={`w-full py-2 px-4 bg-white hover:bg-white/90 text-neutral-950 font-semibold rounded-xl transition-colors ${
+                !termsAccepted ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>

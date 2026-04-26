@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 import { computeBillingEligibility, inferEmailVerified } from '@/lib/billing-eligibility'
 
 export async function middleware(request: NextRequest) {
-  const { response, user, isAnonymous } = await updateSession(request)
+  const { response, user, isAnonymous, termsAcceptedAt, onboardingCompletedAt } = await updateSession(request)
 
   const path = request.nextUrl.pathname
   const isPublic =
@@ -33,6 +33,15 @@ export async function middleware(request: NextRequest) {
   const isBillingGuardedRoute =
     path.startsWith('/pricing') ||
     path.startsWith('/settings/billing')
+
+  // Routes that bypass the onboarding gate
+  const isOnboardingExempt =
+    path.startsWith('/onboarding') ||
+    path.startsWith('/support') ||
+    path.startsWith('/auth') ||
+    path.startsWith('/api') ||
+    isAuthRoute ||
+    isPublic
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -69,6 +78,16 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthRoute && user && !isAnonymous) {
     return NextResponse.redirect(new URL('/documents', request.url))
+  }
+
+  // Onboarding gate — only for authenticated, non-anonymous users
+  if (user && !isAnonymous && !isOnboardingExempt) {
+    if (!termsAcceptedAt) {
+      return NextResponse.redirect(new URL('/onboarding?step=terms', request.url))
+    }
+    if (!onboardingCompletedAt) {
+      return NextResponse.redirect(new URL('/onboarding?step=university', request.url))
+    }
   }
 
   return response
