@@ -232,13 +232,7 @@ export default function SettingsClient({
 }: SettingsClientProps) {
   const router = useRouter();
 
-  const [activeSection, setActiveSection] = useState<SettingsSection>(() => {
-    if (typeof window !== 'undefined') {
-      const fromHash = hashToSection(window.location.hash);
-      if (fromHash) return fromHash;
-    }
-    return defaultSection;
-  });
+  const [activeSection, setActiveSection] = useState<SettingsSection>(defaultSection);
   const [profile, setProfile] = useState<SettingsProfile>(DEFAULT_PROFILE);
   const [providers, setProviders] = useState<string[]>([]);
 
@@ -275,8 +269,12 @@ export default function SettingsClient({
     [providers, profile.is_anonymous]
   );
 
-  // Sync active section ↔ URL hash (browser back/forward + direct links)
+  // Sync active section ↔ URL hash (initial load + browser back/forward + direct links)
   useEffect(() => {
+    // Read hash immediately on mount (useState initializer can't do this reliably during SSR)
+    const fromHash = hashToSection(window.location.hash);
+    if (fromHash) setActiveSection(fromHash);
+
     const onHashChange = () => {
       const s = hashToSection(window.location.hash);
       if (s) setActiveSection(s);

@@ -1080,7 +1080,12 @@ function MyStudiesInner() {
   }
 
   function handleNavigate(href: string) {
-    router.push(href);
+    // Use window.location for hash URLs to ensure the fragment is preserved
+    if (href.includes('#')) {
+      window.location.href = href;
+    } else {
+      router.push(href);
+    }
   }
 
   return (
