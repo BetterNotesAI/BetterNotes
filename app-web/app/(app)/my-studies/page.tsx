@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -786,6 +787,7 @@ function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void })
 type ActiveTab = 'mine' | 'community';
 
 function TabSwitcher({ active, onChange }: { active: ActiveTab; onChange: (tab: ActiveTab) => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1 bg-white/6 border border-white/10 rounded-xl p-1">
       {(['mine', 'community'] as ActiveTab[]).map((tab) => (
@@ -798,7 +800,7 @@ function TabSwitcher({ active, onChange }: { active: ActiveTab; onChange: (tab: 
               : 'text-white/50 hover:text-white/80'
             }`}
         >
-          {tab === 'mine' ? 'My University' : 'Community'}
+          {tab === 'mine' ? t('myStudies.tab.myNotes') : t('myStudies.tab.community')}
         </button>
       ))}
     </div>
@@ -1068,6 +1070,7 @@ function CommunityTab() {
 // ── Inner page (reads URL params, must be inside Suspense) ────────────────────
 
 function MyStudiesInner() {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get('tab');
@@ -1093,7 +1096,7 @@ function MyStudiesInner() {
       {/* Top bar */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">My Studies</h1>
+          <h1 className="text-xl font-semibold">{t('myStudies.title')}</h1>
         </div>
         <TabSwitcher active={activeTab} onChange={handleTabChange} />
       </div>
@@ -1113,11 +1116,12 @@ function MyStudiesInner() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function MyStudiesPage() {
+  const { t } = useTranslation();
   return (
     <Suspense fallback={
       <div className="h-full flex flex-col bg-transparent text-white overflow-hidden">
         <div className="border-b border-white/10 px-6 py-4 shrink-0">
-          <h1 className="text-xl font-semibold">My Studies</h1>
+          <h1 className="text-xl font-semibold">{t('myStudies.title')}</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />

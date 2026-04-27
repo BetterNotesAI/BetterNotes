@@ -12,6 +12,7 @@ import {
   USER_ACADEMIC_UPDATED_EVENT,
   USER_PREFERENCES_EVENT,
 } from '../../_lib/preferences';
+import { useTranslation } from '@/lib/i18n';
 
 type SettingsSection = 'account' | 'profile' | 'preferences' | 'academic';
 
@@ -111,20 +112,10 @@ const DEFAULT_PROFILE: SettingsProfile = {
   profile_year: null,
 };
 
-const SECTION_LABELS: Record<SettingsSection, string> = {
-  account: 'Account',
-  profile: 'Profile Details',
-  academic: 'Academic',
-  preferences: 'App Preferences',
-};
-
 const LANGUAGE_OPTIONS: Array<{ value: LanguagePreference; label: string }> = [
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'it', label: 'Italiano' },
-  { value: 'pt', label: 'Português' },
+  { value: 'ca', label: 'Català' },
 ];
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; description: string }> = [
@@ -231,6 +222,7 @@ export default function SettingsClient({
   subtitle = 'Manage your account, profile and application preferences.',
 }: SettingsClientProps) {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [activeSection, setActiveSection] = useState<SettingsSection>(defaultSection);
   const [profile, setProfile] = useState<SettingsProfile>(DEFAULT_PROFILE);
@@ -770,7 +762,7 @@ export default function SettingsClient({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {(Object.keys(SECTION_LABELS) as SettingsSection[]).map((section) => (
+          {(['account', 'profile', 'academic', 'preferences'] as SettingsSection[]).map((section) => (
             <a
               key={section}
               href={`#${section}`}
@@ -781,7 +773,7 @@ export default function SettingsClient({
                   : 'border-white/20 text-white/70 hover:text-white hover:border-white/35'
               }`}
             >
-              {SECTION_LABELS[section]}
+              {t(`settings.section.${section}`)}
             </a>
           ))}
         </div>
@@ -801,7 +793,7 @@ export default function SettingsClient({
         {isLoading ? (
           <div className="rounded-2xl border border-white/15 bg-black/25 p-6 flex items-center gap-3">
             <span className="w-5 h-5 border-2 border-white/25 border-t-white rounded-full animate-spin" />
-            <span className="text-sm text-white/70">Loading settings...</span>
+            <span className="text-sm text-white/70">{t('common.loading')}</span>
           </div>
         ) : null}
 
@@ -1337,12 +1329,12 @@ export default function SettingsClient({
             className="rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm p-5 space-y-5"
           >
             <div>
-              <h2 className="text-lg font-medium text-white">App Preferences</h2>
-              <p className="text-sm text-white/55 mt-1">Set your appearance and language defaults.</p>
+              <h2 className="text-lg font-medium text-white">{t('settings.section.preferences')}</h2>
+              <p className="text-sm text-white/55 mt-1">{t('settings.subtitle')}</p>
             </div>
 
             <div>
-              <p className="text-xs text-white/60 mb-2">Appearance</p>
+              <p className="text-xs text-white/60 mb-2">{t('settings.preferences.theme')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {THEME_OPTIONS.map((option) => (
                   <button
@@ -1355,13 +1347,13 @@ export default function SettingsClient({
                         : 'border-white/20 text-white/75 hover:text-white hover:border-white/35'
                     }`}
                   >
-                    <p className="text-sm font-medium">{option.label}</p>
+                    <p className="text-sm font-medium">{t(`settings.preferences.theme${option.value.charAt(0).toUpperCase() + option.value.slice(1)}`)}</p>
                     <p
                       className={`text-xs mt-1 ${
                         preferencesForm.theme === option.value ? 'text-neutral-700' : 'text-white/50'
                       }`}
                     >
-                      {option.description}
+                      {t(`settings.preferences.theme${option.value.charAt(0).toUpperCase() + option.value.slice(1)}Desc`)}
                     </p>
                   </button>
                 ))}
@@ -1369,7 +1361,7 @@ export default function SettingsClient({
             </div>
 
             <label className="block md:max-w-sm">
-              <span className="text-xs text-white/60">Language</span>
+              <span className="text-xs text-white/60">{t('settings.preferences.language')}</span>
               <select
                 value={preferencesForm.language}
                 onChange={(e) =>
@@ -1393,7 +1385,7 @@ export default function SettingsClient({
               disabled={busyAction === 'save-preferences'}
               className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium disabled:opacity-60 transition-colors"
             >
-              {busyAction === 'save-preferences' ? 'Saving...' : 'Save preferences'}
+              {busyAction === 'save-preferences' ? t('common.loading') : t('settings.preferences.savePreferences')}
             </button>
           </form>
         )}

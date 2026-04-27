@@ -6,8 +6,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import Background from '@/app/components/Background'
+import { useTranslation } from '@/lib/i18n'
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslation()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -19,12 +21,12 @@ export default function ResetPasswordPage() {
     setError(null)
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('auth.resetPassword.tooShort'))
       return
     }
 
     if (password !== confirm) {
-      setError('Passwords do not match')
+      setError(t('auth.resetPassword.mismatch'))
       return
     }
 
@@ -35,7 +37,7 @@ export default function ResetPasswordPage() {
     // Verify there is an active session (user arrived via magic link)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      setError('Your reset link is invalid or has expired. Please request a new one.')
+      setError(t('auth.resetPassword.invalidLink'))
       setLoading(false)
       return
     }
@@ -43,7 +45,7 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
-      setError('Something went wrong, please try again')
+      setError(t('common.error.generic'))
       setLoading(false)
       return
     }
@@ -65,15 +67,15 @@ export default function ResetPasswordPage() {
 
       <div className="relative z-10 w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Set a new password</h1>
-          <p className="text-sm text-white/60 mt-1">Choose a strong password for your account</p>
+          <h1 className="text-2xl font-bold text-white">{t('auth.resetPassword.title')}</h1>
+          <p className="text-sm text-white/60 mt-1">{t('auth.resetPassword.subtitle')}</p>
         </div>
 
         <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-2xl p-6 space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="password" className="block text-sm text-white/80 mb-1">
-                New password
+                {t('auth.resetPassword.newPassword')}
               </label>
               <input
                 id="password"
@@ -84,13 +86,13 @@ export default function ResetPasswordPage() {
                 minLength={8}
                 disabled={loading}
                 className="w-full px-3 py-2 bg-black/20 border border-white/20 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-indigo-400/60 disabled:opacity-50 transition-colors"
-                placeholder="At least 8 characters"
+                placeholder={t('auth.signup.passwordPlaceholder')}
               />
             </div>
 
             <div>
               <label htmlFor="confirm" className="block text-sm text-white/80 mb-1">
-                Confirm new password
+                {t('auth.resetPassword.confirmPassword')}
               </label>
               <input
                 id="confirm"
@@ -115,14 +117,14 @@ export default function ResetPasswordPage() {
               disabled={loading}
               className="w-full py-2 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-neutral-950 font-semibold rounded-xl transition-colors"
             >
-              {loading ? 'Updating...' : 'Update password'}
+              {loading ? t('auth.resetPassword.submitting') : t('auth.resetPassword.submit')}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-white/60">
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
-            Back to login
+            {t('auth.backToLogin')}
           </Link>
         </p>
       </div>

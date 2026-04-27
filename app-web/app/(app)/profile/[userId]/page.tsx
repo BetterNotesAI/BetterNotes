@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ContributionsHeatmap from './ContributionsHeatmap';
+import { useTranslation } from '@/lib/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,7 @@ function ProfileDocCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PublicProfilePage() {
+  const { t } = useTranslation();
   const params = useParams<{ userId: string }>();
   const router = useRouter();
   const userId = params?.userId ?? '';
@@ -265,8 +267,8 @@ export default function PublicProfilePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
             </svg>
           </div>
-          <p className="text-sm font-semibold text-white/70">This profile is private</p>
-          <button onClick={() => router.back()} className="text-xs text-indigo-400 hover:text-indigo-300 underline">Go back</button>
+          <p className="text-sm font-semibold text-white/70">{t('profile.privateProfile')}</p>
+          <button onClick={() => router.back()} className="text-xs text-indigo-400 hover:text-indigo-300 underline">{t('common.back')}</button>
         </div>
       </div>
     );
@@ -310,7 +312,7 @@ export default function PublicProfilePage() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
               </svg>
-              Edit profile
+              {t('profile.editProfile')}
             </button>
           )}
         </div>
@@ -338,10 +340,10 @@ export default function PublicProfilePage() {
         {stats && (
           <div className="flex items-center gap-6 mt-5 pt-5 border-t border-white/8">
             {[
-              { label: 'Published', value: stats.published_count },
-              { label: 'Views', value: formatNumber(stats.total_views) },
-              { label: 'Likes', value: formatNumber(stats.total_likes) },
-              { label: 'Forks received', value: stats.forks_received },
+              { label: t('profile.stats.published'), value: stats.published_count },
+              { label: t('profile.stats.views'), value: formatNumber(stats.total_views) },
+              { label: t('profile.stats.likes'), value: formatNumber(stats.total_likes) },
+              { label: t('profile.stats.forks'), value: stats.forks_received },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
                 <p className="text-lg font-bold text-white">{value}</p>
@@ -359,19 +361,19 @@ export default function PublicProfilePage() {
       <div className="flex-1 border-t border-white/8">
         <div className="max-w-5xl mx-auto px-6 py-6">
           <h2 className="text-sm font-semibold text-white/70 mb-4">
-            Public notes
+            {t('profile.publicNotes')}
             {documents.length > 0 && <span className="text-white/30 font-normal ml-2">{documents.length}</span>}
           </h2>
 
           {documents.length === 0 ? (
             <div className="py-14 text-center">
-              <p className="text-sm text-white/30">No public notes yet.</p>
+              <p className="text-sm text-white/30">{t('profile.noPublicNotes')}</p>
               {isOwn && (
                 <button
                   onClick={() => router.push('/documents')}
                   className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline"
                 >
-                  Go publish a document
+                  {t('profile.goPublish')}
                 </button>
               )}
             </div>

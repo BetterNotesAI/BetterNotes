@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { USER_ACADEMIC_UPDATED_EVENT } from '../_lib/preferences';
+import { useTranslation } from '@/lib/i18n';
 
 interface RecentDoc { id: string; title: string }
 
@@ -98,6 +99,7 @@ function PlaceholderNavItem({
 }
 
 export function Sidebar() {
+  const { t } = useTranslation();
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(true);
@@ -607,12 +609,12 @@ export function Sidebar() {
     e.preventDefault();
     const message = feedbackMessage.trim();
     if (message.length < 5) {
-      setFeedbackError('Please write at least 5 characters.');
+      setFeedbackError(t('sidebar.feedback.tooShort'));
       setFeedbackSuccess(null);
       return;
     }
     if (message.length > 2000) {
-      setFeedbackError('Feedback is too long (max 2000 chars).');
+      setFeedbackError(t('sidebar.feedback.tooLong'));
       setFeedbackSuccess(null);
       return;
     }
@@ -637,7 +639,7 @@ export function Sidebar() {
       }
 
       setFeedbackMessage('');
-      setFeedbackSuccess('Thanks. Your feedback has been sent.');
+      setFeedbackSuccess(t('sidebar.feedback.success'));
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : 'Failed to send feedback');
     } finally {
@@ -665,10 +667,10 @@ export function Sidebar() {
     ? '/signup?returnUrl=%2Fsettings%2Fbilling&reason=billing_account_required'
     : '/settings/billing';
   const billingActionLabel = isGuest
-    ? 'Create account'
+    ? t('sidebar.createAccount')
     : usage?.plan === 'free'
-      ? 'Upgrade'
-      : 'Manage plan';
+      ? t('sidebar.upgradePlan')
+      : t('sidebar.managePlan');
   const folderInMenu = folderMenuFolderId
     ? folders.find(folder => folder.id === folderMenuFolderId) ?? null
     : null;
@@ -699,7 +701,7 @@ export function Sidebar() {
           <button
             onClick={toggle}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/55 hover:text-white/85 hover:bg-white/10 transition-colors shrink-0"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? t('sidebar.collapseExpand.expand') : t('sidebar.collapseExpand.collapse')}
           >
             {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
           </button>
@@ -711,7 +713,7 @@ export function Sidebar() {
           {/* New Notebook CTA */}
           <button
             onClick={handleCreateProject}
-            title={collapsed ? 'New Notebook' : undefined}
+            title={collapsed ? t('sidebar.newNotebook') : undefined}
             className={`w-full flex items-center gap-3 rounded-xl transition-all duration-150 mb-2 font-semibold
               bg-gradient-to-r from-[#b04cff] via-[#7d5cff] to-[#3d7dff] hover:from-[#c06bff] hover:via-[#8a6fff] hover:to-[#5290ff]
               text-white shadow-[0_4px_14px_rgba(96,82,255,0.45)] hover:shadow-[0_6px_18px_rgba(85,116,255,0.52)] ${
@@ -719,13 +721,13 @@ export function Sidebar() {
             }`}
           >
             <PlusIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">New Notebook</span>}
+            {!collapsed && <span className="text-sm truncate">{t('sidebar.newNotebook')}</span>}
           </button>
 
           {/* Home */}
           <Link
             href="/home"
-            title={collapsed ? 'Home' : undefined}
+            title={collapsed ? t('sidebar.home') : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
@@ -735,16 +737,16 @@ export function Sidebar() {
             }`}
           >
             <HomeIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Home</span>}
+            {!collapsed && <span className="text-sm truncate">{t('sidebar.home')}</span>}
           </Link>
 
           {/* ── Resources section ── */}
-          <SectionDivider label="Resources" collapsed={collapsed} />
+          <SectionDivider label={t('sidebar.resources')} collapsed={collapsed} />
 
           <div className="space-y-2">
             <Link
               href="/cheat-sheets"
-              title={collapsed ? 'Cheat Sheets' : undefined}
+              title={collapsed ? t('sidebar.cheatSheets') : undefined}
               className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
                 collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
               } ${
@@ -754,11 +756,11 @@ export function Sidebar() {
               }`}
             >
               <CheatSheetIcon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-sm truncate">Cheat Sheets</span>}
+              {!collapsed && <span className="text-sm truncate">{t('sidebar.cheatSheets')}</span>}
             </Link>
             <Link
               href="/problem-solver"
-              title={collapsed ? 'Problem Solver' : undefined}
+              title={collapsed ? t('sidebar.problemSolver') : undefined}
               className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
                 collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
               } ${
@@ -768,11 +770,11 @@ export function Sidebar() {
               }`}
             >
               <ProblemSolverIcon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-sm truncate">Problem Solver</span>}
+              {!collapsed && <span className="text-sm truncate">{t('sidebar.problemSolver')}</span>}
             </Link>
             <Link
               href="/exams"
-              title={collapsed ? 'Exams' : undefined}
+              title={collapsed ? t('sidebar.exams') : undefined}
               className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
                 collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
               } ${
@@ -782,17 +784,17 @@ export function Sidebar() {
               }`}
             >
               <ExamsIcon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-sm truncate">Exams</span>}
+              {!collapsed && <span className="text-sm truncate">{t('sidebar.exams')}</span>}
             </Link>
           </div>
 
           {/* ── Notebooks section ── */}
-          <SectionDivider label="Notebooks" collapsed={collapsed} />
+          <SectionDivider label={t('sidebar.notebooks')} collapsed={collapsed} />
 
           {/* Search — opens full-page or ⌘K palette */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-search-palette'))}
-            title={collapsed ? 'Search (⌘K)' : undefined}
+            title={collapsed ? `${t('sidebar.search')} (⌘K)` : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
@@ -804,7 +806,7 @@ export function Sidebar() {
             <SearchIcon className="w-4 h-4 shrink-0" />
             {!collapsed && (
               <>
-                <span className="flex-1 text-sm text-left">Search</span>
+                <span className="flex-1 text-sm text-left">{t('sidebar.search')}</span>
                 <kbd className="shrink-0 text-[10px] text-white/30 bg-white/8 px-1.5 py-0.5 rounded font-mono">
                   ⌘K
                 </kbd>
@@ -816,7 +818,7 @@ export function Sidebar() {
           {collapsed ? (
             <Link
               href="/documents"
-              title="All Notebooks"
+              title={t('sidebar.allNotebooks')}
               className={`flex items-center justify-center px-2 py-2.5 rounded-xl transition-colors duration-150 ${
                 isActiveDocuments()
                   ? activeNavClass
@@ -852,12 +854,12 @@ export function Sidebar() {
                   className="flex items-center gap-3 flex-1 min-w-0 text-left"
                 >
                   <DocumentsIcon className="w-4 h-4 shrink-0" />
-                  <span className="text-sm truncate">All Notebooks</span>
+                  <span className="text-sm truncate">{t('sidebar.allNotebooks')}</span>
                 </button>
                 <button
                   onClick={() => setDocsExpanded(e => !e)}
                   className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
-                  aria-label={docsExpanded ? 'Collapse folders' : 'Expand folders'}
+                  aria-label={docsExpanded ? t('sidebar.collapseFolders') : t('sidebar.expandFolders')}
                 >
                   <svg
                     className={`w-3 h-3 transition-transform duration-150 ${docsExpanded ? 'rotate-90' : ''}`}
@@ -929,8 +931,8 @@ export function Sidebar() {
                               <button
                                 onClick={() => toggleFolderExpanded(folder.id)}
                                 className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-white/55 hover:text-white hover:bg-white/10 transition-colors"
-                                aria-label={isExpanded ? 'Collapse folder content' : 'Expand folder content'}
-                                title={isExpanded ? 'Collapse folder content' : 'Expand folder content'}
+                                aria-label={isExpanded ? t('sidebar.collapseFolder') : t('sidebar.expandFolder')}
+                                title={isExpanded ? t('sidebar.collapseFolder') : t('sidebar.expandFolder')}
                               >
                                 <ChevronDownIcon className={`w-3 h-3 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`} />
                               </button>
@@ -953,7 +955,7 @@ export function Sidebar() {
                             {isExpanded && (
                               <>
                                 {isLoadingFolderDocs ? (
-                                  <p className="text-[11px] text-white/50 px-1 py-0.5">Loading...</p>
+                                  <p className="text-[11px] text-white/50 px-1 py-0.5">{t('common.loading')}</p>
                                 ) : visibleFolderDocs.length > 0 ? (
                                   visibleFolderDocs.map(doc => (
                                     <Link
@@ -966,7 +968,7 @@ export function Sidebar() {
                                     </Link>
                                   ))
                                 ) : (
-                                  <p className="text-[11px] text-white/45 px-1 py-0.5">No documents yet</p>
+                                  <p className="text-[11px] text-white/45 px-1 py-0.5">{t('sidebar.noDocumentsYet')}</p>
                                 )}
 
                                 {hasMoreFolderDocs && (
@@ -974,7 +976,7 @@ export function Sidebar() {
                                     onClick={() => navigateToFolder(folder)}
                                     className="text-[11px] text-indigo-300/85 hover:text-indigo-200 transition-colors px-1.5 py-0.5"
                                   >
-                                    View all docs →
+                                    {t('sidebar.viewAllDocs')}
                                   </button>
                                 )}
                               </>
@@ -994,7 +996,7 @@ export function Sidebar() {
                                     if (e.key === 'Enter') handleCreateFolder();
                                     if (e.key === 'Escape') { setCreatingFolderParentId(null); setNewFolderName(''); }
                                   }}
-                                  placeholder="Folder name"
+                                  placeholder={t('sidebar.folderName')}
                                   className="flex-1 min-w-0 bg-white/10 text-white/95 text-xs rounded-md px-2 py-1 border border-white/20 focus:outline-none focus:border-indigo-500/60 placeholder-white/40"
                                 />
                               </div>
@@ -1010,7 +1012,7 @@ export function Sidebar() {
                       href="/documents"
                       className="flex items-center pl-9 pr-3 py-1.5 text-xs text-indigo-400/70 hover:text-indigo-400 transition-colors"
                     >
-                      View all →
+                      {t('sidebar.viewAll')}
                     </Link>
                   )}
                 </div>
@@ -1020,7 +1022,7 @@ export function Sidebar() {
 
           <Link
             href="/my-studies"
-            title={collapsed ? 'My Studies' : undefined}
+            title={collapsed ? t('sidebar.myStudies') : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
@@ -1032,7 +1034,7 @@ export function Sidebar() {
             <MyStudiesIcon className="w-4 h-4 shrink-0" />
             {!collapsed && (
               <span className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm truncate">My Studies</span>
+                <span className="text-sm truncate">{t('sidebar.myStudies')}</span>
                 {universityName && (
                   <span className="text-[10px] text-white/40 truncate max-w-[120px]">
                     {universityName}{profileYear ? ` · Y${profileYear}` : ''}
@@ -1045,7 +1047,7 @@ export function Sidebar() {
           {/* Templates */}
           <Link
             href="/templates"
-            title={collapsed ? 'Templates' : undefined}
+            title={collapsed ? t('sidebar.templates') : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } ${
@@ -1055,31 +1057,31 @@ export function Sidebar() {
             }`}
           >
             <TemplatesIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Templates</span>}
+            {!collapsed && <span className="text-sm truncate">{t('sidebar.templates')}</span>}
           </Link>
 
           {/* ── Recents section ── */}
           {recentDocs.length > 0 && (
             <>
               {collapsed ? (
-                <SectionDivider label="Recents" collapsed={collapsed} />
+                <SectionDivider label={t('sidebar.recents')} collapsed={collapsed} />
               ) : (
                 <div className="flex items-center gap-2 px-2 pt-4 pb-1.5">
                   <div className="w-12 shrink-0" />
                   <div className="flex-1 flex items-center gap-2">
                     <div className="flex-1 h-px bg-white/10" />
                     <span className="text-[10px] font-semibold text-white/42 uppercase tracking-widest whitespace-nowrap">
-                      Recents
+                      {t('sidebar.recents')}
                     </span>
                     <div className="flex-1 h-px bg-white/10" />
                   </div>
                   <button
                     onClick={() => setRecentsVisible((v) => !v)}
                     className="w-12 shrink-0 text-right text-[11px] text-white/60 hover:text-white/85 transition-colors"
-                    aria-label={recentsVisible ? 'Hide recents' : 'Show recents'}
-                    title={recentsVisible ? 'Hide recents' : 'Show recents'}
+                    aria-label={recentsVisible ? t('sidebar.recentsHide') : t('sidebar.recentsShow')}
+                    title={recentsVisible ? t('sidebar.recentsHide') : t('sidebar.recentsShow')}
                   >
-                    {recentsVisible ? 'Hide' : 'Show'}
+                    {recentsVisible ? t('sidebar.recentsHide') : t('sidebar.recentsShow')}
                   </button>
                 </div>
               )}
@@ -1101,16 +1103,16 @@ export function Sidebar() {
           )}
 
           {/* ── Feedback section ── */}
-          <SectionDivider label="Feedback" collapsed={collapsed} />
+          <SectionDivider label={t('sidebar.feedback')} collapsed={collapsed} />
           <button
             onClick={openFeedbackModal}
-            title={collapsed ? 'Suggestions' : undefined}
+            title={collapsed ? t('sidebar.suggestions') : undefined}
             className={`flex items-center gap-3 rounded-xl transition-colors duration-150 w-full ${
               collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
             } text-white/72 hover:bg-white/10 hover:text-white`}
           >
             <FeedbackIcon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm truncate">Suggestions</span>}
+            {!collapsed && <span className="text-sm truncate">{t('sidebar.suggestions')}</span>}
           </button>
 
         </nav>
@@ -1120,7 +1122,7 @@ export function Sidebar() {
             {collapsed ? (
               <Link
                 href={billingHref}
-                title="Credits"
+                title={t('sidebar.credits')}
                 className="flex items-center justify-center px-2 py-2.5 rounded-xl text-white/72 hover:bg-indigo-500/15 hover:text-indigo-200 transition-colors"
               >
                 <CreditsIcon className="w-4 h-4 shrink-0" />
@@ -1130,7 +1132,7 @@ export function Sidebar() {
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-2 text-sm font-semibold text-white/90">
                     <CreditsIcon className="w-4 h-4 text-indigo-300" />
-                    Credits
+                    {t('sidebar.credits')}
                   </span>
                   <span className="text-sm text-white/65 tabular-nums">
                     {formatCredits(creditsRemaining)} / {creditsLimit}
@@ -1191,7 +1193,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >
                 <UserIcon className="w-4 h-4" />
-                Edit profile
+                {t('sidebar.editProfile')}
               </Link>
               {userId && (
                 <Link
@@ -1203,7 +1205,7 @@ export function Sidebar() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  View public profile
+                  {t('sidebar.viewPublicProfile')}
                 </Link>
               )}
               <Link
@@ -1212,7 +1214,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >
                 <SettingsIcon className="w-4 h-4" />
-                Settings
+                {t('sidebar.settings')}
               </Link>
               <Link
                 href={billingHref}
@@ -1220,7 +1222,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >
                 <BillingIcon className="w-4 h-4" />
-                Billing / Plan
+                {t('sidebar.billingPlan')}
               </Link>
               <Link
                 href="/support"
@@ -1228,7 +1230,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
               >
                 <SupportIcon className="w-4 h-4" />
-                Support
+                {t('sidebar.support')}
               </Link>
               <div className="h-px bg-white/10 my-1" />
               <button
@@ -1236,7 +1238,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-300/80 hover:bg-red-500/10 hover:text-red-300 transition-colors"
               >
                 <SignOutIcon className="w-4 h-4" />
-                Sign out
+                {t('sidebar.signOut')}
               </button>
             </div>
           )}
@@ -1259,7 +1261,7 @@ export function Sidebar() {
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             <PencilIcon />
-            Edit
+            {t('sidebar.folderMenu.edit')}
           </button>
           <button
             onClick={(e) => {
@@ -1269,28 +1271,28 @@ export function Sidebar() {
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             <PaletteIcon className="w-3.5 h-3.5" />
-            Color
+            {t('sidebar.folderMenu.color')}
           </button>
           <button
             onClick={() => void toggleFolderPin(folderInMenu)}
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             <PinIcon className="w-3.5 h-3.5" />
-            {folderInMenu.is_starred ? 'Unpin' : 'Pin to top'}
+            {folderInMenu.is_starred ? t('sidebar.folderMenu.unpin') : t('sidebar.folderMenu.pinToTop')}
           </button>
           <button
             onClick={() => startCreateFolderInside(folderInMenu.id)}
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             <FolderPlusIcon className="w-3.5 h-3.5" />
-            Create subfolder
+            {t('sidebar.folderMenu.createSubfolder')}
           </button>
           <button
             onClick={() => handleCreateDocumentInFolder(folderInMenu.id)}
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             <DocumentPlusIcon className="w-3.5 h-3.5" />
-            Create document
+            {t('sidebar.folderMenu.createDocument')}
           </button>
           <button
             onClick={() => {
@@ -1301,7 +1303,7 @@ export function Sidebar() {
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-red-300/85 hover:bg-red-500/15 hover:text-red-200 transition-colors"
           >
             <TrashIcon />
-            Delete
+            {t('sidebar.folderMenu.delete')}
           </button>
         </div>,
         document.body
@@ -1341,7 +1343,7 @@ export function Sidebar() {
 
           <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-neutral-900/95 shadow-2xl p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-sm font-semibold text-white">Send Suggestions</h3>
+              <h3 className="text-sm font-semibold text-white">{t('sidebar.feedback.title')}</h3>
               <button
                 type="button"
                 onClick={closeFeedbackModal}
@@ -1356,7 +1358,7 @@ export function Sidebar() {
             </div>
 
             <p className="text-xs text-white/50 mb-3">
-              Tell us what we should improve.
+              {t('sidebar.feedback.description')}
             </p>
 
             <form onSubmit={handleSubmitFeedback} className="space-y-3">
@@ -1364,7 +1366,7 @@ export function Sidebar() {
                 ref={feedbackTextareaRef}
                 value={feedbackMessage}
                 onChange={(e) => setFeedbackMessage(e.target.value)}
-                placeholder="Example: It would be great if..."
+                placeholder={t('sidebar.feedback.placeholder')}
                 rows={5}
                 maxLength={2000}
                 disabled={isSubmittingFeedback}
@@ -1380,14 +1382,14 @@ export function Sidebar() {
                     disabled={isSubmittingFeedback}
                     className="px-3 py-1.5 rounded-lg border border-white/15 text-white/60 hover:text-white hover:border-white/30 transition-colors text-xs disabled:opacity-50"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingFeedback || feedbackMessage.trim().length < 5}
                     className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-medium transition-colors disabled:opacity-50"
                   >
-                    {isSubmittingFeedback ? 'Sending...' : 'Send'}
+                    {isSubmittingFeedback ? t('common.sending') : t('common.send')}
                   </button>
                 </div>
               </div>

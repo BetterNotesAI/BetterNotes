@@ -7,6 +7,7 @@ import { DocumentFilters } from './_components/DocumentFilters';
 import { FolderSectionMenu } from './_components/FolderSectionMenu';
 import { ProjectAttachmentsPanel } from './_components/ProjectAttachmentsPanel';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
+import { useTranslation } from '@/lib/i18n';
 
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'template';
 const UNFILED_DROP_TARGET_ID = '__unfiled__';
@@ -194,6 +195,7 @@ function SectionNameModal({
 }
 
 export default function DocumentsPage() {
+  const { t } = useTranslation();
   const router = useRouter();
 
   // Documents state
@@ -914,7 +916,7 @@ export default function DocumentsPage() {
                 }}
                 className="text-white/50 hover:text-white/80 transition-colors text-sm font-medium shrink-0"
               >
-                My Documents
+                {t('documents.title')}
               </button>
               <svg className="w-3.5 h-3.5 text-white/25 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -947,12 +949,12 @@ export default function DocumentsPage() {
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              New document
+              {t('documents.newDocument')}
             </button>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 w-full">
-            <h1 className="text-xl font-semibold">My Documents</h1>
+            <h1 className="text-xl font-semibold">{t('documents.title')}</h1>
             <button
               onClick={() => setShowNewDocModal(true)}
               className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
@@ -962,7 +964,7 @@ export default function DocumentsPage() {
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              New document
+              {t('documents.newDocument')}
             </button>
           </div>
         )}

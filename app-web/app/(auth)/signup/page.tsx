@@ -6,21 +6,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import Background from '@/app/components/Background'
-
-function humanizeAuthError(message: string): string {
-  if (message.includes('Invalid login credentials')) {
-    return 'Incorrect email or password'
-  }
-  if (message.includes('Email not confirmed')) {
-    return 'Please verify your email before signing in'
-  }
-  if (message.includes('User already registered')) {
-    return 'An account with this email already exists'
-  }
-  return 'Something went wrong, please try again'
-}
+import { useTranslation } from '@/lib/i18n'
 
 function SignupContent() {
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const returnUrl = searchParams?.get('returnUrl')
   const safeReturnUrl = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/home'
@@ -47,7 +36,7 @@ function SignupContent() {
     })
 
     if (error) {
-      setError(humanizeAuthError(error.message))
+      setError(t('common.error.generic'))
       setLoading(false)
       return
     }
@@ -84,7 +73,7 @@ function SignupContent() {
     })
 
     if (error) {
-      setError(humanizeAuthError(error.message))
+      setError(t('common.error.generic'))
       setLoading(false)
     }
   }
@@ -105,16 +94,15 @@ function SignupContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-white">Check your email</h2>
+          <h2 className="text-xl font-bold text-white">{t('auth.signup.checkEmail')}</h2>
           <p className="text-white/60 text-sm">
-            We sent a confirmation link to <strong className="text-white">{email}</strong>.
-            Click it to activate your account.
+            {t('auth.signup.checkEmailDesc', { email })}
           </p>
           <Link
             href={`/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
             className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
           >
-            Back to login
+            {t('auth.signup.backToLogin')}
           </Link>
         </div>
       </div>
@@ -153,11 +141,11 @@ function SignupContent() {
                 d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
               />
             </svg>
-            Back to home
+            {t('auth.backToHome')}
           </Link>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white">Create your account</h1>
-            <p className="text-sm text-white/60 mt-1">Start generating study documents</p>
+            <h1 className="text-2xl font-bold text-white">{t('auth.signup.title')}</h1>
+            <p className="text-sm text-white/60 mt-1">{t('auth.signup.subtitle')}</p>
           </div>
         </div>
 
@@ -166,7 +154,7 @@ function SignupContent() {
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm text-white/80 mb-1">
-                Email
+                {t('auth.signup.email')}
               </label>
               <input
                 id="email"
@@ -182,7 +170,7 @@ function SignupContent() {
 
             <div>
               <label htmlFor="password" className="block text-sm text-white/80 mb-1">
-                Password
+                {t('auth.signup.password')}
               </label>
               <input
                 id="password"
@@ -193,7 +181,7 @@ function SignupContent() {
                 minLength={8}
                 disabled={loading}
                 className="w-full px-3 py-2 bg-black/20 border border-white/20 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-indigo-400/60 disabled:opacity-50 transition-colors"
-                placeholder="At least 8 characters"
+                placeholder={t('auth.signup.passwordPlaceholder')}
               />
             </div>
 
@@ -227,7 +215,7 @@ function SignupContent() {
                 </div>
               </div>
               <span className="text-xs text-white/60 leading-relaxed">
-                I have read and agree to the{' '}
+                {t('auth.signup.termsAgreement')}{' '}
                 <a
                   href="/support/terms-of-use"
                   target="_blank"
@@ -235,9 +223,9 @@ function SignupContent() {
                   className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Terms of Use
+                  {t('auth.signup.termsOfUse')}
                 </a>
-                {' '}and{' '}
+                {' '}{t('auth.signup.and')}{' '}
                 <a
                   href="/support/privacy-policy"
                   target="_blank"
@@ -245,9 +233,9 @@ function SignupContent() {
                   className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Privacy Policy
+                  {t('auth.signup.privacyPolicy')}
                 </a>
-                . I understand I am solely responsible for any content I upload or generate through BetterNotes.
+                {t('auth.signup.termsResponsibility')}
               </span>
             </label>
 
@@ -258,13 +246,13 @@ function SignupContent() {
                 !termsAccepted ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? t('auth.signup.submitting') : t('auth.signup.submit')}
             </button>
           </form>
 
           <div className="flex items-center gap-3 text-xs text-white/40">
             <div className="flex-1 border-t border-white/15" />
-            <span>or continue with</span>
+            <span>{t('auth.signup.orContinueWith')}</span>
             <div className="flex-1 border-t border-white/15" />
           </div>
 
@@ -291,17 +279,17 @@ function SignupContent() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Google
+            {t('auth.signup.google')}
           </button>
         </div>
 
         <p className="text-center text-sm text-white/60">
-          Already have an account?{' '}
+          {t('auth.signup.alreadyHaveAccount')}{' '}
           <Link
             href={`/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
             className="text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            Log in
+            {t('auth.signup.logIn')}
           </Link>
         </p>
       </div>

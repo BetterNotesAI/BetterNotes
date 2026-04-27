@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import Background from '@/app/components/Background'
+import { useTranslation } from '@/lib/i18n'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,7 @@ function ProgressDots({ currentStep }: { currentStep: Step }) {
 // ---------------------------------------------------------------------------
 
 function TermsStep({ onComplete }: { onComplete: () => void }) {
+  const { t } = useTranslation()
   const [accepted, setAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +77,7 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
       if (!res.ok) throw new Error('Failed to save')
       onComplete()
     } catch {
-      setError('Something went wrong. You can skip and accept later.')
+      setError(t('onboarding.terms.error'))
       setLoading(false)
     }
   }
@@ -83,20 +85,17 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold text-white">Before you continue</h1>
-        <p className="text-sm text-white/60">
-          By using BetterNotes you agree to our Terms of Use and Privacy Policy. You are solely
-          responsible for any content you upload or generate.
-        </p>
+        <h1 className="text-2xl font-bold text-white">{t('onboarding.terms.title')}</h1>
+        <p className="text-sm text-white/60">{t('onboarding.terms.description')}</p>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
         <ul className="space-y-2">
           {[
-            'You retain ownership of your content but grant BetterNotes a license to process it',
-            'AI-generated output may be inaccurate — always review before using academically',
-            'You must not upload copyrighted content you don’t have rights to',
-            'You are responsible for compliance with your institution’s academic integrity rules',
+            t('onboarding.terms.bullet1'),
+            t('onboarding.terms.bullet2'),
+            t('onboarding.terms.bullet3'),
+            t('onboarding.terms.bullet4'),
           ].map((point) => (
             <li key={point} className="flex items-start gap-2 text-sm text-white/70">
               <span className="text-indigo-400 mt-0.5 flex-shrink-0">
@@ -133,7 +132,7 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
           </div>
         </div>
         <span className="text-xs text-white/60 leading-relaxed">
-          I have read and agree to the{' '}
+          {t('auth.signup.termsAgreement')}{' '}
           <a
             href="/support/terms-of-use"
             target="_blank"
@@ -141,9 +140,9 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
             className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            Terms of Use
+            {t('auth.signup.termsOfUse')}
           </a>
-          {' '}and{' '}
+          {' '}{t('auth.signup.and')}{' '}
           <a
             href="/support/privacy-policy"
             target="_blank"
@@ -151,7 +150,7 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
             className="text-indigo-400 hover:text-indigo-300 underline transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            Privacy Policy
+            {t('auth.signup.privacyPolicy')}
           </a>
         </span>
       </label>
@@ -169,7 +168,7 @@ function TermsStep({ onComplete }: { onComplete: () => void }) {
           !accepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/90'
         }`}
       >
-        {loading ? 'Saving...' : 'Continue'}
+        {loading ? t('common.loading') : t('onboarding.terms.continue')}
       </button>
     </div>
   )
@@ -188,6 +187,7 @@ function UniversityStep({
   onSkip: () => void
   onIndependent?: () => void
 }) {
+  const { t } = useTranslation()
   const [universities, setUniversities] = useState<University[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -202,10 +202,10 @@ function UniversityStep({
         setLoading(false)
       })
       .catch(() => {
-        setError('Could not load universities.')
+        setError(t('onboarding.university.error'))
         setLoading(false)
       })
-  }, [])
+  }, [t])
 
   const filtered = universities.filter(
     (u) =>
@@ -232,17 +232,15 @@ function UniversityStep({
   return (
     <div className="space-y-5">
       <div className="text-center space-y-1">
-        <h1 className="text-2xl font-bold text-white">Where do you study?</h1>
-        <p className="text-sm text-white/60">
-          We&apos;ll personalise My Studies for your university
-        </p>
+        <h1 className="text-2xl font-bold text-white">{t('onboarding.university.title')}</h1>
+        <p className="text-sm text-white/60">{t('onboarding.university.description')}</p>
       </div>
 
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search universities..."
+        placeholder={t('onboarding.university.search')}
         className="w-full px-3 py-2 bg-black/20 border border-white/20 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-indigo-400/60 transition-colors"
       />
 
@@ -267,16 +265,16 @@ function UniversityStep({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-indigo-300 group-hover:text-indigo-200 truncate">
-                    Independent
+                    {t('settings.academic.independent')}
                   </span>
-                  <span className="text-xs text-indigo-400/60 flex-shrink-0">no university</span>
+                  <span className="text-xs text-indigo-400/60 flex-shrink-0">{t('onboarding.university.noUniversity')}</span>
                 </div>
               </button>
               <div className="border-t border-white/10 my-1" />
             </>
           )}
           {filtered.length === 0 ? (
-            <p className="text-center text-white/40 text-sm py-4">No universities found</p>
+            <p className="text-center text-white/40 text-sm py-4">{t('onboarding.university.noResults')}</p>
           ) : (
             filtered.map((u) => (
               <button
@@ -302,7 +300,7 @@ function UniversityStep({
           disabled={skipping}
           className="text-sm text-white/40 hover:text-white/60 transition-colors"
         >
-          {skipping ? 'Saving...' : 'Skip for now'}
+          {skipping ? t('common.loading') : t('onboarding.university.skip')}
         </button>
       </div>
     </div>
@@ -330,6 +328,7 @@ function DegreeStep({
   onBack: () => void
   onSkip: () => void
 }) {
+  const { t } = useTranslation()
   const [programs, setPrograms] = useState<DegreeProgram[]>([])
   const [query, setQuery] = useState('')
   const [selectedProgram, setSelectedProgram] = useState<DegreeProgram | null>(null)
@@ -349,10 +348,10 @@ function DegreeStep({
         setLoading(false)
       })
       .catch(() => {
-        setError('Could not load programmes.')
+        setError(t('onboarding.degree.error'))
         setLoading(false)
       })
-  }, [university.id])
+  }, [university.id, t])
 
   const filteredPrograms = programs.filter(
     (p) =>
@@ -390,7 +389,7 @@ function DegreeStep({
       if (!res.ok) throw new Error('Failed to save')
       onComplete(selectedProgram.id, selectedYear)
     } catch {
-      setError('Something went wrong. You can skip and set this later in settings.')
+      setError(t('onboarding.degree.error'))
       setSaving(false)
     }
   }
@@ -413,8 +412,8 @@ function DegreeStep({
   return (
     <div className="space-y-5">
       <div className="text-center space-y-1">
-        <h1 className="text-2xl font-bold text-white">What are you studying?</h1>
-        <p className="text-sm text-white/60">at {university.name}</p>
+        <h1 className="text-2xl font-bold text-white">{t('onboarding.degree.title')}</h1>
+        <p className="text-sm text-white/60">{t('onboarding.degree.atUniversity', { name: university.name })}</p>
       </div>
 
       {!selectedProgram ? (
@@ -423,7 +422,7 @@ function DegreeStep({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search programmes..."
+            placeholder={t('onboarding.degree.search')}
             className="w-full px-3 py-2 bg-black/20 border border-white/20 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-indigo-400/60 transition-colors"
           />
 
@@ -461,7 +460,7 @@ function DegreeStep({
                 </div>
               ))}
               {filteredPrograms.length === 0 && !loading && (
-                <p className="text-center text-white/40 text-sm py-4">No programmes found</p>
+                <p className="text-center text-white/40 text-sm py-4">{t('onboarding.degree.noResults')}</p>
               )}
             </div>
           )}
@@ -487,7 +486,7 @@ function DegreeStep({
           </div>
 
           <div>
-            <p className="text-sm text-white/70 mb-3">What year are you in?</p>
+            <p className="text-sm text-white/70 mb-3">{t('onboarding.degree.yearLabel')}</p>
             <div className="flex gap-2 flex-wrap">
               {Array.from({ length: maxYear }, (_, i) => i + 1).map((yr) => (
                 <button
@@ -518,7 +517,7 @@ function DegreeStep({
               !selectedYear ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/90'
             }`}
           >
-            {saving ? 'Saving...' : 'Finish'}
+            {saving ? t('common.loading') : t('onboarding.degree.goToApp')}
           </button>
         </div>
       )}
@@ -528,14 +527,14 @@ function DegreeStep({
           onClick={onBack}
           className="text-white/40 hover:text-white/60 transition-colors"
         >
-          Back
+          {t('common.back')}
         </button>
         <button
           onClick={handleSkip}
           disabled={skipping}
           className="text-white/40 hover:text-white/60 transition-colors"
         >
-          {skipping ? 'Saving...' : 'Skip'}
+          {skipping ? t('common.loading') : t('onboarding.degree.skip')}
         </button>
       </div>
     </div>

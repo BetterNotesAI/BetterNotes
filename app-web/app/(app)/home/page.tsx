@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { DocumentCreationBar, CreateDocumentInput } from '@/app/_components/DocumentCreationBar';
 import { createClient } from '@/lib/supabase/client';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
+import { useTranslation } from '@/lib/i18n';
 
 interface RecentDocument {
   id: string;
@@ -25,6 +26,7 @@ const HOME_TEMPLATES: Record<string, { name: string; accent: string; linkColor: 
 const FEATURED_IDS = ['landscape_3col_maths', '2cols_portrait', 'lecture_notes'] as const;
 
 export default function HomePage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(FEATURED_IDS[0]);
@@ -69,7 +71,7 @@ export default function HomePage() {
       if (!user) {
         const { error: anonError } = await supabase.auth.signInAnonymously();
         if (anonError) {
-          setCreateError('Could not start a session. Please try again.');
+          setCreateError(t('common.error.generic'));
           setIsCreating(false);
           return;
         }
@@ -97,7 +99,7 @@ export default function HomePage() {
       if (!resp.ok) { setCreateError(docData?.error ?? 'Failed to create document'); return; }
       router.push(`/documents/${docData.document.id}?prompt=${encodeURIComponent(data.prompt)}`);
     } catch {
-      setCreateError('Something went wrong. Please try again.');
+      setCreateError(t('common.error.generic'));
     } finally {
       setIsCreating(false);
     }
@@ -108,7 +110,7 @@ export default function HomePage() {
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="border-b border-white/10 px-6 h-14 flex items-center shrink-0">
-        <h1 className="text-xl font-semibold">Home</h1>
+        <h1 className="text-xl font-semibold">{t('sidebar.home')}</h1>
       </div>
 
       {/* Content */}
@@ -116,13 +118,13 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto px-6 py-16">
           {/* Welcome heading */}
           <h2 className="text-3xl font-semibold tracking-tight mb-2">
-            What would you like to{' '}
+            {t('home.whatCreate')}{' '}
             <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent">
-              create?
+              {t('home.createHighlight')}
             </span>
           </h2>
           <p className="text-white/50 text-sm mb-8">
-            Choose a template, describe your content, and get a print-ready PDF in seconds.
+            {t('home.creationSubtitle')}
           </p>
 
           {/* Creation bar */}
@@ -131,7 +133,7 @@ export default function HomePage() {
               onSubmit={handleCreate}
               isLoading={isCreating}
               error={createError}
-              placeholder="Describe the document you want to create..."
+              placeholder={t('home.creationPlaceholder')}
               autoFocus
               selectedTemplateId={selectedTemplateId}
               onTemplateChange={setSelectedTemplateId}
@@ -141,18 +143,18 @@ export default function HomePage() {
           {/* Popular templates */}
           <div className="mt-12">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-white/60">Popular templates</h3>
+              <h3 className="text-sm font-medium text-white/60">{t('home.popularTemplates')}</h3>
               <button
                 onClick={() => router.push('/templates')}
                 className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
               >
-                View all
+                {t('home.viewAll')}
               </button>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {(() => {
                 return FEATURED_IDS.map((id) => {
-                  const t = HOME_TEMPLATES[id] ?? { name: id.replace(/_/g, ' '), accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' };
+                  const tpl = HOME_TEMPLATES[id] ?? { name: id.replace(/_/g, ' '), accent: '#6366f1', linkColor: 'text-indigo-400 group-hover:text-indigo-300' };
                   const isActive = selectedTemplateId === id;
                   return (
                     <div
@@ -168,22 +170,22 @@ export default function HomePage() {
                           : 'bg-white/[0.04] border-white/12 hover:bg-white/[0.08] hover:border-white/20'
                       }`}
                       style={isActive ? {
-                        borderColor: `${t.accent}d0`,
-                        boxShadow: `0 0 0 1px ${t.accent}66, 0 0 26px ${t.accent}4d, 0 12px 30px rgba(0,0,0,0.35)`,
+                        borderColor: `${tpl.accent}d0`,
+                        boxShadow: `0 0 0 1px ${tpl.accent}66, 0 0 26px ${tpl.accent}4d, 0 12px 30px rgba(0,0,0,0.35)`,
                       } : undefined}
                     >
                       {isActive && (
                         <div
                           className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white border"
-                          style={{ backgroundColor: `${t.accent}2e`, borderColor: `${t.accent}90` }}
+                          style={{ backgroundColor: `${tpl.accent}2e`, borderColor: `${tpl.accent}90` }}
                         >
                           <span
                             className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[9px] leading-none"
-                            style={{ backgroundColor: `${t.accent}40`, borderColor: `${t.accent}90` }}
+                            style={{ backgroundColor: `${tpl.accent}40`, borderColor: `${tpl.accent}90` }}
                           >
                             ✓
                           </span>
-                          Selected
+                          {t('home.templateSelected')}
                         </div>
                       )}
                       {/* Schematic */}
@@ -191,21 +193,21 @@ export default function HomePage() {
                         className={`relative aspect-[4/3] rounded-lg mb-2.5 overflow-hidden border transition-colors ${
                           isActive ? 'border-white/45' : 'border-white/8 group-hover:border-white/15'
                         }`}
-                        style={{ background: `linear-gradient(135deg, ${t.accent}12, transparent)` }}
+                        style={{ background: `linear-gradient(135deg, ${tpl.accent}12, transparent)` }}
                       >
                         <div className="w-full h-full p-2 group-hover:scale-[1.02] transition-transform duration-300">
                           {renderSchematic(id)}
                         </div>
                         <Image
                           src={getTemplateThumbnailSrc(id)}
-                          alt={t.name}
+                          alt={tpl.name}
                           fill
                           className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).classList.add('hidden'); }}
                         />
                       </div>
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <p className="text-xs font-semibold text-white/85 leading-snug">{t.name}</p>
+                        <p className="text-xs font-semibold text-white/85 leading-snug">{tpl.name}</p>
                         <button
                           onClick={(e) => { e.stopPropagation(); setPdfPreviewId(id); }}
                           title="Preview sample PDF"
@@ -217,8 +219,8 @@ export default function HomePage() {
                           </svg>
                         </button>
                       </div>
-                      <p className={`text-[10px] transition-colors ${t.linkColor}`}>
-                        {isActive ? '✓ Selected' : 'Select →'}
+                      <p className={`text-[10px] transition-colors ${tpl.linkColor}`}>
+                        {isActive ? `✓ ${t('home.templateSelected')}` : `${t('home.templateSelect')} →`}
                       </p>
                     </div>
                   );
@@ -231,12 +233,12 @@ export default function HomePage() {
           {!isLoadingDocs && recentDocs.length > 0 && (
             <div className="mt-12">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-white/60">Recent documents</h3>
+                <h3 className="text-sm font-medium text-white/60">{t('home.recentDocuments')}</h3>
                 <button
                   onClick={() => router.push('/documents')}
                   className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
-                  View all
+                  {t('home.viewAll')}
                 </button>
               </div>
               <div className="flex flex-col gap-2">
@@ -286,7 +288,7 @@ export default function HomePage() {
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
             <span className="text-sm font-medium text-white/80">
-              {HOME_TEMPLATES[pdfPreviewId]?.name ?? pdfPreviewId} — Sample PDF
+              {HOME_TEMPLATES[pdfPreviewId]?.name ?? pdfPreviewId} — {t('home.samplePdf')}
             </span>
             <div className="flex items-center gap-3">
               <a
@@ -295,7 +297,7 @@ export default function HomePage() {
                 rel="noreferrer"
                 className="text-xs text-white/40 hover:text-white/70 transition-colors"
               >
-                Open in new tab
+                {t('home.openInNewTab')}
               </a>
               <button
                 onClick={() => setPdfPreviewId(null)}
