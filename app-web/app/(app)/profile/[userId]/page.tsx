@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import ContributionsHeatmap from './ContributionsHeatmap';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -350,6 +351,9 @@ export default function PublicProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Contributions heatmap */}
+      <ContributionsHeatmap userId={userId} />
 
       {/* Documents section */}
       <div className="flex-1 border-t border-white/8">
