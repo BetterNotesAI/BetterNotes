@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MAX_PROJECT_TOTAL_UPLOAD_BYTES, MAX_PROJECT_TOTAL_UPLOAD_MB } from '@/lib/upload-limits';
+import { useTranslation } from '@/lib/i18n';
 
 type UploadState = 'idle' | 'dragging' | 'uploading' | 'error';
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function ProblemUploadZone({ onSessionCreated, projectId = null }: Props) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [state, setState] = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -199,23 +201,23 @@ export function ProblemUploadZone({ onSessionCreated, projectId = null }: Props)
       {/* Text */}
       {state === 'uploading' ? (
         <>
-          <p className="text-white font-medium">Uploading…</p>
-          <p className="text-white/40 text-sm">Creating your problem session</p>
+          <p className="text-white font-medium">{t('problemSolver.upload.uploading')}</p>
+          <p className="text-white/40 text-sm">{t('problemSolver.upload.uploadingDesc')}</p>
         </>
       ) : state === 'error' ? (
         <>
           <p className="text-red-400 font-medium">{errorMsg}</p>
-          <p className="text-white/40 text-sm">Click to try again</p>
+          <p className="text-white/40 text-sm">{t('problemSolver.upload.clickToRetry')}</p>
         </>
       ) : (
         <>
           <div>
             <p className="text-white font-medium text-base">
-              Drop your problem PDF here
+              {t('problemSolver.upload.dropHere')}
             </p>
-            <p className="text-white/40 text-sm mt-1">or click to browse</p>
+            <p className="text-white/40 text-sm mt-1">{t('problemSolver.upload.browseFiles')}</p>
           </div>
-          <p className="text-white/25 text-xs">PDF only · max {MAX_PROJECT_TOTAL_UPLOAD_MB} MB</p>
+          <p className="text-white/25 text-xs">{t('problemSolver.upload.fileTypeHint', { mb: String(MAX_PROJECT_TOTAL_UPLOAD_MB) })}</p>
         </>
       )}
     </div>

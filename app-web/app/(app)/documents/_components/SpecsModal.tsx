@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { DocumentSpecs, LocalAttachment } from '../_types';
 import { AttachmentDropzone } from './AttachmentDropzone';
+import { useTranslation } from '@/lib/i18n';
 
 interface SpecsModalProps {
   template: { id: string; displayName: string; description: string };

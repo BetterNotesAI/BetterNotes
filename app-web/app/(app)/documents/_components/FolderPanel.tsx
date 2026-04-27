@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 export interface Folder {
   id: string;
@@ -41,6 +42,7 @@ export function FolderPanel({
   onFoldersChange,
   onDropDocument,
 }: FolderPanelProps) {
+  const { t } = useTranslation();
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 

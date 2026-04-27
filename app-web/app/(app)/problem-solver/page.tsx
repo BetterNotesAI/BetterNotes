@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 import { ProblemUploadZone } from './_components/ProblemUploadZone';
 import { SessionCard, type ProblemSession } from './_components/SessionCard';
 import { useProjectName } from '@/lib/use-project-name';
 
 export default function ProblemSolverPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams?.get('projectId')?.trim() || null;
@@ -93,7 +95,7 @@ export default function ProblemSolverPage() {
               <span className="text-white/25 shrink-0">/</span>
             </>
           )}
-          <span className="truncate">Problem Solver</span>
+          <span className="truncate">{t('problemSolver.page.title')}</span>
         </h1>
       </div>
 
@@ -102,13 +104,13 @@ export default function ProblemSolverPage() {
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="mb-8 max-w-3xl">
             <h2 className="text-3xl font-semibold tracking-tight mb-2">
-              What problem would you like to{' '}
+              {t('problemSolver.page.heading')}{' '}
               <span className="bg-gradient-to-r from-orange-300 via-amber-300 to-yellow-200 bg-clip-text text-transparent">
-                solve?
+                {t('problemSolver.page.headingHighlight')}
               </span>
             </h2>
             <p className="text-white/50 text-sm">
-              Upload your problem PDF and get a clear, step-by-step solution in seconds.
+              {t('problemSolver.page.subtitle')}
             </p>
           </div>
 
@@ -119,10 +121,10 @@ export default function ProblemSolverPage() {
           {!isProjectMode && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-white/60">Previous solved problems</h2>
+              <h2 className="text-sm font-medium text-white/60">{t('problemSolver.page.previousProblems')}</h2>
               {!isLoading && !error && solvedSessions.length > 0 && (
                 <span className="text-xs text-white/35">
-                  {solvedSessions.length} total
+                  {t('problemSolver.page.total').replace('{count}', String(solvedSessions.length))}
                 </span>
               )}
             </div>
@@ -142,14 +144,14 @@ export default function ProblemSolverPage() {
                   onClick={() => window.location.reload()}
                   className="mt-2 text-xs text-white/60 hover:text-white underline"
                 >
-                  Try again
+                  {t('problemSolver.page.tryAgain')}
                 </button>
               </div>
             )}
 
             {!isLoading && !error && solvedSessions.length === 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-6 text-sm text-white/50">
-                No solved problems yet.
+                {t('problemSolver.page.noSolved')}
               </div>
             )}
 

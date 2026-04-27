@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from '@/lib/i18n';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { SubChat } from './SubChat';
@@ -205,6 +206,7 @@ function extractQuotes(content: string): { quotes: string[]; body: string } {
 // ---------------------------------------------------------------------------
 
 export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearContext, onClearAllContexts }: InlineChatProps) {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -637,7 +639,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.51a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.374" />
                         </svg>
-                        <span className="text-[10px] font-medium text-orange-400/50 uppercase tracking-wider">Referenced section</span>
+                        <span className="text-[10px] font-medium text-orange-400/50 uppercase tracking-wider">{t('problemSolver.chat.referencedSectionLabel')}</span>
                       </div>
                       <p className="max-h-36 overflow-y-auto pr-1 text-[11px] text-white/50 leading-relaxed whitespace-pre-wrap">{q}</p>
                     </div>
@@ -697,7 +699,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
               <span className="w-1.5 h-1.5 rounded-full bg-orange-400/60 animate-bounce [animation-delay:150ms]" />
               <span className="w-1.5 h-1.5 rounded-full bg-orange-400/60 animate-bounce [animation-delay:300ms]" />
             </div>
-            <span>Thinking...</span>
+            <span>{t('problemSolver.chat.thinking')}</span>
           </div>
         )}
 
@@ -743,7 +745,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
               </svg>
-              Add to chat
+              {t('problemSolver.chat.addToChat')}
             </button>
             {pendingSelection.assistantIndex >= 0 && (
               <>
@@ -773,7 +775,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                   </svg>
-                  {creatingInlineSubchatIndex === pendingSelection.assistantIndex ? 'Creating...' : 'Subchat'}
+                  {creatingInlineSubchatIndex === pendingSelection.assistantIndex ? t('problemSolver.chat.creatingSubchat') : t('problemSolver.chat.subchat')}
                 </button>
               </>
             )}
@@ -833,7 +835,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
             value={input}
             onChange={(e) => { setInput(e.target.value); resizeTextarea(); }}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about the solution..."
+            placeholder={t('problemSolver.chat.placeholder')}
             rows={1}
             disabled={isSending}
             className="flex-1 appearance-none resize-none bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-white/30 outline-none focus:border-indigo-400/40 focus:bg-white/8 transition-colors disabled:opacity-50"
@@ -842,7 +844,7 @@ export function InlineChat({ sessionId, selectedContexts, onTextSelect, onClearC
             onClick={handleSend}
             disabled={!input.trim() || isSending}
             className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-white/8 disabled:text-white/20 text-white transition-colors"
-            title="Send"
+            title={t('problemSolver.chat.placeholder')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m-7 7l7-7 7 7" />

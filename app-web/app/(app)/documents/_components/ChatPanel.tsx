@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import katex from 'katex';
+import { useTranslation } from '@/lib/i18n';
 import 'katex/dist/katex.min.css';
 import type { BlockReference } from '@/components/viewer/LatexViewer';
 import { KATEX_MACROS } from '@/lib/katex-macros';

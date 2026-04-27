@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 
 export type SessionStatus = 'pending' | 'solving' | 'done' | 'error';
 

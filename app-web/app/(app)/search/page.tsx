@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { DocumentResult, ProgramResult, CourseResult } from '@/app/api/search/route';
@@ -223,11 +224,12 @@ function CourseRow({ course }: { course: CourseResult }) {
 // ── Section header ────────────────────────────────────────────────────────────
 
 function SectionHeader({ label, count }: { label: string; count: number }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3 mb-3">
       <h2 className="text-sm font-semibold text-white/80">{label}</h2>
       <span className="text-xs px-2 py-0.5 rounded-full bg-white/8 border border-white/12 text-white/50">
-        {pluralise(count, 'result', 'results')}
+        {pluralise(count, t('search.result'), t('search.resultPlural'))}
       </span>
       <div className="flex-1 h-px bg-white/8" />
     </div>
@@ -237,6 +239,7 @@ function SectionHeader({ label, count }: { label: string; count: number }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SearchPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQ = searchParams?.get('q') ?? '';
@@ -293,10 +296,10 @@ export default function SearchPage() {
   const noResults = hasQuery && !loading && results !== null && totalCount === 0;
 
   const filters: { key: FilterType; label: string }[] = [
-    { key: 'all',       label: 'All' },
-    { key: 'documents', label: 'Documents' },
-    { key: 'programs',  label: 'Degrees' },
-    { key: 'courses',   label: 'Courses' },
+    { key: 'all',       label: t('search.filter.all') },
+    { key: 'documents', label: t('search.filter.documents') },
+    { key: 'programs',  label: t('search.filter.programs') },
+    { key: 'courses',   label: t('search.filter.courses') },
   ];
 
   const handleFilterChange = useCallback((f: FilterType) => {
@@ -308,7 +311,7 @@ export default function SearchPage() {
     <div className="h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 shrink-0">
-        <h1 className="text-xl font-semibold">Search</h1>
+        <h1 className="text-xl font-semibold">{t('search.heading')}</h1>
       </div>
 
       {/* Body */}
@@ -325,7 +328,7 @@ export default function SearchPage() {
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search documents, degrees, courses..."
+              placeholder={t('search.placeholder')}
               className="w-full bg-black/25 backdrop-blur-sm border border-white/15 rounded-2xl pl-11 pr-10 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-indigo-400/50 focus:ring-1 focus:ring-indigo-400/20 transition-colors"
               autoComplete="off"
               spellCheck={false}
@@ -334,7 +337,7 @@ export default function SearchPage() {
               <button
                 onClick={() => setQuery('')}
                 className="absolute inset-y-0 right-3 flex items-center px-1 text-white/35 hover:text-white/70 transition-colors text-xs"
-                aria-label="Clear"
+                aria-label={t('search.clearSearch')}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -367,10 +370,11 @@ export default function SearchPage() {
                 <SearchIcon className="w-7 h-7 text-teal-400" />
               </div>
               <p className="text-white/45 text-sm max-w-xs">
-                Start typing to search across BetterNotes — documents, degree programmes, and courses.
+                {t('search.emptyDesc')}
               </p>
               <p className="text-white/25 text-xs mt-3">
-                Tip: use <kbd className="font-mono px-1.5 py-0.5 bg-white/8 border border-white/12 rounded text-[10px]">Cmd K</kbd> to open search from anywhere.
+                {t('search.emptyTip').replace('{shortcut}', '')}
+                <kbd className="font-mono px-1.5 py-0.5 bg-white/8 border border-white/12 rounded text-[10px]">Cmd K</kbd>
               </p>
             </div>
           )}
@@ -400,10 +404,10 @@ export default function SearchPage() {
                 <SearchIcon className="w-6 h-6 text-white/30" />
               </div>
               <p className="text-sm text-white/50">
-                No results for &quot;{query.trim()}&quot;
+                {t('search.noResults').replace('{query}', query.trim())}
               </p>
               <p className="text-xs text-white/30 mt-1">
-                Try different keywords or a broader search.
+                {t('search.noResultsDesc')}
               </p>
             </div>
           )}
@@ -415,7 +419,7 @@ export default function SearchPage() {
               {/* Documents */}
               {results.documents.length > 0 && (
                 <section>
-                  <SectionHeader label="Documents" count={results.documents.length} />
+                  <SectionHeader label={t('search.section.documents')} count={results.documents.length} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     {results.documents.map(d => (
                       <DocumentCard key={d.id} doc={d} />
@@ -427,7 +431,7 @@ export default function SearchPage() {
               {/* Degree programmes */}
               {results.programs.length > 0 && (
                 <section>
-                  <SectionHeader label="Degrees" count={results.programs.length} />
+                  <SectionHeader label={t('search.section.degrees')} count={results.programs.length} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     {results.programs.map(p => (
                       <ProgramCard key={p.id} prog={p} />
@@ -439,7 +443,7 @@ export default function SearchPage() {
               {/* Courses */}
               {results.courses.length > 0 && (
                 <section>
-                  <SectionHeader label="Courses" count={results.courses.length} />
+                  <SectionHeader label={t('search.section.courses')} count={results.courses.length} />
                   <div className="space-y-2">
                     {results.courses.map(c => (
                       <CourseRow key={c.id} course={c} />

@@ -2,29 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-interface PlanFeature {
-  text: string;
-}
+import { useTranslation } from '@/lib/i18n';
 
 interface BillingEligibilityData {
   eligible: boolean;
   reason: string | null;
   message: string;
 }
-
-const FREE_FEATURES: PlanFeature[] = [
-  { text: '20 generations / month' },
-  { text: 'All templates' },
-  { text: 'Version history' },
-  { text: 'PDF download' },
-];
-
-const PRO_FEATURES: PlanFeature[] = [
-  { text: 'Unlimited generations' },
-  { text: 'Everything in Free' },
-  { text: 'Priority queue' },
-];
 
 function CheckIcon() {
   return (
@@ -35,7 +19,21 @@ function CheckIcon() {
 }
 
 export default function PricingPage() {
+  const { t } = useTranslation();
   const router = useRouter();
+
+  const FREE_FEATURES = [
+    t('pricing.free.feature1'),
+    t('pricing.free.feature2'),
+    t('pricing.free.feature3'),
+    t('pricing.free.feature4'),
+  ];
+
+  const PRO_FEATURES = [
+    t('pricing.pro.feature1'),
+    t('pricing.pro.feature2'),
+    t('pricing.pro.feature3'),
+  ];
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [eligibility, setEligibility] = useState<BillingEligibilityData | null>(null);
@@ -110,14 +108,14 @@ export default function PricingPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="text-xl font-bold">Pricing</h1>
+        <h1 className="text-xl font-bold">{t('pricing.heading')}</h1>
       </div>
 
       {/* Content */}
       <div className="max-w-3xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-white mb-3">Simple, transparent pricing</h2>
-          <p className="text-gray-400">Start for free, upgrade when you need more.</p>
+          <h2 className="text-3xl font-bold text-white mb-3">{t('pricing.title')}</h2>
+          <p className="text-gray-400">{t('pricing.subtitle')}</p>
         </div>
 
         {eligibility && !eligibility.eligible && (
@@ -127,7 +125,7 @@ export default function PricingPage() {
               onClick={redirectToSignup}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-500/50 text-amber-100 hover:bg-amber-500/20 transition-colors"
             >
-              Create account to activate subscription
+              {t('pricing.createAccountButton')}
             </button>
           </div>
         )}
@@ -137,28 +135,28 @@ export default function PricingPage() {
           {/* Free card */}
           <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6 flex flex-col">
             <div className="mb-6">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Free</span>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('pricing.free.name')}</span>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-4xl font-bold text-white">$0</span>
-                <span className="text-gray-500 text-sm">/ month</span>
+                <span className="text-gray-500 text-sm">{t('pricing.perMonth')}</span>
               </div>
               <p className="text-gray-500 text-sm mt-2">
-                Everything you need to get started.
+                {t('pricing.free.description')}
               </p>
             </div>
 
             <ul className="space-y-3 mb-8 flex-1">
               {FREE_FEATURES.map((f) => (
-                <li key={f.text} className="flex items-center gap-2.5 text-sm text-gray-300">
+                <li key={f} className="flex items-center gap-2.5 text-sm text-gray-300">
                   <CheckIcon />
-                  {f.text}
+                  {f}
                 </li>
               ))}
             </ul>
 
             <div className="w-full text-center text-sm font-medium text-gray-500 py-2.5 rounded-xl
               border border-gray-700 cursor-default">
-              Current plan
+              {t('pricing.currentPlan')}
             </div>
           </div>
 
@@ -170,26 +168,26 @@ export default function PricingPage() {
 
             <div className="relative mb-6">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Pro</span>
+                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">{t('pricing.pro.name')}</span>
                 <span className="text-xs bg-blue-600/20 text-blue-300 border border-blue-700/50
                   rounded-full px-2 py-0.5 font-medium">
-                  Recommended
+                  {t('pricing.pro.badge')}
                 </span>
               </div>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-4xl font-bold text-white">$9</span>
-                <span className="text-gray-400 text-sm">/ month</span>
+                <span className="text-gray-400 text-sm">{t('pricing.perMonth')}</span>
               </div>
               <p className="text-gray-400 text-sm mt-2">
-                No limits. Full speed ahead.
+                {t('pricing.pro.description')}
               </p>
             </div>
 
             <ul className="relative space-y-3 mb-8 flex-1">
               {PRO_FEATURES.map((f) => (
-                <li key={f.text} className="flex items-center gap-2.5 text-sm text-gray-200">
+                <li key={f} className="flex items-center gap-2.5 text-sm text-gray-200">
                   <CheckIcon />
-                  {f.text}
+                  {f}
                 </li>
               ))}
             </ul>
@@ -208,17 +206,17 @@ export default function PricingPage() {
               {isCheckoutLoading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Redirecting...
+                  {t('pricing.redirecting')}
                 </>
               ) : (
-                canCheckout ? 'Upgrade to Pro' : 'Create account to activate subscription'
+                canCheckout ? t('pricing.upgradeButton') : t('pricing.createAccountButton')
               )}
             </button>
           </div>
         </div>
 
         <p className="text-center text-gray-600 text-xs mt-8">
-          Payments are processed securely by Stripe. Cancel anytime.
+          {t('pricing.stripeNotice')}
         </p>
       </div>
     </div>

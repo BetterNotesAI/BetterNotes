@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 const MAX_DOCS = 5;
 const MAX_CHARS = 18000;

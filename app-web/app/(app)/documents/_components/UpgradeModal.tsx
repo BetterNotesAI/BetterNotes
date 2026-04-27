@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 export interface UpgradeModalProps {
   isOpen: boolean;

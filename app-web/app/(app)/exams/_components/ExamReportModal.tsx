@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 interface ExamReportModalProps {
   examId: string;
@@ -8,6 +9,7 @@ interface ExamReportModalProps {
 }
 
 export default function ExamReportModal({ examId, onClose }: ExamReportModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
         if (!metaRes.ok) throw new Error('Could not load exam report');
         const meta = await metaRes.json();
         if (cancelled) return;
-        setExamTitle(meta.exam?.title ?? 'Exam Report');
+        setExamTitle(meta.exam?.title ?? t('exam.report.title'));
         setExamScore(meta.exam?.score ?? null);
         setQuestionCount(meta.questions?.length ?? 0);
 
@@ -104,11 +106,11 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white truncate">
-                {examTitle || 'Exam Report'}
+                {examTitle || t('exam.report.title')}
               </p>
               {questionCount > 0 && (
                 <div className="flex items-center gap-1.5 text-xs text-white/40">
-                  <span>{questionCount} questions</span>
+                  <span>{t('exam.report.questions').replace('{count}', String(questionCount))}</span>
                   {examScore !== null && (
                     <>
                       <span className="opacity-40">·</span>
@@ -137,7 +139,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
               )}
-              Download PDF
+              {downloading ? t('exam.report.downloading') : t('exam.report.downloadPdf')}
             </button>
 
             {/* Close */}
@@ -159,7 +161,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
           {loading && (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-white/40">
               <div className="w-8 h-8 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-              <p className="text-sm">Generating PDF report...</p>
+              <p className="text-sm">{t('exam.report.generating')}</p>
             </div>
           )}
 
@@ -171,7 +173,7 @@ export default function ExamReportModal({ examId, onClose }: ExamReportModalProp
                 onClick={onClose}
                 className="text-xs text-white/40 underline underline-offset-2 hover:text-white/60"
               >
-                Close
+                {t('exam.report.close')}
               </button>
             </div>
           )}

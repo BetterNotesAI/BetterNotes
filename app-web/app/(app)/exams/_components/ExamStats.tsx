@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getLetterGrade, getGradeColor, formatExamDate } from '../_utils';
 import ExamReportModal from './ExamReportModal';
+import { useTranslation } from '@/lib/i18n';
 
 // ─── Local types ──────────────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ function StatsSkeleton() {
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function StatsEmpty() {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
       <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10">
@@ -129,9 +131,9 @@ function StatsEmpty() {
         </svg>
       </div>
       <div>
-        <p className="text-sm font-medium text-white/60">No exams yet</p>
+        <p className="text-sm font-medium text-white/60">{t('exam.stats.noExamsTitle')}</p>
         <p className="text-xs text-white/30 mt-0.5">
-          Generate your first exam above!
+          {t('exam.stats.noExamsDesc')}
         </p>
       </div>
     </div>
@@ -141,6 +143,7 @@ function StatsEmpty() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
+  const { t } = useTranslation();
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -194,7 +197,7 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
             />
           </svg>
           <span className="text-xs font-medium text-white/35 uppercase tracking-wide">
-            Your Stats
+            {t('exam.stats.heading')}
           </span>
         </div>
         <div className="flex-1 h-px bg-white/8" />
@@ -204,13 +207,13 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
         <StatsSkeleton />
       ) : fetchError ? (
         <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-          <p className="text-sm font-medium text-white/50">Could not load stats</p>
+          <p className="text-sm font-medium text-white/50">{t('exam.stats.errorLoad')}</p>
           <button
             type="button"
             onClick={load}
             className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            Try again
+            {t('exam.stats.tryAgain')}
           </button>
         </div>
       ) : isEmpty ? (
@@ -220,22 +223,22 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
           {/* ── Summary cards ─────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3">
             <SummaryCard
-              label="Total Exams"
+              label={t('exam.stats.totalExamsLabel')}
               value={String(data.total_exams)}
             />
             <SummaryCard
-              label="Avg Score"
+              label={t('exam.stats.avgScoreLabel')}
               value={`${data.avg_score}%`}
               valueColor={getGradeColor(getLetterGrade(data.avg_score))}
             />
             <SummaryCard
-              label="Day Streak"
+              label={t('exam.stats.dayStreakLabel')}
               value={String(data.streak)}
-              suffix={data.streak === 1 ? 'day' : 'days'}
+              suffix={data.streak === 1 ? t('exam.stats.dayStreakSuffix') : t('exam.stats.dayStreakSuffixPlural')}
               highlight={data.streak >= 3}
             />
             <SummaryCard
-              label="Avg Time"
+              label={t('exam.stats.avgTimeLabel')}
               value={data.avg_time_seconds !== null ? formatDuration(data.avg_time_seconds) : '—'}
             />
           </div>
@@ -245,7 +248,7 @@ const ExamStats = forwardRef<ExamStatsHandle>((_, ref) => {
             <div className="rounded-xl border border-white/10 bg-white/3 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/8">
                 <p className="text-xs font-medium text-white/45 uppercase tracking-wide">
-                  By Subject
+                  {t('exam.stats.bySubjectHeading')}
                 </p>
               </div>
               <ul className="divide-y divide-white/6">

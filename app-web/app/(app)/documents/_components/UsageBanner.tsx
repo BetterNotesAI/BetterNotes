@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/lib/i18n';
 
 interface UsageBannerProps {
   remaining: number;

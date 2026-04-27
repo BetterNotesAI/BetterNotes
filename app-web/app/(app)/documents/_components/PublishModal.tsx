@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 interface University { id: string; name: string; slug: string; }
 interface Program    { id: string; tipo: string; title: string; }
@@ -65,6 +66,7 @@ export function PublishModal({
   onClose,
   onSuccess,
 }: PublishModalProps) {
+  const { t } = useTranslation();
 
   // ── Mode ──────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>(
@@ -215,7 +217,7 @@ export function PublishModal({
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to suggest keywords');
+      setError(err instanceof Error ? err.message : t('documents.publish.errorSuggest'));
     } finally {
       setIsSuggestingKeywords(false);
     }
@@ -271,11 +273,11 @@ export function PublishModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Publish failed');
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? t('documents.publish.errorPublish'));
       onSuccess(true, nextPublishData);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to publish');
+      setError(err instanceof Error ? err.message : t('documents.publish.errorPublish'));
     } finally {
       setIsSaving(false);
     }
@@ -290,11 +292,11 @@ export function PublishModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'unpublish' }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Unpublish failed');
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? t('documents.publish.errorUnpublish'));
       onSuccess(false);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to unpublish');
+      setError(err instanceof Error ? err.message : t('documents.publish.errorUnpublish'));
     } finally {
       setIsSaving(false);
     }
@@ -344,7 +346,7 @@ export function PublishModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-white">
-              {isAlreadyPublished ? 'Update Publication' : 'Publish to My Studies'}
+              {isAlreadyPublished ? t('documents.publish.updateTitle') : t('documents.publish.publishTitle')}
             </h2>
             <p className="text-xs text-white/45 mt-0.5 truncate max-w-[280px]">{documentTitle}</p>
           </div>
@@ -371,7 +373,7 @@ export function PublishModal({
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
               </svg>
-              My University
+              {t('documents.publish.modeUniversity')}
             </button>
             <button
               onClick={() => setMode('independent')}
@@ -384,7 +386,7 @@ export function PublishModal({
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
               </svg>
-              Independent
+              {t('documents.publish.modeIndependent')}
             </button>
           </div>
 
@@ -393,7 +395,7 @@ export function PublishModal({
             <div className="space-y-3">
               {/* University select */}
               <div>
-                <label className="block text-xs font-medium text-white/60 mb-1.5">University</label>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">{t('documents.publish.labelUniversity')}</label>
                 <select
                   value={universityId}
                   onChange={(e) => {
@@ -409,7 +411,7 @@ export function PublishModal({
                     outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/30 transition-colors
                     appearance-none"
                 >
-                  <option value="" className="bg-neutral-900 text-white/50">Select university…</option>
+                  <option value="" className="bg-neutral-900 text-white/50">{t('documents.publish.selectUniversity')}</option>
                   {universities.map((u) => (
                     <option key={u.id} value={u.id} className="bg-neutral-900 text-white">{u.name}</option>
                   ))}
@@ -419,7 +421,7 @@ export function PublishModal({
               {/* Program select */}
               {universityId && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Degree / Programme</label>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">{t('documents.publish.labelDegree')}</label>
                   {loadingPrograms ? (
                     <div className="h-9 bg-white/6 border border-white/12 rounded-lg animate-pulse" />
                   ) : (
@@ -437,7 +439,7 @@ export function PublishModal({
                         }}
                         onFocus={() => setIsProgramSearchOpen(true)}
                         onBlur={() => setTimeout(() => setIsProgramSearchOpen(false), 120)}
-                        placeholder="Search degree..."
+                        placeholder={t('documents.publish.searchDegree')}
                         role="combobox"
                         aria-expanded={isProgramSearchOpen}
                         aria-autocomplete="list"
@@ -459,7 +461,7 @@ export function PublishModal({
                           setIsProgramSearchOpen(true);
                           }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 hover:text-white/70 hover:bg-white/8 transition-colors"
-                          aria-label="Clear degree"
+                          aria-label={t('documents.publish.clearDegree')}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -504,7 +506,7 @@ export function PublishModal({
                               </div>
                             ))
                           ) : (
-                            <div className="px-3 py-3 text-sm text-white/45">No degrees found</div>
+                            <div className="px-3 py-3 text-sm text-white/45">{t('documents.publish.noDegreesFound')}</div>
                           )}
                         </div>
                       )}
@@ -516,7 +518,7 @@ export function PublishModal({
               {/* Course select — grouped by year */}
               {programId && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Course / Subject</label>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">{t('documents.publish.labelCourse')}</label>
                   {loadingCourses ? (
                     <div className="h-9 bg-white/6 border border-white/12 rounded-lg animate-pulse" />
                   ) : (
@@ -531,7 +533,7 @@ export function PublishModal({
                         }}
                         onFocus={() => setIsCourseSearchOpen(true)}
                         onBlur={() => setTimeout(() => setIsCourseSearchOpen(false), 120)}
-                        placeholder="Search course..."
+                        placeholder={t('documents.publish.searchCourse')}
                         role="combobox"
                         aria-expanded={isCourseSearchOpen}
                         aria-autocomplete="list"
@@ -550,7 +552,7 @@ export function PublishModal({
                             setIsCourseSearchOpen(true);
                           }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 hover:text-white/70 hover:bg-white/8 transition-colors"
-                          aria-label="Clear course"
+                          aria-label={t('documents.publish.clearCourse')}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -568,7 +570,7 @@ export function PublishModal({
                               groups.map((group) => (
                                 <div key={`${year}-${group.label}`} className="py-1">
                                   <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-white/35">
-                                    Year {year} — {group.label}
+                                    {t('documents.publish.courseYear', { year, label: group.label })}
                                   </div>
                                   {group.courses.map((course) => (
                                     <button
@@ -596,7 +598,7 @@ export function PublishModal({
                               ))
                             ))
                           ) : (
-                            <div className="px-3 py-3 text-sm text-white/45">No courses found</div>
+                            <div className="px-3 py-3 text-sm text-white/45">{t('documents.publish.noCoursesFound')}</div>
                           )}
                         </div>
                       )}
@@ -608,7 +610,7 @@ export function PublishModal({
               {/* Hint when nothing selected yet */}
               {!universityId && (
                 <p className="text-[11px] text-white/30 text-center py-2">
-                  Select your university to browse degrees and courses
+                  {t('documents.publish.universityHint')}
                 </p>
               )}
             </div>
@@ -619,13 +621,13 @@ export function PublishModal({
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-white/60 mb-1.5">
-                  University <span className="text-white/30">(optional)</span>
+                  {t('documents.publish.labelUniversity')} <span className="text-white/30">{t('documents.publish.optional')}</span>
                 </label>
                 <input
                   type="text"
                   value={university}
                   onChange={(e) => setUniversity(e.target.value)}
-                  placeholder="e.g. MIT, UCL, Universidad de Sevilla"
+                  placeholder={t('documents.publish.universityPlaceholder')}
                   className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
                     placeholder:text-white/25 outline-none focus:border-indigo-400/60 focus:ring-1
                     focus:ring-indigo-400/30 transition-colors"
@@ -634,13 +636,13 @@ export function PublishModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/60 mb-1.5">
-                  Degree / Programme <span className="text-white/30">(optional)</span>
+                  {t('documents.publish.labelDegree')} <span className="text-white/30">{t('documents.publish.optional')}</span>
                 </label>
                 <input
                   type="text"
                   value={degree}
                   onChange={(e) => setDegree(e.target.value)}
-                  placeholder="e.g. BSc Computer Science, MSc Mathematics"
+                  placeholder={t('documents.publish.degreePlaceholder')}
                   className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
                     placeholder:text-white/25 outline-none focus:border-indigo-400/60 focus:ring-1
                     focus:ring-indigo-400/30 transition-colors"
@@ -649,13 +651,13 @@ export function PublishModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/60 mb-1.5">
-                  Subject / Module <span className="text-white/30">(optional)</span>
+                  {t('documents.publish.labelSubjectModule')} <span className="text-white/30">{t('documents.publish.optional')}</span>
                 </label>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="e.g. Linear Algebra, Thermodynamics"
+                  placeholder={t('documents.publish.subjectPlaceholder')}
                   className="w-full bg-white/6 border border-white/12 rounded-lg px-3 py-2 text-sm text-white
                     placeholder:text-white/25 outline-none focus:border-indigo-400/60 focus:ring-1
                     focus:ring-indigo-400/30 transition-colors"
@@ -669,7 +671,7 @@ export function PublishModal({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-white/60">
-                Keywords <span className="text-white/30">(optional)</span>
+                {t('documents.publish.labelKeywords')} <span className="text-white/30">{t('documents.publish.optional')}</span>
               </label>
               <button
                 onClick={handleSuggestKeywords}
@@ -677,13 +679,13 @@ export function PublishModal({
                 className="flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors"
               >
                 {isSuggestingKeywords ? (
-                  <><span className="animate-spin inline-block">⟳</span> Suggesting…</>
+                  <><span className="animate-spin inline-block">⟳</span> {t('documents.publish.suggesting')}</>
                 ) : (
                   <>
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
-                    Suggest with AI
+                    {t('documents.publish.suggestWithAI')}
                   </>
                 )}
               </button>
@@ -693,7 +695,7 @@ export function PublishModal({
               {keywords.map((kw) => (
                 <span key={kw} className="inline-flex items-center gap-1 bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full px-2 py-0.5 text-xs">
                   {kw}
-                  <button onClick={() => removeKeyword(kw)} className="text-indigo-400/60 hover:text-indigo-300 transition-colors ml-0.5" aria-label={`Remove ${kw}`}>×</button>
+                  <button onClick={() => removeKeyword(kw)} className="text-indigo-400/60 hover:text-indigo-300 transition-colors ml-0.5" aria-label={t('documents.publish.removeKeyword', { kw })}>×</button>
                 </span>
               ))}
               <input
@@ -702,16 +704,16 @@ export function PublishModal({
                 onChange={(e) => setKeywordInput(e.target.value)}
                 onKeyDown={handleKeywordKeyDown}
                 onBlur={() => addKeyword(keywordInput)}
-                placeholder={keywords.length === 0 ? 'Type a keyword and press Enter' : ''}
+                placeholder={keywords.length === 0 ? t('documents.publish.keywordsPlaceholder') : ''}
                 className="flex-1 min-w-[100px] bg-transparent text-sm text-white placeholder:text-white/25 outline-none"
               />
             </div>
-            <p className="text-[10px] text-white/30 mt-1">Press Enter or comma to add</p>
+            <p className="text-[10px] text-white/30 mt-1">{t('documents.publish.keywordsHint')}</p>
           </div>
 
           {/* Visibility */}
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">Visibility</label>
+            <label className="block text-xs font-medium text-white/60 mb-1.5">{t('documents.publish.labelVisibility')}</label>
             <div className="flex gap-2">
               {(['private', 'public'] as const).map((v) => (
                 <button
@@ -725,7 +727,7 @@ export function PublishModal({
                       : 'bg-white/4 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
                   }`}
                 >
-                  {v === 'private' ? 'Private (only me)' : 'Public (discoverable)'}
+                  {v === 'private' ? t('documents.publish.visibilityPrivate') : t('documents.publish.visibilityPublic')}
                 </button>
               ))}
             </div>
@@ -744,7 +746,7 @@ export function PublishModal({
               disabled={isSaving}
               className="flex-1 py-2 rounded-lg text-xs font-medium border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
             >
-              Unpublish
+              {t('documents.publish.unpublish')}
             </button>
           )}
           <button
@@ -752,7 +754,7 @@ export function PublishModal({
             disabled={isSaving}
             className="flex-1 py-2 rounded-lg text-xs font-medium border border-white/15 text-white/60 hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
           >
-            Cancel
+            {t('documents.publish.cancel')}
           </button>
           <button
             onClick={handlePublish}
@@ -760,8 +762,8 @@ export function PublishModal({
             className="flex-1 py-2 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {isSaving ? (
-              <><span className="animate-spin inline-block">⟳</span> Saving…</>
-            ) : isAlreadyPublished ? 'Update' : 'Publish'}
+              <><span className="animate-spin inline-block">⟳</span> {t('documents.publish.saving')}</>
+            ) : isAlreadyPublished ? t('documents.publish.update') : t('documents.publish.submit')}
           </button>
         </div>
       </div>

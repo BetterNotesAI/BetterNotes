@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getTemplateThumbnailSrc } from '@/lib/template-thumbnails';
+import { useTranslation } from '@/lib/i18n';
 
 export interface DocumentItem {
   id: string;
@@ -20,12 +21,14 @@ export interface DocumentItem {
 }
 
 // ── Shared constants ────────────────────────────────────────────────────────
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: 'text-gray-500' },
-  generating: { label: 'Generating...', color: 'text-blue-400 animate-pulse' },
-  ready: { label: 'Ready', color: 'text-green-500' },
-  error: { label: 'Error', color: 'text-red-500' },
-};
+function buildStatusLabels(t: (key: string) => string): Record<string, { label: string; color: string }> {
+  return {
+    draft: { label: t('documents.card.status.draft'), color: 'text-gray-500' },
+    generating: { label: t('documents.card.status.generating'), color: 'text-blue-400 animate-pulse' },
+    ready: { label: t('documents.card.status.ready'), color: 'text-green-500' },
+    error: { label: t('documents.card.status.error'), color: 'text-red-500' },
+  };
+}
 
 const TEMPLATE_LABELS: Record<string, string> = {
   '2cols_portrait': '2-Col Cheat Sheet',
@@ -172,6 +175,7 @@ function DocumentDetailsModal({
   doc: DocumentItem;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -180,6 +184,7 @@ function DocumentDetailsModal({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  const STATUS_LABELS = buildStatusLabels(t);
   const statusInfo = STATUS_LABELS[doc.status] ?? { label: doc.status, color: 'text-gray-500' };
   const templateLabel = TEMPLATE_LABELS[doc.template_id] ?? doc.template_id;
 
@@ -207,12 +212,12 @@ function DocumentDetailsModal({
         <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-white/10">
           <div className="min-w-0 pr-3">
             <h3 className="text-sm font-semibold text-white leading-snug truncate">{doc.title}</h3>
-            <p className="text-xs text-white/40 mt-0.5">Document details</p>
+            <p className="text-xs text-white/40 mt-0.5">{t('documents.card.details.title')}</p>
           </div>
           <button
             onClick={onClose}
             className="shrink-0 text-white/30 hover:text-white/70 transition-colors p-0.5 rounded-md hover:bg-white/8"
-            aria-label="Close"
+            aria-label={t('documents.card.details.close')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -223,31 +228,31 @@ function DocumentDetailsModal({
         {/* Body */}
         <div className="px-5 py-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40">Template</span>
+            <span className="text-xs text-white/40">{t('documents.card.details.template')}</span>
             <span className="text-xs text-white/80 font-medium">{templateLabel}</span>
           </div>
           <div className="h-px bg-white/8" />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40">Status</span>
+            <span className="text-xs text-white/40">{t('documents.card.details.status')}</span>
             <span className={`text-xs font-semibold ${statusInfo.color}`}>{statusInfo.label}</span>
           </div>
           <div className="h-px bg-white/8" />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40">Created</span>
+            <span className="text-xs text-white/40">{t('documents.card.details.created')}</span>
             <span className="text-xs text-white/70">{formatDateLong(doc.created_at)}</span>
           </div>
           {doc.updated_at && (
             <>
               <div className="h-px bg-white/8" />
               <div className="flex items-center justify-between">
-                <span className="text-xs text-white/40">Last modified</span>
+                <span className="text-xs text-white/40">{t('documents.card.details.lastModified')}</span>
                 <span className="text-xs text-white/70">{formatDateLong(doc.updated_at)}</span>
               </div>
             </>
           )}
           <div className="h-px bg-white/8" />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40">Document ID</span>
+            <span className="text-xs text-white/40">{t('documents.card.details.documentId')}</span>
             <span className="text-xs text-white/30 font-mono truncate max-w-[160px]">{doc.id}</span>
           </div>
         </div>
@@ -258,7 +263,7 @@ function DocumentDetailsModal({
             onClick={onClose}
             className="w-full px-3 py-2 text-xs text-white/60 hover:text-white/80 rounded-xl hover:bg-white/8 transition-colors border border-white/10"
           >
-            Close
+            {t('documents.card.details.close')}
           </button>
         </div>
       </div>
@@ -277,6 +282,7 @@ function ConfirmDeleteModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   // Close on Escape
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -295,23 +301,22 @@ function ConfirmDeleteModal({
         className="w-full max-w-sm bg-neutral-900 border border-white/15 rounded-2xl p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-sm font-semibold text-white mb-1">Delete document?</h3>
+        <h3 className="text-sm font-semibold text-white mb-1">{t('documents.card.delete.title')}</h3>
         <p className="text-xs text-white/50 mb-5 leading-relaxed">
-          <span className="text-white/70 font-medium">&quot;{title}&quot;</span> will be permanently deleted.
-          This cannot be undone.
+          {t('documents.card.delete.body', { title })}
         </p>
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={onCancel}
             className="px-3 py-1.5 text-xs text-white/60 hover:text-white/80 rounded-lg hover:bg-white/8 transition-colors"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="px-3 py-1.5 text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
           >
-            Delete
+            {t('common.delete')}
           </button>
         </div>
       </div>
@@ -381,7 +386,9 @@ export function DocumentCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const { t } = useTranslation();
 
+  const STATUS_LABELS = buildStatusLabels(t);
   const statusInfo = STATUS_LABELS[doc.status] ?? { label: doc.status, color: 'text-gray-500' };
   const documentKind = getDocumentKind(doc.template_id);
   const showStatus = doc.status !== 'ready';
@@ -572,7 +579,7 @@ export function DocumentCard({
               </p>
               {doc.forked_from_id && (
                 <span className="text-[10px] text-indigo-300/75 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-1.5 py-0.5 shrink-0">
-                  Forked
+                  {t('documents.card.forked')}
                 </span>
               )}
             </div>
@@ -601,8 +608,8 @@ export function DocumentCard({
                 <button
                   onClick={handleStarClick}
                   className="group/star p-0.5 rounded hover:bg-white/8 transition-colors"
-                  aria-label={doc.is_starred ? 'Unstar document' : 'Star document'}
-                  title={doc.is_starred ? 'Remove from starred' : 'Add to starred'}
+                  aria-label={doc.is_starred ? t('documents.card.unstarDocument') : t('documents.card.starDocument')}
+                  title={doc.is_starred ? t('documents.card.removeFromStarred') : t('documents.card.addToStarred')}
                 >
                   {doc.is_starred ? (
                     <>
@@ -627,8 +634,8 @@ export function DocumentCard({
                     ref={menuButtonRef}
                     onClick={handleMenuToggle}
                     className="text-white/30 hover:text-white/80 transition-colors p-0.5 rounded"
-                    aria-label="More actions"
-                    title="More actions"
+                    aria-label={t('documents.card.moreActions')}
+                    title={t('documents.card.moreActions')}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
@@ -656,7 +663,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>
-                  Open
+                  {t('documents.card.open')}
                 </button>
 
                 {/* Open in new tab */}
@@ -672,7 +679,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                   </svg>
-                  Open in new tab
+                  {t('documents.card.openNewTab')}
                 </button>
 
                 {/* ── Divisor ────────────────────────────────────────── */}
@@ -693,7 +700,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                   </svg>
-                  Rename
+                  {t('documents.card.rename')}
                 </button>
 
                 {/* Move to folder */}
@@ -709,7 +716,7 @@ export function DocumentCard({
                     <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                     </svg>
-                    Move to folder
+                    {t('documents.card.moveToFolder')}
                   </span>
                   <svg
                     className={`w-3 h-3 shrink-0 text-white/30 transition-transform duration-150 ${showFolderSubmenu ? 'rotate-180' : ''}`}
@@ -721,7 +728,7 @@ export function DocumentCard({
                 {showFolderSubmenu && (
                   <div className="border-t border-white/10 pt-0.5 pb-0.5">
                     {folders.length === 0 ? (
-                      <p className="px-4 py-2 text-xs text-white/30 italic">No folders yet — create one in the panel</p>
+                      <p className="px-4 py-2 text-xs text-white/30 italic">{t('documents.card.noFoldersYet')}</p>
                     ) : (
                       <>
                         {folders.map(folder => (
@@ -746,7 +753,7 @@ export function DocumentCard({
                               text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors text-left"
                           >
                             <span className="w-2 h-2 rounded-full shrink-0 border border-white/30" />
-                            <span>No folder</span>
+                            <span>{t('documents.card.noFolder')}</span>
                           </button>
                         )}
                       </>
@@ -768,7 +775,7 @@ export function DocumentCard({
                         <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h6.75l1.5 1.5h8.25v9a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6.75z" />
                         </svg>
-                        Move inside notebook
+                        {t('documents.card.moveInsideNotebook')}
                       </span>
                       <svg
                         className={`w-3 h-3 shrink-0 text-white/30 transition-transform duration-150 ${showSectionSubmenu ? 'rotate-180' : ''}`}
@@ -780,7 +787,7 @@ export function DocumentCard({
                     {showSectionSubmenu && (
                       <div className="border-t border-white/10 pt-0.5 pb-0.5">
                         {sections.length === 0 ? (
-                          <p className="px-4 py-2 text-xs text-white/30 italic">No internal folders yet</p>
+                          <p className="px-4 py-2 text-xs text-white/30 italic">{t('documents.card.noInternalFolders')}</p>
                         ) : (
                           sections.map(section => (
                             <button
@@ -805,7 +812,7 @@ export function DocumentCard({
                               text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors text-left"
                           >
                             <span className="w-2 h-2 rounded-full shrink-0 border border-white/30" />
-                            <span>Unfiled</span>
+                            <span>{t('documents.card.unfiled')}</span>
                           </button>
                         )}
                       </div>
@@ -832,7 +839,7 @@ export function DocumentCard({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                     </svg>
                   )}
-                  {doc.is_starred ? 'Remove from starred' : 'Add to starred'}
+                  {doc.is_starred ? t('documents.card.removeFromStarred') : t('documents.card.addToStarred')}
                 </button>
 
                 {/* View details */}
@@ -848,7 +855,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                   </svg>
-                  View details
+                  {t('documents.card.viewDetails')}
                 </button>
 
                 {/* Version history */}
@@ -865,7 +872,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
-                  Version history
+                  {t('documents.card.versionHistory')}
                 </button>
 
                 {/* ── Divisor ────────────────────────────────────────── */}
@@ -903,7 +910,7 @@ export function DocumentCard({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
                     </svg>
                   )}
-                  {isCopyingLink ? 'Generating link...' : copiedLink ? 'Copied!' : 'Copy link'}
+                  {isCopyingLink ? t('documents.card.generatingLink') : copiedLink ? t('documents.card.copied') : t('documents.card.copyLink')}
                 </button>
 
                 {/* Duplicate */}
@@ -927,7 +934,7 @@ export function DocumentCard({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
                       </svg>
                     )}
-                    {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+                    {isDuplicating ? t('documents.card.duplicating') : t('documents.card.duplicate')}
                   </button>
                 )}
 
@@ -945,7 +952,7 @@ export function DocumentCard({
                     <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
-                    Download PDF
+                    {t('documents.card.downloadPdf')}
                   </button>
                 )}
 
@@ -961,7 +968,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
                   </svg>
-                  {doc.archived_at ? 'Unarchive' : 'Archive'}
+                  {doc.archived_at ? t('documents.card.unarchive') : t('documents.card.archive')}
                 </button>
                 <button
                   onClick={handleDelete}
@@ -971,7 +978,7 @@ export function DocumentCard({
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete
+                  {t('documents.card.delete')}
                 </button>
               </div>,
               document.body

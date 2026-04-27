@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ function getMonthLabels(days: DayEntry[]): { label: string; startIndex: number }
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ContributionsHeatmap({ userId }: { userId: string }) {
+  const { t } = useTranslation();
   const [days, setDays] = useState<DayEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
@@ -90,8 +92,8 @@ export default function ContributionsHeatmap({ userId }: { userId: string }) {
 
     const label =
       day.count === 0
-        ? `No activity · ${formatTooltipDate(day.date)}`
-        : `${day.count} contribution${day.count === 1 ? '' : 's'} · ${formatTooltipDate(day.date)}`;
+        ? `${t('profile.contributions.noActivity')} · ${formatTooltipDate(day.date)}`
+        : `${day.count} ${day.count === 1 ? t('profile.contributions.contribution') : t('profile.contributions.contributions')} · ${formatTooltipDate(day.date)}`;
 
     setTooltip({ text: label, x, y });
   }
@@ -128,12 +130,12 @@ export default function ContributionsHeatmap({ userId }: { userId: string }) {
         {/* Section header */}
         <div className="flex items-center gap-2 mb-3">
           <h2 className="text-sm font-semibold text-white/70">
-            Contributions
-            <span className="text-white/30 font-normal ml-1">— last 30 days</span>
+            {t('profile.contributions.heading')}
+            <span className="text-white/30 font-normal ml-1">{t('profile.contributions.last30days')}</span>
           </h2>
           {activeDays > 0 && (
             <span className="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 border border-indigo-400/25 rounded-full px-2 py-0.5">
-              {activeDays} active {activeDays === 1 ? 'day' : 'days'}
+              {activeDays} {activeDays === 1 ? t('profile.contributions.activeDay') : t('profile.contributions.activeDays')}
             </span>
           )}
         </div>

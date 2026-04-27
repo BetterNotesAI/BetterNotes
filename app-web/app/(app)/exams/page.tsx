@@ -2,6 +2,7 @@
 
 import { useReducer, useRef, useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 import type { Exam, ExamQuestion, ExamQuestionType } from './_types';
 import ExamSetup, { type ExamSetupValues } from './_components/ExamSetup';
 import ExamInProgress, { type ActiveQuestion } from './_components/ExamInProgress';
@@ -125,6 +126,7 @@ interface PendingExamGeneratePayload {
 }
 
 export default function ExamsPage() {
+  const { t } = useTranslation();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [activeTab, setActiveTab] = useState<Tab>('generate');
   const statsRef = useRef<ExamStatsHandle>(null);
@@ -472,7 +474,7 @@ export default function ExamsPage() {
                   <span className="text-white/25 shrink-0">/</span>
                 </>
               )}
-              <span className="truncate">Exams</span>
+              <span className="truncate">{t('exam.list.heading')}</span>
             </h1>
 
             {/* Tab menu — only visible on setup screen */}
@@ -487,7 +489,7 @@ export default function ExamsPage() {
                       : 'text-white/45 hover:text-white/70'
                   }`}
                 >
-                  Generate
+                  {t('exam.list.tabGenerate')}
                 </button>
                 <button
                   type="button"
@@ -498,7 +500,7 @@ export default function ExamsPage() {
                       : 'text-white/45 hover:text-white/70'
                   }`}
                 >
-                  Stats
+                  {t('exam.list.tabStats')}
                 </button>
               </div>
             )}
@@ -514,7 +516,7 @@ export default function ExamsPage() {
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              New Exam
+              {t('exam.list.newExam')}
             </button>
           )}
 
@@ -539,14 +541,14 @@ export default function ExamsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                 </svg>
               )}
-              {resetConfirm ? 'Confirm reset?' : 'Reset stats'}
+              {resetConfirm ? t('exam.list.confirmReset') : t('exam.list.resetStats')}
             </button>
           )}
 
           {/* Breadcrumb when in exam/results */}
           {(state.screen === 'exam' || state.screen === 'submitting' || state.screen === 'results') && (
             <span className="text-xs text-white/40">
-              {state.screen === 'results' ? 'Results' : state.exam?.title}
+              {state.screen === 'results' ? t('exam.list.results') : state.exam?.title}
             </span>
           )}
         </div>
@@ -566,8 +568,8 @@ export default function ExamsPage() {
               </svg>
             </div>
             <div className="text-center">
-              <p className="text-white font-medium">No exam in progress</p>
-              <p className="text-white/40 text-sm mt-1">Create a new exam to get started</p>
+              <p className="text-white font-medium">{t('exam.list.noExamTitle')}</p>
+              <p className="text-white/40 text-sm mt-1">{t('exam.list.noExamDesc')}</p>
             </div>
             <button
               type="button"
@@ -577,7 +579,7 @@ export default function ExamsPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              New Exam
+              {t('exam.list.newExam')}
             </button>
           </div>
         )}
@@ -607,10 +609,10 @@ export default function ExamsPage() {
             </div>
             <div className="text-center">
               <p className="text-white font-medium">
-                {loadingPhase === 'questions' ? 'Generating questions...' : 'Generating answer key...'}
+                {loadingPhase === 'questions' ? t('exam.list.generatingQuestions') : t('exam.list.generatingAnswerKey')}
               </p>
               <p className="text-white/40 text-sm mt-1">
-                {loadingPhase === 'questions' ? 'This may take a few seconds' : 'This may take a few minutes'}
+                {loadingPhase === 'questions' ? t('exam.list.generatingQuestionsHint') : t('exam.list.generatingAnswerKeyHint')}
               </p>
             </div>
           </div>

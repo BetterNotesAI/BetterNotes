@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { useTranslation } from '@/lib/i18n';
 
 interface ChatMessage {
   id: string;

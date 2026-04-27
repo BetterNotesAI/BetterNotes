@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from '@/lib/i18n';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -149,6 +150,7 @@ function markdownToHtml(md: string): string {
 // ---------------------------------------------------------------------------
 
 export function SubChat({ subchatId, sessionId, contextText, initialMessages, onDelete }: SubChatProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -250,7 +252,7 @@ export function SubChat({ subchatId, sessionId, contextText, initialMessages, on
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
-          <span className="text-[11px] font-medium text-white/50">Subchat</span>
+          <span className="text-[11px] font-medium text-white/50">{t('problemSolver.chat.subchat')}</span>
           {messages.length > 0 && (
             <span className="text-[10px] text-white/30">{messages.length} msg{messages.length !== 1 ? 's' : ''}</span>
           )}
@@ -274,13 +276,13 @@ export function SubChat({ subchatId, sessionId, contextText, initialMessages, on
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
-          <span className="text-[11px] font-medium text-white/50">Subchat</span>
+          <span className="text-[11px] font-medium text-white/50">{t('problemSolver.chat.subchat')}</span>
         </div>
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => setCollapsed(true)}
             className="p-1 rounded-md text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
-            title="Collapse"
+            title={t('problemSolver.chat.collapse')}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -289,7 +291,7 @@ export function SubChat({ subchatId, sessionId, contextText, initialMessages, on
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="p-1 rounded-md text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-            title="Delete subchat"
+            title={t('problemSolver.chat.deleteSubchat')}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -358,7 +360,7 @@ export function SubChat({ subchatId, sessionId, contextText, initialMessages, on
               <span className="w-1 h-1 rounded-full bg-orange-400/50 animate-bounce [animation-delay:150ms]" />
               <span className="w-1 h-1 rounded-full bg-orange-400/50 animate-bounce [animation-delay:300ms]" />
             </div>
-            <span>Thinking...</span>
+            <span>{t('problemSolver.chat.thinking')}</span>
           </div>
         )}
 
@@ -375,7 +377,7 @@ export function SubChat({ subchatId, sessionId, contextText, initialMessages, on
             value={input}
             onChange={(e) => { setInput(e.target.value); resizeTextarea(); }}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about this section..."
+            placeholder={t('problemSolver.chat.subchatPlaceholder')}
             rows={1}
             disabled={isSending}
             className="flex-1 appearance-none resize-none bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder-white/25 outline-none focus:border-orange-400/30 focus:bg-white/8 transition-colors disabled:opacity-50"
