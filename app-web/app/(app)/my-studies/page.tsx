@@ -576,7 +576,7 @@ function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void })
             <p className="text-xs text-white/40 mt-0.5">Documents not affiliated with a specific university</p>
           </div>
           <button
-            onClick={() => onNavigate('/settings?section=academic')}
+            onClick={() => onNavigate('/settings#academic')}
             className="shrink-0 text-[11px] text-white/40 hover:text-white/70 transition-colors underline"
           >
             Change affiliation
@@ -667,7 +667,7 @@ function MyUniversityTab({ onNavigate }: { onNavigate: (href: string) => void })
           )}
         </div>
         <button
-          onClick={() => onNavigate('/settings')}
+          onClick={() => onNavigate('/settings#academic')}
           className="shrink-0 text-[11px] text-white/40 hover:text-white/70 transition-colors underline"
         >
           Change degree
