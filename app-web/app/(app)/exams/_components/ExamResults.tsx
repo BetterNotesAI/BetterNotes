@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { Exam, ExamQuestion } from '../_types';
 import { getLetterGrade, getGradeColor } from '../_utils';
 import MathText from './MathText';
+import { useTranslation } from '@/lib/i18n';
 
 interface CognitiveBreakdownEntry {
   total: number;
@@ -32,6 +33,7 @@ interface ExamResultsProps {
 }
 
 function QuestionReview({ question, index }: { question: ExamQuestion; index: number }) {
+  const { t } = useTranslation();
   const isCorrect = question.is_correct === true;
   const ps = question.partial_score ?? null;
   const isPartial = !isCorrect && ps !== null && ps > 0.01 && ps < 0.99;
@@ -95,7 +97,7 @@ function QuestionReview({ question, index }: { question: ExamQuestion; index: nu
           <span className={`text-sm ${
             isCorrect ? 'text-green-400' : isPartial ? 'text-amber-400' : isWrong ? 'text-red-400' : 'text-white/40 italic'
           }`}>
-            {isUnanswered ? 'Not answered' : <MathText text={question.user_answer ?? ''} />}
+            {isUnanswered ? t('exam.results.notAnswered') : <MathText text={question.user_answer ?? ''} />}
           </span>
         </div>
 
@@ -103,7 +105,7 @@ function QuestionReview({ question, index }: { question: ExamQuestion; index: nu
         {(isWrong || isPartial || isUnanswered) && (
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-white/40 uppercase tracking-wider shrink-0 w-16">
-              Correct
+              {t('exam.results.correct')}
             </span>
             <span className="text-sm text-green-400"><MathText text={question.correct_answer ?? ''} /></span>
           </div>
@@ -144,6 +146,7 @@ export default function ExamResults({
   isPublishing,
   publishedUrl,
 }: ExamResultsProps) {
+  const { t } = useTranslation();
   const grade = getLetterGrade(stats.score_percentage);
   const gradeColor = getGradeColor(grade);
   const [copied, setCopied] = useState(false);
@@ -188,9 +191,9 @@ export default function ExamResults({
           <div>
             <p className="text-5xl font-bold text-white">{stats.score_percentage}%</p>
             <p className="text-sm text-white/45 mt-1">
-              {stats.correct_answers} / {stats.total_questions} correct
+              {stats.correct_answers} / {stats.total_questions} {t('exam.results.correct').toLowerCase()}
               {stats.partial_answers > 0 && (
-                <span className="text-amber-400/80"> · {stats.partial_answers} partial</span>
+                <span className="text-amber-400/80"> · {stats.partial_answers} {t('exam.results.partial')}</span>
               )}
             </p>
           </div>
@@ -205,21 +208,21 @@ export default function ExamResults({
         <div className="grid grid-cols-4 gap-3 pt-4 border-t border-white/8">
           <div>
             <p className="text-lg font-bold text-green-400">{stats.correct_answers}</p>
-            <p className="text-[11px] text-white/40 mt-0.5">Correct</p>
+            <p className="text-[11px] text-white/40 mt-0.5">{t('exam.results.correct')}</p>
           </div>
           <div>
             <p className={`text-lg font-bold ${stats.partial_answers > 0 ? 'text-amber-400' : 'text-white/20'}`}>
               {stats.partial_answers}
             </p>
-            <p className="text-[11px] text-white/40 mt-0.5">Partial</p>
+            <p className="text-[11px] text-white/40 mt-0.5">{t('exam.results.partial')}</p>
           </div>
           <div>
             <p className="text-lg font-bold text-red-400">{stats.wrong_answers}</p>
-            <p className="text-[11px] text-white/40 mt-0.5">Wrong</p>
+            <p className="text-[11px] text-white/40 mt-0.5">{t('exam.results.incorrect')}</p>
           </div>
           <div>
             <p className="text-lg font-bold text-white/40">{stats.unanswered}</p>
-            <p className="text-[11px] text-white/40 mt-0.5">Skipped</p>
+            <p className="text-[11px] text-white/40 mt-0.5">{t('exam.results.skipped')}</p>
           </div>
         </div>
 
@@ -229,7 +232,7 @@ export default function ExamResults({
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Completed in{' '}
+            {t('exam.results.completedIn')}{' '}
             <span className="font-medium text-white/60">{formatDuration(stats.time_spent_seconds)}</span>
           </div>
         )}
@@ -294,7 +297,7 @@ export default function ExamResults({
                 className="flex-1 rounded-xl border border-white/15 bg-white/5 hover:bg-white/8
                   text-sm font-medium text-white/70 hover:text-white py-2.5 transition-colors"
               >
-                New Exam
+                {t('exam.results.newExam')}
               </button>
               <button
                 type="button"
@@ -305,14 +308,14 @@ export default function ExamResults({
                 {isPublishing ? (
                   <>
                     <div className="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-300 rounded-full animate-spin" />
-                    Publishing...
+                    {t('common.loading')}
                   </>
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
-                    Share Exam
+                    {t('exam.results.share')}
                   </>
                 )}
               </button>

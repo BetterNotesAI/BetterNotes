@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Exam } from '../_types';
 import MathText from './MathText';
+import { useTranslation } from '@/lib/i18n';
 
 // The questions returned by /generate do NOT include correct_answer or explanation,
 // except for flashcard type (which needs it to show the answer on the card back).
@@ -70,6 +71,7 @@ export default function ExamInProgress({
   timerEnabled = false,
   timerSeconds,
 }: ExamInProgressProps) {
+  const { t } = useTranslation();
   // Track start time to calculate elapsed on submit
   const startTimeRef = useRef<number>(Date.now());
 
@@ -212,11 +214,10 @@ export default function ExamInProgress({
         <p className="text-xs text-white/40 uppercase tracking-wider mb-1">{exam.title}</p>
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-base font-semibold text-white">
-            Question {currentIndex + 1}{' '}
-            <span className="text-white/40 font-normal">of {total}</span>
+            {t('exam.inProgress.question', { current: currentIndex + 1, total })}
           </h2>
           <span className="text-xs text-white/50">
-            {answeredCount} / {total} answered
+            {answeredCount} / {total} {t('exam.inProgress.answered')}
           </span>
         </div>
 
@@ -232,7 +233,7 @@ export default function ExamInProgress({
         {timerEnabled && secondsLeft !== null && timerSeconds && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] text-white/35 uppercase tracking-wide">Time remaining</span>
+              <span className="text-[10px] text-white/35 uppercase tracking-wide">{t('exam.inProgress.timeLeft')}</span>
               <span className={`text-xs font-mono font-semibold tabular-nums transition-colors ${
                 secondsLeft < 60
                   ? 'text-red-400 animate-pulse'
@@ -495,7 +496,7 @@ export default function ExamInProgress({
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-          Prev
+          {t('common.back')}
         </button>
 
         {canGoNext ? (
@@ -505,7 +506,7 @@ export default function ExamInProgress({
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-white/12 bg-white/5
               text-sm text-white/60 hover:bg-white/8 hover:text-white hover:border-white/20 transition-colors"
           >
-            Next
+            {t('exam.inProgress.next')}
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
@@ -524,11 +525,11 @@ export default function ExamInProgress({
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/15 border-t-indigo-500 rounded-full animate-spin" />
-                Submitting...
+                {t('common.loading')}
               </>
             ) : (
               <>
-                Submit Exam
+                {t('exam.inProgress.finish')}
                 {!allAnswered && (
                   <span className="text-[10px] font-normal text-white/40">
                     ({answeredCount}/{total})

@@ -323,8 +323,8 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Generate Exam</h2>
-            <p className="text-xs text-white/45 mt-0.5">Configure your practice exam below</p>
+            <h2 className="text-lg font-semibold text-white">{t('exam.setup.title')}</h2>
+            <p className="text-xs text-white/45 mt-0.5">{t('exam.setup.configureBelow')}</p>
           </div>
         </div>
       )}
@@ -335,8 +335,8 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-white/80 mb-2">
-              Subject / Topic
-              {hasDocuments && <span className="ml-2 text-xs font-normal text-white/35">optional</span>}
+              {t('exam.setup.subject')}
+              {hasDocuments && <span className="ml-2 text-xs font-normal text-white/35">{t('exam.setup.optional')}</span>}
             </label>
             <input
               type="text"
@@ -348,7 +348,7 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">Language</label>
+            <label className="block text-sm font-medium text-white/80 mb-2">{t('exam.setup.language')}</label>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
@@ -366,10 +366,10 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-white/80">
-              Source Documents
-              <span className="ml-2 text-xs font-normal text-white/35">optional</span>
+              {t('exam.setup.documents')}
+              <span className="ml-2 text-xs font-normal text-white/35">{t('exam.setup.optional')}</span>
             </label>
-            <span className="text-xs text-white/35">{selectedDocIds.length} selected</span>
+            <span className="text-xs text-white/35">{selectedDocIds.length} {t('exam.setup.selected')}</span>
           </div>
           {docsLoading ? (
             <div className="flex items-center justify-center py-4">
@@ -410,8 +410,8 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-white/80">
-              Additional Content
-              <span className="ml-2 text-xs font-normal text-white/35">optional</span>
+              {t('exam.setup.externalContent')}
+              <span className="ml-2 text-xs font-normal text-white/35">{t('exam.setup.optional')}</span>
             </label>
             <button
               type="button"
@@ -465,19 +465,19 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         {/* Difficulty level — two-step: tier then difficulty */}
         <div>
           <label className="block text-sm font-medium text-white/80 mb-2">
-            Difficulty Level
+            {t('exam.setup.difficulty')}
           </label>
 
           {/* Step 1: Tier cards */}
           <div className="grid grid-cols-3 gap-2">
-            {TIERS.map((t) => {
-              const isSelected = tier === t.value;
+            {TIERS.map((tier_opt) => {
+              const isSelected = tier === tier_opt.value;
               return (
                 <button
-                  key={t.value}
+                  key={tier_opt.value}
                   type="button"
                   onClick={() => {
-                    setTier(t.value);
+                    setTier(tier_opt.value);
                     if (!difficulty) setDifficulty('intermediate');
                   }}
                   disabled={isLoading}
@@ -488,9 +488,9 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
                     }`}
                 >
                   <p className={`text-xs font-semibold ${isSelected ? 'text-indigo-300' : ''}`}>
-                    {t.label}
+                    {t(`exam.setup.tier.${tier_opt.value}`)}
                   </p>
-                  <p className="text-[10px] text-white/40 mt-0.5">{t.description}</p>
+                  <p className="text-[10px] text-white/40 mt-0.5">{tier_opt.description}</p>
                 </button>
               );
             })}
@@ -499,13 +499,13 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
           {/* Step 2: Difficulty buttons — appear once a tier is selected */}
           {tier && (
             <div className="flex gap-2 mt-2">
-              {DIFFICULTIES.map((d) => {
-                const isSelected = difficulty === d.value;
+              {DIFFICULTIES.map((diff_opt) => {
+                const isSelected = difficulty === diff_opt.value;
                 return (
                   <button
-                    key={d.value}
+                    key={diff_opt.value}
                     type="button"
-                    onClick={() => setDifficulty(d.value)}
+                    onClick={() => setDifficulty(diff_opt.value)}
                     disabled={isLoading}
                     className={`flex-1 rounded-xl border px-3 py-2.5 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
                       ${isSelected
@@ -514,9 +514,9 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
                       }`}
                   >
                     <p className={`text-xs font-semibold ${isSelected ? 'text-indigo-300' : ''}`}>
-                      {d.label}
+                      {t(`exam.setup.difficulty.${diff_opt.value}`)}
                     </p>
-                    <p className="text-[10px] text-white/40 mt-0.5">{d.description}</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">{diff_opt.description}</p>
                   </button>
                 );
               })}
@@ -527,7 +527,7 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         {/* Total questions */}
         <div>
           <label className="block text-sm font-medium text-white/80 mb-2">
-            Number of Questions
+            {t('exam.setup.questionCount')}
           </label>
           <div className="flex items-center gap-3">
             <button
@@ -567,7 +567,7 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
         {/* Question formats + per-type counts */}
         <div>
           <label className="block text-sm font-medium text-white/80 mb-2">
-            Question Formats
+            {t('exam.setup.formats')}
           </label>
           <div className="space-y-2">
             {FORMAT_OPTIONS.map((fmt) => {
@@ -601,7 +601,12 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
 
                   {/* Label */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{fmt.label}</p>
+                    <p className="text-sm font-medium">{
+                      fmt.value === 'multiple_choice' ? t('exam.setup.format.multipleChoice') :
+                      fmt.value === 'true_false' ? t('exam.setup.format.trueFalse') :
+                      fmt.value === 'fill_in' ? t('exam.setup.format.fillIn') :
+                      t('exam.setup.format.flashcard')
+                    }</p>
                     <p className="text-[11px] text-white/40">{fmt.description}</p>
                   </div>
 
@@ -951,10 +956,10 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
-                Generating your exam...
+                {t('exam.setup.submitting')}
               </span>
             ) : (
-              'Generate Exam'
+              t('exam.setup.submit')
             )}
           </button>
         )}
