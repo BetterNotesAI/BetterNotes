@@ -57,11 +57,11 @@ export async function GET() {
   if (isIndependent) {
     const { data: docsRaw, error: docsError } = await supabase
       .from('documents')
-      .select('id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, user_id, university_id, program_id, course_id, university_slug, program_slug')
+      .select('id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, user_id, university_id, program_id, course_id, university_slug, program_slug, profiles!documents_user_id_fkey(display_name, avatar_url)')
       .eq('is_published', true)
       .eq('visibility', 'public')
       .is('archived_at', null)
-      .or('university.is.null,university.eq.')
+      .is('university_id', null)
       .order('published_at', { ascending: false })
       .limit(60);
 
@@ -69,7 +69,21 @@ export async function GET() {
       return NextResponse.json({ error: docsError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ independent: true, documents: docsRaw ?? [] });
+    const docs = (docsRaw ?? []).map((d: Record<string, unknown>) => {
+      const profile = Array.isArray(d.profiles)
+        ? (d.profiles as Array<{ display_name?: string | null; avatar_url?: string | null }>)[0]
+        : (d.profiles as { display_name?: string | null; avatar_url?: string | null } | null);
+      return {
+        ...d,
+        profiles: undefined,
+        author_name: profile?.display_name ?? null,
+        author_avatar: profile?.avatar_url ?? null,
+        user_liked: false,
+        is_own: d.user_id === user.id,
+      };
+    });
+
+    return NextResponse.json({ independent: true, documents: docs });
   }
 
   if (!profile.profile_program_id) {

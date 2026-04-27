@@ -70,6 +70,7 @@ interface ProfileRow {
 }
 
 function sanitizeOptionalString(input: unknown, maxLen: number): string | null {
+  if (input === null) return null;
   if (typeof input !== 'string') {
     throw new Error('invalid_type');
   }
