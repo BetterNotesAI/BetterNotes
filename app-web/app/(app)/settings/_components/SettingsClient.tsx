@@ -218,6 +218,13 @@ function authenticationMethodText(providers: string[], isAnonymous: boolean): st
   return providers.map(providerLabel).join(' + ');
 }
 
+const VALID_SECTIONS = new Set<SettingsSection>(['account', 'profile', 'academic', 'preferences']);
+
+function hashToSection(hash: string): SettingsSection | null {
+  const s = hash.replace(/^#/, '') as SettingsSection;
+  return VALID_SECTIONS.has(s) ? s : null;
+}
+
 export default function SettingsClient({
   defaultSection = 'account',
   title = 'Settings',
@@ -225,7 +232,13 @@ export default function SettingsClient({
 }: SettingsClientProps) {
   const router = useRouter();
 
-  const [activeSection, setActiveSection] = useState<SettingsSection>(defaultSection);
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() => {
+    if (typeof window !== 'undefined') {
+      const fromHash = hashToSection(window.location.hash);
+      if (fromHash) return fromHash;
+    }
+    return defaultSection;
+  });
   const [profile, setProfile] = useState<SettingsProfile>(DEFAULT_PROFILE);
   const [providers, setProviders] = useState<string[]>([]);
 
@@ -261,6 +274,16 @@ export default function SettingsClient({
     () => authenticationMethodText(providers, profile.is_anonymous),
     [providers, profile.is_anonymous]
   );
+
+  // Sync active section ↔ URL hash (browser back/forward + direct links)
+  useEffect(() => {
+    const onHashChange = () => {
+      const s = hashToSection(window.location.hash);
+      if (s) setActiveSection(s);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -750,10 +773,10 @@ export default function SettingsClient({
 
         <div className="flex flex-wrap gap-2">
           {(Object.keys(SECTION_LABELS) as SettingsSection[]).map((section) => (
-            <button
+            <a
               key={section}
-              type="button"
-              onClick={() => setActiveSection(section)}
+              href={`#${section}`}
+              onClick={(e) => { e.preventDefault(); window.location.hash = section; setActiveSection(section); }}
               className={`px-3.5 py-2 rounded-lg text-sm transition-colors border ${
                 activeSection === section
                   ? 'bg-white text-neutral-950 border-white'
@@ -761,7 +784,7 @@ export default function SettingsClient({
               }`}
             >
               {SECTION_LABELS[section]}
-            </button>
+            </a>
           ))}
         </div>
 
