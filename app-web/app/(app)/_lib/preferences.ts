@@ -1,5 +1,5 @@
 export type ThemePreference = 'light' | 'dark' | 'system';
-export type LanguagePreference = 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt';
+export type LanguagePreference = 'en' | 'es' | 'ca';
 
 export const USER_PREFERENCES_EVENT = 'bn:user-preferences-updated';
 export const USER_ACADEMIC_UPDATED_EVENT = 'bn:user-academic-updated';
@@ -12,7 +12,7 @@ export function isThemePreference(value: string | null | undefined): value is Th
 }
 
 export function isLanguagePreference(value: string | null | undefined): value is LanguagePreference {
-  return value === 'en' || value === 'es' || value === 'fr' || value === 'de' || value === 'it' || value === 'pt';
+  return value === 'en' || value === 'es' || value === 'ca';
 }
 
 export function resolveTheme(theme: ThemePreference): 'light' | 'dark' {
