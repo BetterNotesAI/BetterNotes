@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { ExamLevel, ExamQuestionType } from '../_types';
+import { useTranslation } from '@/lib/i18n';
 
 export interface CognitiveDistribution {
   memory: number;
@@ -104,7 +105,14 @@ function autoDistribute(total: number, fmts: ExamQuestionType[]): Partial<Record
   return Object.fromEntries(fmts.map((t, i) => [t, base + (i < remainder ? 1 : 0)]));
 }
 
+function mapProfileLangToExamLang(profileLang: string): string {
+  if (profileLang === 'es') return 'spanish';
+  if (profileLang === 'ca') return 'catalan';
+  return 'english';
+}
+
 export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedded }: ExamSetupProps) {
+  const { t, language: profileLanguage } = useTranslation();
   const [subject, setSubject] = useState('');
   const [tier, setTier] = useState<string>('');
   const [difficulty, setDifficulty] = useState<string>('');
@@ -113,7 +121,7 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
   const [questionCountInput, setQuestionCountInput] = useState('10');
   const [formats, setFormats] = useState<ExamQuestionType[]>(['multiple_choice']);
   const [formatCounts, setFormatCounts] = useState<Partial<Record<ExamQuestionType, number>>>({ multiple_choice: 10 });
-  const [language, setLanguage] = useState('english');
+  const [language, setLanguage] = useState(() => mapProfileLangToExamLang(typeof window !== 'undefined' ? (localStorage.getItem('bn_language_preference') ?? 'en') : 'en'));
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Document picker state
@@ -150,6 +158,11 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
   const [externalContent, setExternalContent] = useState('');
   const [fileExtracting, setFileExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync exam language when profile language changes
+  useEffect(() => {
+    setLanguage(mapProfileLangToExamLang(profileLanguage));
+  }, [profileLanguage]);
 
   // When total changes, redistribute
   useEffect(() => {
@@ -264,19 +277,19 @@ export default function ExamSetup({ onSubmit, isLoading, error, onClose, embedde
 
     // Subject is required only when no documents are selected
     if (!hasDocuments && !subjectTrimmed) {
-      setValidationError('Please enter a subject or topic, or select at least one document.');
+      setValidationError(t('exam.setup.error.noSubject'));
       return;
     }
     if (!tier || !difficulty) {
-      setValidationError('Please select a difficulty level.');
+      setValidationError(t('exam.setup.error.noDifficulty'));
       return;
     }
     if (formats.length === 0) {
-      setValidationError('Please select at least one question format.');
+      setValidationError(t('exam.setup.error.noFormat'));
       return;
     }
     if (!isBalanced) {
-      setValidationError(`Assigned questions (${assignedTotal}) must equal total (${questionCount}).`);
+      setValidationError(t('exam.setup.error.unbalanced', { assigned: assignedTotal, total: questionCount }));
       return;
     }
     onSubmit({

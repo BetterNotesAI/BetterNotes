@@ -6,21 +6,23 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import Background from '@/app/components/Background'
+import { useTranslation } from '@/lib/i18n'
 
-function humanizeAuthError(message: string): string {
+function humanizeAuthError(message: string, t: (key: string) => string): string {
   if (message.includes('Invalid login credentials')) {
-    return 'Incorrect email or password'
+    return t('auth.error.invalidCredentials')
   }
   if (message.includes('Email not confirmed')) {
-    return 'Please verify your email before logging in'
+    return t('auth.error.emailNotConfirmed')
   }
   if (message.includes('User already registered')) {
-    return 'An account with this email already exists'
+    return t('auth.error.alreadyRegistered')
   }
-  return 'Something went wrong, please try again'
+  return t('common.error.generic')
 }
 
 function LoginContent() {
+  const { t } = useTranslation()
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams?.get('returnUrl')
@@ -40,7 +42,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(humanizeAuthError(error.message))
+      setError(humanizeAuthError(error.message, t))
       setHasFailedOnce(true)
       setLoading(false)
       return
@@ -63,7 +65,7 @@ function LoginContent() {
     })
 
     if (error) {
-      setError(humanizeAuthError(error.message))
+      setError(humanizeAuthError(error.message, t))
       setLoading(false)
     }
   }
@@ -100,11 +102,11 @@ function LoginContent() {
                 d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
               />
             </svg>
-            Back to home
+            {t('auth.backToHome')}
           </Link>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-            <p className="text-sm text-white/60 mt-1">Log in to BetterNotes</p>
+            <h1 className="text-2xl font-bold text-white">{t('auth.login.title')}</h1>
+            <p className="text-sm text-white/60 mt-1">{t('auth.login.subtitle')}</p>
           </div>
         </div>
 
@@ -113,7 +115,7 @@ function LoginContent() {
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm text-white/80 mb-1">
-                Email
+                {t('auth.login.email')}
               </label>
               <input
                 id="email"
@@ -130,14 +132,14 @@ function LoginContent() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="password" className="text-sm text-white/80">
-                  Password
+                  {t('auth.login.password')}
                 </label>
                 {hasFailedOnce && (
                   <Link
                     href="/forgot-password"
                     className="text-xs text-white/50 hover:text-white/80 transition-colors"
                   >
-                    Forgot password?
+                    {t('auth.login.forgotPassword')}
                   </Link>
                 )}
               </div>
@@ -164,13 +166,13 @@ function LoginContent() {
               disabled={loading}
               className="w-full py-2 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-neutral-950 font-semibold rounded-xl transition-colors"
             >
-              {loading ? 'Logging in...' : 'Log in'}
+              {loading ? t('auth.login.submitting') : t('auth.login.submit')}
             </button>
           </form>
 
           <div className="flex items-center gap-3 text-xs text-white/40">
             <div className="flex-1 border-t border-white/15" />
-            <span>or continue with</span>
+            <span>{t('auth.login.orContinueWith')}</span>
             <div className="flex-1 border-t border-white/15" />
           </div>
 
@@ -197,17 +199,17 @@ function LoginContent() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Google
+            {t('auth.login.google')}
           </button>
         </div>
 
         <p className="text-center text-sm text-white/60">
-          Don&apos;t have an account?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link
             href={`/signup?returnUrl=${encodeURIComponent(safeReturnUrl)}`}
             className="text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            Sign up
+            {t('auth.login.signUp')}
           </Link>
         </p>
       </div>

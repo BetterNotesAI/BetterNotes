@@ -5,16 +5,17 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import Background from '@/app/components/Background'
+import { useTranslation } from '@/lib/i18n'
 
 type ForgotPasswordClientProps = {
   expiredError: boolean
 }
 
 export default function ForgotPasswordClient({ expiredError }: ForgotPasswordClientProps) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
-  const [error, setError] = useState<string | null>(
-    expiredError ? 'Your reset link has expired. Please request a new one.' : null
-  )
+  const [error, setError] = useState<string | null>(null)
+  const [expiredShown, setExpiredShown] = useState(expiredError)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -29,7 +30,7 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
     })
 
     if (error) {
-      setError('Something went wrong, please try again')
+      setError(t('auth.forgotPassword.error'))
       setLoading(false)
       return
     }
@@ -37,6 +38,8 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
     setSuccess(true)
     setLoading(false)
   }
+
+  const displayError = expiredShown ? t('auth.forgotPassword.expiredError') : error
 
   if (success) {
     return (
@@ -54,13 +57,12 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-white">Check your email</h2>
+          <h2 className="text-xl font-bold text-white">{t('auth.forgotPassword.checkEmail')}</h2>
           <p className="text-white/60 text-sm">
-            We sent a password reset link to <strong className="text-white">{email}</strong>.
-            Click it to set a new password.
+            {t('auth.forgotPassword.checkEmailDesc', { email })}
           </p>
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">
-            Back to login
+            {t('auth.forgotPassword.logIn')}
           </Link>
         </div>
       </div>
@@ -97,11 +99,11 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
                 d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
               />
             </svg>
-            Back to login
+            {t('auth.backToLogin')}
           </Link>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white">Forgot your password?</h1>
-            <p className="text-sm text-white/60 mt-1">We&apos;ll send you a reset link</p>
+            <h1 className="text-2xl font-bold text-white">{t('auth.forgotPassword.title')}</h1>
+            <p className="text-sm text-white/60 mt-1">{t('auth.forgotPassword.subtitle')}</p>
           </div>
         </div>
 
@@ -109,13 +111,13 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm text-white/80 mb-1">
-                Email
+                {t('auth.forgotPassword.email')}
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setExpiredShown(false); }}
                 required
                 disabled={loading}
                 className="w-full px-3 py-2 bg-black/20 border border-white/20 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-indigo-400/60 disabled:opacity-50 transition-colors"
@@ -123,9 +125,9 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
               />
             </div>
 
-            {error && (
+            {displayError && (
               <p className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-xl">
-                {error}
+                {displayError}
               </p>
             )}
 
@@ -134,15 +136,15 @@ export default function ForgotPasswordClient({ expiredError }: ForgotPasswordCli
               disabled={loading}
               className="w-full py-2 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-neutral-950 font-semibold rounded-xl transition-colors"
             >
-              {loading ? 'Sending...' : 'Send reset link'}
+              {loading ? t('auth.forgotPassword.submitting') : t('auth.forgotPassword.submit')}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-white/60">
-          Remembered your password?{' '}
+          {t('auth.forgotPassword.rememberedPassword')}{' '}
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
-            Log in
+            {t('auth.forgotPassword.logIn')}
           </Link>
         </p>
       </div>

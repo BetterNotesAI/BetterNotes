@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { DocumentResult, ProgramResult, CourseResult } from '@/app/api/search/route';
+import { useTranslation } from '@/lib/i18n';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function SpinnerIcon() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SearchPalette() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -305,7 +307,7 @@ export function SearchPalette() {
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Close search"
+        aria-label={t('search.closeSearch')}
         onClick={closePalette}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       />
@@ -314,7 +316,7 @@ export function SearchPalette() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Search"
+        aria-label={t('search.ariaLabel')}
         className="relative z-10 w-full max-w-xl bg-neutral-950 border border-white/15 rounded-2xl shadow-2xl overflow-hidden"
       >
         {/* Input row */}
@@ -328,7 +330,7 @@ export function SearchPalette() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search documents, degrees, courses..."
+            placeholder={t('search.placeholder')}
             className="flex-1 bg-transparent text-white placeholder-white/30 text-sm outline-none"
             autoComplete="off"
             spellCheck={false}
@@ -337,9 +339,9 @@ export function SearchPalette() {
             <button
               onClick={() => setQuery('')}
               className="shrink-0 text-white/35 hover:text-white/70 transition-colors text-xs"
-              aria-label="Clear search"
+              aria-label={t('search.clearSearch')}
             >
-              Clear
+              {t('search.clearSearch')}
             </button>
           )}
           <kbd className="shrink-0 text-[10px] text-white/25 bg-white/6 px-1.5 py-0.5 rounded font-mono hidden sm:block">
@@ -352,7 +354,7 @@ export function SearchPalette() {
           {/* Empty / prompt state */}
           {!hasQuery && (
             <div className="py-8 text-center text-sm text-white/35">
-              Start typing to search across BetterNotes
+              {t('search.empty')}
             </div>
           )}
 
@@ -374,8 +376,8 @@ export function SearchPalette() {
           {/* No results */}
           {noResults && (
             <div className="py-8 text-center">
-              <p className="text-sm text-white/40">No results for &quot;{query}&quot;</p>
-              <p className="text-xs text-white/25 mt-1">Try different keywords</p>
+              <p className="text-sm text-white/40">{t('search.noResults', { query })}</p>
+              <p className="text-xs text-white/25 mt-1">{t('search.noResultsHint')}</p>
             </div>
           )}
 
@@ -385,7 +387,7 @@ export function SearchPalette() {
               {results.documents.length > 0 && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-white/35 uppercase tracking-widest">
-                    Documents
+                    {t('search.sectionDocuments')}
                   </p>
                   {results.documents.map(d => renderDocumentItem(d))}
                 </div>
@@ -394,7 +396,7 @@ export function SearchPalette() {
               {results.programs.length > 0 && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-white/35 uppercase tracking-widest">
-                    Degrees
+                    {t('search.sectionDegrees')}
                   </p>
                   {results.programs.map(p => renderProgramItem(p))}
                 </div>
@@ -403,7 +405,7 @@ export function SearchPalette() {
               {results.courses.length > 0 && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-white/35 uppercase tracking-widest">
-                    Courses
+                    {t('search.sectionCourses')}
                   </p>
                   {results.courses.map(c => renderCourseItem(c))}
                 </div>
@@ -417,14 +419,14 @@ export function SearchPalette() {
           <div className="border-t border-white/8 px-4 py-2 flex items-center justify-between">
             <span className="text-[11px] text-white/30">
               {totalResults > 0
-                ? `${totalResults} result${totalResults !== 1 ? 's' : ''}`
-                : loading ? 'Searching...' : ''}
+                ? t(totalResults !== 1 ? 'search.resultsPlural' : 'search.results', { count: totalResults })
+                : loading ? t('search.searching') : ''}
             </span>
             <button
               onClick={openFullSearch}
               className="text-[11px] text-indigo-300/70 hover:text-indigo-200 transition-colors"
             >
-              View all results →
+              {t('search.viewAll')}
             </button>
           </div>
         )}
