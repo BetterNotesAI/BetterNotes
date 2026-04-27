@@ -57,7 +57,7 @@ export async function GET() {
   if (isIndependent) {
     const { data: docsRaw, error: docsError } = await supabase
       .from('documents')
-      .select('id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, user_id, university_id, program_id, course_id, university_slug, program_slug, profiles!documents_user_id_fkey(display_name, avatar_url)')
+      .select('id, title, template_id, published_at, university, degree, subject, visibility, keywords, view_count, like_count, user_id, university_id, program_id, course_id, profiles!documents_user_id_fkey(display_name, avatar_url)')
       .eq('is_published', true)
       .eq('visibility', 'public')
       .is('archived_at', null)
@@ -76,6 +76,8 @@ export async function GET() {
       return {
         ...d,
         profiles: undefined,
+        university_slug: null,
+        program_slug: null,
         author_name: profile?.display_name ?? null,
         author_avatar: profile?.avatar_url ?? null,
         user_liked: false,
