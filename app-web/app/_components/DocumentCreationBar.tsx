@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 
 // ── Typewriter placeholder ────────────────────────────────────────────────────
 const PLACEHOLDER_PROMPTS = [
@@ -169,6 +170,7 @@ export function DocumentCreationBar({
   onTemplateChange,
   lockTemplateSelection = false,
 }: Props) {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname() ?? '';
   const [prompt, setPrompt]   = useState(initialPrompt);
@@ -654,7 +656,7 @@ export function DocumentCreationBar({
                   rel="noreferrer"
                   className="text-xs text-white/40 hover:text-white/70 transition-colors"
                 >
-                  Open in new tab
+                  {t('home.openInNewTab')}
                 </a>
                 <button
                   onClick={() => setPdfPreviewId(null)}
@@ -806,7 +808,7 @@ export function DocumentCreationBar({
             {isLoading ? (
               <>
                 <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Building...</span>
+                <span>{t('docBar.building')}</span>
               </>
             ) : (
               <>

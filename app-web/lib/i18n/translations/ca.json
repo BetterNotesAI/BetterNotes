@@ -363,5 +363,7 @@
   "home.templateSelected": "Seleccionat",
   "home.templateSelect": "Seleccionar",
   "home.samplePdf": "PDF de mostra",
-  "home.openInNewTab": "Obre en una pestanya nova"
+  "home.openInNewTab": "Obre en una pestanya nova",
+
+  "docBar.building": "Generant..."
 }

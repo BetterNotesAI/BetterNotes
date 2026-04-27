@@ -363,5 +363,7 @@
   "home.templateSelected": "Selected",
   "home.templateSelect": "Select",
   "home.samplePdf": "Sample PDF",
-  "home.openInNewTab": "Open in new tab"
+  "home.openInNewTab": "Open in new tab",
+
+  "docBar.building": "Building..."
 }
