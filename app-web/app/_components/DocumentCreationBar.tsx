@@ -1,8 +1,91 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
+
+// ── Typewriter placeholder ────────────────────────────────────────────────────
+const PLACEHOLDER_PROMPTS = [
+  'Create a new STEM Repo',
+  'Do the physics behind Apollo 11',
+  'I have to create a last-minute summary about thermodynamics',
+  'What are Neural Networks?',
+  'Summarize quantum entanglement in 2 pages, my exam is in 3 hours',
+  'Why does my code compile but my grade doesn\'t',
+  'Explain Fourier transforms like I\'m running on 3 hours of sleep',
+  'Help me pretend I understood the entire semester in one cheat sheet',
+  'Linear algebra but make it make sense',
+  'Organic chemistry reaction mechanisms — send help',
+  'I need a cheat sheet for my calculus final, it\'s tomorrow',
+  'Explain the Krebs cycle before my professor does it worse',
+  'Why is there a differential equation in my biology exam',
+  'Make a summary of Keynesian economics before my dad proves me wrong',
+  'How does a CPU actually work and can it feel my panic',
+  'Prove the Pythagorean theorem, but make it actually interesting',
+  'Tolstoy but in bullet points',
+  'I need to understand the French Revolution in the next 20 minutes',
+  'My thesis is due tomorrow, please help',
+  'Explain Maxwell\'s equations to someone who cried during physics',
+];
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function useTypewriterPlaceholder(active: boolean): string {
+  const [displayed, setDisplayed] = useState('');
+  const queueRef = useRef<string[]>([]);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  const runCycle = useCallback(() => {
+    if (!activeRef.current) return;
+    if (queueRef.current.length === 0) queueRef.current = shuffle(PLACEHOLDER_PROMPTS);
+    const text = queueRef.current.shift()!;
+
+    let i = 0;
+    let eraseTimer: ReturnType<typeof setTimeout>;
+
+    // Type forward
+    const typeTimer = setInterval(() => {
+      if (!activeRef.current) { clearInterval(typeTimer); setDisplayed(''); return; }
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(typeTimer);
+        // Pause 2 s then erase
+        eraseTimer = setTimeout(() => {
+          let j = text.length;
+          const eraseInterval = setInterval(() => {
+            if (!activeRef.current) { clearInterval(eraseInterval); setDisplayed(''); return; }
+            j--;
+            setDisplayed(text.slice(0, j));
+            if (j <= 0) {
+              clearInterval(eraseInterval);
+              // Brief pause then next cycle
+              setTimeout(runCycle, 400);
+            }
+          }, 18);
+        }, 2000);
+      }
+    }, 38);
+
+    return () => { clearInterval(typeTimer); clearTimeout(eraseTimer); };
+  }, []);
+
+  useEffect(() => {
+    if (!active) { setDisplayed(''); return; }
+    const cleanup = runCycle();
+    return cleanup;
+  }, [active, runCycle]);
+
+  return displayed;
+}
 import { createClient } from '@/lib/supabase/client';
 import { GuestSignupModal } from '@/app/_components/GuestSignupModal';
 import {
@@ -102,6 +185,9 @@ export function DocumentCreationBar({
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const hasResumedPendingIntentRef = useRef(false);
+
+  const [isFocused, setIsFocused] = useState(false);
+  const animatedPlaceholder = useTypewriterPlaceholder(!prompt && !isFocused);
 
   const barRef         = useRef<HTMLDivElement>(null);
   const textareaRef    = useRef<HTMLTextAreaElement>(null);
@@ -611,17 +697,30 @@ export function DocumentCreationBar({
             : 'border-white/15 bg-white/[0.07]'
         }`}
       >
-        {/* Row 1: textarea */}
-        <div className="px-4 pt-3 pb-2">
+        {/* Row 1: textarea + animated placeholder overlay */}
+        <div className="px-4 pt-3 pb-2 relative">
+          {/* Animated typewriter placeholder — only visible when textarea is empty & unfocused */}
+          {!prompt && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 px-4 pt-3 text-sm text-white/30 leading-snug whitespace-pre-wrap break-words select-none"
+              style={{ paddingTop: '0.75rem' }}
+            >
+              {animatedPlaceholder}
+              {/* blinking cursor */}
+              <span className="inline-block w-[1.5px] h-[1em] bg-white/30 ml-[1px] align-text-bottom animate-pulse" />
+            </span>
+          )}
           <textarea
             ref={textareaRef}
             value={prompt}
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
-            onFocus={() => { setOpenPanel(null); setPopoverPos(null); }}
-            placeholder={placeholder}
+            onFocus={() => { setIsFocused(true); setOpenPanel(null); setPopoverPos(null); }}
+            onBlur={() => setIsFocused(false)}
+            placeholder=""
             rows={1}
-            className="w-full bg-transparent text-white/90 text-sm placeholder-white/30 resize-none focus:outline-none min-h-[36px] max-h-[160px] leading-snug"
+            className="relative w-full bg-transparent text-white/90 text-sm resize-none focus:outline-none min-h-[36px] max-h-[160px] leading-snug"
           />
         </div>
 
